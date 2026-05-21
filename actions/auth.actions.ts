@@ -113,7 +113,38 @@ export async function login(
   }
 
   // Fetch the profile to determine the user's role
-  const user = await getCurrentUser();
+  let user = await getCurrentUser();
+  if (!user) {
+    // If user is authenticated in Supabase but their PostgreSQL profile is missing
+    // (typically due to a database reset/wipe in development), auto-recreate their records
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const email = authUser.email || "";
+      const fullName = authUser.user_metadata?.full_name || email.split("@")[0] || "User";
+      try {
+        const created = await createOwnerWithOrganization({
+          userId: authUser.id,
+          email,
+          fullName,
+          organizationName: `${fullName}'s Organization`,
+        });
+
+        user = {
+          id: authUser.id,
+          email,
+          fullName,
+          role: "OWNER",
+          organizationId: created.organization.id,
+          shopId: null,
+          avatarUrl: authUser.user_metadata?.avatar_url || null,
+          isActive: true,
+        };
+      } catch (err) {
+        console.error("Failed to auto-recreate profile:", err);
+      }
+    }
+  }
+
   if (!user) {
     return {
       success: false,

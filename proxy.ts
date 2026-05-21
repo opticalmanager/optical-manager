@@ -38,9 +38,13 @@ export async function proxy(request: NextRequest) {
 
   // IMPORTANT: Do not use getSession() — it reads from storage without
   // validating the JWT. Always use getUser() for security.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    user = authUser;
+  } catch (err) {
+    console.error("[proxy] Supabase connection failed (network offline/timeout):", err);
+  }
 
   const { pathname } = request.nextUrl;
 

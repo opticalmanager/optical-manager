@@ -13,31 +13,64 @@ import { slugify } from "@/lib/utils";
  * Uses auth.uid() from Supabase to look up the profile.
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return null;
+    if (!user) return null;
 
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+    const [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
 
-  if (!profile) return null;
+    if (!profile) {
+      // If the database was reset/wiped in development but they have a valid Supabase session,
+      // auto-recreate their profile as an OWNER so they don't get stuck in a redirect loop.
+      const email = user.email || "";
+      const fullName = user.user_metadata?.full_name || email.split("@")[0] || "User";
+      try {
+        console.log(`[auth.service] Profile missing for ${email}. Auto-recreating owner profile...`);
+        const created = await createOwnerWithOrganization({
+          userId: user.id,
+          email,
+          fullName,
+          organizationName: `${fullName}'s Organization`,
+        });
 
-  return {
-    id: profile.id,
-    email: profile.email,
-    fullName: profile.fullName,
-    role: profile.role,
-    organizationId: profile.organizationId,
-    shopId: profile.shopId,
-    avatarUrl: profile.avatarUrl,
-    isActive: profile.isActive,
-  };
+        return {
+          id: user.id,
+          email,
+          fullName,
+          role: "OWNER",
+          organizationId: created.organization.id,
+          shopId: null,
+          avatarUrl: user.user_metadata?.avatar_url || null,
+          isActive: true,
+        };
+      } catch (err) {
+        console.error("[auth.service] Failed to auto-recreate profile in getCurrentUser:", err);
+        return null;
+      }
+    }
+
+    return {
+      id: profile.id,
+      email: profile.email,
+      fullName: profile.fullName,
+      role: profile.role,
+      organizationId: profile.organizationId,
+      shopId: profile.shopId,
+      avatarUrl: profile.avatarUrl,
+      isActive: profile.isActive,
+    };
+  } catch (error) {
+    console.error("[auth.service] Error in getCurrentUser:", error);
+    return null;
+  }
 }
 
 /**

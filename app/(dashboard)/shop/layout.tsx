@@ -32,7 +32,7 @@ export default async function ShopDashboardLayout({
     <div className="flex h-screen overflow-hidden bg-surface">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar />
+        <Topbar user={user} />
         <main className="flex-1 overflow-y-auto bg-surface p-8">
           {children}
         </main>
