@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   createOwnerWithOrganization,
   profileExists,
+  getCurrentUser,
 } from "@/services/auth.service";
 import { signupSchema, loginSchema, type FormState } from "@/utils/validators";
 
@@ -78,6 +79,7 @@ export async function signup(
 
 /**
  * Server Action: Log in an existing user.
+ * Routes to the correct dashboard based on the user's role.
  */
 export async function login(
   _prevState: FormState,
@@ -110,7 +112,21 @@ export async function login(
     };
   }
 
-  redirect("/owner/dashboard");
+  // Fetch the profile to determine the user's role
+  const user = await getCurrentUser();
+  if (!user) {
+    return {
+      success: false,
+      message: "Account profile not found. Please contact support.",
+    };
+  }
+
+  // Role-based redirect
+  if (user.role === "SHOP_MANAGER") {
+    redirect("/shop/dashboard");
+  }
+
+  redirect("/owner");
 }
 
 /**

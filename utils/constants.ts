@@ -57,7 +57,7 @@ export const TRIAL_DURATION_DAYS = 14;
 
 /** Navigation items for the sidebar */
 export const OWNER_NAV_ITEMS = [
-  { label: "Dashboard", href: "/owner/dashboard", icon: "LayoutDashboard" },
+  { label: "Dashboard", href: "/owner", icon: "LayoutDashboard" },
   { label: "Shops", href: "/owner/shops", icon: "Store" },
   { label: "Shop Managers", href: "/owner/shop-managers", icon: "Users" },
   { label: "Settings", href: "/owner/settings", icon: "Settings" },

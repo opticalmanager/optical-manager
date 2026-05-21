@@ -45,7 +45,6 @@ export const createShopSchema = z.object({
     .optional()
     .or(z.literal("")),
   email: z.string().email("Please enter a valid email.").optional().or(z.literal("")),
-  gstNumber: z.string().max(20).optional().or(z.literal("")),
 });
 
 // --- Shop Manager Schemas ---

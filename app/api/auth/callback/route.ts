@@ -5,6 +5,9 @@ import {
   createOwnerWithOrganization,
   profileExists,
 } from "@/services/auth.service";
+import { db } from "@/lib/drizzle";
+import { profiles } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * OAuth callback handler for Supabase.
@@ -15,7 +18,7 @@ import {
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/owner/dashboard";
+  const next = searchParams.get("next") ?? "/owner";
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
@@ -46,10 +49,14 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // Check if profile already exists
-  const hasProfile = await profileExists(data.user.id);
+  // Check if profile exists and get their role
+  const [profile] = await db
+    .select({ id: profiles.id, role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, data.user.id))
+    .limit(1);
 
-  if (!hasProfile) {
+  if (!profile) {
     // New user via OAuth — create organization and profile
     const fullName =
       data.user.user_metadata?.full_name ??
@@ -68,5 +75,8 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/onboarding`);
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  // Redirect based on role
+  const targetPath = profile.role === "SHOP_MANAGER" ? "/shop/dashboard" : "/owner";
+  return NextResponse.redirect(`${origin}${targetPath}`);
 }
+

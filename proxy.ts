@@ -58,7 +58,7 @@ export async function proxy(request: NextRequest) {
 
   if (user && (pathname === "/login" || pathname === "/signup")) {
     // Authenticated user trying to access auth pages — redirect to dashboard
-    return NextResponse.redirect(new URL("/owner/dashboard", request.url));
+    return NextResponse.redirect(new URL("/owner", request.url));
   }
 
   return supabaseResponse;

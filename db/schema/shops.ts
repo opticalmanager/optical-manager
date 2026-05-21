@@ -17,7 +17,6 @@ export const shops = pgTable("shops", {
   address: text("address"),
   phone: varchar("phone", { length: 20 }),
   email: varchar("email", { length: 255 }),
-  gstNumber: varchar("gst_number", { length: 20 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
