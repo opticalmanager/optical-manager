@@ -39,9 +39,21 @@ export default function OnboardingClient({ userEmail, userFullName, defaultOrgNa
   });
 
   // Step 1: Submit Organization Details
-  const handleOrgSubmit = async (data: typeof orgData) => {
+  const handleOrgSubmit = async (data: {
+    name: string;
+    slug: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  }) => {
     setIsLoading(true);
-    setOrgData(data); // save form data
+    setOrgData({
+      name: data.name,
+      slug: data.slug,
+      email: data.email || "",
+      phone: data.phone || "",
+      address: data.address || "",
+    });
 
     try {
       const response = await updateOrganizationAction({

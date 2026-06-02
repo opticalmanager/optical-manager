@@ -19,11 +19,11 @@ export default async function InvoicesPage() {
   // Calculate some basic KPIs
   const totalRevenue = invoices
     .filter(i => i.status === 'PAID')
-    .reduce((sum, i) => sum + Number(i.totalAmount), 0)
+    .reduce((sum, i) => sum + Number(i.total), 0)
 
   const pendingAmount = invoices
     .filter(i => i.status === 'PENDING')
-    .reduce((sum, i) => sum + Number(i.totalAmount), 0)
+    .reduce((sum, i) => sum + Number(i.total), 0)
 
   return (
     <div className="space-y-6">
@@ -134,7 +134,7 @@ export default async function InvoicesPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-text-muted">{formatDate(new Date(invoice.createdAt))}</td>
-                  <td className="px-6 py-4 font-bold text-primary text-right">{formatCurrency(Number(invoice.totalAmount))}</td>
+                  <td className="px-6 py-4 font-bold text-primary text-right">{formatCurrency(Number(invoice.total))}</td>
                   <td className="px-6 py-4 flex justify-center">
                     <Badge variant={
                       invoice.status === 'PAID' ? 'success' : 

@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: "Optical Manager — Multi-Tenant SaaS CRM for Optical Stores",
   description:
     "Manage your optical store with ease. Handle shops, customers, prescriptions, inventory, and invoices — all in one platform.",
+  icons: {
+    icon: "/optical-manager%20logo.svg",
+  },
 };
 
 export default function RootLayout({

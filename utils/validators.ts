@@ -59,16 +59,33 @@ export const createShopManagerSchema = z.object({
 // --- Customer Schemas ---
 
 export const customerSchema = z.object({
+  id: z.string().uuid("Invalid patient ID.").optional(),
   fullName: z.string().min(2, "Name is required.").max(255).trim(),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.string().email("Invalid email address.").optional().or(z.literal("")),
   phone: z
     .string()
-    .min(7, "Phone number is required.")
+    .min(7, "Phone number must be at least 7 digits.")
     .max(20)
     .trim(),
   dateOfBirth: z.string().optional().or(z.literal("")),
-  address: z.string().optional(),
-  notes: z.string().optional(),
+  address: z.string().optional().or(z.literal("")),
+  gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().or(z.literal("")),
+  bloodGroup: z.enum([
+    "A_POSITIVE",
+    "A_NEGATIVE",
+    "B_POSITIVE",
+    "B_NEGATIVE",
+    "AB_POSITIVE",
+    "AB_NEGATIVE",
+    "O_POSITIVE",
+    "O_NEGATIVE",
+  ]).optional().or(z.literal("")),
+  referredBy: z.string().optional().or(z.literal("")),
+  chiefComplaint: z.string().optional().or(z.literal("")),
+  familyHistory: z.string().optional().or(z.literal("")),
+  systemicIllness: z.string().optional().or(z.literal("")),
+  allergies: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
 });
 
 // --- Prescription Schemas ---
@@ -89,6 +106,24 @@ export const prescriptionSchema = z.object({
   prescribedAt: z.string().optional(),
 });
 
+export const prescriptionRowSchema = z.object({
+  rightSphere: z.string().optional().or(z.literal("")),
+  rightCylinder: z.string().optional().or(z.literal("")),
+  rightAxis: z.string().optional().or(z.literal("")),
+  rightAdd: z.string().optional().or(z.literal("")),
+  rightNv: z.string().optional().or(z.literal("")),
+
+  leftSphere: z.string().optional().or(z.literal("")),
+  leftCylinder: z.string().optional().or(z.literal("")),
+  leftAxis: z.string().optional().or(z.literal("")),
+  leftAdd: z.string().optional().or(z.literal("")),
+  leftNv: z.string().optional().or(z.literal("")),
+
+  pdRight: z.string().optional().or(z.literal("")),
+  pdLeft: z.string().optional().or(z.literal("")),
+  pd: z.string().optional().or(z.literal("")),
+});
+
 // --- Inventory Schemas ---
 
 export const inventorySchema = z.object({
@@ -101,6 +136,67 @@ export const inventorySchema = z.object({
   costPrice: z.string().optional().or(z.literal("")),
   quantity: z.coerce.number().int().min(0, "Quantity cannot be negative."),
   minQuantity: z.coerce.number().int().min(0).default(5),
+});
+
+export const frameItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  modelNumber: z.string().optional().or(z.literal("")),
+  colorCode: z.string().optional().or(z.literal("")),
+  size: z.string().optional().or(z.literal("")),
+  material: z.string().optional().or(z.literal("")),
+  frameShape: z.string().optional().or(z.literal("")),
+  targetDemographic: z.string().optional().or(z.literal("")),
+});
+
+export const editFrameItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  // Expiry controls
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  // Stock Refill controls
+  addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  modelNumber: z.string().optional().or(z.literal("")),
+  colorCode: z.string().optional().or(z.literal("")),
+  size: z.string().optional().or(z.literal("")),
+  material: z.string().optional().or(z.literal("")),
+  frameShape: z.string().optional().or(z.literal("")),
+  targetDemographic: z.string().optional().or(z.literal("")),
 });
 
 // --- Invoice Schemas ---
@@ -118,6 +214,47 @@ export const invoiceSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const invoiceItemSchema = z.object({
+  inventoryId: z.string().uuid().optional().nullable(),
+  description: z.string().min(1, "Product description is required."),
+  quantity: z.coerce.number().int().min(1, "Quantity must be at least 1."),
+  unitPrice: z.coerce.number().min(0, "Price cannot be negative."),
+  subtotal: z.coerce.number().min(0),
+  discountPercent: z.coerce.number().min(0).max(100).default(0),
+  discountAmount: z.coerce.number().min(0).default(0),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  cgstAmount: z.coerce.number().min(0).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstAmount: z.coerce.number().min(0).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstAmount: z.coerce.number().min(0).default(0),
+});
+
+export const patientVisitSchema = z.object({
+  customer: customerSchema,
+  prescriptionEnabled: z.boolean().default(false),
+  prescriptionType: z.object({
+    distance: z.boolean().default(false),
+    near: z.boolean().default(false),
+  }),
+  distancePrescription: prescriptionRowSchema.optional(),
+  nearPrescription: prescriptionRowSchema.optional(),
+  doctorName: z.string().optional().or(z.literal("")),
+  partyName: z.string().optional().or(z.literal("")),
+  frameName: z.string().optional().or(z.literal("")),
+  estimatedDelivery: z.string().optional().or(z.literal("")),
+  specialInstructions: z.string().optional().or(z.literal("")),
+  prescriptionNotes: z.string().optional().or(z.literal("")),
+  invoiceEnabled: z.boolean().default(false),
+  invoiceItems: z.array(invoiceItemSchema).optional(),
+  discountPercent: z.coerce.number().min(0).max(100).default(0),
+  taxPercent: z.coerce.number().min(0).max(100).default(0),
+  paymentMethod: z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER"]).default("CASH"),
+  amountPaid: z.coerce.number().min(0).default(0),
+  balanceDue: z.coerce.number().min(0).default(0),
+  notes: z.string().optional().or(z.literal("")),
+});
+
 // --- Form State Type ---
 
 export type FormState = {
@@ -125,3 +262,4 @@ export type FormState = {
   message?: string;
   errors?: Record<string, string[]>;
 } | undefined;
+

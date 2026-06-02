@@ -8,6 +8,27 @@
       "when": 1779374742005,
       "tag": "0000_organic_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779445945518,
+      "tag": "0001_warm_overlord",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780295022885,
+      "tag": "0002_fixed_mariko_yashida",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780329884565,
+      "tag": "0003_goofy_exiles",
+      "breakpoints": true
     }
   ]
 }

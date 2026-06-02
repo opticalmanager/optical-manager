@@ -1,19 +1,18 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, 
   Archive, 
   ReceiptText, 
-  Eye, 
   History, 
   Settings, 
   HelpCircle,
   Eye as EyeLogo
-} from "lucide-react"
+} from "lucide-react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 const navItems = [
   {
@@ -32,80 +31,102 @@ const navItems = [
     icon: ReceiptText,
   },
   {
-    title: "PRESCRIPTION MANAGEMENT",
-    href: "/shop/prescriptions",
-    icon: Eye,
-  },
-  {
-    title: "CUSTOMER HISTORY",
+    title: "CUSTOMER RECORDS",
     href: "/shop/customers",
     icon: History,
   },
-]
+];
 
-export function Sidebar() {
-  const pathname = usePathname()
+interface SidebarProps {
+  shopName?: string;
+  shopAddress?: string;
+}
+
+export function Sidebar({ shopName, shopAddress }: SidebarProps) {
+  const pathname = usePathname();
+
+  // Shorten shop address to display cleanly inside widget
+  const formattedAddress = shopAddress
+    ? shopAddress.split(",")[0].trim().toUpperCase()
+    : "PRECISION EYE CARE";
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r border-border bg-surface">
-      {/* Top Logo */}
-      <div className="flex h-16 items-center px-6 text-primary font-bold text-xl">
-        Optical Precision
+    <div className="flex h-screen w-64 flex-col border-r border-slate-200/80 bg-slate-50 select-none">
+      {/* Top Logo / Software Brand Header */}
+      <div className="flex h-16 items-center px-6 text-[#0a52c3] font-bold text-xl tracking-tight">
+        Software Manager
       </div>
 
-      {/* Shop Profile Widget */}
-      <div className="px-4 py-4">
-        <div className="flex items-center gap-3 rounded-lg bg-white p-3 shadow-sm border border-border/50">
-          <div className="flex h-10 w-10 items-center justify-center rounded bg-primary text-white">
+      {/* Dynamic Shop Profile Card Widget */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-sm border border-slate-200/40">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0a52c3] text-white shadow-sm shadow-[#0a52c3]/20">
             <EyeLogo className="h-5 w-5" />
           </div>
-          <div>
-            <h3 className="text-sm font-bold leading-tight">Clinical Curator</h3>
-            <p className="text-xs text-text-muted">PRECISION EYE CARE</p>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-extrabold text-slate-800 leading-tight truncate" title={shopName || "Clinical Curator"}>
+              {shopName || "Clinical Curator"}
+            </h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate mt-0.5" title={formattedAddress}>
+              {formattedAddress}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Main Navigation */}
+      {/* Main Navigation links */}
       <nav className="flex-1 space-y-1 px-4 py-2 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href)
+          // Dashboard exact match, others check starting paths
+          const isActive = item.href === "/shop/dashboard" 
+            ? pathname === item.href 
+            : pathname.startsWith(item.href);
           
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors",
+                "flex items-center gap-3 rounded-xl px-3.5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200",
                 isActive
-                  ? "bg-white text-primary shadow-sm"
-                  : "text-text-muted hover:bg-white/50 hover:text-text-main"
+                  ? "bg-white text-[#0a52c3] shadow-sm border border-slate-200/30 scale-[1.01]"
+                  : "text-slate-500 hover:bg-white/40 hover:text-slate-800"
               )}
             >
-              <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-text-muted")} />
+              <item.icon className={cn("h-4.5 w-4.5 transition-colors", isActive ? "text-[#0a52c3]" : "text-slate-400")} />
               {item.title}
             </Link>
-          )
+          );
         })}
       </nav>
 
-      {/* Bottom Navigation */}
-      <div className="border-t border-border p-4 space-y-1">
+      {/* Bottom Settings & Support Actions */}
+      <div className="border-t border-slate-200/80 p-4 space-y-1 bg-slate-50">
         <Link
-          href="/settings"
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-text-muted transition-colors hover:bg-white/50 hover:text-text-main"
+          href="/shop/settings"
+          className={cn(
+            "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-200",
+            pathname.startsWith("/shop/settings")
+              ? "bg-white text-[#0a52c3] shadow-sm border border-slate-200/30"
+              : "text-slate-500 hover:bg-white/40 hover:text-slate-800"
+          )}
         >
-          <Settings className="h-5 w-5" />
+          <Settings className="h-4.5 w-4.5 text-slate-400" />
           SETTINGS
         </Link>
         <Link
-          href="/support"
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-text-muted transition-colors hover:bg-white/50 hover:text-text-main"
+          href="/shop/support"
+          className={cn(
+            "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-200",
+            pathname.startsWith("/shop/support")
+              ? "bg-white text-[#0a52c3] shadow-sm border border-slate-200/30"
+              : "text-slate-500 hover:bg-white/40 hover:text-slate-800"
+          )}
         >
-          <HelpCircle className="h-5 w-5" />
+          <HelpCircle className="h-4.5 w-4.5 text-slate-400" />
           SUPPORT
         </Link>
       </div>
     </div>
-  )
+  );
 }

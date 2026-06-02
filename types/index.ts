@@ -18,7 +18,9 @@ export type {
   Customer,
   Prescription,
   InventoryItem,
+  FrameDetail,
   Invoice,
+  InvoiceItem,
   NewOrganization,
   NewProfile,
   NewShop,
@@ -26,5 +28,7 @@ export type {
   NewCustomer,
   NewPrescription,
   NewInventoryItem,
+  NewFrameDetail,
   NewInvoice,
+  NewInvoiceItem,
 } from "./database";

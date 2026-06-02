@@ -16,12 +16,12 @@ export default async function ShopDashboardPage() {
 
   // Fetch real data
   const invoices = await getInvoicesByShop(shopId)
-  const lowStockItems = await getLowStockItems(shopId, 5)
+  const lowStockItems = await getLowStockItems(shopId)
 
   // Mock data for KPIs
   const todaySales = invoices
     .filter(i => new Date(i.createdAt).toDateString() === new Date().toDateString())
-    .reduce((sum, i) => sum + Number(i.totalAmount), 0)
+    .reduce((sum, i) => sum + Number(i.total), 0)
 
   return (
     <div className="space-y-6">
@@ -185,7 +185,7 @@ export default async function ShopDashboardPage() {
                     </td>
                     <td className="px-6 py-4 text-text-muted">Optical Services</td>
                     <td className="px-6 py-4 text-text-muted">{formatDate(new Date(invoice.createdAt))}</td>
-                    <td className="px-6 py-4 font-bold text-primary text-right">{formatCurrency(Number(invoice.totalAmount))}</td>
+                    <td className="px-6 py-4 font-bold text-primary text-right">{formatCurrency(Number(invoice.total))}</td>
                     <td className="px-6 py-4 flex justify-center">
                       <Badge variant={
                         invoice.status === 'PAID' ? 'success' : 

@@ -14,7 +14,9 @@ import type {
   customers,
   prescriptions,
   inventory,
+  frameDetails,
   invoices,
+  invoiceItems,
 } from "@/db/schema";
 
 // --- Select Types (reading from DB) ---
@@ -25,7 +27,9 @@ export type Subscription = InferSelectModel<typeof subscriptions>;
 export type Customer = InferSelectModel<typeof customers>;
 export type Prescription = InferSelectModel<typeof prescriptions>;
 export type InventoryItem = InferSelectModel<typeof inventory>;
+export type FrameDetail = InferSelectModel<typeof frameDetails>;
 export type Invoice = InferSelectModel<typeof invoices>;
+export type InvoiceItem = InferSelectModel<typeof invoiceItems>;
 
 // --- Insert Types (writing to DB) ---
 export type NewOrganization = InferInsertModel<typeof organizations>;
@@ -35,4 +39,6 @@ export type NewSubscription = InferInsertModel<typeof subscriptions>;
 export type NewCustomer = InferInsertModel<typeof customers>;
 export type NewPrescription = InferInsertModel<typeof prescriptions>;
 export type NewInventoryItem = InferInsertModel<typeof inventory>;
+export type NewFrameDetail = InferInsertModel<typeof frameDetails>;
 export type NewInvoice = InferInsertModel<typeof invoices>;
+export type NewInvoiceItem = InferInsertModel<typeof invoiceItems>;

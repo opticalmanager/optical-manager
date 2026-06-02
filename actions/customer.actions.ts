@@ -35,8 +35,11 @@ export async function createCustomerAction(
   }
 
   try {
+    const { gender, bloodGroup, ...customerData } = validatedFields.data;
     await createCustomer({
-      ...validatedFields.data,
+      ...customerData,
+      gender: gender === "" ? null : gender,
+      bloodGroup: bloodGroup === "" ? null : bloodGroup,
       shopId,
       organizationId: user.organizationId,
     });
@@ -76,10 +79,15 @@ export async function updateCustomerAction(
   }
 
   try {
+    const { gender, bloodGroup, ...customerData } = validatedFields.data;
     await updateCustomer(
       customerId,
       user.organizationId,
-      validatedFields.data
+      {
+        ...customerData,
+        gender: gender === "" ? null : gender,
+        bloodGroup: bloodGroup === "" ? null : bloodGroup,
+      }
     );
 
     revalidatePath("/shop/customers");

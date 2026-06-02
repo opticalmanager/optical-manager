@@ -12,11 +12,20 @@ export {
   subscriptionPlanEnum,
   subscriptionStatusEnum,
 } from "./subscriptions";
-export { customers } from "./customers";
-export { prescriptions } from "./prescriptions";
+export {
+  customers,
+  genderEnum,
+  bloodGroupEnum,
+} from "./customers";
+export {
+  prescriptions,
+  prescriptionTypeEnum,
+} from "./prescriptions";
 export { inventory, inventoryCategoryEnum } from "./inventory";
+export { frameDetails } from "./frame-details";
 export {
   invoices,
   invoiceStatusEnum,
   paymentMethodEnum,
 } from "./invoices";
+export { invoiceItems } from "./invoice-items";

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const [state, formAction, isPending] = useActionState(login, null);
+  const [state, formAction, isPending] = useActionState(login, undefined);
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -72,7 +72,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <form action={signInWithGoogle}>
+          <form action={async () => { await signInWithGoogle(); }}>
             <Button type="submit" variant="outline" className="w-full font-bold shadow-sm">
               <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="none">
                 <path

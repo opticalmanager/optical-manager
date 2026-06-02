@@ -41,11 +41,20 @@ export const invoices = pgTable("invoices", {
   discount: decimal("discount", { precision: 10, scale: 2 })
     .notNull()
     .default("0"),
+  discountPercent: decimal("discount_percent", { precision: 5, scale: 2 })
+    .notNull()
+    .default("0"),
   tax: decimal("tax", { precision: 10, scale: 2 }).notNull().default("0"),
+  taxPercent: decimal("tax_percent", { precision: 5, scale: 2 })
+    .notNull()
+    .default("0"),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   status: invoiceStatusEnum("status").notNull().default("DRAFT"),
   paymentMethod: paymentMethodEnum("payment_method"),
+  amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  balanceDue: decimal("balance_due", { precision: 10, scale: 2 }).notNull().default("0.00"),
   notes: text("notes"),
+  specialInstructions: text("special_instructions"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

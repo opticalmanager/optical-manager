@@ -2,8 +2,43 @@
 
 import { db } from "@/lib/drizzle";
 import { customers } from "@/db/schema";
-import { eq, and, ilike, or } from "drizzle-orm";
+import { eq, and, ilike, or, sql } from "drizzle-orm";
 import type { Customer, NewCustomer } from "@/types";
+
+/**
+ * Generate a sequential registration ID in the format OP-YYYY-NNNN.
+ */
+export async function generateRegistrationId(shopId: string): Promise<string> {
+  const currentYear = new Date().getFullYear().toString();
+  const pattern = `OP-${currentYear}-%`;
+
+  const [lastCustomer] = await db
+    .select({
+      registrationId: customers.registrationId,
+    })
+    .from(customers)
+    .where(
+      and(
+        eq(customers.shopId, shopId),
+        ilike(customers.registrationId, pattern)
+      )
+    )
+    .orderBy(sql`registration_id DESC`)
+    .limit(1);
+
+  let nextSerial = 1;
+  if (lastCustomer?.registrationId) {
+    const parts = lastCustomer.registrationId.split("-");
+    const lastSerialStr = parts[2];
+    const lastSerial = parseInt(lastSerialStr, 10);
+    if (!isNaN(lastSerial)) {
+      nextSerial = lastSerial + 1;
+    }
+  }
+
+  const paddedSerial = nextSerial.toString().padStart(4, "0");
+  return `OP-${currentYear}-${paddedSerial}`;
+}
 
 /**
  * Get all customers for a shop.
