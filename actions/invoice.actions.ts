@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/services/auth.service";
 import { createInvoice, updateInvoice } from "@/services/invoice.service";
 import { invoiceSchema, type FormState } from "@/utils/validators";
-import { generateInvoiceNumber } from "@/lib/utils";
+import { generateInvoiceNumber } from "@/services/invoice.service";
 
 /**
  * Server Action: Create a new invoice.
@@ -40,7 +40,7 @@ export async function createInvoiceAction(
   try {
     await createInvoice({
       ...validatedFields.data,
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: await generateInvoiceNumber(shopId),
       shopId,
       organizationId: user.organizationId,
     });

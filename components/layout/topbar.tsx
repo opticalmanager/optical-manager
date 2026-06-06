@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { 
   Search, 
   Bell, 
@@ -31,6 +31,8 @@ interface TopbarProps {
 export function Topbar({ user, shopName }: TopbarProps) {
   const router = useRouter();
   const supabase = createClient();
+  
+  const pathname = usePathname();
   
   // Dropdown states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -109,6 +111,11 @@ export function Topbar({ user, shopName }: TopbarProps) {
 
   const humanReadableRole = user?.role === "SHOP_MANAGER" ? "Shop Manager" : "Owner";
 
+  // Dynamic placeholder based on route
+  const searchPlaceholder = pathname.startsWith("/shop/customers")
+    ? "Search patient name, ID, or phone..."
+    : "Search patients, invoices, or stock...";
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200/80 bg-white px-8 select-none z-20">
       
@@ -118,7 +125,7 @@ export function Topbar({ user, shopName }: TopbarProps) {
           <Search className="h-4 w-4 text-slate-400 shrink-0" />
           <input
             type="text"
-            placeholder="Search patients, invoices, or stock..."
+            placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => setSearchFocused(true)}

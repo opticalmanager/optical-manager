@@ -6,6 +6,8 @@ import {
   timestamp,
   decimal,
   pgEnum,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { shops } from "./shops";
 import { organizations } from "./organizations";
@@ -25,6 +27,13 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "BANK_TRANSFER",
 ]);
 
+export const fulfillmentStatusEnum = pgEnum("fulfillment_status", [
+  "PROCESSING",
+  "READY",
+  "DELIVERED",
+  "ON_HOLD",
+]);
+
 export const invoices = pgTable("invoices", {
   id: uuid("id").primaryKey().defaultRandom(),
   shopId: uuid("shop_id")
@@ -36,7 +45,7 @@ export const invoices = pgTable("invoices", {
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customers.id, { onDelete: "restrict" }),
-  invoiceNumber: varchar("invoice_number", { length: 50 }).unique().notNull(),
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   discount: decimal("discount", { precision: 10, scale: 2 })
     .notNull()
@@ -51,6 +60,7 @@ export const invoices = pgTable("invoices", {
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   status: invoiceStatusEnum("status").notNull().default("DRAFT"),
   paymentMethod: paymentMethodEnum("payment_method"),
+  fulfillmentStatus: fulfillmentStatusEnum("fulfillment_status").notNull().default("PROCESSING"),
   amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }).notNull().default("0.00"),
   balanceDue: decimal("balance_due", { precision: 10, scale: 2 }).notNull().default("0.00"),
   notes: text("notes"),
@@ -61,4 +71,9 @@ export const invoices = pgTable("invoices", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  orgInvoiceNumUnique: uniqueIndex("invoices_org_invoice_num_unique").on(table.organizationId, table.invoiceNumber),
+  shopIdIdx: index("invoices_shop_id_idx").on(table.shopId),
+  orgIdIdx: index("invoices_org_id_idx").on(table.organizationId),
+  invoiceNumberIdx: index("invoices_invoice_number_idx").on(table.invoiceNumber),
+}));

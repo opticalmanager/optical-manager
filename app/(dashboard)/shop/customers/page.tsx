@@ -1,37 +1,26 @@
-import { getCurrentUser } from "@/services/auth.service";
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/services/auth.service";
+import { getCustomersDashboard } from "@/services/customer.service";
+import { CustomerRecordsClient } from "@/components/shop/CustomerRecordsClient";
 
 export default async function CustomersPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  
+  if (!user) {
+    redirect("/login");
+  }
 
-  return (
-    <div>
-      <div className="page-header">
-        <h1>Customers</h1>
-        <button className="btn btn-primary">+ Add Customer</button>
+  const shopId = user.shopId;
+  if (!shopId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <p className="text-slate-500 font-semibold">No active shop associated with your session.</p>
       </div>
+    );
+  }
 
-      <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={5} className="empty-state">
-                No customers yet. Add your first customer.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // Fetch customer metrics from database
+  const customers = await getCustomersDashboard(shopId);
+
+  return <CustomerRecordsClient initialCustomers={customers} />;
 }

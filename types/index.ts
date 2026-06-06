@@ -21,6 +21,7 @@ export type {
   FrameDetail,
   Invoice,
   InvoiceItem,
+  StockMovement,
   NewOrganization,
   NewProfile,
   NewShop,
@@ -31,4 +32,6 @@ export type {
   NewFrameDetail,
   NewInvoice,
   NewInvoiceItem,
+  NewStockMovement,
 } from "./database";
+

@@ -6,6 +6,7 @@ import {
   timestamp,
   boolean,
   pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 import { shops } from "./shops";
@@ -31,4 +32,7 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  shopIdIdx: index("profiles_shop_id_idx").on(table.shopId),
+  orgIdIdx: index("profiles_org_id_idx").on(table.organizationId),
+}));

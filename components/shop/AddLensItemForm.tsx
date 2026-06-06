@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { 
   ArrowLeft, 
   Package, 
-  Sparkles, 
   DollarSign, 
   Sliders, 
   Image as ImageIcon, 
@@ -18,17 +17,17 @@ import {
   Calendar,
   AlertCircle
 } from "lucide-react";
-import { frameItemSchema } from "@/utils/validators";
-import { createFrameItemAction } from "@/actions/inventory.actions";
+import { lensItemSchema } from "@/utils/validators";
+import { createLensItemAction } from "@/actions/inventory.actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 
-interface AddFrameItemFormProps {
+interface AddLensItemFormProps {
   shopId: string;
 }
 
-export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
+export function AddLensItemForm({ shopId }: AddLensItemFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -39,39 +38,43 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
     setValue,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(frameItemSchema),
+    resolver: zodResolver(lensItemSchema),
     defaultValues: {
       name: "",
       brand: "",
       costPrice: 0,
       price: 0,
-      hsnCode: "90049000", // Standard Global HSN code for optical frames
+      hsnCode: "90015000", // Standard Global HSN code for optical lenses
       cgstPercent: 6,      // Standard SGST/CGST rates for optical products
       sgstPercent: 6,
       igstPercent: 12,
       vendorName: "",
       rackLocation: "",
+      purchaseInvoiceNo: "",
+      inwardDate: "",
       quantity: 0,
       minQuantity: 5,
       requiresExpiryTracking: false,
       batchNumber: "",
       expiryDate: "",
       imageUrl: "",
-      modelNumber: "",
-      colorCode: "",
-      size: "",
-      material: "Acetate",
-      frameShape: "Rectangle",
-      targetDemographic: "Unisex",
-      purchaseInvoiceNo: "",
-      inwardDate: "",
+      design: "Single Vision",
+      refractiveIndex: "1.56",
+      material: "CR-39",
+      blankDiameter: 70,
+      stockPower: "",
+      isUncoated: false,
+      isAntiReflective: false,
+      isBlueControl: false,
+      isTinted: false,
+      isPolarized: false,
+      isHardCoat: false,
+      isPhotochromic: false,
     },
   });
 
   // Watch fields for interactive live SKU preview
   const brand = watch("brand");
-  const modelNumber = watch("modelNumber");
-  const colorCode = watch("colorCode");
   const requiresExpiry = watch("requiresExpiryTracking");
   const imageUrl = watch("imageUrl");
 
@@ -82,26 +85,18 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
       .substring(0, 3)
       .toUpperCase()
       .padEnd(3, "X");
-    const m = (modelNumber || "000000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 6)
-      .toUpperCase();
-    const c = (colorCode || "000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 3)
-      .toUpperCase();
-    return `FRM-${b}${m}-${c}-###`;
+    return `LNS-${b}000000-000-###`;
   };
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
       try {
-        const result = await createFrameItemAction(undefined, data);
+        const result = await createLensItemAction(undefined, data);
         if (result?.success) {
-          toast.success(result.message || "Frame item saved successfully.");
+          toast.success(result.message || "Lens item saved successfully.");
           router.push("/shop/inventory");
         } else {
-          toast.error(result?.message || "Failed to save frame item.");
+          toast.error(result?.message || "Failed to save lens item.");
         }
       } catch (err: any) {
         console.error("Save error:", err);
@@ -128,7 +123,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
               Inventory Management
             </h1>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-              FRAMES INGESTION
+              LENSES INGESTION
             </span>
           </div>
           <p className="text-sm text-slate-500">
@@ -142,14 +137,14 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         <button
           type="button"
           onClick={() => router.push("/shop/inventory/add?category=frame")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
+          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
         >
           Frames
         </button>
         <button
           type="button"
           onClick={() => router.push("/shop/inventory/add?category=lens")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
         >
           Lenses
         </button>
@@ -185,14 +180,14 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
               </h2>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                   Item Name <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g. Ray-Ban Wayfarer Classic"
+                  placeholder="e.g. Crizal Prevencia 1.56 Spherical"
                   className="h-11 border-slate-200 bg-white"
                   {...register("name")}
                 />
@@ -216,7 +211,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                     className="h-11 bg-slate-50 border-dashed border-slate-300 text-indigo-600 font-mono font-bold"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Auto-generated using category, brand, model, color code and serial number.
+                    Auto-generated using category, brand and serial number.
                   </p>
                 </div>
 
@@ -226,7 +221,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban"
+                    placeholder="e.g. Essilor"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -236,101 +231,115 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Model Number
+                    Design
                   </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. RX5154"
-                    className="h-11 border-slate-200"
-                    {...register("modelNumber")}
-                  />
+                  <select
+                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
+                    {...register("design")}
+                  >
+                    <option value="Single Vision">Single Vision</option>
+                    <option value="Bifocal">Bifocal</option>
+                    <option value="Progressive">Progressive</option>
+                    <option value="Executive">Executive</option>
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Color Code
+                    Refractive Index
                   </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 2000"
-                    className="h-11 border-slate-200"
-                    {...register("colorCode")}
-                  />
+                  <select
+                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
+                    {...register("refractiveIndex")}
+                  >
+                    <option value="1.50">1.50</option>
+                    <option value="1.56">1.56</option>
+                    <option value="1.60">1.60</option>
+                    <option value="1.67">1.67</option>
+                    <option value="1.74">1.74</option>
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Size
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 52-18-140"
-                    className="h-11 border-slate-200"
-                    {...register("size")}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Material
+                    Optical Material
                   </label>
                   <select
                     className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
                     {...register("material")}
                   >
-                    <option value="Acetate">Acetate</option>
-                    <option value="Metal">Metal</option>
-                    <option value="Titanium">Titanium</option>
-                    <option value="TR-90">TR-90</option>
-                    <option value="Nylon">Nylon</option>
-                    <option value="Carbon Fiber">Carbon Fiber</option>
-                    <option value="Stainless Steel">Stainless Steel</option>
-                    <option value="Wood">Wood</option>
-                    <option value="Mixed">Mixed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Frame Shape
-                  </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("frameShape")}
-                  >
-                    <option value="Rectangle">Rectangle</option>
-                    <option value="Round">Round</option>
-                    <option value="Aviator">Aviator</option>
-                    <option value="Cat-Eye">Cat-Eye</option>
-                    <option value="Oval">Oval</option>
-                    <option value="Square">Square</option>
-                    <option value="Clubmaster">Clubmaster</option>
-                    <option value="Wrap">Wrap</option>
-                    <option value="Geometric">Geometric</option>
-                    <option value="Rimless">Rimless</option>
-                    <option value="Semi-Rimless">Semi-Rimless</option>
-                    <option value="Browline">Browline</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Target Demographic
-                  </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("targetDemographic")}
-                  >
-                    <option value="Unisex">Unisex</option>
-                    <option value="Men">Men</option>
-                    <option value="Women">Women</option>
-                    <option value="Children">Children</option>
-                    <option value="Teen">Teen</option>
+                    <option value="CR-39">CR-39</option>
+                    <option value="Polycarbonate">Polycarbonate</option>
+                    <option value="Trivex">Trivex</option>
+                    <option value="High-Index Plastic">High-Index Plastic</option>
+                    <option value="Glass">Glass</option>
                   </select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Blank Diameter (mm)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 70"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("blankDiameter")}
+                  />
+                  {errors.blankDiameter && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1">
+                      {errors.blankDiameter.message as string}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Stock Power Range
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. -4.00 to +4.00"
+                    className="h-11 border-slate-200"
+                    {...register("stockPower")}
+                  />
+                </div>
+              </div>
+
+              {/* Coatings & Enhancements */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
+                  Coatings & Enhancements
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    { name: "isUncoated", label: "Uncoated" },
+                    { name: "isAntiReflective", label: "Anti-Reflective" },
+                    { name: "isBlueControl", label: "Blue Control" },
+                    { name: "isTinted", label: "Tinted" },
+                    { name: "isPolarized", label: "Polarized" },
+                    { name: "isHardCoat", label: "Hard Coat" },
+                    { name: "isPhotochromic", label: "Photochromic" },
+                  ].map((item) => (
+                    <label
+                      key={item.name}
+                      className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 hover:border-indigo-500/50 hover:bg-slate-50/50 cursor-pointer select-none transition-all"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/25 cursor-pointer"
+                        {...register(item.name as any)}
+                      />
+                      <span className="text-xs font-semibold text-slate-700">
+                        {item.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -454,7 +463,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. A1-R4-B2"
+                    placeholder="e.g. A2-R1"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -486,6 +495,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                   />
                 </div>
               </div>
+
             </div>
           </div>
         </div>
@@ -562,7 +572,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                     Requires Expiry Tracking
                   </span>
                   <span className="block text-[10px] text-slate-400 leading-none">
-                    For contact lenses and fluids
+                    For special therapeutic lenses
                   </span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -582,7 +592,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A for Frames"}
+                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
                   className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
                   {...register("batchNumber")}

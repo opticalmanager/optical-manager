@@ -166,6 +166,15 @@ export function NewInvoiceForm() {
     }
   }, [selectedCustomerId]);
 
+  // Pre-load patient details if redirected from customer profile page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const customerId = params.get("customerId");
+    if (customerId) {
+      handleSelectPatient(customerId);
+    }
+  }, []);
+
   // Debounced Patient Search Trigger
   useEffect(() => {
     if (patientQuery.trim().length < 2) {

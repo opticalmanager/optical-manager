@@ -7,6 +7,7 @@ import {
   date,
   decimal,
   pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { customers } from "./customers";
 import { shops } from "./shops";
@@ -65,5 +66,9 @@ export const prescriptions = pgTable("prescriptions", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  shopIdIdx: index("prescriptions_shop_id_idx").on(table.shopId),
+  orgIdIdx: index("prescriptions_org_id_idx").on(table.organizationId),
+  customerIdIdx: index("prescriptions_customer_id_idx").on(table.customerId),
+}));
 

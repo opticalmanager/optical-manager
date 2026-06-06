@@ -8,11 +8,14 @@ import type { SessionUser } from "@/types";
 import { TRIAL_DURATION_DAYS } from "@/utils/constants";
 import { slugify } from "@/lib/utils";
 
+import { cache } from "react";
+
 /**
  * Fetches the current user's profile from the database.
  * Uses auth.uid() from Supabase to look up the profile.
+ * Cached to prevent multiple Supabase session roundtrips per page/layout render.
  */
-export async function getCurrentUser(): Promise<SessionUser | null> {
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<SessionUser | null> {
   try {
     const supabase = await createClient();
     const {
@@ -71,7 +74,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     console.error("[auth.service] Error in getCurrentUser:", error);
     return null;
   }
-}
+});
 
 /**
  * Creates a new organization, profile, and trial subscription

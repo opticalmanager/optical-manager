@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { 
   ArrowLeft, 
   Package, 
-  Sparkles, 
   DollarSign, 
   Sliders, 
   Image as ImageIcon, 
@@ -18,17 +17,17 @@ import {
   Calendar,
   AlertCircle
 } from "lucide-react";
-import { frameItemSchema } from "@/utils/validators";
-import { createFrameItemAction } from "@/actions/inventory.actions";
+import { contactLensItemSchema } from "@/utils/validators";
+import { createContactLensItemAction } from "@/actions/inventory.actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 
-interface AddFrameItemFormProps {
+interface AddContactLensItemFormProps {
   shopId: string;
 }
 
-export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
+export function AddContactLensItemForm({ shopId }: AddContactLensItemFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -39,69 +38,60 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
     setValue,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(frameItemSchema),
+    resolver: zodResolver(contactLensItemSchema),
     defaultValues: {
       name: "",
       brand: "",
       costPrice: 0,
       price: 0,
-      hsnCode: "90049000", // Standard Global HSN code for optical frames
-      cgstPercent: 6,      // Standard SGST/CGST rates for optical products
+      hsnCode: "90013000", // Standard HSN code for contact lenses
+      cgstPercent: 6,
       sgstPercent: 6,
       igstPercent: 12,
       vendorName: "",
       rackLocation: "",
+      purchaseInvoiceNo: "",
+      inwardDate: "",
       quantity: 0,
       minQuantity: 5,
-      requiresExpiryTracking: false,
+      requiresExpiryTracking: true, // Contact lenses typically require expiry tracking
       batchNumber: "",
       expiryDate: "",
       imageUrl: "",
-      modelNumber: "",
-      colorCode: "",
-      size: "",
-      material: "Acetate",
-      frameShape: "Rectangle",
-      targetDemographic: "Unisex",
-      purchaseInvoiceNo: "",
-      inwardDate: "",
+      modality: "Daily Disposable",
+      boxQuantity: 30,
+      baseCurve: "8.6",
+      diameter: "14.2",
+      color: "Clear / Tint",
+      sphere: "-0.00",
+      cylinder: "-0.00",
+      axis: "180",
+      addPower: "N/A",
     },
   });
 
-  // Watch fields for interactive live SKU preview
   const brand = watch("brand");
-  const modelNumber = watch("modelNumber");
-  const colorCode = watch("colorCode");
   const requiresExpiry = watch("requiresExpiryTracking");
   const imageUrl = watch("imageUrl");
 
-  // Compute live SKU preview code
   const getSkuPreview = () => {
     const b = (brand || "GEN")
       .replace(/[^A-Za-z]/g, "")
       .substring(0, 3)
       .toUpperCase()
       .padEnd(3, "X");
-    const m = (modelNumber || "000000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 6)
-      .toUpperCase();
-    const c = (colorCode || "000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 3)
-      .toUpperCase();
-    return `FRM-${b}${m}-${c}-###`;
+    return `CTL-${b}000000-000-###`;
   };
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
       try {
-        const result = await createFrameItemAction(undefined, data);
+        const result = await createContactLensItemAction(undefined, data);
         if (result?.success) {
-          toast.success(result.message || "Frame item saved successfully.");
+          toast.success(result.message || "Contact lens item saved successfully.");
           router.push("/shop/inventory");
         } else {
-          toast.error(result?.message || "Failed to save frame item.");
+          toast.error(result?.message || "Failed to save contact lens item.");
         }
       } catch (err: any) {
         console.error("Save error:", err);
@@ -111,7 +101,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-slate-800">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -127,8 +117,8 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Inventory Management
             </h1>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-              FRAMES INGESTION
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase">
+              CONTACT LENSES INGESTION
             </span>
           </div>
           <p className="text-sm text-slate-500">
@@ -142,7 +132,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         <button
           type="button"
           onClick={() => router.push("/shop/inventory/add?category=frame")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
+          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
         >
           Frames
         </button>
@@ -156,7 +146,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         <button
           type="button"
           onClick={() => router.push("/shop/inventory/add?category=contact_lens")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
         >
           Contact Lenses
         </button>
@@ -174,25 +164,25 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         {/* Left Side Fields: 8 columns */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* Card: Basic Information */}
+          {/* Card: Contact Lens Specifications */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
               <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                 <Info className="h-4 w-4" />
               </div>
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-900">
-                Basic Information
+                Contact Lens Specifications
               </h2>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                   Item Name <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g. Ray-Ban Wayfarer Classic"
+                  placeholder="e.g., Acuvue Oasys for Astigmatism"
                   className="h-11 border-slate-200 bg-white"
                   {...register("name")}
                 />
@@ -206,7 +196,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     SKU Identification (Auto)
                   </label>
                   <Input
@@ -215,122 +205,141 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                     value={getSkuPreview()}
                     className="h-11 bg-slate-50 border-dashed border-slate-300 text-indigo-600 font-mono font-bold"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Auto-generated using category, brand, model, color code and serial number.
-                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Brand
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Brand / Manufacturer
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban"
+                    placeholder="e.g., Johnson & Johnson"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Model Number
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Modality
                   </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. RX5154"
-                    className="h-11 border-slate-200"
-                    {...register("modelNumber")}
-                  />
+                  <select
+                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold animate-transition"
+                    {...register("modality")}
+                  >
+                    <option value="Daily Disposable">Daily Disposable</option>
+                    <option value="Weekly Disposable">Weekly Disposable</option>
+                    <option value="Monthly Disposable">Monthly Disposable</option>
+                    <option value="Yearly">Yearly</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Color Code
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Box Quantity
                   </label>
                   <Input
-                    type="text"
-                    placeholder="e.g. 2000"
-                    className="h-11 border-slate-200"
-                    {...register("colorCode")}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Size
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 52-18-140"
-                    className="h-11 border-slate-200"
-                    {...register("size")}
+                    type="number"
+                    placeholder="e.g., 30"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("boxQuantity")}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Material
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Base Curve (BC)
                   </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("material")}
-                  >
-                    <option value="Acetate">Acetate</option>
-                    <option value="Metal">Metal</option>
-                    <option value="Titanium">Titanium</option>
-                    <option value="TR-90">TR-90</option>
-                    <option value="Nylon">Nylon</option>
-                    <option value="Carbon Fiber">Carbon Fiber</option>
-                    <option value="Stainless Steel">Stainless Steel</option>
-                    <option value="Wood">Wood</option>
-                    <option value="Mixed">Mixed</option>
-                  </select>
+                  <Input
+                    type="text"
+                    placeholder="e.g., 8.6"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("baseCurve")}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Frame Shape
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Diameter (DIA)
                   </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("frameShape")}
-                  >
-                    <option value="Rectangle">Rectangle</option>
-                    <option value="Round">Round</option>
-                    <option value="Aviator">Aviator</option>
-                    <option value="Cat-Eye">Cat-Eye</option>
-                    <option value="Oval">Oval</option>
-                    <option value="Square">Square</option>
-                    <option value="Clubmaster">Clubmaster</option>
-                    <option value="Wrap">Wrap</option>
-                    <option value="Geometric">Geometric</option>
-                    <option value="Rimless">Rimless</option>
-                    <option value="Semi-Rimless">Semi-Rimless</option>
-                    <option value="Browline">Browline</option>
-                  </select>
+                  <Input
+                    type="text"
+                    placeholder="e.g., 14.2"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("diameter")}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Target Demographic
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Color
                   </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("targetDemographic")}
-                  >
-                    <option value="Unisex">Unisex</option>
-                    <option value="Men">Men</option>
-                    <option value="Women">Women</option>
-                    <option value="Children">Children</option>
-                    <option value="Teen">Teen</option>
-                  </select>
+                  <Input
+                    type="text"
+                    placeholder="e.g., Clear / Tint"
+                    className="h-11 border-slate-200"
+                    {...register("color")}
+                  />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Sphere (SPH)
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., -2.25"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("sphere")}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Cylinder (CYL)
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., -0.75"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("cylinder")}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Axis
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., 180"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("axis")}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Add Power
+                </label>
+                <select
+                  className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
+                  {...register("addPower")}
+                >
+                  <option value="N/A">N/A</option>
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </div>
+
             </div>
           </div>
 
@@ -348,7 +357,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     Acquisition Cost (₹)
                   </label>
                   <div className="relative">
@@ -364,8 +373,8 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Selling Retail Price (₹) <span className="text-rose-500">*</span>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Retail Selling Price (₹) <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-3 text-slate-400 text-sm font-semibold">₹</span>
@@ -388,7 +397,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     HSN/SAC Code
                   </label>
                   <Input
@@ -399,7 +408,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     CGST (%)
                   </label>
                   <Input
@@ -411,7 +420,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     SGST (%)
                   </label>
                   <Input
@@ -423,7 +432,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     IGST (%)
                   </label>
                   <Input
@@ -437,7 +446,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     Vendor Name
                   </label>
                   <Input
@@ -449,43 +458,18 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     Physical Rack/Bin Location
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. A1-R4-B2"
+                    placeholder="e.g. L-R2-B4"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Purchase Invoice No.
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Enter purchase invoice number"
-                    className="h-11 border-slate-200"
-                    {...register("purchaseInvoiceNo")}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    Purchase Date
-                  </label>
-                  <Input
-                    type="date"
-                    className="h-11 border-slate-200"
-                    {...register("inwardDate")}
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -498,7 +482,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <ImageIcon className="h-4 w-4 text-indigo-600" />
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-900">
-                Asset Upload
+                Upload Master Image
               </h2>
             </div>
             
@@ -521,48 +505,67 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Initial Stock Count
-                  </label>
-                  <Input
-                    type="number"
-                    className="h-11 border-slate-200"
-                    {...register("quantity")}
-                  />
-                  {errors.quantity && (
-                    <p className="text-xs text-rose-500 font-semibold mt-1">
-                      {errors.quantity.message as string}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Initial Unit Count
+                </label>
+                <Input
+                  type="number"
+                  className="h-11 border-slate-200"
+                  {...register("quantity")}
+                />
+                {errors.quantity && (
+                  <p className="text-xs text-rose-500 font-semibold mt-1">
+                    {errors.quantity.message as string}
+                  </p>
+                )}
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Min Alert Level
-                  </label>
-                  <Input
-                    type="number"
-                    className="h-11 border-slate-200"
-                    {...register("minQuantity")}
-                  />
-                  {errors.minQuantity && (
-                    <p className="text-xs text-rose-500 font-semibold mt-1">
-                      {errors.minQuantity.message as string}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Purchase Invoice No.
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g., PI-2024-001"
+                  className="h-11 border-slate-200"
+                  {...register("purchaseInvoiceNo")}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5 flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Purchase Date
+                </label>
+                <Input
+                  type="date"
+                  className="h-11 border-slate-200"
+                  {...register("inwardDate")}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Low Stock Threshold
+                </label>
+                <Input
+                  type="number"
+                  className="h-11 border-slate-200"
+                  {...register("minQuantity")}
+                />
+                {errors.minQuantity && (
+                  <p className="text-xs text-rose-500 font-semibold mt-1">
+                    {errors.minQuantity.message as string}
+                  </p>
+                )}
               </div>
 
               {/* Requires Expiry Tracking Toggle */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl animate-transition">
                 <div className="space-y-0.5">
                   <span className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
                     Requires Expiry Tracking
-                  </span>
-                  <span className="block text-[10px] text-slate-400 leading-none">
-                    For contact lenses and fluids
                   </span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -577,12 +580,12 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               {/* Batch Number */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Batch/Lot Number
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Batch Number
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A for Frames"}
+                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
                   className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
                   {...register("batchNumber")}
@@ -591,7 +594,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               {/* Expiry Date */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5 flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
                   Expiry Date
                 </label>
@@ -612,7 +615,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         <button
           type="button"
           onClick={() => router.push("/shop/inventory")}
-          className="text-xs font-bold uppercase tracking-wider text-slate-650 hover:text-slate-900 transition-colors"
+          className="text-xs font-bold font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-900 transition-colors"
         >
           Cancel Action
         </button>

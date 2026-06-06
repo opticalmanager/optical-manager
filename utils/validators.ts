@@ -151,6 +151,9 @@ export const frameItemSchema = z.object({
   vendorName: z.string().optional().or(z.literal("")),
   rackLocation: z.string().optional().or(z.literal("")),
   
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
   quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
   requiresExpiryTracking: z.boolean().default(false),
@@ -180,6 +183,9 @@ export const editFrameItemSchema = z.object({
   vendorName: z.string().optional().or(z.literal("")),
   rackLocation: z.string().optional().or(z.literal("")),
   
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
   // Expiry controls
   requiresExpiryTracking: z.boolean().default(false),
   batchNumber: z.string().optional().or(z.literal("")),
@@ -197,6 +203,222 @@ export const editFrameItemSchema = z.object({
   material: z.string().optional().or(z.literal("")),
   frameShape: z.string().optional().or(z.literal("")),
   targetDemographic: z.string().optional().or(z.literal("")),
+});
+
+export const lensItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
+  quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  // Lens specific parameters
+  design: z.string().optional().or(z.literal("")),
+  refractiveIndex: z.string().optional().or(z.literal("")),
+  material: z.string().optional().or(z.literal("")),
+  blankDiameter: z.coerce.number().int().min(0).default(65),
+  stockPower: z.string().optional().or(z.literal("")),
+  
+  // Coatings & Enhancements (Checkboxes)
+  isUncoated: z.boolean().default(false),
+  isAntiReflective: z.boolean().default(false),
+  isBlueControl: z.boolean().default(false),
+  isTinted: z.boolean().default(false),
+  isPolarized: z.boolean().default(false),
+  isHardCoat: z.boolean().default(false),
+  isPhotochromic: z.boolean().default(false),
+});
+
+export const editLensItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
+  // Expiry controls
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  // Stock Refill controls
+  addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  // Lens specific parameters
+  design: z.string().optional().or(z.literal("")),
+  refractiveIndex: z.string().optional().or(z.literal("")),
+  material: z.string().optional().or(z.literal("")),
+  blankDiameter: z.coerce.number().int().min(0).default(65),
+  stockPower: z.string().optional().or(z.literal("")),
+  
+  // Coatings & Enhancements (Checkboxes)
+  isUncoated: z.boolean().default(false),
+  isAntiReflective: z.boolean().default(false),
+  isBlueControl: z.boolean().default(false),
+  isTinted: z.boolean().default(false),
+  isPolarized: z.boolean().default(false),
+  isHardCoat: z.boolean().default(false),
+  isPhotochromic: z.boolean().default(false),
+});
+
+export const contactLensItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
+  quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  // Contact lens specific
+  modality: z.string().optional().or(z.literal("")),
+  boxQuantity: z.coerce.number().int().min(0).default(30),
+  baseCurve: z.string().optional().or(z.literal("")),
+  diameter: z.string().optional().or(z.literal("")),
+  color: z.string().optional().or(z.literal("")),
+  sphere: z.string().optional().or(z.literal("")),
+  cylinder: z.string().optional().or(z.literal("")),
+  axis: z.string().optional().or(z.literal("")),
+  addPower: z.string().optional().or(z.literal("")),
+});
+
+export const editContactLensItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  modality: z.string().optional().or(z.literal("")),
+  boxQuantity: z.coerce.number().int().min(0).default(30),
+  baseCurve: z.string().optional().or(z.literal("")),
+  diameter: z.string().optional().or(z.literal("")),
+  color: z.string().optional().or(z.literal("")),
+  sphere: z.string().optional().or(z.literal("")),
+  cylinder: z.string().optional().or(z.literal("")),
+  axis: z.string().optional().or(z.literal("")),
+  addPower: z.string().optional().or(z.literal("")),
+});
+
+export const accessoryItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
+  quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  type: z.string().min(1, "Accessory type is required."),
+  sizeVolume: z.string().optional().or(z.literal("")),
+  colorPattern: z.string().optional().or(z.literal("")),
+});
+
+export const editAccessoryItemSchema = z.object({
+  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  brand: z.string().optional().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().or(z.literal("")),
+  rackLocation: z.string().optional().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().or(z.literal("")),
+  inwardDate: z.string().optional().or(z.literal("")),
+  
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().or(z.literal("")),
+  expiryDate: z.string().optional().or(z.literal("")),
+  
+  addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  
+  imageUrl: z.string().optional().or(z.literal("")),
+  
+  type: z.string().min(1, "Accessory type is required."),
+  sizeVolume: z.string().optional().or(z.literal("")),
+  colorPattern: z.string().optional().or(z.literal("")),
 });
 
 // --- Invoice Schemas ---

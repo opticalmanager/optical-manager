@@ -17,7 +17,9 @@ import type {
   frameDetails,
   invoices,
   invoiceItems,
+  stockMovements,
 } from "@/db/schema";
+
 
 // --- Select Types (reading from DB) ---
 export type Organization = InferSelectModel<typeof organizations>;
@@ -30,6 +32,7 @@ export type InventoryItem = InferSelectModel<typeof inventory>;
 export type FrameDetail = InferSelectModel<typeof frameDetails>;
 export type Invoice = InferSelectModel<typeof invoices>;
 export type InvoiceItem = InferSelectModel<typeof invoiceItems>;
+export type StockMovement = InferSelectModel<typeof stockMovements>;
 
 // --- Insert Types (writing to DB) ---
 export type NewOrganization = InferInsertModel<typeof organizations>;
@@ -42,3 +45,5 @@ export type NewInventoryItem = InferInsertModel<typeof inventory>;
 export type NewFrameDetail = InferInsertModel<typeof frameDetails>;
 export type NewInvoice = InferInsertModel<typeof invoices>;
 export type NewInvoiceItem = InferInsertModel<typeof invoiceItems>;
+export type NewStockMovement = InferInsertModel<typeof stockMovements>;
+

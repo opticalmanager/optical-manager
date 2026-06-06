@@ -6,7 +6,7 @@ import { customers, prescriptions, invoices, invoiceItems } from "@/db/schema";
 import { getCurrentUser } from "@/services/auth.service";
 import { generateRegistrationId } from "@/services/customer.service";
 import { decrementInventoryStock } from "@/services/inventory.service";
-import { generateInvoiceNumber } from "@/lib/utils";
+import { generateInvoiceNumber } from "@/services/invoice.service";
 import { patientVisitSchema } from "@/utils/validators";
 import { revalidatePath } from "next/cache";
 
@@ -341,7 +341,7 @@ export async function registerPatientAndInvoiceAction(
       );
       const totalVal = subtotalVal - discountVal + taxVal;
 
-      const invoiceNumber = generateInvoiceNumber("OPINV");
+      const invoiceNumber = await generateInvoiceNumber(shopId);
 
       // 5. Create Invoice
       const [invoice] = await tx
@@ -394,7 +394,11 @@ export async function registerPatientAndInvoiceAction(
             item.inventoryId,
             user.organizationId,
             item.quantity,
-            tx
+            tx,
+            "SALE_INVOICE",
+            invoice.invoiceNumber,
+            customerRecord.fullName,
+            user.id
           );
         }
       }

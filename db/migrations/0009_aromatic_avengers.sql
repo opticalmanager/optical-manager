@@ -1,0 +1,2 @@
+CREATE TYPE "public"."fulfillment_status" AS ENUM('PROCESSING', 'READY', 'DELIVERED', 'ON_HOLD');--> statement-breakpoint
+ALTER TABLE "invoices" ADD COLUMN "fulfillment_status" "fulfillment_status" DEFAULT 'PROCESSING' NOT NULL;

@@ -69,6 +69,8 @@ export function EditFrameItemForm({
       targetDemographic: initialData.targetDemographic || "Unisex",
       addStockQuantity: 0,
       minQuantity: initialData.minQuantity || 5,
+      purchaseInvoiceNo: initialData.purchaseInvoiceNo || "",
+      inwardDate: initialData.inwardDate || "",
     },
   });
 
@@ -424,6 +426,32 @@ export function EditFrameItemForm({
                     placeholder="e.g. A1-R4-B2"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Purchase Invoice No.
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Enter purchase invoice number"
+                    className="h-11 border-slate-200"
+                    {...register("purchaseInvoiceNo")}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Purchase Date
+                  </label>
+                  <Input
+                    type="date"
+                    className="h-11 border-slate-200"
+                    {...register("inwardDate")}
                   />
                 </div>
               </div>

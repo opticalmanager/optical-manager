@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     }
 
     // 1. Parallel Lookup: Search Patients (Customers)
-    const customerResults = await db
+    const customerQuery = db
       .select({
         id: customers.id,
         name: customers.fullName,
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       .limit(5);
 
     // 2. Parallel Lookup: Search Stock Inventory (Frames, Lenses, etc.)
-    const inventoryResults = await db
+    const inventoryQuery = db
       .select({
         id: inventory.id,
         name: inventory.name,
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
       .limit(5);
 
     // 3. Parallel Lookup: Search Invoices Ledger
-    const invoiceResults = await db
+    const invoiceQuery = db
       .select({
         id: invoices.id,
         invoiceNumber: invoices.invoiceNumber,
@@ -103,6 +103,13 @@ export async function GET(request: Request) {
         )
       )
       .limit(5);
+
+    // Execute queries in parallel to minimize response latency
+    const [customerResults, inventoryResults, invoiceResults] = await Promise.all([
+      customerQuery,
+      inventoryQuery,
+      invoiceQuery,
+    ]);
 
     return NextResponse.json({
       customers: customerResults,

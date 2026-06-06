@@ -23,9 +23,15 @@ export {
 } from "./prescriptions";
 export { inventory, inventoryCategoryEnum } from "./inventory";
 export { frameDetails } from "./frame-details";
+export { lensDetails } from "./lens-details";
+export { contactLensDetails } from "./contact-lens-details";
+export { accessoryDetails } from "./accessory-details";
 export {
   invoices,
   invoiceStatusEnum,
   paymentMethodEnum,
+  fulfillmentStatusEnum,
 } from "./invoices";
 export { invoiceItems } from "./invoice-items";
+export { stockMovements, movementTypeEnum } from "./stock-movements";
+

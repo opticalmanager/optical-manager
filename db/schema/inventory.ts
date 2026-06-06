@@ -9,6 +9,7 @@ import {
   integer,
   pgEnum,
   date,
+  index,
 } from "drizzle-orm/pg-core";
 import { shops } from "./shops";
 import { organizations } from "./organizations";
@@ -51,6 +52,10 @@ export const inventory = pgTable("inventory", {
   requiresExpiryTracking: boolean("requires_expiry_tracking").notNull().default(false),
   batchNumber: varchar("batch_number", { length: 100 }),
   expiryDate: date("expiry_date"),
+  
+  // Purchase details additions
+  purchaseInvoiceNo: varchar("purchase_invoice_no", { length: 100 }),
+  inwardDate: date("inward_date"),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -58,4 +63,10 @@ export const inventory = pgTable("inventory", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  shopIdIdx: index("inventory_shop_id_idx").on(table.shopId),
+  orgIdIdx: index("inventory_org_id_idx").on(table.organizationId),
+  categoryIdx: index("inventory_category_idx").on(table.category),
+  skuIdx: index("inventory_sku_idx").on(table.sku),
+  shopActiveIdx: index("inventory_shop_active_idx").on(table.shopId, table.isActive),
+}));

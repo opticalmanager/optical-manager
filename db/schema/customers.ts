@@ -6,6 +6,8 @@ import {
   timestamp,
   date,
   pgEnum,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { shops } from "./shops";
 import { organizations } from "./organizations";
@@ -30,7 +32,7 @@ export const customers = pgTable("customers", {
   organizationId: uuid("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  registrationId: varchar("registration_id", { length: 50 }).unique(),
+  registrationId: varchar("registration_id", { length: 50 }),
   fullName: varchar("full_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }),
   phone: varchar("phone", { length: 20 }).notNull(),
@@ -50,5 +52,10 @@ export const customers = pgTable("customers", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  orgRegIdUnique: uniqueIndex("customers_org_reg_id_unique").on(table.organizationId, table.registrationId),
+  shopIdIdx: index("customers_shop_id_idx").on(table.shopId),
+  orgIdIdx: index("customers_org_id_idx").on(table.organizationId),
+  phoneIdx: index("customers_phone_idx").on(table.phone),
+}));
 

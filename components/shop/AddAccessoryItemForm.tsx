@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { 
   ArrowLeft, 
   Package, 
-  Sparkles, 
   DollarSign, 
   Sliders, 
   Image as ImageIcon, 
@@ -18,19 +17,33 @@ import {
   Calendar,
   AlertCircle
 } from "lucide-react";
-import { frameItemSchema } from "@/utils/validators";
-import { createFrameItemAction } from "@/actions/inventory.actions";
+import { accessoryItemSchema } from "@/utils/validators";
+import { createAccessoryItemAction } from "@/actions/inventory.actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 
-interface AddFrameItemFormProps {
+interface AddAccessoryItemFormProps {
   shopId: string;
 }
 
-export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
+const STANDARD_ACCESSORY_TYPES = [
+  "Eyeglass Case / Hard Case",
+  "Contact Lens Solution",
+  "Eyewear Cleaner Spray",
+  "Microfiber Cleaning Cloth",
+  "Eyeglass Chain / Strap",
+  "Screwdriver / Repair Kit",
+  "Silicone Nose Pads",
+  "Clip-on Sunglasses",
+  "Anti-fog Wipes / Spray",
+  "Contact Lens Case"
+];
+
+export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isCustomType, setIsCustomType] = useState(false);
 
   const {
     register,
@@ -39,69 +52,70 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
     setValue,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(frameItemSchema),
+    resolver: zodResolver(accessoryItemSchema),
     defaultValues: {
       name: "",
       brand: "",
       costPrice: 0,
       price: 0,
-      hsnCode: "90049000", // Standard Global HSN code for optical frames
-      cgstPercent: 6,      // Standard SGST/CGST rates for optical products
+      hsnCode: "90049000",
+      cgstPercent: 6,
       sgstPercent: 6,
       igstPercent: 12,
       vendorName: "",
       rackLocation: "",
+      purchaseInvoiceNo: "",
+      inwardDate: "",
       quantity: 0,
       minQuantity: 5,
       requiresExpiryTracking: false,
       batchNumber: "",
       expiryDate: "",
       imageUrl: "",
-      modelNumber: "",
-      colorCode: "",
-      size: "",
-      material: "Acetate",
-      frameShape: "Rectangle",
-      targetDemographic: "Unisex",
-      purchaseInvoiceNo: "",
-      inwardDate: "",
+      type: "Eyeglass Case / Hard Case",
+      customType: "",
+      sizeVolume: "",
+      colorPattern: "",
     },
   });
 
-  // Watch fields for interactive live SKU preview
   const brand = watch("brand");
-  const modelNumber = watch("modelNumber");
-  const colorCode = watch("colorCode");
   const requiresExpiry = watch("requiresExpiryTracking");
   const imageUrl = watch("imageUrl");
+  const selectedType = watch("type");
 
-  // Compute live SKU preview code
+  useEffect(() => {
+    if (selectedType === "Other") {
+      setIsCustomType(true);
+    } else {
+      setIsCustomType(false);
+    }
+  }, [selectedType]);
+
   const getSkuPreview = () => {
     const b = (brand || "GEN")
       .replace(/[^A-Za-z]/g, "")
       .substring(0, 3)
       .toUpperCase()
       .padEnd(3, "X");
-    const m = (modelNumber || "000000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 6)
-      .toUpperCase();
-    const c = (colorCode || "000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 3)
-      .toUpperCase();
-    return `FRM-${b}${m}-${c}-###`;
+    return `ACC-${b}000000-000-###`;
   };
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
       try {
-        const result = await createFrameItemAction(undefined, data);
+        const payload = { ...data };
+        if (payload.type === "Other") {
+          payload.type = payload.customType || "Other";
+        }
+        delete payload.customType;
+
+        const result = await createAccessoryItemAction(undefined, payload);
         if (result?.success) {
-          toast.success(result.message || "Frame item saved successfully.");
+          toast.success(result.message || "Accessory item saved successfully.");
           router.push("/shop/inventory");
         } else {
-          toast.error(result?.message || "Failed to save frame item.");
+          toast.error(result?.message || "Failed to save accessory item.");
         }
       } catch (err: any) {
         console.error("Save error:", err);
@@ -111,7 +125,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-slate-800">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -127,8 +141,8 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Inventory Management
             </h1>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-              FRAMES INGESTION
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase">
+              ACCESSORIES INGESTION
             </span>
           </div>
           <p className="text-sm text-slate-500">
@@ -142,7 +156,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         <button
           type="button"
           onClick={() => router.push("/shop/inventory/add?category=frame")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
+          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
         >
           Frames
         </button>
@@ -163,7 +177,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         <button
           type="button"
           onClick={() => router.push("/shop/inventory/add?category=accessory")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
         >
           Accessories
         </button>
@@ -185,14 +199,14 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
               </h2>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                   Item Name <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g. Ray-Ban Wayfarer Classic"
+                  placeholder="e.g., Bausch & Lomb Renu Multi-purpose Solution"
                   className="h-11 border-slate-200 bg-white"
                   {...register("name")}
                 />
@@ -206,8 +220,8 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    SKU Identification (Auto)
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    SKU Identification
                   </label>
                   <Input
                     type="text"
@@ -215,122 +229,76 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                     value={getSkuPreview()}
                     className="h-11 bg-slate-50 border-dashed border-slate-300 text-indigo-600 font-mono font-bold"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Auto-generated using category, brand, model, color code and serial number.
-                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Brand
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Brand / Manufacturer
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban"
+                    placeholder="e.g., Bausch + Lomb, Generic"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Model Number
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Select Type
                   </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. RX5154"
-                    className="h-11 border-slate-200"
-                    {...register("modelNumber")}
-                  />
+                  <select
+                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
+                    {...register("type")}
+                  >
+                    {STANDARD_ACCESSORY_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                    <option value="Other">Others...</option>
+                  </select>
+
+                  {isCustomType && (
+                    <div className="mt-3 animate-transition">
+                      <label className="block text-[9px] font-bold uppercase tracking-wider text-indigo-600 mb-1">
+                        Enter Custom Type <span className="text-rose-500">*</span>
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g., Led Clip Light, Nosepad Plier"
+                        className="h-10 border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-semibold"
+                        {...register("customType")}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Color Code
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Size / Volume
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 2000"
+                    placeholder="e.g., 120ml, 60ml, Standard Size"
                     className="h-11 border-slate-200"
-                    {...register("colorCode")}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Size
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 52-18-140"
-                    className="h-11 border-slate-200"
-                    {...register("size")}
+                    {...register("sizeVolume")}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Material
-                  </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("material")}
-                  >
-                    <option value="Acetate">Acetate</option>
-                    <option value="Metal">Metal</option>
-                    <option value="Titanium">Titanium</option>
-                    <option value="TR-90">TR-90</option>
-                    <option value="Nylon">Nylon</option>
-                    <option value="Carbon Fiber">Carbon Fiber</option>
-                    <option value="Stainless Steel">Stainless Steel</option>
-                    <option value="Wood">Wood</option>
-                    <option value="Mixed">Mixed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Frame Shape
-                  </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("frameShape")}
-                  >
-                    <option value="Rectangle">Rectangle</option>
-                    <option value="Round">Round</option>
-                    <option value="Aviator">Aviator</option>
-                    <option value="Cat-Eye">Cat-Eye</option>
-                    <option value="Oval">Oval</option>
-                    <option value="Square">Square</option>
-                    <option value="Clubmaster">Clubmaster</option>
-                    <option value="Wrap">Wrap</option>
-                    <option value="Geometric">Geometric</option>
-                    <option value="Rimless">Rimless</option>
-                    <option value="Semi-Rimless">Semi-Rimless</option>
-                    <option value="Browline">Browline</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Target Demographic
-                  </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("targetDemographic")}
-                  >
-                    <option value="Unisex">Unisex</option>
-                    <option value="Men">Men</option>
-                    <option value="Women">Women</option>
-                    <option value="Children">Children</option>
-                    <option value="Teen">Teen</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Color / Pattern
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g., Matte Black, Floral Print"
+                  className="h-11 border-slate-200"
+                  {...register("colorPattern")}
+                />
               </div>
+
             </div>
           </div>
 
@@ -348,7 +316,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     Acquisition Cost (₹)
                   </label>
                   <div className="relative">
@@ -364,8 +332,8 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Selling Retail Price (₹) <span className="text-rose-500">*</span>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Retail Selling Price (₹) <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-3 text-slate-400 text-sm font-semibold">₹</span>
@@ -388,7 +356,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 mb-1.5">
                     HSN/SAC Code
                   </label>
                   <Input
@@ -399,7 +367,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     CGST (%)
                   </label>
                   <Input
@@ -411,7 +379,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     SGST (%)
                   </label>
                   <Input
@@ -423,7 +391,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 mb-1.5">
                     IGST (%)
                   </label>
                   <Input
@@ -437,7 +405,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     Vendor Name
                   </label>
                   <Input
@@ -449,7 +417,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 mb-1.5">
                     Physical Rack/Bin Location
                   </label>
                   <Input
@@ -461,31 +429,6 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Purchase Invoice No.
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Enter purchase invoice number"
-                    className="h-11 border-slate-200"
-                    {...register("purchaseInvoiceNo")}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    Purchase Date
-                  </label>
-                  <Input
-                    type="date"
-                    className="h-11 border-slate-200"
-                    {...register("inwardDate")}
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -498,7 +441,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <ImageIcon className="h-4 w-4 text-indigo-600" />
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-900">
-                Asset Upload
+                Upload Master Image
               </h2>
             </div>
             
@@ -521,38 +464,60 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Initial Stock Count
-                  </label>
-                  <Input
-                    type="number"
-                    className="h-11 border-slate-200"
-                    {...register("quantity")}
-                  />
-                  {errors.quantity && (
-                    <p className="text-xs text-rose-500 font-semibold mt-1">
-                      {errors.quantity.message as string}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Initial Unit Count
+                </label>
+                <Input
+                  type="number"
+                  className="h-11 border-slate-200"
+                  {...register("quantity")}
+                />
+                {errors.quantity && (
+                  <p className="text-xs text-rose-500 font-semibold mt-1">
+                    {errors.quantity.message as string}
+                  </p>
+                )}
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Min Alert Level
-                  </label>
-                  <Input
-                    type="number"
-                    className="h-11 border-slate-200"
-                    {...register("minQuantity")}
-                  />
-                  {errors.minQuantity && (
-                    <p className="text-xs text-rose-500 font-semibold mt-1">
-                      {errors.minQuantity.message as string}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                  Purchase Invoice No.
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g., PI-2024-001"
+                  className="h-11 border-slate-200"
+                  {...register("purchaseInvoiceNo")}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5 flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Purchase Date
+                </label>
+                <Input
+                  type="date"
+                  className="h-11 border-slate-200"
+                  {...register("inwardDate")}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 mb-1.5">
+                  Low Stock Threshold
+                </label>
+                <Input
+                  type="number"
+                  className="h-11 border-slate-200"
+                  {...register("minQuantity")}
+                />
+                {errors.minQuantity && (
+                  <p className="text-xs text-rose-500 font-semibold mt-1">
+                    {errors.minQuantity.message as string}
+                  </p>
+                )}
               </div>
 
               {/* Requires Expiry Tracking Toggle */}
@@ -560,9 +525,6 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 <div className="space-y-0.5">
                   <span className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
                     Requires Expiry Tracking
-                  </span>
-                  <span className="block text-[10px] text-slate-400 leading-none">
-                    For contact lenses and fluids
                   </span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -577,12 +539,12 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               {/* Batch Number */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Batch/Lot Number
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 mb-1.5">
+                  Batch Number
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A for Frames"}
+                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
                   className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
                   {...register("batchNumber")}
@@ -591,7 +553,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
 
               {/* Expiry Date */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5 flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
                   Expiry Date
                 </label>
@@ -612,7 +574,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
         <button
           type="button"
           onClick={() => router.push("/shop/inventory")}
-          className="text-xs font-bold uppercase tracking-wider text-slate-650 hover:text-slate-900 transition-colors"
+          className="text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-900 transition-colors"
         >
           Cancel Action
         </button>

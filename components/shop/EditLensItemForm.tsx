@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { 
   ArrowLeft, 
   Package, 
-  Sparkles, 
   DollarSign, 
   Sliders, 
   Image as ImageIcon, 
@@ -18,17 +17,23 @@ import {
   Calendar,
   AlertCircle
 } from "lucide-react";
-import { frameItemSchema } from "@/utils/validators";
-import { createFrameItemAction } from "@/actions/inventory.actions";
+import { editLensItemSchema } from "@/utils/validators";
+import { updateLensItemAction } from "@/actions/inventory.actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 
-interface AddFrameItemFormProps {
+interface EditLensItemFormProps {
+  initialData: any;
   shopId: string;
+  itemId: string;
 }
 
-export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
+export function EditLensItemForm({
+  initialData,
+  shopId,
+  itemId,
+}: EditLensItemFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -39,73 +44,62 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
     setValue,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(frameItemSchema),
+    resolver: zodResolver(editLensItemSchema),
     defaultValues: {
-      name: "",
-      brand: "",
-      costPrice: 0,
-      price: 0,
-      hsnCode: "90049000", // Standard Global HSN code for optical frames
-      cgstPercent: 6,      // Standard SGST/CGST rates for optical products
-      sgstPercent: 6,
-      igstPercent: 12,
-      vendorName: "",
-      rackLocation: "",
-      quantity: 0,
-      minQuantity: 5,
-      requiresExpiryTracking: false,
-      batchNumber: "",
-      expiryDate: "",
-      imageUrl: "",
-      modelNumber: "",
-      colorCode: "",
-      size: "",
-      material: "Acetate",
-      frameShape: "Rectangle",
-      targetDemographic: "Unisex",
-      purchaseInvoiceNo: "",
-      inwardDate: "",
+      name: initialData.name || "",
+      brand: initialData.brand || "",
+      costPrice: parseFloat(initialData.costPrice) || 0,
+      price: parseFloat(initialData.price) || 0,
+      hsnCode: initialData.hsnCode || "90015000",
+      cgstPercent: parseFloat(initialData.cgstPercent) || 0,
+      sgstPercent: parseFloat(initialData.sgstPercent) || 0,
+      igstPercent: parseFloat(initialData.igstPercent) || 0,
+      vendorName: initialData.vendorName || "",
+      rackLocation: initialData.rackLocation || "",
+      purchaseInvoiceNo: initialData.purchaseInvoiceNo || "",
+      inwardDate: initialData.inwardDate || "",
+      requiresExpiryTracking: initialData.requiresExpiryTracking || false,
+      batchNumber: initialData.batchNumber || "",
+      expiryDate: initialData.expiryDate || "",
+      imageUrl: initialData.imageUrl || "",
+      design: initialData.design || "Single Vision",
+      refractiveIndex: initialData.refractiveIndex || "1.56",
+      material: initialData.material || "CR-39",
+      blankDiameter: initialData.blankDiameter || 70,
+      stockPower: initialData.stockPower || "",
+      isUncoated: initialData.isUncoated ?? false,
+      isAntiReflective: initialData.isAntiReflective ?? false,
+      isBlueControl: initialData.isBlueControl ?? false,
+      isTinted: initialData.isTinted ?? false,
+      isPolarized: initialData.isPolarized ?? false,
+      isHardCoat: initialData.isHardCoat ?? false,
+      isPhotochromic: initialData.isPhotochromic ?? false,
+      addStockQuantity: 0,
+      minQuantity: initialData.minQuantity || 5,
     },
   });
 
-  // Watch fields for interactive live SKU preview
-  const brand = watch("brand");
-  const modelNumber = watch("modelNumber");
-  const colorCode = watch("colorCode");
   const requiresExpiry = watch("requiresExpiryTracking");
   const imageUrl = watch("imageUrl");
+  const addStockQuantity = watch("addStockQuantity") || 0;
 
-  // Compute live SKU preview code
-  const getSkuPreview = () => {
-    const b = (brand || "GEN")
-      .replace(/[^A-Za-z]/g, "")
-      .substring(0, 3)
-      .toUpperCase()
-      .padEnd(3, "X");
-    const m = (modelNumber || "000000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 6)
-      .toUpperCase();
-    const c = (colorCode || "000")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .substring(0, 3)
-      .toUpperCase();
-    return `FRM-${b}${m}-${c}-###`;
-  };
+  // Compute live resulting stock level preview
+  const currentStock = initialData.quantity || 0;
+  const resultingStock = Number(currentStock) + Number(addStockQuantity);
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
       try {
-        const result = await createFrameItemAction(undefined, data);
+        const result = await updateLensItemAction(itemId, undefined, data);
         if (result?.success) {
-          toast.success(result.message || "Frame item saved successfully.");
+          toast.success(result.message || "Lens item updated successfully.");
           router.push("/shop/inventory");
         } else {
-          toast.error(result?.message || "Failed to save frame item.");
+          toast.error(result?.message || "Failed to update lens item.");
         }
       } catch (err: any) {
-        console.error("Save error:", err);
-        toast.error("An unexpected error occurred while saving.");
+        console.error("Update error:", err);
+        toast.error("An unexpected error occurred while saving updates.");
       }
     });
   };
@@ -125,47 +119,27 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
           </button>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Inventory Management
+              Edit Lens Details
             </h1>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-              FRAMES INGESTION
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase">
+              SKU: {initialData.sku}
             </span>
           </div>
           <p className="text-sm text-slate-500">
-            Cataloging clinical and retail assets with premium precision.
+            Modify product parameters and securely restock retail count assets.
           </p>
         </div>
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60 max-w-fit">
+      {/* Category Tabs (Locked, indicating edit mode) */}
+      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60 max-w-fit opacity-75">
         <button
           type="button"
-          onClick={() => router.push("/shop/inventory/add?category=frame")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
-        >
-          Frames
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/shop/inventory/add?category=lens")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          disabled
+          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-slate-200 text-slate-650 rounded-lg cursor-not-allowed flex items-center gap-1"
         >
           Lenses
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/shop/inventory/add?category=contact_lens")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
-        >
-          Contact Lenses
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/shop/inventory/add?category=accessory")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
-        >
-          Accessories
+          <Lock className="h-3 w-3 text-slate-500" />
         </button>
       </div>
 
@@ -185,14 +159,14 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
               </h2>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                   Item Name <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g. Ray-Ban Wayfarer Classic"
+                  placeholder="e.g. Crizal Prevencia 1.56 Spherical"
                   className="h-11 border-slate-200 bg-white"
                   {...register("name")}
                 />
@@ -207,16 +181,16 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    SKU Identification (Auto)
+                    SKU Identification (Locked)
                   </label>
                   <Input
                     type="text"
                     disabled
-                    value={getSkuPreview()}
-                    className="h-11 bg-slate-50 border-dashed border-slate-300 text-indigo-600 font-mono font-bold"
+                    value={initialData.sku || ""}
+                    className="h-11 bg-slate-50 border-dashed border-slate-300 text-slate-500 font-mono font-bold cursor-not-allowed"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Auto-generated using category, brand, model, color code and serial number.
+                    Unique SKU codes cannot be altered once registered.
                   </p>
                 </div>
 
@@ -226,7 +200,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban"
+                    placeholder="e.g. Essilor"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -236,101 +210,115 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Model Number
+                    Design
                   </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. RX5154"
-                    className="h-11 border-slate-200"
-                    {...register("modelNumber")}
-                  />
+                  <select
+                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
+                    {...register("design")}
+                  >
+                    <option value="Single Vision">Single Vision</option>
+                    <option value="Bifocal">Bifocal</option>
+                    <option value="Progressive">Progressive</option>
+                    <option value="Executive">Executive</option>
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Color Code
+                    Refractive Index
                   </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 2000"
-                    className="h-11 border-slate-200"
-                    {...register("colorCode")}
-                  />
+                  <select
+                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
+                    {...register("refractiveIndex")}
+                  >
+                    <option value="1.50">1.50</option>
+                    <option value="1.56">1.56</option>
+                    <option value="1.60">1.60</option>
+                    <option value="1.67">1.67</option>
+                    <option value="1.74">1.74</option>
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Size
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 52-18-140"
-                    className="h-11 border-slate-200"
-                    {...register("size")}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Material
+                    Optical Material
                   </label>
                   <select
                     className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
                     {...register("material")}
                   >
-                    <option value="Acetate">Acetate</option>
-                    <option value="Metal">Metal</option>
-                    <option value="Titanium">Titanium</option>
-                    <option value="TR-90">TR-90</option>
-                    <option value="Nylon">Nylon</option>
-                    <option value="Carbon Fiber">Carbon Fiber</option>
-                    <option value="Stainless Steel">Stainless Steel</option>
-                    <option value="Wood">Wood</option>
-                    <option value="Mixed">Mixed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Frame Shape
-                  </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("frameShape")}
-                  >
-                    <option value="Rectangle">Rectangle</option>
-                    <option value="Round">Round</option>
-                    <option value="Aviator">Aviator</option>
-                    <option value="Cat-Eye">Cat-Eye</option>
-                    <option value="Oval">Oval</option>
-                    <option value="Square">Square</option>
-                    <option value="Clubmaster">Clubmaster</option>
-                    <option value="Wrap">Wrap</option>
-                    <option value="Geometric">Geometric</option>
-                    <option value="Rimless">Rimless</option>
-                    <option value="Semi-Rimless">Semi-Rimless</option>
-                    <option value="Browline">Browline</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Target Demographic
-                  </label>
-                  <select
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold"
-                    {...register("targetDemographic")}
-                  >
-                    <option value="Unisex">Unisex</option>
-                    <option value="Men">Men</option>
-                    <option value="Women">Women</option>
-                    <option value="Children">Children</option>
-                    <option value="Teen">Teen</option>
+                    <option value="CR-39">CR-39</option>
+                    <option value="Polycarbonate">Polycarbonate</option>
+                    <option value="Trivex">Trivex</option>
+                    <option value="High-Index Plastic">High-Index Plastic</option>
+                    <option value="Glass">Glass</option>
                   </select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Blank Diameter (mm)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 70"
+                    className="h-11 border-slate-200 font-semibold"
+                    {...register("blankDiameter")}
+                  />
+                  {errors.blankDiameter && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1">
+                      {errors.blankDiameter.message as string}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Stock Power Range
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. -4.00 to +4.00"
+                    className="h-11 border-slate-200"
+                    {...register("stockPower")}
+                  />
+                </div>
+              </div>
+
+              {/* Coatings & Enhancements */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-650 mb-3">
+                  Coatings & Enhancements
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    { name: "isUncoated", label: "Uncoated" },
+                    { name: "isAntiReflective", label: "Anti-Reflective" },
+                    { name: "isBlueControl", label: "Blue Control" },
+                    { name: "isTinted", label: "Tinted" },
+                    { name: "isPolarized", label: "Polarized" },
+                    { name: "isHardCoat", label: "Hard Coat" },
+                    { name: "isPhotochromic", label: "Photochromic" },
+                  ].map((item) => (
+                    <label
+                      key={item.name}
+                      className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 hover:border-indigo-500/50 hover:bg-slate-50/50 cursor-pointer select-none transition-all"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/25 cursor-pointer"
+                        {...register(item.name as any)}
+                      />
+                      <span className="text-xs font-semibold text-slate-700">
+                        {item.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -454,7 +442,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. A1-R4-B2"
+                    placeholder="e.g. A2-R1"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -486,6 +474,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                   />
                 </div>
               </div>
+
             </div>
           </div>
         </div>
@@ -523,36 +512,65 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-450 mb-1.5">
                     Initial Stock Count
                   </label>
                   <Input
                     type="number"
-                    className="h-11 border-slate-200"
-                    {...register("quantity")}
+                    disabled
+                    value={currentStock}
+                    className="h-11 bg-slate-50 border-dashed border-slate-300 text-slate-500 font-bold cursor-not-allowed"
                   />
-                  {errors.quantity && (
-                    <p className="text-xs text-rose-500 font-semibold mt-1">
-                      {errors.quantity.message as string}
-                    </p>
-                  )}
+                  <p className="text-[9px] text-slate-400 mt-1">
+                    Locked to prevent audit overrides.
+                  </p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Min Alert Level
+                    Add Stock Units
                   </label>
                   <Input
                     type="number"
-                    className="h-11 border-slate-200"
-                    {...register("minQuantity")}
+                    className="h-11 border-indigo-300 focus:ring-2 focus:ring-indigo-500/20 font-bold text-indigo-650 bg-indigo-50/5"
+                    placeholder="0"
+                    {...register("addStockQuantity")}
                   />
-                  {errors.minQuantity && (
+                  {errors.addStockQuantity && (
                     <p className="text-xs text-rose-500 font-semibold mt-1">
-                      {errors.minQuantity.message as string}
+                      {errors.addStockQuantity.message as string}
                     </p>
                   )}
                 </div>
+              </div>
+
+              {/* Live resulting stock calculator view */}
+              <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-center">
+                <span className="block text-[10px] uppercase font-bold text-indigo-500 tracking-wider">
+                  Resulting Stock Level
+                </span>
+                <span className="block text-xl font-bold text-indigo-750 mt-0.5">
+                  {resultingStock} Units
+                </span>
+                <span className="block text-[9px] text-slate-400 mt-0.5 font-medium">
+                  Original {currentStock} + Added {addStockQuantity}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Min Alert Level
+                </label>
+                <Input
+                  type="number"
+                  className="h-11 border-slate-200"
+                  {...register("minQuantity")}
+                />
+                {errors.minQuantity && (
+                  <p className="text-xs text-rose-500 font-semibold mt-1">
+                    {errors.minQuantity.message as string}
+                  </p>
+                )}
               </div>
 
               {/* Requires Expiry Tracking Toggle */}
@@ -562,10 +580,10 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                     Requires Expiry Tracking
                   </span>
                   <span className="block text-[10px] text-slate-400 leading-none">
-                    For contact lenses and fluids
+                    For special therapeutic lenses
                   </span>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
+                <label className="relative inline-flex inline-flex items-center cursor-pointer select-none">
                   <input
                     type="checkbox"
                     className="sr-only peer"
@@ -582,7 +600,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A for Frames"}
+                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
                   className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
                   {...register("batchNumber")}
@@ -598,7 +616,7 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
                 <Input
                   type="date"
                   disabled={!requiresExpiry}
-                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-450" : "border-slate-200"}`}
+                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-455" : "border-slate-200"}`}
                   {...register("expiryDate")}
                 />
               </div>
@@ -624,12 +642,12 @@ export function AddFrameItemForm({ shopId }: AddFrameItemFormProps) {
           {isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Saving Record...
+              Saving Updates...
             </>
           ) : (
             <>
               <Package className="h-4 w-4" />
-              Save Item Record
+              Save Item updates
             </>
           )}
         </Button>
