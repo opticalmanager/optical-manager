@@ -34,4 +34,6 @@ export {
 } from "./invoices";
 export { invoiceItems } from "./invoice-items";
 export { stockMovements, movementTypeEnum } from "./stock-movements";
+export { receipts } from "./receipts";
+export { orders } from "./orders";
 

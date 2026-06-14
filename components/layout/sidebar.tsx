@@ -26,8 +26,8 @@ const navItems = [
     icon: Archive,
   },
   {
-    title: "INVOICING",
-    href: "/shop/invoices",
+    title: "ORDERS",
+    href: "/shop/orders",
     icon: ReceiptText,
   },
   {

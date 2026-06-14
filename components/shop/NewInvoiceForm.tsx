@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
   ChevronDown,
+  ChevronUp,
+  ReceiptText,
   RotateCcw,
   Search,
   Eye,
@@ -148,6 +150,7 @@ export function NewInvoiceForm() {
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
   const [amountPaidOverride, setAmountPaidOverride] = useState<string>("");
   const [invoiceNotes, setInvoiceNotes] = useState("");
+  const [deliveryDays, setDeliveryDays] = useState<number>(0);
 
   // Load Next Registration ID on Load
   useEffect(() => {
@@ -646,12 +649,17 @@ export function NewInvoiceForm() {
         amountPaid: finalAmountPaid,
         balanceDue: finalBalanceDue,
         notes: invoiceNotes || undefined,
+        deliveryDays,
       };
 
       const res = await registerPatientAndInvoiceAction(payload);
       if (res.success && res.data?.invoice?.id) {
         toast.success("Transaction success! Invoice compiled.", { id: savingToast });
-        router.push(`/shop/invoices/${res.data.invoice.id}`);
+        if (paymentType === "PARTIAL" && res.data?.receipt?.id) {
+          router.push(`/shop/receipts/${res.data.receipt.id}`);
+        } else {
+          router.push(`/shop/invoices/${res.data.invoice.id}`);
+        }
       } else {
         toast.error(res.message || "Failed to process patient invoice transaction.", {
           id: savingToast,
@@ -711,7 +719,7 @@ export function NewInvoiceForm() {
             disabled={isPending}
             className="h-10 px-4 rounded-xl bg-[#0a52c3] hover:bg-[#004bb5] text-xs font-bold text-white shadow-sm shadow-[#0a52c3]/10 transition-colors cursor-pointer"
           >
-            Create Invoice
+            {paymentType === "PARTIAL" ? "Generate Receipt" : "Create Invoice"}
           </button>
         </div>
       </div>
@@ -1634,6 +1642,95 @@ export function NewInvoiceForm() {
             </div>
           </div>
 
+          <div className="pt-2">
+            <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+              Expected Delivery (Days)
+            </label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-3 bg-white border border-slate-200/80 rounded-lg px-3.5 h-10 flex-1 sm:max-w-md">
+                <span className="text-xs font-bold text-slate-500 whitespace-nowrap">
+                  Expected Delivery Date
+                </span>
+                <div className="h-4 w-px bg-slate-200" />
+                <div className="relative flex-1 flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={deliveryDays}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? 0 : parseInt(e.target.value);
+                      setDeliveryDays(val);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setDeliveryDays(prev => prev + 1);
+                      } else if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setDeliveryDays(prev => Math.max(0, prev - 1));
+                      }
+                    }}
+                    className="w-full h-full bg-transparent text-sm font-extrabold text-slate-700 focus:outline-none pr-12 text-left"
+                  />
+                  <div className="absolute right-0 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryDays(prev => prev + 1)}
+                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryDays(prev => Math.max(0, prev - 1))}
+                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Presets */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryDays(0)}
+                  className={`px-4 h-10 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    deliveryDays === 0
+                      ? "bg-[#0a52c3] text-white border-[#0a52c3] shadow-sm shadow-[#0a52c3]/15"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  0 (Delivered)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryDays(3)}
+                  className={`px-4 h-10 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    deliveryDays === 3
+                      ? "bg-[#0a52c3] text-white border-[#0a52c3] shadow-sm shadow-[#0a52c3]/15"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  3 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryDays(7)}
+                  className={`px-4 h-10 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    deliveryDays === 7
+                      ? "bg-[#0a52c3] text-white border-[#0a52c3] shadow-sm shadow-[#0a52c3]/15"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  7 Days
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
               Invoice Notes & Remarks
@@ -1743,8 +1840,17 @@ export function NewInvoiceForm() {
           disabled={isPending}
           className="h-12 px-8 text-sm font-bold bg-[#0a52c3] hover:bg-[#004bb5] text-white rounded-xl shadow-lg shadow-[#0a52c3]/10 hover:shadow-[#0a52c3]/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
         >
-          <Check className="h-4.5 w-4.5" />
-          {isPending ? "Creating Invoice..." : "Create Invoice"}
+          {paymentType === "PARTIAL" ? (
+            <>
+              <ReceiptText className="h-4.5 w-4.5" />
+              {isPending ? "Generating Receipt..." : "Generate Receipt"}
+            </>
+          ) : (
+            <>
+              <Check className="h-4.5 w-4.5" />
+              {isPending ? "Creating Invoice..." : "Create Invoice"}
+            </>
+          )}
         </Button>
       </div>
     </form>

@@ -475,6 +475,7 @@ export const patientVisitSchema = z.object({
   amountPaid: z.coerce.number().min(0).default(0),
   balanceDue: z.coerce.number().min(0).default(0),
   notes: z.string().optional().or(z.literal("")),
+  deliveryDays: z.coerce.number().min(0).default(0),
 });
 
 // --- Form State Type ---

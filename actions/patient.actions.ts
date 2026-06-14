@@ -2,11 +2,12 @@
 
 import { db } from "@/lib/drizzle";
 import { eq, and, sql } from "drizzle-orm";
-import { customers, prescriptions, invoices, invoiceItems } from "@/db/schema";
+import { customers, prescriptions, invoices, invoiceItems, orders, receipts } from "@/db/schema";
 import { getCurrentUser } from "@/services/auth.service";
 import { generateRegistrationId } from "@/services/customer.service";
 import { decrementInventoryStock } from "@/services/inventory.service";
 import { generateInvoiceNumber } from "@/services/invoice.service";
+import { generateOrderNumber, generateReceiptNumber } from "@/services/receipt.service";
 import { patientVisitSchema } from "@/utils/validators";
 import { revalidatePath } from "next/cache";
 
@@ -343,6 +344,20 @@ export async function registerPatientAndInvoiceAction(
 
       const invoiceNumber = await generateInvoiceNumber(shopId);
 
+      // Compute estimated delivery date and fulfillment status based on deliveryDays
+      let estimatedDeliveryDate: Date | null = null;
+      let fulfillmentStatus: "DELIVERED" | "PROCESSING" = "DELIVERED";
+
+      if (data.deliveryDays > 0) {
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + data.deliveryDays);
+        estimatedDeliveryDate = targetDate;
+        fulfillmentStatus = "PROCESSING";
+      } else {
+        estimatedDeliveryDate = new Date();
+        fulfillmentStatus = "DELIVERED";
+      }
+
       // 5. Create Invoice
       const [invoice] = await tx
         .insert(invoices)
@@ -359,10 +374,50 @@ export async function registerPatientAndInvoiceAction(
           total: totalVal.toString(),
           status: (data.balanceDue || 0) > 0 ? "PENDING" : "PAID",
           paymentMethod: data.paymentMethod,
+          fulfillmentStatus,
+          estimatedDelivery: estimatedDeliveryDate ? estimatedDeliveryDate.toISOString().split("T")[0] : null,
           amountPaid: (data.amountPaid || 0).toString(),
           balanceDue: (data.balanceDue || 0).toString(),
           notes: data.notes || null,
           specialInstructions: data.specialInstructions || null,
+        })
+        .returning();
+
+      // Create Receipt if amountPaid > 0
+      let receiptId: string | null = null;
+      let receiptRecord: any = null;
+      if ((data.amountPaid || 0) > 0) {
+        const receiptNumber = await generateReceiptNumber(shopId, tx);
+        const [receipt] = await tx
+          .insert(receipts)
+          .values({
+            shopId,
+            organizationId: user.organizationId,
+            invoiceId: invoice.id,
+            receiptNumber,
+            amountPaid: (data.amountPaid || 0).toString(),
+            balanceDue: (data.balanceDue || 0).toString(),
+            paymentMethod: data.paymentMethod,
+            transactionId: data.paymentMethod === "UPI" || data.paymentMethod === "BANK_TRANSFER"
+              ? `${Math.floor(10000 + Math.random() * 90000)}-PRECISION-X${Math.floor(100 + Math.random() * 899)}`
+              : null,
+          })
+          .returning();
+        receiptId = receipt.id;
+        receiptRecord = receipt;
+      }
+
+      // Create Order linking invoice and receipt
+      const orderNumber = await generateOrderNumber(shopId, tx);
+      const [order] = await tx
+        .insert(orders)
+        .values({
+          shopId,
+          organizationId: user.organizationId,
+          customerId: customerRecord.id,
+          invoiceId: invoice.id,
+          receiptId: receiptId,
+          orderNumber,
         })
         .returning();
 
@@ -403,7 +458,7 @@ export async function registerPatientAndInvoiceAction(
         }
       }
 
-      return { customer: customerRecord, invoice };
+      return { customer: customerRecord, invoice, order, receipt: receiptRecord };
     });
 
     revalidatePath("/shop/dashboard");

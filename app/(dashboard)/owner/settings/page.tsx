@@ -7,7 +7,7 @@ import { getShopsWithManagers } from "@/services/shop-manager.service";
 import { db } from "@/lib/drizzle";
 import { subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { Building2, User, CreditCard, Save, Store } from "lucide-react";
+import { Building2, User, CreditCard, Save, Store, Mail } from "lucide-react";
 import { ShopManagerSettings } from "@/components/owner/ShopManagerSettings";
 
 interface PageProps {
@@ -97,6 +97,14 @@ export default async function OwnerSettingsPage({ searchParams }: PageProps) {
           >
             <Store className="w-4 h-4" />
             <span>Shops & Access</span>
+          </Link>
+
+          <Link
+            href="/owner/settings/communication-settings/email"
+            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm font-semibold border text-left select-none transition-all bg-transparent text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900"
+          >
+            <Mail className="w-4 h-4" />
+            <span>Communication</span>
           </Link>
           
           <button className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm font-medium text-slate-400 cursor-not-allowed text-left select-none opacity-60" disabled>

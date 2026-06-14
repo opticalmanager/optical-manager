@@ -8,6 +8,8 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  date,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { shops } from "./shops";
 import { organizations } from "./organizations";
@@ -61,6 +63,8 @@ export const invoices = pgTable("invoices", {
   status: invoiceStatusEnum("status").notNull().default("DRAFT"),
   paymentMethod: paymentMethodEnum("payment_method"),
   fulfillmentStatus: fulfillmentStatusEnum("fulfillment_status").notNull().default("PROCESSING"),
+  estimatedDelivery: date("estimated_delivery"),
+  isRescheduled: boolean("is_rescheduled").notNull().default(false),
   amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }).notNull().default("0.00"),
   balanceDue: decimal("balance_due", { precision: 10, scale: 2 }).notNull().default("0.00"),
   notes: text("notes"),
