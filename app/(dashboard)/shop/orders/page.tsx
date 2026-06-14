@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/services/auth.service";
-import { getOrdersDashboardData } from "@/services/order.service";
+import { getOrdersDashboardData, TimeframeType } from "@/services/order.service";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReminderCardAction } from "./ReminderCardAction";
 import { TimeframeDropdown } from "./TimeframeDropdown";
@@ -53,7 +53,7 @@ export default async function OrdersDashboardPage({
     search,
     page,
     limit,
-    timeframe: timeframe as "7d" | "30d" | "90d" | "all",
+    timeframe: timeframe as TimeframeType,
     filter,
   });
  
@@ -79,36 +79,37 @@ export default async function OrdersDashboardPage({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
         
         {/* Metric 1: Total Orders */}
-        <Link 
-          href={`/shop/orders?filter=ALL&tab=${tab}&search=${search}&timeframe=${timeframe}`}
-          className="block"
-        >
-          <Card className={`h-full border transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden ${
-            filter === "ALL"
-              ? "border-[#0a52c3] bg-[#0a52c3]/5 shadow-md ring-1 ring-[#0a52c3]/20"
-              : "border-slate-200/80 bg-white shadow-sm hover:border-[#0a52c3]/30 hover:shadow-md hover:-translate-y-0.5"
-          }`}>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-800 block">
-                  Total Orders
+        <Card className={`relative h-full border transition-all duration-200 cursor-pointer rounded-2xl overflow-visible ${
+          filter === "ALL"
+            ? "border-[#0a52c3] bg-[#0a52c3]/5 shadow-md ring-1 ring-[#0a52c3]/20"
+            : "border-slate-200/80 bg-white shadow-sm hover:border-[#0a52c3]/30 hover:shadow-md hover:-translate-y-0.5"
+        }`}>
+          {/* Absolute overlay link covering the entire card */}
+          <Link 
+            href={`/shop/orders?filter=ALL&tab=${tab}&search=${search}&timeframe=${timeframe}`}
+            className="absolute inset-0 z-0 rounded-2xl font-bold"
+          />
+          
+          <CardContent className="relative z-10 p-6 space-y-4 pointer-events-none">
+            <div className="flex justify-between items-center pointer-events-auto">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800 block">
+                Total Orders
+              </span>
+              <TimeframeDropdown currentTimeframe={timeframe} />
+            </div>
+            <div className="pointer-events-none">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-955 tracking-tight">
+                  {kpis.totalOrders.toLocaleString()}
                 </span>
-                <TimeframeDropdown currentTimeframe={timeframe} />
+                <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                  <TrendingUp className="h-3 w-3" />
+                  {kpis.totalOrdersMoM}
+                </span>
               </div>
-              <div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-slate-955 tracking-tight">
-                    {kpis.totalOrders.toLocaleString()}
-                  </span>
-                  <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                    <TrendingUp className="h-3 w-3" />
-                    {kpis.totalOrdersMoM}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+            </div>
+          </CardContent>
+        </Card>
  
         {/* Metric 2: Delivered Orders */}
         <Link 
@@ -276,12 +277,12 @@ export default async function OrdersDashboardPage({
             <SlidersHorizontal className="h-4 w-4 text-slate-650" /> Filter
           </button>
           
-          <button
-            type="button"
+          <Link
+            href={`/api/orders/export?tab=${tab}&search=${encodeURIComponent(search)}&timeframe=${timeframe}&filter=${filter}`}
             className="h-9 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-800 transition-colors cursor-pointer bg-white flex items-center gap-1.5"
           >
-            <Download className="h-4 w-4 text-slate-650" /> Export CSV
-          </button>
+            <Download className="h-4 w-4 text-slate-655" /> Export CSV
+          </Link>
         </div>
       </div>
  

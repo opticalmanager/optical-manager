@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/drizzle";
 import { orders, invoices, customers, invoiceItems, inventory, shops } from "@/db/schema";
-import { eq, ne, and, or, ilike, sql, desc, inArray, lte, gt } from "drizzle-orm";
+import { eq, ne, and, or, ilike, sql, desc, inArray, lte, gt, gte } from "drizzle-orm";
 
 export interface OrderDashboardKPIs {
   totalOrders: number;
@@ -41,6 +41,7 @@ export interface OrderItem {
   customerEmail?: string | null;
   skus: SKUDetail[];
   categoryText?: string; // e.g. "Progressive Lens Fitting" or "Spectacles Order"
+  receiptId?: string | null;
 }
 
 export interface PriorityReminder {
@@ -57,160 +58,86 @@ export interface PriorityReminder {
 /**
  * Fetch all analytics and paginated orders for the dashboard.
  */
-export async function getOrdersDashboardData(params: {
+export type TimeframeType = "24h" | "yesterday" | "7d" | "30d" | "90d" | "12m" | "ytd" | "all";
+
+export async function buildOrderFilters(params: {
   shopId: string;
   tab: "ALL" | "PAID" | "PARTIALLY_PAID";
   search: string;
-  page: number;
-  limit: number;
-  timeframe?: "7d" | "30d" | "90d" | "all";
-  filter?: "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+  timeframe: TimeframeType;
+  filter: "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
 }) {
-  const { shopId, tab, search, page, limit, timeframe = "30d", filter = "ALL" } = params;
-  const offset = (page - 1) * limit;
+  const { shopId, tab, search, timeframe, filter } = params;
 
-  // 1. Fetch all Invoices for aggregate KPI metrics
-  const allInvoices = await db
-    .select({
-      id: invoices.id,
-      status: invoices.status,
-      fulfillmentStatus: invoices.fulfillmentStatus,
-      estimatedDelivery: invoices.estimatedDelivery,
-      createdAt: invoices.createdAt,
-      amountPaid: invoices.amountPaid,
-      balanceDue: invoices.balanceDue,
-      customerId: invoices.customerId,
-      invoiceNumber: invoices.invoiceNumber,
-      total: invoices.total,
-    })
-    .from(invoices)
-    .where(eq(invoices.shopId, shopId));
-
-  // Dynamic Date-Range & Trend calculations
+  // Dynamic Date-Range calculations
   const nowTime = Date.now();
-  const getPeriodCounts = (days: number) => {
-    const msInDay = 24 * 60 * 60 * 1000;
-    const currentStart = nowTime - (days * msInDay);
-    const previousStart = nowTime - (2 * days * msInDay);
+  const msInDay = 24 * 60 * 60 * 1000;
 
-    let currentCount = 0;
-    let previousCount = 0;
+  let currentStart = 0;
+  let currentEnd = nowTime;
+  let previousStart = 0;
+  let previousEnd = 0;
 
-    allInvoices.forEach((inv) => {
-      const createdTime = new Date(inv.createdAt).getTime();
-      if (createdTime >= currentStart) {
-        currentCount++;
-      } else if (createdTime >= previousStart) {
-        previousCount++;
-      }
-    });
+  if (timeframe === "24h") {
+    // Today calendar day (from midnight today local/system time)
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    currentStart = todayMidnight.getTime();
+    
+    previousStart = todayMidnight.getTime() - msInDay;
+    previousEnd = todayMidnight.getTime();
+  } else if (timeframe === "yesterday") {
+    // Yesterday calendar day
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    currentStart = todayMidnight.getTime() - msInDay;
+    currentEnd = todayMidnight.getTime();
 
-    return { currentCount, previousCount };
-  };
-
-  const getMonthCounts = () => {
+    previousStart = todayMidnight.getTime() - 2 * msInDay;
+    previousEnd = todayMidnight.getTime() - msInDay;
+  } else if (timeframe === "7d") {
+    currentStart = nowTime - 7 * msInDay;
+    previousStart = nowTime - 14 * msInDay;
+    previousEnd = currentStart;
+  } else if (timeframe === "30d") {
+    currentStart = nowTime - 30 * msInDay;
+    previousStart = nowTime - 60 * msInDay;
+    previousEnd = currentStart;
+  } else if (timeframe === "90d") {
+    currentStart = nowTime - 90 * msInDay;
+    previousStart = nowTime - 180 * msInDay;
+    previousEnd = currentStart;
+  } else if (timeframe === "12m") {
+    currentStart = nowTime - 365 * msInDay;
+    previousStart = nowTime - 730 * msInDay;
+    previousEnd = currentStart;
+  } else if (timeframe === "ytd") {
+    const currentYear = new Date().getFullYear();
+    currentStart = new Date(currentYear, 0, 1).getTime();
+    
+    previousStart = new Date(currentYear - 1, 0, 1).getTime();
+    const lastYearSameTime = new Date();
+    lastYearSameTime.setFullYear(currentYear - 1);
+    previousEnd = lastYearSameTime.getTime();
+  } else {
+    // "all" - MoM trend (current calendar month vs previous calendar month)
     const today = new Date();
     const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
     const previousMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).getTime();
-
-    let currentCount = 0;
-    let previousCount = 0;
-
-    allInvoices.forEach((inv) => {
-      const createdTime = new Date(inv.createdAt).getTime();
-      if (createdTime >= currentMonthStart) {
-        currentCount++;
-      } else if (createdTime >= previousMonthStart) {
-        previousCount++;
-      }
-    });
-
-    return { currentCount, previousCount };
-  };
-
-  const calculatePercentChange = (current: number, previous: number): string => {
-    if (previous === 0) {
-      return current > 0 ? "+100%" : "0%";
-    }
-    const pct = ((current - previous) / previous) * 100;
-    const sign = pct >= 0 ? "+" : "";
-    return `${sign}${pct.toFixed(0)}%`;
-  };
-
-  // Filter subset of invoices that fall within selected timeframe
-  let timeframeInvoices = allInvoices;
-  let totalOrdersMoM = "+0%";
-
-  if (timeframe === "7d") {
-    const { currentCount, previousCount } = getPeriodCounts(7);
-    timeframeInvoices = allInvoices.filter(
-      (inv) => new Date(inv.createdAt).getTime() >= (nowTime - 7 * 24 * 60 * 60 * 1000)
-    );
-    totalOrdersMoM = calculatePercentChange(currentCount, previousCount);
-  } else if (timeframe === "30d") {
-    const { currentCount, previousCount } = getPeriodCounts(30);
-    timeframeInvoices = allInvoices.filter(
-      (inv) => new Date(inv.createdAt).getTime() >= (nowTime - 30 * 24 * 60 * 60 * 1000)
-    );
-    totalOrdersMoM = calculatePercentChange(currentCount, previousCount);
-  } else if (timeframe === "90d") {
-    const { currentCount, previousCount } = getPeriodCounts(90);
-    timeframeInvoices = allInvoices.filter(
-      (inv) => new Date(inv.createdAt).getTime() >= (nowTime - 90 * 24 * 60 * 60 * 1000)
-    );
-    totalOrdersMoM = calculatePercentChange(currentCount, previousCount);
-  } else {
-    // "all"
-    const { currentCount, previousCount } = getMonthCounts();
-    // Use all invoices
-    timeframeInvoices = allInvoices;
-    totalOrdersMoM = calculatePercentChange(currentCount, previousCount);
+    currentStart = 0;
+    previousStart = previousMonthStart;
+    previousEnd = currentMonthStart;
   }
 
-  const totalOrders = timeframeInvoices.length;
-  const deliveredOrders = timeframeInvoices.filter((i) => i.fulfillmentStatus === "DELIVERED").length;
-  const completionRate = totalOrders > 0 ? Math.round((deliveredOrders / totalOrders) * 100) : 0;
-  
-  const pendingOrders = timeframeInvoices.filter(
-    (i) => i.fulfillmentStatus !== "DELIVERED"
-  ).length;
+  // 2. Build where clause filters for queries
+  const filters = [eq(invoices.shopId, shopId)];
 
-  // Critical pending: undelivered orders older than 7 days
-  const criticalPending = timeframeInvoices.filter((i) => {
-    if (i.fulfillmentStatus === "DELIVERED") return false;
-    const ageInDays = (Date.now() - new Date(i.createdAt).getTime()) / (1000 * 3600 * 24);
-    return ageInDays > 7;
-  }).length;
-
-  // Delayed: fulfillment status is not DELIVERED and estimatedDelivery is in the past
-  const now = new Date().toISOString().split("T")[0];
-  const delayedOrders = timeframeInvoices.filter((i) => {
-    if (i.fulfillmentStatus === "DELIVERED") return false;
-    if (!i.estimatedDelivery) return false;
-    return i.estimatedDelivery < now;
-  }).length;
-
-  // Critical delayed: delayed expected arrival was > 3 days ago
-  const criticalDelayed = timeframeInvoices.filter((i) => {
-    if (i.fulfillmentStatus === "DELIVERED") return false;
-    if (!i.estimatedDelivery) return false;
-    const delayInDays = (Date.now() - new Date(i.estimatedDelivery).getTime()) / (1000 * 3600 * 24);
-    return delayInDays > 3;
-  }).length;
-
-  const kpis: OrderDashboardKPIs = {
-    totalOrders,
-    totalOrdersMoM,
-    deliveredOrders,
-    completionRate,
-    pendingOrders,
-    criticalPending,
-    delayedOrders,
-    criticalDelayed,
-  };
-
-  // 2. Build where clause filters for the paginated list
-  const filters = [eq(orders.shopId, shopId)];
+  if (currentStart > 0) {
+    filters.push(gte(invoices.createdAt, new Date(currentStart)));
+  }
+  if (currentEnd < nowTime) {
+    filters.push(lte(invoices.createdAt, new Date(currentEnd)));
+  }
 
   if (tab === "PAID") {
     filters.push(eq(invoices.status, "PAID"));
@@ -218,7 +145,7 @@ export async function getOrdersDashboardData(params: {
     filters.push(
       and(
         eq(invoices.status, "PENDING"),
-        gt(sql`numeric(${invoices.amountPaid})`, 0)
+        gt(sql`${invoices.amountPaid}::numeric`, 0)
       )!
     );
   }
@@ -249,12 +176,147 @@ export async function getOrdersDashboardData(params: {
     );
   }
 
+  return {
+    filters,
+    currentStart,
+    currentEnd,
+    previousStart,
+    previousEnd,
+    nowTime,
+  };
+}
+
+export async function getOrdersDashboardData(params: {
+  shopId: string;
+  tab: "ALL" | "PAID" | "PARTIALLY_PAID";
+  search: string;
+  page: number;
+  limit: number;
+  timeframe?: TimeframeType;
+  filter?: "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+}) {
+  const { shopId, tab, search, page, limit, timeframe = "30d", filter = "ALL" } = params;
+  const offset = (page - 1) * limit;
+
+  // 1. Fetch all Invoices for aggregate KPI metrics
+  const allInvoices = await db
+    .select({
+      id: invoices.id,
+      status: invoices.status,
+      fulfillmentStatus: invoices.fulfillmentStatus,
+      estimatedDelivery: invoices.estimatedDelivery,
+      createdAt: invoices.createdAt,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      customerId: invoices.customerId,
+      invoiceNumber: invoices.invoiceNumber,
+      total: invoices.total,
+    })
+    .from(invoices)
+    .where(eq(invoices.shopId, shopId));
+
+  // Get active filters and date boundaries
+  const {
+    filters,
+    currentStart,
+    currentEnd,
+    previousStart,
+    previousEnd,
+    nowTime,
+  } = await buildOrderFilters({
+    shopId,
+    tab,
+    search,
+    timeframe,
+    filter,
+  });
+
+  const calculatePercentChange = (current: number, previous: number): string => {
+    if (previous === 0) {
+      return current > 0 ? "+100%" : "0%";
+    }
+    const pct = ((current - previous) / previous) * 100;
+    const sign = pct >= 0 ? "+" : "";
+    return `${sign}${pct.toFixed(0)}%`;
+  };
+
+  // Filter subset of invoices that fall within selected timeframe
+  let timeframeInvoices = allInvoices;
+  if (currentStart > 0) {
+    timeframeInvoices = allInvoices.filter((inv) => {
+      const createdTime = new Date(inv.createdAt).getTime();
+      return createdTime >= currentStart && createdTime <= currentEnd;
+    });
+  }
+
+  let currentPeriodCount = 0;
+  let previousPeriodCount = 0;
+
+  allInvoices.forEach((inv) => {
+    const createdTime = new Date(inv.createdAt).getTime();
+    if (timeframe === "all") {
+      if (createdTime >= previousEnd) {
+        currentPeriodCount++;
+      } else if (createdTime >= previousStart && createdTime < previousEnd) {
+        previousPeriodCount++;
+      }
+    } else {
+      if (createdTime >= currentStart && createdTime <= currentEnd) {
+        currentPeriodCount++;
+      } else if (createdTime >= previousStart && createdTime <= previousEnd) {
+        previousPeriodCount++;
+      }
+    }
+  });
+
+  const totalOrdersMoM = calculatePercentChange(currentPeriodCount, previousPeriodCount);
+
+  const totalOrders = timeframeInvoices.length;
+  const deliveredOrders = timeframeInvoices.filter((i) => i.fulfillmentStatus === "DELIVERED").length;
+  const completionRate = totalOrders > 0 ? Math.round((deliveredOrders / totalOrders) * 100) : 0;
+  
+  const pendingOrders = timeframeInvoices.filter(
+    (i) => i.fulfillmentStatus !== "DELIVERED"
+  ).length;
+
+  const criticalPending = timeframeInvoices.filter((i) => {
+    if (i.fulfillmentStatus === "DELIVERED") return false;
+    const ageInDays = (Date.now() - new Date(i.createdAt).getTime()) / (1000 * 3600 * 24);
+    return ageInDays > 7;
+  }).length;
+
+  const now = new Date().toISOString().split("T")[0];
+  const delayedOrders = timeframeInvoices.filter((i) => {
+    if (i.fulfillmentStatus === "DELIVERED") return false;
+    if (!i.estimatedDelivery) return false;
+    return i.estimatedDelivery < now;
+  }).length;
+
+  const criticalDelayed = timeframeInvoices.filter((i) => {
+    if (i.fulfillmentStatus === "DELIVERED") return false;
+    if (!i.estimatedDelivery) return false;
+    const delayInDays = (Date.now() - new Date(i.estimatedDelivery).getTime()) / (1000 * 3600 * 24);
+    return delayInDays > 3;
+  }).length;
+
+  const kpis: OrderDashboardKPIs = {
+    totalOrders,
+    totalOrdersMoM,
+    deliveredOrders,
+    completionRate,
+    pendingOrders,
+    criticalPending,
+    delayedOrders,
+    criticalDelayed,
+  };
+
+
   // 3. Fetch count for pagination
   const [countRes] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(orders)
-    .innerJoin(invoices, eq(orders.invoiceId, invoices.id))
-    .innerJoin(customers, eq(orders.customerId, customers.id))
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
     .where(and(...filters));
 
   const totalCount = countRes?.count || 0;
@@ -262,11 +324,11 @@ export async function getOrdersDashboardData(params: {
   // 4. Fetch the paginated orders
   const ordersListRaw = await db
     .select({
-      id: orders.id,
-      orderNumber: orders.orderNumber,
+      id: invoices.id,
+      orderNumber: sql<string>`COALESCE(${orders.orderNumber}, ${invoices.invoiceNumber})`,
       invoiceId: invoices.id,
       invoiceNumber: invoices.invoiceNumber,
-      createdAt: orders.createdAt,
+      createdAt: invoices.createdAt,
       total: invoices.total,
       amountPaid: invoices.amountPaid,
       balanceDue: invoices.balanceDue,
@@ -278,12 +340,13 @@ export async function getOrdersDashboardData(params: {
       customerName: customers.fullName,
       customerPhone: customers.phone,
       customerEmail: customers.email,
+      receiptId: orders.receiptId,
     })
-    .from(orders)
-    .innerJoin(invoices, eq(orders.invoiceId, invoices.id))
-    .innerJoin(customers, eq(orders.customerId, customers.id))
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
     .where(and(...filters))
-    .orderBy(desc(orders.createdAt))
+    .orderBy(desc(invoices.createdAt))
     .limit(limit)
     .offset(offset);
 
@@ -421,4 +484,149 @@ function formatCurrency(amount: string | number) {
     style: "currency",
     currency: "INR",
   }).format(val);
+}
+
+export async function exportOrdersToCSVData(params: {
+  shopId: string;
+  tab: "ALL" | "PAID" | "PARTIALLY_PAID";
+  search: string;
+  timeframe: TimeframeType;
+  filter: "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+}) {
+  const { shopId, tab, search, timeframe, filter } = params;
+
+  // 1. Compile identical filters
+  const { filters } = await buildOrderFilters({
+    shopId,
+    tab,
+    search,
+    timeframe,
+    filter,
+  });
+
+  // 2. Fetch ALL matching records (no limit, no offset)
+  const ordersListRaw = await db
+    .select({
+      id: invoices.id,
+      orderNumber: sql<string>`COALESCE(${orders.orderNumber}, ${invoices.invoiceNumber})`,
+      invoiceId: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      createdAt: invoices.createdAt,
+      subtotal: invoices.subtotal,
+      discount: invoices.discount,
+      tax: invoices.tax,
+      total: invoices.total,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      paymentMethod: invoices.paymentMethod,
+      status: invoices.status,
+      fulfillmentStatus: invoices.fulfillmentStatus,
+      estimatedDelivery: invoices.estimatedDelivery,
+      notes: invoices.notes,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+      customerEmail: customers.email,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+    .where(and(...filters))
+    .orderBy(desc(invoices.createdAt));
+
+  // 3. Fetch linked items to serialize SKUs/purchased goods in a single query
+  let itemsRaw: { invoiceId: string; description: string; quantity: number; category: string | null; sku: string | null }[] = [];
+  if (ordersListRaw.length > 0) {
+    const invoiceIds = ordersListRaw.map((o) => o.invoiceId);
+    
+    itemsRaw = await db
+      .select({
+        invoiceId: invoiceItems.invoiceId,
+        description: invoiceItems.description,
+        quantity: invoiceItems.quantity,
+        category: inventory.category,
+        sku: inventory.sku,
+      })
+      .from(invoiceItems)
+      .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
+      .where(inArray(invoiceItems.invoiceId, invoiceIds));
+  }
+
+  // 4. Construct CSV rows with double-quote escaping (RFC 4180)
+  const escapeCSV = (val: string | null | undefined): string => {
+    if (val === null || val === undefined) return "";
+    let str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+      str = str.replace(/"/g, '""');
+      return `"${str}"`;
+    }
+    return str;
+  };
+
+  const headers = [
+    "Order Number",
+    "Invoice Number",
+    "Order Date",
+    "Customer Name",
+    "Customer Phone",
+    "Customer Email",
+    "Items Purchased",
+    "Subtotal (INR)",
+    "Discount (INR)",
+    "Tax (INR)",
+    "Total Amount (INR)",
+    "Amount Paid (INR)",
+    "Balance Due (INR)",
+    "Payment Status",
+    "Payment Method",
+    "Fulfillment Status",
+    "Estimated Delivery",
+    "Notes"
+  ];
+
+  const csvRows = [headers.join(",")];
+
+  for (const row of ordersListRaw) {
+    // Collect related items
+    const relatedItems = itemsRaw.filter((item) => item.invoiceId === row.invoiceId);
+    const itemStrings = relatedItems.map(
+      (item) => `${item.quantity}x ${item.description}${item.sku ? ` (${item.sku})` : ""}`
+    );
+    const itemsPurchasedText = itemStrings.join(" | ");
+
+    // Determine clean payment status text
+    const balanceVal = parseFloat(row.balanceDue);
+    const paidVal = parseFloat(row.amountPaid);
+    let paymentStatus = "UNPAID";
+    if (balanceVal === 0) {
+      paymentStatus = "PAID";
+    } else if (paidVal > 0) {
+      paymentStatus = "PARTIALLY PAID";
+    }
+
+    const csvRow = [
+      escapeCSV(row.orderNumber),
+      escapeCSV(row.invoiceNumber),
+      escapeCSV(new Date(row.createdAt).toISOString().replace("T", " ").slice(0, 16)),
+      escapeCSV(row.customerName),
+      escapeCSV(row.customerPhone),
+      escapeCSV(row.customerEmail),
+      escapeCSV(itemsPurchasedText),
+      escapeCSV(row.subtotal),
+      escapeCSV(row.discount),
+      escapeCSV(row.tax),
+      escapeCSV(row.total),
+      escapeCSV(row.amountPaid),
+      escapeCSV(row.balanceDue),
+      escapeCSV(paymentStatus),
+      escapeCSV(row.paymentMethod),
+      escapeCSV(row.fulfillmentStatus),
+      escapeCSV(row.estimatedDelivery),
+      escapeCSV(row.notes)
+    ];
+
+    csvRows.push(csvRow.join(","));
+  }
+
+  return csvRows.join("\n");
 }

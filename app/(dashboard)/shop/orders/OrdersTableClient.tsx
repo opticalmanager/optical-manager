@@ -68,8 +68,8 @@ export function OrdersTableClient({
 
                 // Link download triggers to invoice or receipt
                 const isPartial = parseFloat(order.balanceDue) > 0 && parseFloat(order.amountPaid) > 0;
-                const printUrl = isPartial
-                  ? `/shop/receipts/${order.id}`
+                const printUrl = isPartial && order.receiptId
+                  ? `/shop/receipts/${order.receiptId}`
                   : `/shop/invoices/${order.invoiceId}`;
 
                 return (
