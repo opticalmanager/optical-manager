@@ -18,6 +18,8 @@ import type {
   invoices,
   invoiceItems,
   stockMovements,
+  receipts,
+  orders,
 } from "@/db/schema";
 
 
@@ -33,6 +35,8 @@ export type FrameDetail = InferSelectModel<typeof frameDetails>;
 export type Invoice = InferSelectModel<typeof invoices>;
 export type InvoiceItem = InferSelectModel<typeof invoiceItems>;
 export type StockMovement = InferSelectModel<typeof stockMovements>;
+export type Receipt = InferSelectModel<typeof receipts>;
+export type Order = InferSelectModel<typeof orders>;
 
 // --- Insert Types (writing to DB) ---
 export type NewOrganization = InferInsertModel<typeof organizations>;
@@ -46,4 +50,7 @@ export type NewFrameDetail = InferInsertModel<typeof frameDetails>;
 export type NewInvoice = InferInsertModel<typeof invoices>;
 export type NewInvoiceItem = InferInsertModel<typeof invoiceItems>;
 export type NewStockMovement = InferInsertModel<typeof stockMovements>;
+export type NewReceipt = InferInsertModel<typeof receipts>;
+export type NewOrder = InferInsertModel<typeof orders>;
+
 
