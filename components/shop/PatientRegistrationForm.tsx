@@ -7,6 +7,7 @@ import { patientVisitSchema } from "@/utils/validators";
 import {
   registerPatientAction,
   getNextRegistrationIdAction,
+  updatePatientAction,
 } from "@/actions/patient.actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -22,20 +23,138 @@ import {
   Check,
 } from "lucide-react";
 
-export function PatientRegistrationForm() {
+const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry"
+];
+
+interface PatientRegistrationFormProps {
+  initialPatientData?: {
+    customer: any;
+    distancePrescription?: any;
+    nearPrescription?: any;
+  };
+  patientId?: string;
+}
+
+export function PatientRegistrationForm({ initialPatientData, patientId }: PatientRegistrationFormProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
   const [regId, setRegId] = useState("OP-2026-XXXX");
+  const [showStateSuggestions, setShowStateSuggestions] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(patientVisitSchema),
-    defaultValues: {
+    defaultValues: initialPatientData ? {
+      customer: {
+        fullName: initialPatientData.customer.fullName || "",
+        email: initialPatientData.customer.email || "",
+        phone: initialPatientData.customer.phone || "",
+        dateOfBirth: initialPatientData.customer.dateOfBirth || "",
+        address: initialPatientData.customer.address || "",
+        city: initialPatientData.customer.city || "",
+        state: initialPatientData.customer.state || "",
+        pincode: initialPatientData.customer.pincode || "",
+        gender: initialPatientData.customer.gender || "",
+        bloodGroup: initialPatientData.customer.bloodGroup || "",
+        referredBy: initialPatientData.customer.referredBy || "",
+        chiefComplaint: initialPatientData.customer.chiefComplaint || "",
+        familyHistory: initialPatientData.customer.familyHistory || "",
+        systemicIllness: initialPatientData.customer.systemicIllness || "",
+        allergies: initialPatientData.customer.allergies || "",
+        notes: initialPatientData.customer.notes || "",
+      },
+      prescriptionEnabled: !!(initialPatientData.distancePrescription || initialPatientData.nearPrescription),
+      prescriptionType: {
+        distance: !!initialPatientData.distancePrescription,
+        near: !!initialPatientData.nearPrescription,
+      },
+      distancePrescription: {
+        rightSphere: initialPatientData.distancePrescription?.rightSphere || "",
+        rightCylinder: initialPatientData.distancePrescription?.rightCylinder || "",
+        rightAxis: initialPatientData.distancePrescription?.rightAxis || "",
+        rightAdd: initialPatientData.distancePrescription?.rightAdd || "",
+        rightNv: initialPatientData.distancePrescription?.rightNv || "",
+        leftSphere: initialPatientData.distancePrescription?.leftSphere || "",
+        leftCylinder: initialPatientData.distancePrescription?.leftCylinder || "",
+        leftAxis: initialPatientData.distancePrescription?.leftAxis || "",
+        leftAdd: initialPatientData.distancePrescription?.leftAdd || "",
+        leftNv: initialPatientData.distancePrescription?.leftNv || "",
+        pdRight: initialPatientData.distancePrescription?.pdRight || "",
+        pdLeft: initialPatientData.distancePrescription?.pdLeft || "",
+        pd: initialPatientData.distancePrescription?.pd || "",
+      },
+      nearPrescription: {
+        rightSphere: initialPatientData.nearPrescription?.rightSphere || "",
+        rightCylinder: initialPatientData.nearPrescription?.rightCylinder || "",
+        rightAxis: initialPatientData.nearPrescription?.rightAxis || "",
+        rightAdd: initialPatientData.nearPrescription?.rightAdd || "",
+        rightNv: initialPatientData.nearPrescription?.rightNv || "",
+        leftSphere: initialPatientData.nearPrescription?.leftSphere || "",
+        leftCylinder: initialPatientData.nearPrescription?.leftCylinder || "",
+        leftAxis: initialPatientData.nearPrescription?.leftAxis || "",
+        leftAdd: initialPatientData.nearPrescription?.leftAdd || "",
+        leftNv: initialPatientData.nearPrescription?.leftNv || "",
+        pdRight: initialPatientData.nearPrescription?.pdRight || "",
+        pdLeft: initialPatientData.nearPrescription?.pdLeft || "",
+        pd: initialPatientData.nearPrescription?.pd || "",
+      },
+      doctorName: initialPatientData.distancePrescription?.doctorName || initialPatientData.nearPrescription?.doctorName || "",
+      partyName: initialPatientData.distancePrescription?.partyName || initialPatientData.nearPrescription?.partyName || "",
+      frameName: initialPatientData.distancePrescription?.frameName || initialPatientData.nearPrescription?.frameName || "",
+      estimatedDelivery: "",
+      specialInstructions: initialPatientData.distancePrescription?.specialInstructions || initialPatientData.nearPrescription?.specialInstructions || "",
+      prescriptionNotes: initialPatientData.distancePrescription?.notes || initialPatientData.nearPrescription?.notes || "",
+      invoiceEnabled: false,
+      invoiceItems: [],
+      discountPercent: 0,
+      taxPercent: 0,
+      paymentMethod: "CASH" as any,
+      notes: "",
+    } : {
       customer: {
         fullName: "",
         email: "",
         phone: "",
         dateOfBirth: "",
         address: "",
+        city: "",
+        state: "",
+        pincode: "",
         gender: "" as any,
         bloodGroup: "" as any,
         referredBy: "",
@@ -110,6 +229,10 @@ export function PatientRegistrationForm() {
   // Fetch the next Registration ID on load
   useEffect(() => {
     async function fetchNextId() {
+      if (patientId) {
+        setRegId(initialPatientData?.customer.registrationId || "OP-2026-XXXX");
+        return;
+      }
       try {
         const res = await getNextRegistrationIdAction();
         if (res.success && res.data) {
@@ -120,6 +243,18 @@ export function PatientRegistrationForm() {
       }
     }
     fetchNextId();
+  }, [patientId, initialPatientData]);
+
+  // Close state suggestions dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".state-autocomplete-wrapper")) {
+        setShowStateSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleReset = (e: React.MouseEvent) => {
@@ -131,19 +266,29 @@ export function PatientRegistrationForm() {
   const onSubmit = async (data: any) => {
     setIsPending(true);
     try {
-      // Force invoice items to empty and disable billing since we are only onboarding the patient
-      const submitData = {
-        ...data,
-        invoiceEnabled: false,
-        invoiceItems: [],
-      };
-
-      const res = await registerPatientAction(submitData);
-      if (res.success) {
-        toast.success(res.message);
-        router.push("/shop/customers");
+      if (patientId) {
+        const res = await updatePatientAction(patientId, data);
+        if (res.success) {
+          toast.success(res.message);
+          router.push(`/shop/customers/${patientId}`);
+        } else {
+          toast.error(res.message || "Failed to update patient details");
+        }
       } else {
-        toast.error(res.message || "Failed to register patient");
+        // Force invoice items to empty and disable billing since we are only onboarding the patient
+        const submitData = {
+          ...data,
+          invoiceEnabled: false,
+          invoiceItems: [],
+        };
+
+        const res = await registerPatientAction(submitData);
+        if (res.success) {
+          toast.success(res.message);
+          router.push("/shop/customers");
+        } else {
+          toast.error(res.message || "Failed to register patient");
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "An unexpected error occurred.");
@@ -168,14 +313,14 @@ export function PatientRegistrationForm() {
             <ArrowLeft className="h-3.5 w-3.5" /> Back
           </button>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            Customer Registration
+            {patientId ? "Edit Patient Details" : "Customer Registration"}
           </h1>
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">
             <span>Dashboard</span>
             <span>/</span>
             <span>Customers</span>
             <span>/</span>
-            <span className="text-[#0a52c3]">New Patient</span>
+            <span className="text-[#0a52c3]">{patientId ? "Edit Profile" : "New Patient"}</span>
           </div>
         </div>
 
@@ -189,8 +334,8 @@ export function PatientRegistrationForm() {
       </div>
 
       {/* SECTION 1: BASIC DETAILS */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md/5">
-        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center gap-2">
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md/5">
+        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center gap-2 rounded-t-2xl">
           <span className="h-4 w-1 bg-[#0a52c3] rounded" />
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#0a52c3]">
             01. Basic Details
@@ -219,9 +364,9 @@ export function PatientRegistrationForm() {
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.fullName")}
               />
-              {errors.customer?.fullName && (
+              {errors.customer?.fullName?.message && (
                 <span className="text-[10px] font-bold text-rose-500 mt-1.5 block">
-                  {errors.customer.fullName.message}
+                  {String(errors.customer.fullName.message)}
                 </span>
               )}
             </div>
@@ -237,9 +382,9 @@ export function PatientRegistrationForm() {
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.phone")}
               />
-              {errors.customer?.phone && (
+              {errors.customer?.phone?.message && (
                 <span className="text-[10px] font-bold text-rose-500 mt-1.5 block">
-                  {errors.customer.phone.message}
+                  {String(errors.customer.phone.message)}
                 </span>
               )}
             </div>
@@ -275,33 +420,27 @@ export function PatientRegistrationForm() {
               </div>
             </div>
 
-            {/* Blood Group */}
+            {/* Email */}
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Blood Group
+                Email
               </label>
-              <div className="relative">
-                <select
-                  className="flex h-10 w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm text-slate-700 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3] appearance-none cursor-pointer"
-                  {...register("customer.bloodGroup")}
-                >
-                  <option value="">Select Blood Group</option>
-                  <option value="A_POSITIVE">A+</option>
-                  <option value="A_NEGATIVE">A-</option>
-                  <option value="B_POSITIVE">B+</option>
-                  <option value="B_NEGATIVE">B-</option>
-                  <option value="AB_POSITIVE">AB+</option>
-                  <option value="AB_NEGATIVE">AB-</option>
-                  <option value="O_POSITIVE">O+</option>
-                  <option value="O_NEGATIVE">O-</option>
-                </select>
-                <ChevronDown className="absolute right-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Input
+                type="email"
+                placeholder="example@mail.com"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                {...register("customer.email")}
+              />
+              {errors.customer?.email?.message && (
+                <span className="text-[10px] font-bold text-rose-500 mt-1.5 block">
+                  {String(errors.customer.email.message)}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Referred By */}
+          {/* Row 3: Referred By */}
+          <div className="grid grid-cols-1 gap-6">
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Referred By
@@ -309,12 +448,14 @@ export function PatientRegistrationForm() {
               <Input
                 type="text"
                 placeholder="Dr. Sarah Jenkins"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.referredBy")}
               />
             </div>
+          </div>
 
-            {/* Full Address */}
+          {/* Row 4: Full Address, City, State, Pin Code */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <div className="md:col-span-2">
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Full Address
@@ -324,6 +465,73 @@ export function PatientRegistrationForm() {
                 placeholder="742 Evergreen Terrace, Springfield, IL 62704"
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.address")}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                City
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Gurgaon"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                {...register("customer.city")}
+              />
+            </div>
+
+            <div className="relative state-autocomplete-wrapper">
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                State
+              </label>
+              <Input
+                type="text"
+                placeholder="Type or select State..."
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                {...register("customer.state")}
+                onChange={(e) => {
+                  register("customer.state").onChange(e);
+                  setShowStateSuggestions(true);
+                }}
+                onFocus={() => setShowStateSuggestions(true)}
+              />
+              {showStateSuggestions && (
+                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                  {INDIAN_STATES.filter((st) =>
+                    st.toLowerCase().includes((watch("customer.state") || "").toLowerCase())
+                  ).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => {
+                        setValue("customer.state", st);
+                        setShowStateSuggestions(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors text-xs font-bold text-slate-700 cursor-pointer"
+                    >
+                      {st}
+                    </button>
+                  ))}
+                  {INDIAN_STATES.filter((st) =>
+                    st.toLowerCase().includes((watch("customer.state") || "").toLowerCase())
+                  ).length === 0 && (
+                    <div className="px-4 py-2.5 text-xs text-slate-400 text-center">
+                      No matching states
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                Pin Code
+              </label>
+              <Input
+                type="text"
+                placeholder="000-000"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                {...register("customer.pincode")}
               />
             </div>
           </div>

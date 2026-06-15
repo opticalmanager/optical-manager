@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { updateCustomerAction } from "@/actions/customer.actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { 
   User, 
@@ -25,6 +23,45 @@ import {
   AlertTriangle
 } from "lucide-react";
 
+const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry"
+];
+
 interface CustomerData {
   id: string;
   fullName: string;
@@ -33,6 +70,9 @@ interface CustomerData {
   email: string | null;
   dateOfBirth: string | null;
   address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
   gender: "MALE" | "FEMALE" | "OTHER" | null;
   bloodGroup: string | null;
   referredBy: string | null;
@@ -98,10 +138,8 @@ interface CustomerProfileClientProps {
 
 export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [prescriptionsExpanded, setPrescriptionsExpanded] = useState(false);
-  const [showEditDrawer, setShowEditDrawer] = useState(false);
 
   const { customer, prescriptions, invoices, pendingDues, lastVisitDate, latestPrescription, latestInvoice } = profile;
 
@@ -139,26 +177,7 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
     });
   };
 
-  // Form submission handler
-  const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    
-    startTransition(async () => {
-      try {
-        const res = await updateCustomerAction(customer.id, {}, formData);
-        if (res?.success) {
-          toast.success(res.message || "Profile updated successfully.");
-          setShowEditDrawer(false);
-          router.refresh();
-        } else {
-          toast.error(res?.message || "Failed to update profile.");
-        }
-      } catch (err: any) {
-        toast.error(err.message || "An error occurred.");
-      }
-    });
-  };
+
 
   return (
     <div className="space-y-6 text-slate-800 pb-20 select-none">
@@ -193,14 +212,13 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Button
-            variant="outline"
-            onClick={() => setShowEditDrawer(true)}
-            className="h-10 px-4 font-bold shadow-sm rounded-xl text-xs uppercase tracking-wider bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+          <Link
+            href={`/shop/patients/edit/${customer.id}`}
+            className="h-10 px-4 font-bold shadow-sm rounded-xl text-xs uppercase tracking-wider bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center justify-center transition-colors"
           >
             <Edit3 className="h-4 w-4 mr-2 text-slate-455" />
             Edit Profile
-          </Button>
+          </Link>
 
           <Link
             href={`/shop/invoices/new?customerId=${customer.id}`}
@@ -237,6 +255,11 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
               </div>
 
               <div>
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Email Address</span>
+                <span className="text-sm font-extrabold text-slate-800 block mt-1 lowercase truncate">{customer.email || "-"}</span>
+              </div>
+
+              <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Date of Birth</span>
                 <span className="text-sm font-extrabold text-slate-800 block mt-1">{formatDateStr(customer.dateOfBirth)}</span>
               </div>
@@ -247,13 +270,6 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
               </div>
 
               <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Blood Group</span>
-                <span className="text-sm font-extrabold text-slate-800 block mt-1 uppercase">
-                  {customer.bloodGroup?.replace("_POSITIVE", "+").replace("_NEGATIVE", "-") || "-"}
-                </span>
-              </div>
-
-              <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Referred By</span>
                 <span className="text-sm font-extrabold text-slate-800 block mt-1">{customer.referredBy || "-"}</span>
               </div>
@@ -261,6 +277,21 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
               <div className="md:col-span-3 border-t border-slate-50 pt-4">
                 <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Full Address</span>
                 <span className="text-sm font-semibold text-slate-700 block mt-1">{customer.address || "-"}</span>
+              </div>
+
+              <div className="md:col-span-1 border-t border-slate-50 pt-4">
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">City</span>
+                <span className="text-sm font-semibold text-slate-700 block mt-1">{customer.city || "-"}</span>
+              </div>
+
+              <div className="md:col-span-1 border-t border-slate-50 pt-4">
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">State</span>
+                <span className="text-sm font-semibold text-slate-700 block mt-1">{customer.state || "-"}</span>
+              </div>
+
+              <div className="md:col-span-1 border-t border-slate-50 pt-4">
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Pin Code</span>
+                <span className="text-sm font-semibold text-slate-700 block mt-1">{customer.pincode || "-"}</span>
               </div>
 
             </div>
@@ -591,167 +622,7 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
         </Card>
       </div>
 
-      {/* Edit Profile slide-over drawer modal */}
-      {showEditDrawer && (
-        <div className="fixed inset-0 bg-slate-900/40 z-50 backdrop-blur-xs flex justify-end animate-fade-in">
-          <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col justify-between animate-slide-in select-none">
-            
-            {/* Drawer Header */}
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Update Profile Details</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Edit patient clinical profile</p>
-              </div>
-              <button
-                onClick={() => setShowEditDrawer(false)}
-                className="p-1 text-slate-400 hover:text-slate-650 hover:bg-slate-50 rounded-lg cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            {/* Drawer Form Body */}
-            <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-              
-              {/* Profile fields details */}
-              <div className="space-y-4">
-                <span className="text-[10px] font-bold uppercase text-[#0a52c3] tracking-widest block border-b border-slate-100 pb-1">01. Demographics</span>
-                
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Full Name</label>
-                  <Input name="fullName" defaultValue={customer.fullName} required className="h-9 text-xs font-semibold" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mobile Number</label>
-                    <Input name="phone" defaultValue={customer.phone} required className="h-9 text-xs font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Email Address</label>
-                    <Input name="email" type="email" defaultValue={customer.email || ""} className="h-9 text-xs font-semibold" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Birth Date</label>
-                    <Input name="dateOfBirth" type="date" defaultValue={customer.dateOfBirth || ""} className="h-9 text-xs font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gender</label>
-                    <select
-                      name="gender"
-                      defaultValue={customer.gender || ""}
-                      className="w-full h-9 px-3 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white outline-none"
-                    >
-                      <option value="">Select</option>
-                      <option value="MALE">Male</option>
-                      <option value="FEMALE">Female</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Blood Group</label>
-                    <select
-                      name="bloodGroup"
-                      defaultValue={customer.bloodGroup || ""}
-                      className="w-full h-9 px-3 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white outline-none"
-                    >
-                      <option value="">Select</option>
-                      <option value="A_POSITIVE">A+</option>
-                      <option value="A_NEGATIVE">A-</option>
-                      <option value="B_POSITIVE">B+</option>
-                      <option value="B_NEGATIVE">B-</option>
-                      <option value="AB_POSITIVE">AB+</option>
-                      <option value="AB_NEGATIVE">AB-</option>
-                      <option value="O_POSITIVE">O+</option>
-                      <option value="O_NEGATIVE">O-</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Referred By</label>
-                  <Input name="referredBy" defaultValue={customer.referredBy || ""} className="h-9 text-xs font-semibold" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Full Address</label>
-                  <Input name="address" defaultValue={customer.address || ""} className="h-9 text-xs font-semibold" />
-                </div>
-              </div>
-
-              {/* Medical details fields */}
-              <div className="space-y-4 pt-2">
-                <span className="text-[10px] font-bold uppercase text-[#0a52c3] tracking-widest block border-b border-slate-100 pb-1">02. Clinical background</span>
-                
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chief Complaint</label>
-                  <textarea 
-                    name="chiefComplaint" 
-                    defaultValue={customer.chiefComplaint || ""} 
-                    className="w-full min-h-[60px] p-3 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500" 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Family History</label>
-                  <textarea 
-                    name="familyHistory" 
-                    defaultValue={customer.familyHistory || ""} 
-                    className="w-full min-h-[60px] p-3 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none" 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Systemic Illness</label>
-                  <textarea 
-                    name="systemicIllness" 
-                    defaultValue={customer.systemicIllness || ""} 
-                    className="w-full min-h-[60px] p-3 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none" 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Allergies</label>
-                  <textarea 
-                    name="allergies" 
-                    defaultValue={customer.allergies || ""} 
-                    className="w-full min-h-[60px] p-3 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none" 
-                  />
-                </div>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="border-t border-slate-100 pt-4 flex gap-3">
-                <Button
-                  type="button"
-                  onClick={() => setShowEditDrawer(false)}
-                  className="flex-1 h-10 border-slate-200 text-slate-550 font-bold bg-white outline-none rounded-xl text-xs uppercase tracking-wider hover:bg-slate-50 cursor-pointer"
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isPending}
-                  className="flex-1 h-10 bg-[#0a52c3] hover:bg-[#004bb5] text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center cursor-pointer"
-                >
-                  {isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving Changes
-                    </>
-                  ) : (
-                    "Save Changes"
-                  )}
-                </Button>
-              </div>
-
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );

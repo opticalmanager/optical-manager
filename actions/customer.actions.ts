@@ -24,6 +24,11 @@ export async function createCustomerAction(
     phone: formData.get("phone"),
     dateOfBirth: formData.get("dateOfBirth"),
     address: formData.get("address"),
+    city: formData.get("city"),
+    state: formData.get("state"),
+    pincode: formData.get("pincode"),
+    gender: formData.get("gender"),
+    bloodGroup: formData.get("bloodGroup"),
     notes: formData.get("notes"),
   });
 
@@ -40,6 +45,11 @@ export async function createCustomerAction(
       ...customerData,
       gender: gender === "" ? null : gender,
       bloodGroup: bloodGroup === "" ? null : bloodGroup,
+      city: customerData.city === "" ? null : customerData.city,
+      state: customerData.state === "" ? null : customerData.state,
+      pincode: customerData.pincode === "" ? null : customerData.pincode,
+      email: customerData.email === "" ? null : customerData.email,
+      address: customerData.address === "" ? null : customerData.address,
       shopId,
       organizationId: user.organizationId,
     });
@@ -68,6 +78,11 @@ export async function updateCustomerAction(
     phone: formData.get("phone"),
     dateOfBirth: formData.get("dateOfBirth"),
     address: formData.get("address"),
+    city: formData.get("city"),
+    state: formData.get("state"),
+    pincode: formData.get("pincode"),
+    gender: formData.get("gender"),
+    bloodGroup: formData.get("bloodGroup"),
     notes: formData.get("notes"),
   });
 
@@ -87,6 +102,11 @@ export async function updateCustomerAction(
         ...customerData,
         gender: gender === "" ? null : gender,
         bloodGroup: bloodGroup === "" ? null : bloodGroup,
+        city: customerData.city === "" ? null : customerData.city,
+        state: customerData.state === "" ? null : customerData.state,
+        pincode: customerData.pincode === "" ? null : customerData.pincode,
+        email: customerData.email === "" ? null : customerData.email,
+        address: customerData.address === "" ? null : customerData.address,
       }
     );
 

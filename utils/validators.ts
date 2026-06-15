@@ -69,6 +69,9 @@ export const customerSchema = z.object({
     .trim(),
   dateOfBirth: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
+  city: z.string().optional().or(z.literal("")),
+  state: z.string().optional().or(z.literal("")),
+  pincode: z.string().optional().or(z.literal("")),
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().or(z.literal("")),
   bloodGroup: z.enum([
     "A_POSITIVE",

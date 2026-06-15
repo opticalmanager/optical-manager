@@ -29,6 +29,45 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry"
+];
+
 interface LineItem {
   inventoryId: string | null;
   description: string;
@@ -75,6 +114,10 @@ export function NewInvoiceForm() {
   const [bloodGroup, setBloodGroup] = useState("");
   const [referredBy, setReferredBy] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [showStateSuggestions, setShowStateSuggestions] = useState(false);
+  const [pincode, setPincode] = useState("");
 
   // Section 02: Medical History States
   const [chiefComplaint, setChiefComplaint] = useState("");
@@ -150,7 +193,7 @@ export function NewInvoiceForm() {
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
   const [amountPaidOverride, setAmountPaidOverride] = useState<string>("");
   const [invoiceNotes, setInvoiceNotes] = useState("");
-  const [deliveryDays, setDeliveryDays] = useState<number>(0);
+  const [deliveryDays, setDeliveryDays] = useState<number | "">(0);
 
   // Load Next Registration ID on Load
   useEffect(() => {
@@ -222,6 +265,9 @@ export function NewInvoiceForm() {
         setBloodGroup(customer.bloodGroup || "");
         setReferredBy(customer.referredBy || "");
         setAddress(customer.address || "");
+        setCity(customer.city || "");
+        setState(customer.state || "");
+        setPincode(customer.pincode || "");
         setRegId(customer.registrationId || "OP-2026-XXXX");
 
         // Auto-fill Section 02
@@ -433,11 +479,15 @@ export function NewInvoiceForm() {
 
   // Close all row dropdowns when clicking outside
   useEffect(() => {
-    function handleClickOutside() {
+    function handleClickOutside(event: MouseEvent) {
       setLineItems((prev) => prev.map((item) => ({ ...item, showDropdown: false })));
+      const target = event.target as HTMLElement;
+      if (!target.closest(".state-autocomplete-wrapper")) {
+        setShowStateSuggestions(false);
+      }
     }
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleReset = (e: React.MouseEvent) => {
@@ -451,6 +501,9 @@ export function NewInvoiceForm() {
     setBloodGroup("");
     setReferredBy("");
     setAddress("");
+    setCity("");
+    setState("");
+    setPincode("");
     setChiefComplaint("");
     setFamilyHistory("");
     setSystemicIllness("");
@@ -581,6 +634,9 @@ export function NewInvoiceForm() {
           phone,
           dateOfBirth: dob || undefined,
           address: address || undefined,
+          city: city || undefined,
+          state: state || undefined,
+          pincode: pincode || undefined,
           gender: gender || undefined,
           bloodGroup: bloodGroup || undefined,
           referredBy: referredBy || undefined,
@@ -649,7 +705,7 @@ export function NewInvoiceForm() {
         amountPaid: finalAmountPaid,
         balanceDue: finalBalanceDue,
         notes: invoiceNotes || undefined,
-        deliveryDays,
+        deliveryDays: deliveryDays === "" ? 0 : deliveryDays,
       };
 
       const res = await registerPatientAndInvoiceAction(payload);
@@ -725,8 +781,8 @@ export function NewInvoiceForm() {
       </div>
 
       {/* SECTION 1: BASIC DETAILS & LOAD CUSTOMER */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md/5">
-        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between">
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md/5">
+        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between rounded-t-2xl">
           <div className="flex items-center gap-2">
             <span className="h-4 w-1 bg-[#0a52c3] rounded" />
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#0a52c3]">
@@ -865,30 +921,20 @@ export function NewInvoiceForm() {
 
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Blood Group
+                Email
               </label>
-              <div className="relative">
-                <select
-                  value={bloodGroup}
-                  onChange={(e) => setBloodGroup(e.target.value)}
-                  className="flex h-10 w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm text-slate-700 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 appearance-none cursor-pointer"
-                >
-                  <option value="">Select Blood Group</option>
-                  <option value="A_POSITIVE">A+</option>
-                  <option value="A_NEGATIVE">A-</option>
-                  <option value="B_POSITIVE">B+</option>
-                  <option value="B_NEGATIVE">B-</option>
-                  <option value="AB_POSITIVE">AB+</option>
-                  <option value="AB_NEGATIVE">AB-</option>
-                  <option value="O_POSITIVE">O+</option>
-                  <option value="O_NEGATIVE">O-</option>
-                </select>
-                <ChevronDown className="absolute right-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Input
+                type="email"
+                placeholder="example@mail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Row 3: Referred By */}
+          <div className="grid grid-cols-1 gap-6">
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Referred By
@@ -898,10 +944,13 @@ export function NewInvoiceForm() {
                 placeholder="Dr. Sarah Jenkins"
                 value={referredBy}
                 onChange={(e) => setReferredBy(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
               />
             </div>
+          </div>
 
+          {/* Row 4: Full Address, City, State, Pin Code */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <div className="md:col-span-2">
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Full Address
@@ -912,6 +961,75 @@ export function NewInvoiceForm() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                City
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Gurgaon"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+              />
+            </div>
+
+            <div className="relative state-autocomplete-wrapper">
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                State
+              </label>
+              <Input
+                type="text"
+                placeholder="Type or select State..."
+                value={state}
+                onChange={(e) => {
+                  setState(e.target.value);
+                  setShowStateSuggestions(true);
+                }}
+                onFocus={() => setShowStateSuggestions(true)}
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+              />
+              {showStateSuggestions && (
+                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                  {INDIAN_STATES.filter((st) =>
+                    st.toLowerCase().includes(state.toLowerCase())
+                  ).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => {
+                        setState(st);
+                        setShowStateSuggestions(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors text-xs font-bold text-slate-700 cursor-pointer"
+                    >
+                      {st}
+                    </button>
+                  ))}
+                  {INDIAN_STATES.filter((st) =>
+                    st.toLowerCase().includes(state.toLowerCase())
+                  ).length === 0 && (
+                    <div className="px-4 py-2.5 text-xs text-slate-400 text-center">
+                      No matching states
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                Pin Code
+              </label>
+              <Input
+                type="text"
+                placeholder="000-000"
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value)}
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
               />
             </div>
           </div>
@@ -1659,16 +1777,21 @@ export function NewInvoiceForm() {
                     required
                     value={deliveryDays}
                     onChange={(e) => {
-                      const val = e.target.value === "" ? 0 : parseInt(e.target.value);
-                      setDeliveryDays(val);
+                      const val = e.target.value;
+                      if (val === "") {
+                        setDeliveryDays("");
+                      } else {
+                        const parsed = parseInt(val, 10);
+                        setDeliveryDays(isNaN(parsed) ? 0 : parsed);
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "ArrowUp") {
                         e.preventDefault();
-                        setDeliveryDays(prev => prev + 1);
+                        setDeliveryDays(prev => (prev === "" ? 1 : prev + 1));
                       } else if (e.key === "ArrowDown") {
                         e.preventDefault();
-                        setDeliveryDays(prev => Math.max(0, prev - 1));
+                        setDeliveryDays(prev => (prev === "" ? 0 : Math.max(0, prev - 1)));
                       }
                     }}
                     className="w-full h-full bg-transparent text-sm font-extrabold text-slate-700 focus:outline-none pr-12 text-left"
@@ -1676,17 +1799,17 @@ export function NewInvoiceForm() {
                   <div className="absolute right-0 flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setDeliveryDays(prev => prev + 1)}
-                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryDays(prev => Math.max(0, prev - 1))}
-                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
-                    >
-                      <ChevronDown className="h-4 w-4" />
+                    onClick={() => setDeliveryDays(prev => prev === "" ? 1 : prev + 1)}
+                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryDays(prev => prev === "" || prev <= 0 ? 0 : prev - 1)}
+                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                  >
+                    <ChevronDown className="h-4 w-4" />
                     </button>
                   </div>
                 </div>

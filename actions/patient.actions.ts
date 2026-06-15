@@ -64,6 +64,9 @@ export async function registerPatientAction(
           phone: data.customer.phone,
           dateOfBirth: data.customer.dateOfBirth || null,
           address: data.customer.address || null,
+          city: data.customer.city || null,
+          state: data.customer.state || null,
+          pincode: data.customer.pincode || null,
           gender: (data.customer.gender as any) || null,
           bloodGroup: (data.customer.bloodGroup as any) || null,
           referredBy: data.customer.referredBy || null,
@@ -212,6 +215,9 @@ export async function registerPatientAndInvoiceAction(
             phone: data.customer.phone,
             dateOfBirth: data.customer.dateOfBirth || null,
             address: data.customer.address || null,
+            city: data.customer.city || null,
+            state: data.customer.state || null,
+            pincode: data.customer.pincode || null,
             gender: (data.customer.gender as any) || null,
             bloodGroup: (data.customer.bloodGroup as any) || null,
             referredBy: data.customer.referredBy || null,
@@ -248,6 +254,9 @@ export async function registerPatientAndInvoiceAction(
             phone: data.customer.phone,
             dateOfBirth: data.customer.dateOfBirth || null,
             address: data.customer.address || null,
+            city: data.customer.city || null,
+            state: data.customer.state || null,
+            pincode: data.customer.pincode || null,
             gender: (data.customer.gender as any) || null,
             bloodGroup: (data.customer.bloodGroup as any) || null,
             referredBy: data.customer.referredBy || null,
@@ -559,6 +568,228 @@ export async function getNextRegistrationIdAction(): Promise<ActionResponse> {
     return { success: true, message: "Success", data: nextId };
   } catch (error: any) {
     return { success: false, message: error.message || "Failed to generate Registration ID." };
+  }
+}
+
+/**
+ * Server Action to update patient details (demographics + clinical prescriptions).
+ */
+export async function updatePatientAction(
+  customerId: string,
+  rawData: unknown
+): Promise<ActionResponse> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, message: "Unauthorized. Please log in again." };
+    }
+
+    const shopId = user.shopId;
+    if (!shopId) {
+      return { success: false, message: "No active shop associated with your session." };
+    }
+
+    // Parse data
+    const validation = patientVisitSchema.safeParse(rawData);
+    if (!validation.success) {
+      return {
+        success: false,
+        message: "Validation failed.",
+        errors: validation.error.flatten().fieldErrors,
+      };
+    }
+
+    const data = validation.data;
+
+    // Start transaction
+    await db.transaction(async (tx) => {
+      // 1. Update Customer demographics
+      await tx
+        .update(customers)
+        .set({
+          fullName: data.customer.fullName,
+          email: data.customer.email || null,
+          phone: data.customer.phone,
+          dateOfBirth: data.customer.dateOfBirth || null,
+          address: data.customer.address || null,
+          city: data.customer.city || null,
+          state: data.customer.state || null,
+          pincode: data.customer.pincode || null,
+          gender: (data.customer.gender as any) || null,
+          bloodGroup: (data.customer.bloodGroup as any) || null,
+          referredBy: data.customer.referredBy || null,
+          chiefComplaint: data.customer.chiefComplaint || null,
+          familyHistory: data.customer.familyHistory || null,
+          systemicIllness: data.customer.systemicIllness || null,
+          allergies: data.customer.allergies || null,
+          notes: data.customer.notes || null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(customers.id, customerId),
+            eq(customers.organizationId, user.organizationId)
+          )
+        );
+
+      // 2. Manage Prescriptions (upsert)
+      if (data.prescriptionEnabled) {
+        // Distance
+        if (data.prescriptionType.distance && data.distancePrescription) {
+          const dp = data.distancePrescription;
+          
+          const [existingDist] = await tx
+            .select()
+            .from(prescriptions)
+            .where(
+              and(
+                eq(prescriptions.customerId, customerId),
+                eq(prescriptions.prescriptionType, "DISTANCE"),
+                eq(prescriptions.organizationId, user.organizationId)
+              )
+            )
+            .limit(1);
+
+          if (existingDist) {
+            await tx
+              .update(prescriptions)
+              .set({
+                rightSphere: dp.rightSphere || null,
+                rightCylinder: dp.rightCylinder || null,
+                rightAxis: dp.rightAxis || null,
+                rightAdd: dp.rightAdd || null,
+                rightNv: dp.rightNv || null,
+                leftSphere: dp.leftSphere || null,
+                leftCylinder: dp.leftCylinder || null,
+                leftAxis: dp.leftAxis || null,
+                leftAdd: dp.leftAdd || null,
+                leftNv: dp.leftNv || null,
+                pdRight: dp.pdRight || null,
+                pdLeft: dp.pdLeft || null,
+                pd: dp.pd || null,
+                doctorName: data.doctorName || null,
+                partyName: data.partyName || null,
+                frameName: data.frameName || null,
+                notes: data.prescriptionNotes || null,
+                prescribedBy: data.doctorName || null,
+                updatedAt: new Date(),
+              })
+              .where(eq(prescriptions.id, existingDist.id));
+          } else {
+            await tx.insert(prescriptions).values({
+              customerId,
+              shopId,
+              organizationId: user.organizationId,
+              prescriptionType: "DISTANCE",
+              rightSphere: dp.rightSphere || null,
+              rightCylinder: dp.rightCylinder || null,
+              rightAxis: dp.rightAxis || null,
+              rightAdd: dp.rightAdd || null,
+              rightNv: dp.rightNv || null,
+              leftSphere: dp.leftSphere || null,
+              leftCylinder: dp.leftCylinder || null,
+              leftAxis: dp.leftAxis || null,
+              leftAdd: dp.leftAdd || null,
+              leftNv: dp.leftNv || null,
+              pdRight: dp.pdRight || null,
+              pdLeft: dp.pdLeft || null,
+              pd: dp.pd || null,
+              doctorName: data.doctorName || null,
+              partyName: data.partyName || null,
+              frameName: data.frameName || null,
+              notes: data.prescriptionNotes || null,
+              prescribedBy: data.doctorName || null,
+              prescribedAt: new Date().toISOString().split("T")[0],
+            });
+          }
+        }
+
+        // Near
+        if (data.prescriptionType.near && data.nearPrescription) {
+          const np = data.nearPrescription;
+          
+          const [existingNear] = await tx
+            .select()
+            .from(prescriptions)
+            .where(
+              and(
+                eq(prescriptions.customerId, customerId),
+                eq(prescriptions.prescriptionType, "NEAR"),
+                eq(prescriptions.organizationId, user.organizationId)
+              )
+            )
+            .limit(1);
+
+          if (existingNear) {
+            await tx
+              .update(prescriptions)
+              .set({
+                rightSphere: np.rightSphere || null,
+                rightCylinder: np.rightCylinder || null,
+                rightAxis: np.rightAxis || null,
+                rightAdd: np.rightAdd || null,
+                rightNv: np.rightNv || null,
+                leftSphere: np.leftSphere || null,
+                leftCylinder: np.leftCylinder || null,
+                leftAxis: np.leftAxis || null,
+                leftAdd: np.leftAdd || null,
+                leftNv: np.leftNv || null,
+                pdRight: np.pdRight || null,
+                pdLeft: np.pdLeft || null,
+                pd: np.pd || null,
+                doctorName: data.doctorName || null,
+                partyName: data.partyName || null,
+                frameName: data.frameName || null,
+                notes: data.prescriptionNotes || null,
+                prescribedBy: data.doctorName || null,
+                updatedAt: new Date(),
+              })
+              .where(eq(prescriptions.id, existingNear.id));
+          } else {
+            await tx.insert(prescriptions).values({
+              customerId,
+              shopId,
+              organizationId: user.organizationId,
+              prescriptionType: "NEAR",
+              rightSphere: np.rightSphere || null,
+              rightCylinder: np.rightCylinder || null,
+              rightAxis: np.rightAxis || null,
+              rightAdd: np.rightAdd || null,
+              rightNv: np.rightNv || null,
+              leftSphere: np.leftSphere || null,
+              leftCylinder: np.leftCylinder || null,
+              leftAxis: np.leftAxis || null,
+              leftAdd: np.leftAdd || null,
+              leftNv: np.leftNv || null,
+              pdRight: np.pdRight || null,
+              pdLeft: np.pdLeft || null,
+              pd: np.pd || null,
+              doctorName: data.doctorName || null,
+              partyName: data.partyName || null,
+              frameName: data.frameName || null,
+              notes: data.prescriptionNotes || null,
+              prescribedBy: data.doctorName || null,
+              prescribedAt: new Date().toISOString().split("T")[0],
+            });
+          }
+        }
+      }
+    });
+
+    revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/customers");
+    revalidatePath(`/shop/customers/${customerId}`);
+
+    return {
+      success: true,
+      message: "Patient profile updated successfully.",
+    };
+  } catch (error: any) {
+    console.error("Error in updatePatientAction:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to update patient profile.",
+    };
   }
 }
 
