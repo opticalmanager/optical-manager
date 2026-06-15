@@ -22,6 +22,8 @@ export type {
   Invoice,
   InvoiceItem,
   StockMovement,
+  Receipt,
+  Order,
   NewOrganization,
   NewProfile,
   NewShop,
@@ -33,5 +35,7 @@ export type {
   NewInvoice,
   NewInvoiceItem,
   NewStockMovement,
+  NewReceipt,
+  NewOrder,
 } from "./database";
 
