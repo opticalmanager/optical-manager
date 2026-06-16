@@ -60,15 +60,57 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
       }
     }
 
+    // Check if owner is impersonating a shop branch context
+    let roleOverride = profile.role;
+    let shopIdOverride = profile.shopId;
+    let isImpersonating = false;
+
+    if (profile.role === "OWNER") {
+      try {
+        const { cookies } = await import("next/headers");
+        const cookieStore = await cookies();
+        const ownerViewShopId = cookieStore.get("owner_view_shop_id")?.value;
+
+        if (ownerViewShopId) {
+          // Validate UUID format to prevent Drizzle/Postgres syntax errors on mock IDs
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(ownerViewShopId)) {
+            const { shops } = await import("@/db/schema");
+            const { and } = await import("drizzle-orm");
+            
+            const [shop] = await db
+              .select()
+              .from(shops)
+              .where(
+                and(
+                  eq(shops.id, ownerViewShopId),
+                  eq(shops.organizationId, profile.organizationId)
+                )
+              )
+              .limit(1);
+
+            if (shop) {
+              roleOverride = "SHOP_MANAGER";
+              shopIdOverride = shop.id;
+              isImpersonating = true;
+            }
+          }
+        }
+      } catch (cookieErr) {
+        console.error("[auth.service] Error checking impersonation cookies:", cookieErr);
+      }
+    }
+
     return {
       id: profile.id,
       email: profile.email,
       fullName: profile.fullName,
-      role: profile.role,
+      role: roleOverride,
       organizationId: profile.organizationId,
-      shopId: profile.shopId,
+      shopId: shopIdOverride,
       avatarUrl: profile.avatarUrl,
       isActive: profile.isActive,
+      isImpersonating,
     };
   } catch (error) {
     console.error("[auth.service] Error in getCurrentUser:", error);

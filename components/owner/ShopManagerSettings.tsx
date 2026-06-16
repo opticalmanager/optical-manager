@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Store, Mail, Lock, Phone, MapPin, Edit2, ShieldAlert, KeyRound, CheckCircle, Loader2 } from "lucide-react";
+import { Store, Mail, Lock, Phone, MapPin, Edit2, ShieldAlert, KeyRound, CheckCircle, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   updateShopDetails,
@@ -9,6 +9,7 @@ import {
   updateShopManagerPassword,
   createShopManagerCredentials,
 } from "@/services/shop-manager.service";
+import { startImpersonatingShopAction } from "@/actions/auth.actions";
 
 interface ManagerInfo {
   id: string;
@@ -38,6 +39,25 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
   
   // Loading states
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isViewOutletLoading, setIsViewOutletLoading] = useState<string | null>(null);
+
+  const handleViewOutlet = async (shopId: string) => {
+    if (shopId.startsWith("mock-")) {
+      toast.error("Demo branches cannot be viewed. Create a real shop branch to test this feature.");
+      return;
+    }
+
+    setIsViewOutletLoading(shopId);
+    try {
+      toast.loading("Initiating shop impersonation context...", { id: "view-outlet" });
+      await startImpersonatingShopAction(shopId);
+      toast.success("Redirecting to outlet dashboard...", { id: "view-outlet" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to impersonate shop branch.", { id: "view-outlet" });
+      setIsViewOutletLoading(null);
+    }
+  };
 
   // Form states
   const [shopName, setShopName] = useState("");
@@ -334,9 +354,21 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
                         <div className="flex gap-2 pt-1 border-t border-indigo-100/30">
                           <button
                             onClick={() => handleOpenChangePassword(shop)}
-                            className="w-full text-center py-1.5 px-3 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[10px] transition-all cursor-pointer"
+                            className="w-1/2 text-center py-1.5 px-3 rounded-md bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold text-[10px] transition-all cursor-pointer"
                           >
                             Reset Password
+                          </button>
+                          <button
+                            onClick={() => handleViewOutlet(shop.id)}
+                            disabled={isViewOutletLoading === shop.id}
+                            className="w-1/2 text-center py-1.5 px-3 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            {isViewOutletLoading === shop.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <ExternalLink className="w-3 h-3" />
+                            )}
+                            <span>View Outlet</span>
                           </button>
                         </div>
                       </div>

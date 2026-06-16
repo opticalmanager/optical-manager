@@ -17,6 +17,7 @@ export interface SessionUser {
   shopId: string | null; // null for OWNER
   avatarUrl: string | null;
   isActive: boolean;
+  isImpersonating?: boolean;
 }
 
 /**
