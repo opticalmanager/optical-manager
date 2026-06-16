@@ -189,3 +189,35 @@ export async function signInWithGoogle() {
     redirect(data.url);
   }
 }
+
+/**
+ * Server Action: Start impersonating a shop branch context.
+ */
+export async function startImpersonatingShopAction(shopId: string) {
+  // Set the context cookie
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  cookieStore.set("owner_view_shop_id", shopId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24, // 1 day
+  });
+
+  // Redirect to the shop panel dashboard
+  redirect("/shop/dashboard");
+}
+
+/**
+ * Server Action: Exit shop impersonation context.
+ */
+export async function stopImpersonatingShopAction() {
+  // Clear the context cookie
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  cookieStore.delete("owner_view_shop_id");
+
+  // Redirect back to owner dashboard
+  redirect("/owner");
+}
+

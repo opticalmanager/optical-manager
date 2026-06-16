@@ -1,10 +1,21 @@
 import React from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
-import { db } from "@/lib/drizzle";
-import { shops } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { Store, MapPin, Phone, Mail, Plus, ExternalLink, Edit } from "lucide-react";
+import { getShopsWithManagers } from "@/services/shop-manager.service";
+import { startImpersonatingShopAction } from "@/actions/auth.actions";
+import { 
+  Store, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Plus, 
+  ExternalLink, 
+  Edit2, 
+  User, 
+  CheckCircle, 
+  ShieldAlert, 
+  KeyRound 
+} from "lucide-react";
 import Link from "next/link";
 
 export default async function OwnerShopsPage() {
@@ -13,10 +24,11 @@ export default async function OwnerShopsPage() {
     redirect("/login");
   }
 
-  const dbShops = await db
-    .select()
-    .from(shops)
-    .where(eq(shops.organizationId, user.organizationId));
+  let dbShops: any[] = [];
+  const shopsRes = await getShopsWithManagers();
+  if (shopsRes.success) {
+    dbShops = shopsRes.data || [];
+  }
 
   const hasRealShops = dbShops.length > 0;
 
@@ -29,6 +41,12 @@ export default async function OwnerShopsPage() {
       phone: "+91 98765 43210",
       email: "bandra@visioncare.com",
       isActive: true,
+      manager: {
+        id: "mock-m1",
+        email: "bandra@visioncare.com",
+        fullName: "Vision Care Bandra Manager",
+        isActive: true,
+      }
     },
     {
       id: "mock-s2",
@@ -37,6 +55,12 @@ export default async function OwnerShopsPage() {
       phone: "+91 98123 45678",
       email: "andheri@visioncare.com",
       isActive: true,
+      manager: {
+        id: "mock-m2",
+        email: "andheri@visioncare.com",
+        fullName: "Optical Precision Andheri Manager",
+        isActive: true,
+      }
     },
     {
       id: "mock-s3",
@@ -45,6 +69,7 @@ export default async function OwnerShopsPage() {
       phone: "+91 91234 56789",
       email: "colaba@visioncare.com",
       isActive: false,
+      manager: null,
     }
   ];
 
@@ -57,14 +82,17 @@ export default async function OwnerShopsPage() {
             Shops Management
           </h2>
           <p className="text-sm text-slate-500 font-medium">
-            Manage your physical optical retail branches, contact listings and operational statuses.
+            Manage your physical optical retail branches, contact listings, manager credentials, and operational statuses.
           </p>
         </div>
         
-        <button className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm cursor-pointer shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all self-start sm:self-auto">
+        <Link 
+          href="/owner/settings?tab=shops"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm cursor-pointer shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all self-start sm:self-auto"
+        >
           <Plus className="w-4 h-4" />
-          <span>Add New Shop</span>
-        </button>
+          <span>Configure Outlet</span>
+        </Link>
       </div>
 
       {!hasRealShops && (
@@ -74,20 +102,73 @@ export default async function OwnerShopsPage() {
         </div>
       )}
 
+      {/* Quick Statistics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Shops Card */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Outlets</span>
+            <h3 className="text-2xl font-extrabold text-slate-900 leading-none">{displayShops.length}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+            <Store className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Active Shops Card */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active Status</span>
+            <h3 className="text-2xl font-extrabold text-slate-900 leading-none">
+              {displayShops.filter(s => s.isActive).length}
+            </h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+            <CheckCircle className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Configured Managers Card */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Configured Managers</span>
+            <h3 className="text-2xl font-extrabold text-slate-900 leading-none">
+              {displayShops.filter(s => s.manager).length}
+            </h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-600">
+            <KeyRound className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Unconfigured Managers Card */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Pending Credentials</span>
+            <h3 className="text-2xl font-extrabold text-slate-900 leading-none">
+              {displayShops.filter(s => !s.manager).length}
+            </h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
       {/* Grid Layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayShops.map((shop) => (
           <div 
             key={shop.id} 
             className={`bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden
-              ${!shop.isActive ? "opacity-75" : ""}
+              ${!shop.isActive ? "opacity-80" : ""}
             `}
           >
             {/* Upper Content */}
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-start gap-3">
-                <div className="flex items-center gap-2">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center border
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0
                     ${shop.isActive 
                       ? "bg-indigo-50 border-indigo-100 text-indigo-600" 
                       : "bg-slate-100 border-slate-200 text-slate-500"
@@ -95,13 +176,13 @@ export default async function OwnerShopsPage() {
                   `}>
                     <Store className="w-4 h-4 shrink-0" />
                   </div>
-                  <h3 className="font-bold text-slate-900 truncate max-w-[150px] leading-tight">
+                  <h3 className="font-bold text-slate-900 truncate leading-tight">
                     {shop.name}
                   </h3>
                 </div>
 
                 {/* Active Badge */}
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border shrink-0
                   ${shop.isActive
                     ? "bg-emerald-50 border-emerald-100 text-emerald-700"
                     : "bg-slate-100 border-slate-200 text-slate-500"
@@ -132,19 +213,57 @@ export default async function OwnerShopsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Manager credentials box */}
+              <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Outlet Manager</span>
+                {shop.manager ? (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
+                    <User className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate font-bold text-slate-800">{shop.manager.fullName}</span>
+                      <span className="block truncate text-[10px] text-slate-400 font-mono mt-0.5">{shop.manager.email}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-600 bg-amber-50/50 border border-amber-100 p-2.5 rounded-lg">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span className="text-[11px] font-semibold leading-tight">No login credentials configured</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Bottom Actions Row */}
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
-              <button className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer bg-transparent border-none">
-                <Edit className="w-3.5 h-3.5" />
-                <span>Edit Branch</span>
-              </button>
+              <Link 
+                href="/owner/settings?tab=shops"
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Configure Outlet</span>
+              </Link>
               
-              <button className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors cursor-pointer bg-transparent border-none">
-                <span>View Outlet</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
+              {!hasRealShops ? (
+                <button
+                  disabled
+                  title="Demo branches cannot be viewed. Create a real shop branch to use impersonation mode."
+                  className="flex items-center gap-1 text-xs font-bold text-slate-450 cursor-not-allowed opacity-50 bg-transparent border-none"
+                >
+                  <span>View Outlet</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <form action={startImpersonatingShopAction.bind(null, shop.id)}>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1 text-xs font-bold text-indigo-650 hover:text-indigo-700 transition-colors cursor-pointer bg-transparent border-none"
+                  >
+                    <span>View Outlet</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         ))}
