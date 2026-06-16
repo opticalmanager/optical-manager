@@ -44,36 +44,37 @@ export function StatCard({
   const style = colorStyles[color];
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all duration-200 flex items-start gap-4">
-      {/* Icon Wrapper */}
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${style.bg}`}>
-        <Icon className={`w-6 h-6 ${style.text}`} />
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4">
+      {/* Top Row: Title & Icon */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
+          {title}
+        </span>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${style.bg}`}>
+          <Icon className={`w-4 h-4 ${style.text}`} />
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="space-y-1 min-w-0 flex-1">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">
-          {title}
-        </p>
-        <p className="text-3xl font-extrabold text-slate-900 tracking-tight leading-none pt-1">
+      {/* Bottom Row: Value & Trend/Description */}
+      <div className="space-y-2">
+        <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
           {value}
         </p>
         
-        {/* Trend or description */}
         {(trend || description) && (
-          <div className="flex items-center gap-1.5 pt-2 text-xs font-medium">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold flex-wrap">
             {trend && (
-              <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 font-semibold
+              <span className={`inline-flex items-center rounded px-1.5 py-0.5 shrink-0
                 ${trend.isPositive 
-                  ? "bg-emerald-50 text-emerald-700" 
-                  : "bg-red-50 text-red-700"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                  : "bg-red-50 text-red-700 border border-red-100"
                 }
               `}>
                 {trend.isPositive ? "↑" : "↓"} {trend.value}
               </span>
             )}
             {description && (
-              <span className="text-slate-400 truncate font-normal">
+              <span className="text-slate-400 truncate font-semibold">
                 {description}
               </span>
             )}
