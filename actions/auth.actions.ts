@@ -7,7 +7,7 @@ import {
   profileExists,
   getCurrentUser,
 } from "@/services/auth.service";
-import { signupSchema, loginSchema, type FormState } from "@/utils/validators";
+import { signupSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema, type FormState } from "@/utils/validators";
 
 /**
  * Server Action: Sign up a new user.
@@ -219,5 +219,84 @@ export async function stopImpersonatingShopAction() {
 
   // Redirect back to owner dashboard
   redirect("/owner");
+}
+
+/**
+ * Server Action: Send password recovery email.
+ */
+export async function sendPasswordResetEmail(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const validatedFields = forgotPasswordSchema.safeParse({
+    email: formData.get("email"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      success: false,
+      errors: validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  const { email } = validatedFields.data;
+  const supabase = await createClient();
+
+  const redirectToUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/callback?next=/reset-password`;
+  
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: redirectToUrl,
+  });
+
+  if (error) {
+    return {
+      success: false,
+      message: error.message || "Failed to send reset email. Please try again.",
+    };
+  }
+
+  return {
+    success: true,
+    message: "A password reset link has been sent to your email address.",
+  };
+}
+
+/**
+ * Server Action: Update authenticated user's password.
+ */
+export async function updatePasswordAction(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const validatedFields = resetPasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      success: false,
+      errors: validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  const { password } = validatedFields.data;
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({
+    password: password,
+  });
+
+  if (error) {
+    return {
+      success: false,
+      message: error.message || "Failed to update your password. Please try again.",
+    };
+  }
+
+  return {
+    success: true,
+    message: "Your password has been successfully updated.",
+  };
 }
 

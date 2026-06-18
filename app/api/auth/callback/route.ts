@@ -18,7 +18,7 @@ import { eq } from "drizzle-orm";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/owner";
+  const next = searchParams.get("next");
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
@@ -75,8 +75,11 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/onboarding`);
   }
 
-  // Redirect based on role
-  const targetPath = profile.role === "SHOP_MANAGER" ? "/shop/dashboard" : "/owner";
+  // Redirect based on role unless next redirect is specified
+  let targetPath = profile.role === "SHOP_MANAGER" ? "/shop/dashboard" : "/owner";
+  if (next && next.startsWith("/")) {
+    targetPath = next;
+  }
   return NextResponse.redirect(`${origin}${targetPath}`);
 }
 

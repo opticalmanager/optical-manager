@@ -45,9 +45,19 @@ export default function LoginPage() {
                 required
                 autoComplete="current-password"
               />
-              {state?.errors?.password && (
-                <p className="text-xs text-danger font-semibold">{state.errors.password[0]}</p>
-              )}
+              <div className="flex justify-between items-center text-xs">
+                {state?.errors?.password ? (
+                  <p className="text-danger font-semibold">{state.errors.password[0]}</p>
+                ) : (
+                  <div />
+                )}
+                <Link
+                  href="/forgot-password"
+                  className="font-semibold text-primary hover:text-primary-hover hover:underline"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             {state?.message && (
