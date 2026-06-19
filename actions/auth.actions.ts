@@ -240,25 +240,33 @@ export async function sendPasswordResetEmail(
   }
 
   const { email } = validatedFields.data;
-  const supabase = await createClient();
-
-  const redirectToUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/callback?next=/reset-password`;
   
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: redirectToUrl,
-  });
+  try {
+    const supabase = await createClient();
+    const redirectToUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/callback?next=/reset-password`;
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectToUrl,
+    });
 
-  if (error) {
+    if (error) {
+      return {
+        success: false,
+        message: error.message || "Failed to send reset email. Please try again.",
+      };
+    }
+
+    return {
+      success: true,
+      message: "A password reset link has been sent to your email address.",
+    };
+  } catch (err: any) {
+    console.error("[sendPasswordResetEmail] error:", err);
     return {
       success: false,
-      message: error.message || "Failed to send reset email. Please try again.",
+      message: err?.message || "A connection timeout occurred. Please check your Supabase SMTP configuration.",
     };
   }
-
-  return {
-    success: true,
-    message: "A password reset link has been sent to your email address.",
-  };
 }
 
 /**
@@ -281,22 +289,30 @@ export async function updatePasswordAction(
   }
 
   const { password } = validatedFields.data;
-  const supabase = await createClient();
 
-  const { error } = await supabase.auth.updateUser({
-    password: password,
-  });
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({
+      password: password,
+    });
 
-  if (error) {
+    if (error) {
+      return {
+        success: false,
+        message: error.message || "Failed to update your password. Please try again.",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Your password has been successfully updated.",
+    };
+  } catch (err: any) {
+    console.error("[updatePasswordAction] error:", err);
     return {
       success: false,
-      message: error.message || "Failed to update your password. Please try again.",
+      message: err?.message || "An unexpected database connection error occurred.",
     };
   }
-
-  return {
-    success: true,
-    message: "Your password has been successfully updated.",
-  };
 }
 
