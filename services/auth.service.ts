@@ -60,7 +60,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
       }
     }
 
-    // Check if owner is impersonating a shop branch context
+    // Check if owner is active inside a shop branch context
     let roleOverride = profile.role;
     let shopIdOverride = profile.shopId;
     let isImpersonating = false;
@@ -69,12 +69,12 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
       try {
         const { cookies } = await import("next/headers");
         const cookieStore = await cookies();
-        const ownerViewShopId = cookieStore.get("owner_view_shop_id")?.value;
+        const activeShopContextId = cookieStore.get("active_shop_context_id")?.value;
 
-        if (ownerViewShopId) {
+        if (activeShopContextId) {
           // Validate UUID format to prevent Drizzle/Postgres syntax errors on mock IDs
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (uuidRegex.test(ownerViewShopId)) {
+          if (uuidRegex.test(activeShopContextId)) {
             const { shops } = await import("@/db/schema");
             const { and } = await import("drizzle-orm");
             
@@ -83,21 +83,21 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
               .from(shops)
               .where(
                 and(
-                  eq(shops.id, ownerViewShopId),
+                  eq(shops.id, activeShopContextId),
                   eq(shops.organizationId, profile.organizationId)
                 )
               )
               .limit(1);
 
             if (shop) {
-              roleOverride = "SHOP_MANAGER";
+              // Retain native OWNER role, but set active shop context ID
               shopIdOverride = shop.id;
               isImpersonating = true;
             }
           }
         }
       } catch (cookieErr) {
-        console.error("[auth.service] Error checking impersonation cookies:", cookieErr);
+        console.error("[auth.service] Error checking active shop cookies:", cookieErr);
       }
     }
 

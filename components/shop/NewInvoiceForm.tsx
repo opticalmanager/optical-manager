@@ -27,6 +27,7 @@ import {
   Smartphone,
   CreditCard,
   CheckCircle,
+  Barcode
 } from "lucide-react";
 
 const INDIAN_STATES = [
@@ -187,6 +188,10 @@ export function NewInvoiceForm() {
 
   // Timers for row search debouncing
   const searchTimeouts = useRef<{ [key: number]: NodeJS.Timeout }>({});
+
+  // Barcode Scanning Quick Ingestion States
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [isBarcodeSearching, setIsBarcodeSearching] = useState(false);
 
   // Section 05: Payments & Summary
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "UPI" | "BANK_TRANSFER">("CASH");
@@ -448,6 +453,124 @@ export function NewInvoiceForm() {
       return item;
     });
     setLineItems(updated);
+  };
+
+  const loadProductByBarcode = (product: any) => {
+    // Check if item is already in line items
+    const existingIndex = lineItems.findIndex(
+      (item) => item.inventoryId === product.id
+    );
+
+    if (existingIndex !== -1) {
+      const currentQty = lineItems[existingIndex].quantity === "" ? 0 : Number(lineItems[existingIndex].quantity);
+      const newQty = currentQty + 1;
+      const maxStock = parseInt(product.quantity, 10) || 0;
+      if (newQty > maxStock) {
+        toast.warning(`Scanned quantity exceeds available stock (${maxStock} units) for "${product.name}"`);
+      }
+      updateLineItem(existingIndex, { quantity: newQty });
+      toast.success(`Incremented quantity for "${product.name}" to ${newQty}.`);
+      return;
+    }
+
+    // Otherwise, find the last empty row or add a new one
+    const lastIndex = lineItems.length - 1;
+    const lastItem = lineItems[lastIndex];
+    const isEmpty = lastItem && !lastItem.inventoryId && lastItem.searchQuery === "" && lastItem.sku === "";
+
+    const targetIndex = isEmpty ? lastIndex : lineItems.length;
+
+    const price = parseFloat(product.price) || 0;
+    const cgst = parseFloat(product.cgstPercent) || 0;
+    const sgst = parseFloat(product.sgstPercent) || 0;
+    const igst = parseFloat(product.igstPercent) || 0;
+    const maxStock = parseInt(product.quantity, 10) || 0;
+
+    if (maxStock <= 0) {
+      toast.error(`Out of stock! "${product.name}" has 0 units available.`);
+    }
+
+    const initialLineItem = {
+      inventoryId: product.id,
+      description: product.name,
+      sku: product.sku || "N/A",
+      quantity: 1,
+      unitPrice: price,
+      discountPercent: 0,
+      discountAmount: 0,
+      cgstPercent: cgst,
+      cgstAmount: 0,
+      sgstPercent: sgst,
+      sgstAmount: 0,
+      igstPercent: igst,
+      igstAmount: 0,
+      taxableSubtotal: price,
+      rowTotal: price * (1 + (cgst + sgst + igst) / 100),
+      maxQty: maxStock,
+      searchQuery: product.name,
+      suggestions: [],
+      showDropdown: false,
+      isSearching: false,
+    };
+
+    if (isEmpty) {
+      const updated = [...lineItems];
+      updated[targetIndex] = initialLineItem;
+      setLineItems(updated);
+      updateLineItem(targetIndex, initialLineItem);
+    } else {
+      const lineSubtotal = 1 * price;
+      const discountAmount = 0;
+      const taxableSubtotal = lineSubtotal - discountAmount;
+      const cgstAmount = taxableSubtotal * (cgst / 100);
+      const sgstAmount = taxableSubtotal * (sgst / 100);
+      const igstAmount = taxableSubtotal * (igst / 100);
+      const rowTotal = taxableSubtotal + cgstAmount + sgstAmount + igstAmount;
+
+      const fullyMergedItem = {
+        ...initialLineItem,
+        discountAmount,
+        taxableSubtotal,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        rowTotal,
+      };
+
+      setLineItems([...lineItems, fullyMergedItem]);
+    }
+    toast.success(`Loaded "${product.name}" into billing.`);
+  };
+
+  const triggerBarcodeSearch = async () => {
+    const val = barcodeInput.trim();
+    if (!val) return;
+
+    setIsBarcodeSearching(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const products = data.inventory || [];
+        const exactMatch = products.find(
+          (prod: any) => (prod.sku || "").toLowerCase() === val.toLowerCase()
+        );
+
+        if (exactMatch) {
+          loadProductByBarcode(exactMatch);
+          setBarcodeInput(""); // Reset input
+        } else {
+          toast.error(`No exact SKU match found for barcode: "${val}"`);
+        }
+      } else {
+        toast.error("Failed to query barcode index");
+      }
+    } catch (err) {
+      console.error("Barcode lookup failed:", err);
+      toast.error("Network error during barcode scan lookup");
+    } finally {
+      setIsBarcodeSearching(false);
+    }
   };
 
   const handleSelectProduct = (index: number, product: any) => {
@@ -1656,7 +1779,7 @@ export function NewInvoiceForm() {
             </table>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <button
               type="button"
               onClick={handleAddRow}
@@ -1664,6 +1787,27 @@ export function NewInvoiceForm() {
             >
               <Plus className="h-4 w-4" /> Add another item...
             </button>
+
+            {/* Quick Barcode Scanner Input */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-[#0a52c3] focus-within:bg-white transition-all w-full sm:w-80">
+              <Barcode className="h-4 w-4 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Click here & scan barcode..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    triggerBarcodeSearch();
+                  }
+                }}
+                className="w-full bg-transparent text-xs font-bold outline-none text-slate-900 placeholder:text-slate-400"
+              />
+              {isBarcodeSearching && (
+                <Loader2 className="h-3.5 w-3.5 text-[#0a52c3] animate-spin shrink-0" />
+              )}
+            </div>
           </div>
         </div>
       </div>

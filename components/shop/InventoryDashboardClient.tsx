@@ -20,8 +20,10 @@ import {
   MinusCircle,
   PiggyBank,
   Search,
-  X
+  X,
+  Barcode
 } from "lucide-react";
+import { BarcodeDesignerModal } from "@/components/shop/BarcodeDesignerModal";
 
 interface InventoryItem {
   id: string;
@@ -74,6 +76,7 @@ export function InventoryDashboardClient({
   const [sort, setSort] = useState<string>(initialSort.toUpperCase());
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [activeBarcodeItem, setActiveBarcodeItem] = useState<InventoryItem | null>(null);
 
   // Synced URL parameters on interaction without Next.js page re-rendering lag
   useEffect(() => {
@@ -669,10 +672,18 @@ export function InventoryDashboardClient({
                     <td className="px-6 py-4 font-bold text-slate-800 text-right text-sm">
                       {formatCurrency(Number(item.price))}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => setActiveBarcodeItem(item)}
+                        className="p-2 text-slate-450 hover:text-indigo-650 hover:bg-indigo-50/80 hover:scale-105 active:scale-95 rounded-xl transition-all duration-200 inline-block cursor-pointer bg-transparent border-none"
+                        title="Generate Barcodes"
+                      >
+                        <Barcode className="h-4 w-4" />
+                      </button>
                       <Link 
                         href={`/shop/inventory/edit/${item.id}`}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-block"
+                        className="p-2 text-slate-450 hover:text-indigo-650 hover:bg-indigo-50/80 hover:scale-105 active:scale-95 rounded-xl transition-all duration-200 inline-block"
                         title="Edit Item details"
                       >
                         <Pencil className="h-4 w-4" />
@@ -751,6 +762,12 @@ export function InventoryDashboardClient({
           </div>
         )}
       </Card>
+
+      <BarcodeDesignerModal
+        isOpen={activeBarcodeItem !== null}
+        onClose={() => setActiveBarcodeItem(null)}
+        item={activeBarcodeItem}
+      />
     </div>
   );
 }

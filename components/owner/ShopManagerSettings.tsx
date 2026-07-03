@@ -9,7 +9,7 @@ import {
   updateShopManagerPassword,
   createShopManagerCredentials,
 } from "@/services/shop-manager.service";
-import { startImpersonatingShopAction } from "@/actions/auth.actions";
+import { accessShopConsoleAction } from "@/actions/auth.actions";
 
 interface ManagerInfo {
   id: string;
@@ -49,12 +49,12 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
 
     setIsViewOutletLoading(shopId);
     try {
-      toast.loading("Initiating shop impersonation context...", { id: "view-outlet" });
-      await startImpersonatingShopAction(shopId);
-      toast.success("Redirecting to outlet dashboard...", { id: "view-outlet" });
+      toast.loading("Opening shop console...", { id: "view-outlet" });
+      await accessShopConsoleAction(shopId);
+      toast.success("Redirecting to shop console...", { id: "view-outlet" });
     } catch (err) {
       console.error(err);
-      toast.error("Failed to impersonate shop branch.", { id: "view-outlet" });
+      toast.error("Failed to open shop console.", { id: "view-outlet" });
       setIsViewOutletLoading(null);
     }
   };
@@ -368,7 +368,7 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
                             ) : (
                               <ExternalLink className="w-3 h-3" />
                             )}
-                            <span>View Outlet</span>
+                            <span>Access Shop Console</span>
                           </button>
                         </div>
                       </div>

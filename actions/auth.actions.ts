@@ -191,13 +191,13 @@ export async function signInWithGoogle() {
 }
 
 /**
- * Server Action: Start impersonating a shop branch context.
+ * Server Action: Start viewing/managing a shop branch context.
  */
-export async function startImpersonatingShopAction(shopId: string) {
-  // Set the context cookie
+export async function accessShopConsoleAction(shopId: string) {
+  // Set the active shop context cookie
   const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
-  cookieStore.set("owner_view_shop_id", shopId, {
+  cookieStore.set("active_shop_context_id", shopId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     path: "/",
@@ -209,13 +209,13 @@ export async function startImpersonatingShopAction(shopId: string) {
 }
 
 /**
- * Server Action: Exit shop impersonation context.
+ * Server Action: Exit shop console context.
  */
-export async function stopImpersonatingShopAction() {
-  // Clear the context cookie
+export async function exitShopConsoleAction() {
+  // Clear the active shop context cookie
   const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
-  cookieStore.delete("owner_view_shop_id");
+  cookieStore.delete("active_shop_context_id");
 
   // Redirect back to owner dashboard
   redirect("/owner");
