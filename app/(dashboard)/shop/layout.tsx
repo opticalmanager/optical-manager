@@ -3,8 +3,8 @@ import { getCurrentUser } from "@/services/auth.service";
 import { getShopById } from "@/services/shop.service";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { stopImpersonatingShopAction } from "@/actions/auth.actions";
-import { ShieldAlert, ArrowLeft } from "lucide-react";
+import { exitShopConsoleAction } from "@/actions/auth.actions";
+import { Sparkles, ArrowLeft } from "lucide-react";
 
 export default async function ShopDashboardLayout({
   children,
@@ -17,11 +17,13 @@ export default async function ShopDashboardLayout({
     redirect("/login");
   }
   
-  if (user.role !== "SHOP_MANAGER") {
-    if (user.role === "OWNER") {
-      redirect("/owner");
-    }
+  // Allow both Shop Managers and Owners with an active shop context
+  if (user.role !== "SHOP_MANAGER" && user.role !== "OWNER") {
     redirect("/login");
+  }
+
+  if (user.role === "OWNER" && !user.shopId) {
+    redirect("/owner");
   }
   
   if (!user.isActive) {
@@ -36,20 +38,20 @@ export default async function ShopDashboardLayout({
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
       {user.isImpersonating && (
-        <div className="bg-amber-600 text-white px-6 py-2.5 flex items-center justify-between gap-4 border-b border-amber-700 shrink-0 shadow-md">
+        <div className="bg-indigo-900 text-white px-6 py-2.5 flex items-center justify-between gap-4 border-b border-indigo-950 shrink-0 shadow-md">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-amber-100 shrink-0" />
-            <span className="text-sm font-semibold tracking-wide">
-              Viewing <strong className="font-extrabold">{shop?.name || "Corporate Outlet"}</strong> as Owner (Impersonation Mode)
+            <Sparkles className="w-4 h-4 text-indigo-200 shrink-0 animate-pulse" />
+            <span className="text-xs font-bold tracking-wider uppercase">
+              Owner Console <span className="mx-2 text-indigo-400">•</span> Managing Branch: <strong className="font-extrabold text-white text-sm normal-case">{shop?.name || "Corporate Outlet"}</strong>
             </span>
           </div>
-          <form action={stopImpersonatingShopAction}>
+          <form action={exitShopConsoleAction}>
             <button
               type="submit"
-              className="flex items-center gap-1.5 bg-white text-amber-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-50 active:bg-amber-150 transition-all shadow-sm cursor-pointer border-none"
+              className="flex items-center gap-1.5 bg-white text-indigo-900 px-4 py-1.5 rounded-lg text-xs font-extrabold hover:bg-indigo-50 active:bg-indigo-100 transition-all shadow-sm cursor-pointer border-none"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Exit Impersonation</span>
+              <span>Back to Owner Portal</span>
             </button>
           </form>
         </div>

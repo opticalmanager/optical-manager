@@ -2,7 +2,7 @@ import React from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getShopsWithManagers } from "@/services/shop-manager.service";
-import { startImpersonatingShopAction } from "@/actions/auth.actions";
+import { accessShopConsoleAction } from "@/actions/auth.actions";
 import { 
   Store, 
   MapPin, 
@@ -247,19 +247,19 @@ export default async function OwnerShopsPage() {
               {!hasRealShops ? (
                 <button
                   disabled
-                  title="Demo branches cannot be viewed. Create a real shop branch to use impersonation mode."
+                  title="Demo branches cannot be viewed. Create a real shop branch to access the shop console."
                   className="flex items-center gap-1 text-xs font-bold text-slate-450 cursor-not-allowed opacity-50 bg-transparent border-none"
                 >
-                  <span>View Outlet</span>
+                  <span>Access Shop Console</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </button>
               ) : (
-                <form action={startImpersonatingShopAction.bind(null, shop.id)}>
+                <form action={accessShopConsoleAction.bind(null, shop.id)}>
                   <button
                     type="submit"
                     className="flex items-center gap-1 text-xs font-bold text-indigo-650 hover:text-indigo-700 transition-colors cursor-pointer bg-transparent border-none"
                   >
-                    <span>View Outlet</span>
+                    <span>Access Shop Console</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </button>
                 </form>

@@ -15,7 +15,7 @@ export async function createCustomerAction(
   const user = await getCurrentUser();
   if (!user) return { success: false, message: "Unauthorized." };
 
-  const shopId = user.role === "SHOP_MANAGER" ? user.shopId! : (formData.get("shopId") as string);
+  const shopId = user.shopId || (formData.get("shopId") as string);
   if (!shopId) return { success: false, message: "Shop ID is required." };
 
   const validatedFields = customerSchema.safeParse({
