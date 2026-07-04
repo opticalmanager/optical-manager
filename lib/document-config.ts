@@ -12,16 +12,16 @@ export function getShopBusinessDetails(shop: Shop | null | undefined) {
     phone: shop?.phone || "9137012156",
     email: shop?.email || "info@clarityeyecare.in",
 
-    // Business compliance (hard-coded for now → fetch from DB later)
-    gstin: "27AALCC7382F1ZC",
-    cin: "U32507MH2024PTC422044",
-    msmeUdyam: "UDYAM-MH-33-0456381",
+    // Business compliance (fetch from DB, fallback to default)
+    gstin: shop?.gstin || "27AALCC7382F1ZC",
+    cin: shop?.cin || "U32507MH2024PTC422044",
+    msmeUdyam: shop?.msmeUdyam || "UDYAM-MH-33-0456381",
 
-    // Bank details (hard-coded for now → fetch from DB later)
-    bankName: "Axis Bank Limited.",
-    bankBranch: "MIDC Turbhe",
-    bankAccountNumber: "924020033652178",
-    bankIfsc: "UTIB0000661",
+    // Bank details (fetch from DB, fallback to default)
+    bankName: shop?.bankName || "Axis Bank Limited.",
+    bankBranch: shop?.bankBranch || "MIDC Turbhe",
+    bankAccountNumber: shop?.bankAccountNumber || "924020033652178",
+    bankIfsc: shop?.bankIfsc || "UTIB0000661",
   };
 }
 
