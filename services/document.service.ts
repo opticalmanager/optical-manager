@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { invoiceItems, inventory, orders, receipts } from "@/db/schema";
+import { invoices, invoiceItems, inventory, orders, receipts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getInvoiceById } from "./invoice.service";
 import { getShopById } from "./shop.service";
@@ -126,4 +126,27 @@ export async function getReceiptDocumentData(
     ...invoiceData,
     receipt,
   };
+}
+
+/**
+ * Fetches data for an Invoice without checking organization session (for public sharing).
+ */
+export async function getPublicInvoiceDocumentData(
+  invoiceId: string
+): Promise<DocumentData | null> {
+  try {
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, invoiceId))
+      .limit(1);
+
+    if (!invoice) return null;
+
+    // Delegate to standard query using the verified organizationId
+    return getInvoiceDocumentData(invoiceId, invoice.organizationId);
+  } catch (error) {
+    console.error("[getPublicInvoiceDocumentData] error:", error);
+    return null;
+  }
 }

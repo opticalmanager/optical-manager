@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X, Calendar, AlertTriangle, Mail, Loader2, ChevronDown } from "lucide-react";
+import { X, Calendar, AlertTriangle, Mail, Loader2, ChevronDown, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,9 @@ import {
   generateFullPaymentInvoiceAction,
   sendRescheduledDeliveryEmailAction,
 } from "@/actions/order.actions";
+import { updateCustomerPhoneAction } from "@/actions/customer.actions";
+import { getShopSettingsAction } from "@/actions/shop-settings.actions";
+import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
 
 interface QuickEditModalProps {
   order: OrderItem;
@@ -48,6 +51,11 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     order.estimatedDelivery || ""
   );
 
+  // WhatsApp prompt local states (declared at top level to respect Rules of Hooks)
+  const [showPhonePrompt, setShowPhonePrompt] = useState(false);
+  const [inputPhone, setInputPhone] = useState("");
+  const [whatsappTemplateKey, setWhatsappTemplateKey] = useState<"invoice_sent" | "order_complete" | "delivery_sent" | "delivery_delay" | null>(null);
+
   // Sync state with order changes when modal opens/changes
   useEffect(() => {
     setPaymentStatus(isPaidInitially ? "PAID" : "PARTIALLY_PAID");
@@ -73,6 +81,108 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
 
   // Date changed check
   const isDateChanged = estimatedDelivery !== (order.estimatedDelivery || "");
+
+  // Custom WhatsApp icon component
+  const WhatsAppIcon = () => (
+    <svg
+      className="w-4 h-4 fill-current shrink-0"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.262 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.48-.002 9.932-4.448 9.935-9.923.001-2.652-1.03-5.143-2.905-7.018C16.426 1.79 13.931.758 11.28.758c-5.478 0-9.93 4.447-9.934 9.925-.001 1.84.482 3.633 1.4 5.207L1.687 22.3l6.59-1.737zM18.82 15.09c-.317-.159-1.88-.93-2.171-1.036-.29-.105-.503-.158-.714.159-.211.318-.82 1.036-1.006 1.248-.185.213-.37.24-.688.082-1.815-.91-2.997-1.615-4.14-3.582-.28-.487.323-.452.923-1.65.1-.2.05-.375-.025-.533-.075-.16-.625-1.507-.856-2.07-.225-.544-.452-.47-.62-.478-.153-.008-.33-.008-.507-.008-.178 0-.468.067-.714.34-.246.273-.94.92-.94 2.247 0 1.327.962 2.607 1.096 2.785.134.178 1.895 2.898 4.59 4.067.64.278 1.14.444 1.53.567.644.205 1.23.176 1.693.107.518-.077 1.58-.646 1.802-1.24.22-.593.22-1.102.155-1.21-.065-.108-.24-.159-.556-.32z" />
+    </svg>
+  );
+
+  const triggerWhatsAppRedirect = async (
+    key: "invoice_sent" | "order_complete" | "delivery_sent" | "delivery_delay",
+    targetPhone: string
+  ) => {
+    try {
+      const settingsRes = await getShopSettingsAction();
+      if (!settingsRes.success || !settingsRes.data) {
+        toast.error("Failed to load shop notification templates.");
+        return;
+      }
+
+      const shopData = settingsRes.data;
+      const templateConfig = shopData.settings?.whatsappTemplates?.[key];
+      const isEnabled = templateConfig?.enabled ?? true;
+
+      if (!isEnabled) {
+        toast.warning(`Notification template for "${key}" is disabled.`);
+        return;
+      }
+
+      const fallbacks = {
+        invoice_sent: "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!",
+        order_complete: "Hi {{customer_name}},\n\nYour spectacles/lenses order under order number {{order_number}} is ready for pickup/delivery at {{shop_name}}!\n\nFeel free to visit us or contact us at {{phone}}.",
+        delivery_sent: "Hello {{customer_name}},\n\nYour spectacles/lenses order {{order_number}} from {{shop_name}} is in progress.\n\nExpected delivery date: {{estimated_delivery}}.\n\nFeel free to contact us at {{phone}}.",
+        delivery_delay: "Dear {{customer_name}},\n\nWe regret to inform you that your spectacles/lenses order {{order_number}} from {{shop_name}} has been delayed.\n\nThe revised expected delivery date is: {{estimated_delivery}}.\n\nWe apologize for the inconvenience. Feel free to contact us at {{phone}}."
+      };
+
+      const templateText = templateConfig?.template || fallbacks[key];
+
+      const parsedText = parseWhatsAppTemplate(templateText, {
+        customer_name: order.customerName || "Valued Customer",
+        shop_name: shopData.name || "Clarity Eyecare",
+        phone: shopData.phone || "+91 74161 06064",
+        order_number: order.orderNumber || "",
+        invoice_number: order.invoiceNumber || "",
+        amount: `Rs. ${order.total}`,
+        amount_paid: `Rs. ${order.amountPaid || "0.00"}`,
+        balance_due: `Rs. ${order.balanceDue || "0.00"}`,
+        payment_method: order.paymentMethod || "N/A",
+        fulfillment_status: fulfillmentStatus,
+        estimated_delivery: estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString() : "N/A",
+        invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`
+      });
+
+      const cleanPhone = targetPhone.replace(/[^\d]/g, "");
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(parsedText)}`;
+      } else {
+        const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(parsedText)}`;
+        window.open(webUrl, "whatsapp_workspace_tab");
+      }
+      toast.success("WhatsApp message launched!");
+    } catch (error) {
+      toast.error("Failed to trigger WhatsApp message.");
+    }
+  };
+
+  const handleSendWhatsApp = (key: "invoice_sent" | "order_complete" | "delivery_sent" | "delivery_delay") => {
+    setWhatsappTemplateKey(key);
+    const hasPhone = order.customerPhone && order.customerPhone.trim().length >= 10;
+    if (hasPhone) {
+      triggerWhatsAppRedirect(key, order.customerPhone!);
+    } else {
+      setInputPhone("");
+      setShowPhonePrompt(true);
+    }
+  };
+
+  const handleConfirmPhoneSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputPhone.trim() || inputPhone.trim().length < 10) {
+      toast.error("Please enter a valid WhatsApp phone number (minimum 10 digits).");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await updateCustomerPhoneAction(order.customerId, inputPhone.trim());
+      if (res.success) {
+        toast.success(res.message);
+        setShowPhonePrompt(false);
+        router.refresh();
+        if (whatsappTemplateKey) {
+          triggerWhatsAppRedirect(whatsappTemplateKey, inputPhone.trim());
+        }
+      } else {
+        toast.error(res.message || "Failed to update phone number.");
+      }
+    });
+  };
 
   // Handle Save (Delivery Status & Date)
   const handleSaveDeliveryDetails = () => {
@@ -286,6 +396,16 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                       </span>
                     </div>
                   )}
+
+                  {paymentStatus === "PAID" && (
+                    <Button
+                      type="button"
+                      onClick={() => handleSendWhatsApp("invoice_sent")}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs h-10 px-4 rounded-xl flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg transition-all border-none cursor-pointer mt-3"
+                    >
+                      <WhatsAppIcon /> Send Invoice on WhatsApp
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -413,6 +533,24 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                       </div>
                     </div>
                   )}
+
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      let key: "order_complete" | "delivery_sent" | "delivery_delay" = "delivery_sent";
+                      if (fulfillmentStatus === "DELIVERED") {
+                        key = "order_complete";
+                      } else {
+                        const oldDate = order.estimatedDelivery;
+                        const isDelay = oldDate && estimatedDelivery > oldDate;
+                        key = isDelay ? "delivery_delay" : "delivery_sent";
+                      }
+                      handleSendWhatsApp(key);
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs h-10 px-4 rounded-xl flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg transition-all border-none cursor-pointer mt-3"
+                  >
+                    <WhatsAppIcon /> Send Status Update on WhatsApp
+                  </Button>
                 </div>
               </div>
             </div>
@@ -447,6 +585,64 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         </div>
 
       </div>
+
+      {/* PHONE CAPTURE PROMPT OVERLAY */}
+      {showPhonePrompt && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xl max-w-sm w-full mx-4 space-y-4 animate-in zoom-in-95 duration-200 relative text-left">
+            <button
+              onClick={() => setShowPhonePrompt(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg text-slate-400 hover:text-slate-650 hover:bg-slate-105 transition-colors cursor-pointer border-none"
+            >
+              <X className="w-4.5 h-4.5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 shrink-0">
+                <PhoneCall className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">WhatsApp Number Required</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Enter phone to send notification</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmPhoneSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider">Customer phone number</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. 917416106064"
+                  value={inputPhone}
+                  onChange={(e) => setInputPhone(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                />
+                <span className="block text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1.5 italic">
+                  Note: Format with country code, without "+" or dashes (e.g. 91xxxxxxxxxx). Number will be saved to the database.
+                </span>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPhonePrompt(false)}
+                  className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-855 font-black rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Confirm & Send
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );

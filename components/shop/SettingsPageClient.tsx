@@ -108,7 +108,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   const DEFAULT_WHATSAPP_TEMPLATES = {
     invoice_sent: {
       enabled: true,
-      template: "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} of amount {{amount}} is ready.\n\nView your digital bill here: {{invoice_url}}\n\nHave a great day!",
+      template: "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!",
     },
     order_complete: {
       enabled: true,
@@ -116,11 +116,11 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     },
     delivery_sent: {
       enabled: false,
-      template: "Hello {{customer_name}},\n\nYour order {{order_number}} from {{shop_name}} has been dispatched and is out for delivery.\n\nExpected delivery date: {{delivery_date}}.\nTrack status: {{tracking_url}}",
+      template: "Hello {{customer_name}},\n\nYour spectacles/lenses order {{order_number}} from {{shop_name}} is in progress.\n\nExpected delivery date: {{estimated_delivery}}.\n\nFeel free to contact us at {{phone}}.",
     },
     delivery_delay: {
       enabled: false,
-      template: "Dear {{customer_name}},\n\nWe regret to inform you that your order {{order_number}} from {{shop_name}} has been delayed.\n\nThe revised delivery date is {{delivery_date}}.\nWe apologize for any inconvenience caused.",
+      template: "Dear {{customer_name}},\n\nWe regret to inform you that your spectacles/lenses order {{order_number}} from {{shop_name}} has been delayed.\n\nThe revised expected delivery date is: {{estimated_delivery}}.\n\nWe apologize for the inconvenience. Feel free to contact us at {{phone}}.",
     },
   };
   const [whatsappTemplates, setWhatsappTemplates] = useState<any>(shop?.settings?.whatsappTemplates || DEFAULT_WHATSAPP_TEMPLATES);
@@ -745,11 +745,14 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                               { code: "shop_name", label: "Shop Name" },
                               { code: "phone", label: "Shop Phone" },
                               { code: "invoice_number", label: "Invoice Number" },
-                              { code: "amount", label: "Amount" },
+                              { code: "amount", label: "Total Amount" },
+                              { code: "amount_paid", label: "Amount Paid" },
+                              { code: "balance_due", label: "Balance Due" },
+                              { code: "payment_method", label: "Payment Method" },
+                              { code: "fulfillment_status", label: "Delivery Status" },
+                              { code: "estimated_delivery", label: "Est. Delivery" },
                               { code: "order_number", label: "Order Number" },
-                              { code: "delivery_date", label: "Delivery Date" },
-                              { code: "invoice_url", label: "Invoice URL" },
-                              { code: "tracking_url", label: "Tracking URL" }
+                              { code: "invoice_url", label: "Invoice URL" }
                             ].map((item) => (
                               <button
                                 key={item.code}
@@ -803,10 +806,13 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                                   phone: shop?.phone || "+91 74161 06064",
                                   invoice_number: "INV-2026-0812",
                                   amount: "Rs. 1,899/-",
+                                  amount_paid: "Rs. 1,000/-",
+                                  balance_due: "Rs. 899/-",
+                                  payment_method: "UPI",
+                                  fulfillment_status: "READY",
+                                  estimated_delivery: "July 12, 2026",
                                   order_number: "ORD-9824",
-                                  delivery_date: "July 12, 2026",
-                                  invoice_url: "https://opt.mgr/inv/0812",
-                                  tracking_url: "https://opt.mgr/track/9824"
+                                  invoice_url: "https://opt.mgr/inv/0812"
                                 }
                               )}
                             </div>
@@ -818,9 +824,9 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
 
                         </div>
                       </div>
-
                     </div>
-                  </div>  )}
+                  </div>
+                )}
 
                 {/* Sub-tab 2B: Email Routing */}
                 {activeSubTab === "email" && (

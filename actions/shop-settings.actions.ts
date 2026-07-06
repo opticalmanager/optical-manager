@@ -145,3 +145,27 @@ export async function toggleStaffActiveAction(
     return { success: false, message: "Failed to update staff status." };
   }
 }
+
+/**
+ * Server Action: Get Shop settings config (for client components).
+ */
+export async function getShopSettingsAction(): Promise<{ success: boolean; data?: any; message?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, message: "Unauthorized." };
+  }
+  if (!user.shopId) {
+    return { success: false, message: "No active shop assigned." };
+  }
+
+  try {
+    const shop = await getShopById(user.shopId, user.organizationId);
+    if (!shop) {
+      return { success: false, message: "Shop not found." };
+    }
+    return { success: true, data: { name: shop.name, phone: shop.phone, settings: shop.settings } };
+  } catch (error: any) {
+    console.error("[getShopSettingsAction] error:", error);
+    return { success: false, message: "Failed to retrieve settings." };
+  }
+}
