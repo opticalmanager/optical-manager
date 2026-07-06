@@ -116,3 +116,22 @@ export async function updateCustomerAction(
     return { success: false, message: "Failed to update customer." };
   }
 }
+
+/**
+ * Server Action: Quick update customer's phone number.
+ */
+export async function updateCustomerPhoneAction(
+  customerId: string,
+  phone: string
+): Promise<{ success: boolean; message: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, message: "Unauthorized." };
+
+  try {
+    await updateCustomer(customerId, user.organizationId, { phone });
+    revalidatePath("/shop/customers");
+    return { success: true, message: "Customer phone number updated successfully." };
+  } catch (error) {
+    return { success: false, message: "Failed to update customer phone number." };
+  }
+}
