@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getShopById } from "@/services/shop.service";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Topbar } from "@/components/layout/topbar";
+import { ShopLayoutClient } from "@/components/layout/ShopLayoutClient";
 import { exitShopConsoleAction } from "@/actions/auth.actions";
 import { Sparkles, ArrowLeft } from "lucide-react";
 
@@ -56,21 +55,9 @@ export default async function ShopDashboardLayout({
           </form>
         </div>
       )}
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar 
-          shopName={shop?.name || undefined} 
-          shopAddress={shop?.address || undefined} 
-        />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar 
-            user={user} 
-            shopName={shop?.name || "Corporate Outlet"} 
-          />
-          <main className="flex-1 overflow-y-auto bg-slate-50/50 p-8">
-            {children}
-          </main>
-        </div>
-      </div>
+      <ShopLayoutClient user={user} shop={shop}>
+        {children}
+      </ShopLayoutClient>
     </div>
   );
 }

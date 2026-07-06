@@ -87,106 +87,106 @@ export default async function PrescriptionsPage() {
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-muted uppercase bg-surface/50 border-b border-border">
               <tr>
-                <th className="px-6 py-4 font-bold">Patient Name</th>
-                <th className="px-6 py-4 font-bold">Exam Date</th>
-                <th className="px-6 py-4 font-bold">Optometrist</th>
-                <th className="px-6 py-4 font-bold text-center">SPH</th>
-                <th className="px-6 py-4 font-bold text-center">CYL</th>
-                <th className="px-6 py-4 font-bold text-center">AXIS</th>
-                <th className="px-6 py-4"></th>
+                <th className="px-3 md:px-6 py-4 font-bold">Patient Name</th>
+                <th className="px-3 md:px-6 py-4 font-bold">Exam Date</th>
+                <th className="px-3 md:px-6 py-4 font-bold">Optometrist</th>
+                <th className="px-3 md:px-6 py-4 text-center font-bold">SPH</th>
+                <th className="px-3 md:px-6 py-4 text-center font-bold">CYL</th>
+                <th className="px-3 md:px-6 py-4 text-center font-bold">AXIS</th>
+                <th className="px-3 md:px-6 py-4"></th>
               </tr>
             </thead>
             <tbody>
               {prescriptions.length > 0 ? prescriptions.map(rx => (
                 <tr key={rx.id} className="border-b border-border last:border-0 hover:bg-surface/30 cursor-pointer">
-                  <td className="px-6 py-4">
+                  <td className="px-3 md:px-6 py-4">
                     <p className="font-bold text-text-main">Customer {rx.customerId?.substring(0, 4)}</p>
                     <p className="text-xs text-text-muted">ID: #OP-{rx.id.substring(0, 5)}</p>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 md:px-6 py-4">
                     <p className="text-text-main">{formatDate(new Date(rx.createdAt))}</p>
                     <p className="text-xs text-text-muted">10:45 AM</p>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 md:px-6 py-4">
                     <div className="flex items-center gap-2 text-text-main font-medium">
                       <BriefcaseMedical className="h-4 w-4 text-primary" /> Dr. Elias Vance
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-3 md:px-6 py-4 text-center">
                     <p className="text-xs font-bold text-text-muted mb-1">OD</p>
                     <p className="font-bold text-primary">{rx.rightSphere}</p>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-3 md:px-6 py-4 text-center">
                     <p className="text-xs font-bold text-text-muted mb-1">CYL</p>
                     <p className="font-bold text-text-main">{rx.rightCylinder || "DS"}</p>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-3 md:px-6 py-4 text-center">
                     <p className="text-xs font-bold text-text-muted mb-1">AX</p>
                     <p className="font-bold text-text-main">{rx.rightAxis ? `${rx.rightAxis}°` : "—"}</p>
                   </td>
-                  <td className="px-6 py-4 text-right text-text-muted">
+                  <td className="px-3 md:px-6 py-4 text-right text-text-muted">
                     <ChevronRight className="h-5 w-5 ml-auto" />
                   </td>
                 </tr>
               )) : (
                 <>
                   <tr className="border-b border-border hover:bg-surface/30 cursor-pointer">
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <p className="font-bold text-text-main">Alexandra Sterling</p>
                       <p className="text-xs text-text-muted">ID: #OP-98210</p>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <p className="text-text-main">Oct 24, 2023</p>
                       <p className="text-xs text-text-muted">10:45 AM</p>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <div className="flex items-center gap-2 text-text-main font-medium">
                         <BriefcaseMedical className="h-4 w-4 text-primary" /> Dr. Elias Vance
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center border-l border-border/50">
+                    <td className="px-3 md:px-6 py-4 text-center border-l border-border/50">
                       <p className="text-xs font-bold text-text-muted mb-1">OD</p>
                       <p className="font-bold text-primary">-3.25</p>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3 md:px-6 py-4 text-center">
                       <p className="text-xs font-bold text-text-muted mb-1">CYL</p>
                       <p className="font-bold text-primary">-1.50</p>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3 md:px-6 py-4 text-center">
                       <p className="text-xs font-bold text-text-muted mb-1">AX</p>
                       <p className="font-bold text-primary">175°</p>
                     </td>
-                    <td className="px-6 py-4 text-right text-text-muted">
+                    <td className="px-3 md:px-6 py-4 text-right text-text-muted">
                       <ChevronRight className="h-5 w-5 ml-auto" />
                     </td>
                   </tr>
                   <tr className="border-b border-border hover:bg-surface/30 cursor-pointer">
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <p className="font-bold text-text-main">Marcus Thorne</p>
                       <p className="text-xs text-text-muted">ID: #OP-87723</p>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <p className="text-text-main">Oct 23, 2023</p>
                       <p className="text-xs text-text-muted">02:15 PM</p>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <div className="flex items-center gap-2 text-text-main font-medium">
                         <BriefcaseMedical className="h-4 w-4 text-primary" /> Dr. Sarah Jenks
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center border-l border-border/50">
+                    <td className="px-3 md:px-6 py-4 text-center border-l border-border/50">
                       <p className="text-xs font-bold text-text-muted mb-1">OD</p>
                       <p className="font-bold text-primary">+1.75</p>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3 md:px-6 py-4 text-center">
                       <p className="text-xs font-bold text-text-muted mb-1">CYL</p>
                       <p className="font-bold text-text-main">DS</p>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3 md:px-6 py-4 text-center">
                       <p className="text-xs font-bold text-text-muted mb-1">AX</p>
                       <p className="font-bold text-text-main">—</p>
                     </td>
-                    <td className="px-6 py-4 text-right text-text-muted">
+                    <td className="px-3 md:px-6 py-4 text-right text-text-muted">
                       <ChevronRight className="h-5 w-5 ml-auto" />
                     </td>
                   </tr>
@@ -207,7 +207,7 @@ export default async function PrescriptionsPage() {
           <CardContent className="h-[250px] flex items-end justify-around pb-4">
             {/* CSS Bar Chart Placeholder */}
             {[30, 80, 50, 20, 10, 45, 60].map((h, i) => (
-              <div key={i} className={`w-12 rounded-t-sm ${i % 2 === 0 ? 'bg-primary-light/80' : 'bg-primary'}`} style={{ height: `${h}%` }}>
+              <div key={i} className={`w-12 rounded-t-sm relative ${i % 2 === 0 ? 'bg-primary-light/80' : 'bg-primary'}`} style={{ height: `${h}%` }}>
                 <div className="text-center w-full absolute -bottom-6 text-xs text-text-muted font-medium">
                   {['MON','TUE','WED','THU','FRI','SAT','SUN'][i]}
                 </div>

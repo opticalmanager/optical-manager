@@ -12,7 +12,8 @@ import {
   ReceiptText, 
   Package, 
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Menu
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -26,9 +27,10 @@ interface TopbarProps {
     role?: string;
   } | null;
   shopName: string;
+  onMenuClick?: () => void;
 }
 
-export function Topbar({ user, shopName }: TopbarProps) {
+export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
   const router = useRouter();
   const supabase = createClient();
   
@@ -117,11 +119,20 @@ export function Topbar({ user, shopName }: TopbarProps) {
     : "Search patients, invoices, or stock...";
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-slate-200/80 bg-white px-8 select-none z-20">
+    <header className="flex h-16 items-center justify-between border-b border-slate-200/80 bg-white px-4 md:px-8 select-none z-20">
       
       {/* Autocomplete Search Bar */}
-      <div className="relative flex-1 max-w-md" ref={searchContainerRef}>
-        <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200/50 px-3.5 py-2 focus-within:ring-2 focus-within:ring-[#0a52c3]/20 focus-within:border-[#0a52c3] focus-within:bg-white transition-all">
+      <div className="relative flex-1 max-w-md flex items-center gap-2.5" ref={searchContainerRef}>
+        {onMenuClick && (
+          <button
+            type="button"
+            onClick={onMenuClick}
+            className="lg:hidden p-2 rounded-xl border border-slate-200/60 hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors shrink-0 cursor-pointer flex items-center justify-center bg-white"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+        )}
+        <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-50 border border-slate-200/50 px-3.5 py-2 focus-within:ring-2 focus-within:ring-[#0a52c3]/20 focus-within:border-[#0a52c3] focus-within:bg-white transition-all">
           <Search className="h-4 w-4 text-slate-400 shrink-0" />
           <input
             type="text"
@@ -245,16 +256,16 @@ export function Topbar({ user, shopName }: TopbarProps) {
       <div className="flex items-center gap-4 ml-auto">
         <button
           onClick={() => router.push("/shop/patients/new")}
-          className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
+          className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer hidden sm:block"
         >
           Add Patient
         </button>
         <button
           onClick={() => router.push("/shop/invoices/new")}
-          className="h-10 px-4 rounded-xl bg-[#0a52c3] hover:bg-[#004bb5] text-xs font-bold text-white shadow-sm shadow-[#0a52c3]/15 transition-colors cursor-pointer flex items-center gap-1.5"
+          className="h-10 w-10 md:w-auto md:px-4 rounded-xl bg-[#0a52c3] hover:bg-[#004bb5] text-xs font-bold text-white shadow-sm shadow-[#0a52c3]/15 transition-colors cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
         >
           <ReceiptText className="h-4 w-4" />
-          New Invoice
+          <span className="hidden md:inline">New Invoice</span>
         </button>
         
         <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />

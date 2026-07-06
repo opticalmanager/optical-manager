@@ -590,12 +590,12 @@ export function InventoryDashboardClient({
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-slate-400 uppercase bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-4 font-bold tracking-wider">SKU</th>
-                <th className="px-6 py-4 font-bold tracking-wider">Item Name</th>
-                <th className="px-6 py-4 font-bold tracking-wider">Category</th>
-                <th className="px-6 py-4 font-bold tracking-wider text-center">Stock Level</th>
-                <th className="px-6 py-4 font-bold tracking-wider text-right">Unit Price</th>
-                <th className="px-6 py-4 font-bold tracking-wider text-center">Actions</th>
+                <th className="px-3 md:px-6 py-4 font-bold tracking-wider">SKU</th>
+                <th className="px-3 md:px-6 py-4 font-bold tracking-wider">Item Name</th>
+                <th className="px-3 md:px-6 py-4 font-bold tracking-wider">Category</th>
+                <th className="px-3 md:px-6 py-4 font-bold tracking-wider text-center">Stock Level</th>
+                <th className="px-3 md:px-6 py-4 font-bold tracking-wider text-right">Unit Price</th>
+                <th className="px-3 md:px-6 py-4 font-bold tracking-wider text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -605,10 +605,10 @@ export function InventoryDashboardClient({
                     key={item.id}
                     className="hover:bg-slate-50/50 transition-colors"
                   >
-                    <td className="px-6 py-4 font-mono font-bold text-indigo-650 text-xs">
+                    <td className="px-3 md:px-6 py-4 font-mono font-bold text-indigo-650 text-xs">
                       {item.sku}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 flex-shrink-0 bg-white border border-slate-150 rounded-lg flex items-center justify-center text-slate-400 overflow-hidden shadow-sm">
                           {item.imageUrl ? (
@@ -632,7 +632,7 @@ export function InventoryDashboardClient({
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 md:px-6 py-4">
                       <Badge
                         variant="secondary"
                         className="font-bold uppercase tracking-wider text-[10px] bg-slate-100 text-slate-655"
@@ -640,7 +640,7 @@ export function InventoryDashboardClient({
                         {item.category.replace("_", " ")}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3 md:px-6 py-4 text-center">
                       <div className="flex flex-col items-center gap-0.5">
                         <Badge
                           variant={
@@ -669,10 +669,10 @@ export function InventoryDashboardClient({
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-bold text-slate-800 text-right text-sm">
+                    <td className="px-3 md:px-6 py-4 font-bold text-slate-800 text-right text-sm">
                       {formatCurrency(Number(item.price))}
                     </td>
-                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                    <td className="px-3 md:px-6 py-4 text-center whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => setActiveBarcodeItem(item)}
@@ -728,7 +728,7 @@ export function InventoryDashboardClient({
         </div>
 
         {filteredAndSortedItems.length > 0 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-450 uppercase tracking-wider font-bold bg-slate-50/50">
+          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-between text-xs text-slate-455 uppercase tracking-wider font-bold bg-slate-50/50 text-center sm:text-left">
             <p>
               Showing {Math.min(filteredAndSortedItems.length, (currentPage - 1) * ITEMS_PER_PAGE + 1)} to{" "}
               {Math.min(filteredAndSortedItems.length, currentPage * ITEMS_PER_PAGE)} of{" "}
