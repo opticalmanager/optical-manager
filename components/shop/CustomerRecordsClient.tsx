@@ -296,12 +296,12 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-slate-500 uppercase font-bold bg-slate-50/40 border-b border-slate-100 tracking-wider">
               <tr>
-                <th className="px-8 py-5">Customer Details</th>
-                <th className="px-6 py-5">Contact</th>
-                <th className="px-6 py-5">Last Visit</th>
-                <th className="px-6 py-5 text-center">Order Status</th>
-                <th className="px-6 py-5 text-right">Pending Dues</th>
-                <th className="px-8 py-5"></th>
+                <th className="px-3 md:px-8 py-5">Customer Details</th>
+                <th className="px-2.5 sm:px-6 py-5">Contact</th>
+                <th className="px-2.5 sm:px-6 py-5">Last Visit</th>
+                <th className="px-2.5 sm:px-6 py-5 text-center">Order Status</th>
+                <th className="px-2.5 sm:px-6 py-5 text-right">Pending Dues</th>
+                <th className="px-3 md:px-8 py-5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -353,7 +353,7 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
                       className="group hover:bg-slate-100/60 transition-all duration-200 align-middle cursor-pointer border-l-2 border-l-transparent hover:border-l-[#0a52c3]"
                     >
                       {/* Customer Details */}
-                      <td className="px-8 py-4.5">
+                      <td className="px-3 md:px-8 py-4.5">
                         <div className="flex items-center gap-3.5">
                           <div className={`h-9 w-9 flex-shrink-0 rounded-full border ${avatarColors.bg} ${avatarColors.text} ${avatarColors.border} flex items-center justify-center text-[10px] font-extrabold shadow-inner group-hover:scale-105 transition-transform duration-200`}>
                             {getInitials(customer.fullName)}
@@ -370,29 +370,29 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
                       </td>
 
                       {/* Contact Info */}
-                      <td className="px-6 py-4.5 font-semibold text-slate-700 text-sm group-hover:text-slate-900 transition-colors duration-200">
+                      <td className="px-2.5 sm:px-6 py-4.5 font-semibold text-slate-700 text-sm group-hover:text-slate-900 transition-colors duration-200">
                         {customer.phone}
                       </td>
 
                       {/* Last Visit Date */}
-                      <td className="px-6 py-4.5 font-semibold text-slate-700 text-sm group-hover:text-slate-900 transition-colors duration-200">
+                      <td className="px-2.5 sm:px-6 py-4.5 font-semibold text-slate-700 text-sm group-hover:text-slate-900 transition-colors duration-200">
                         {formatDateStr(customer.lastVisitDate)}
                       </td>
 
                       {/* Order Status Badge */}
-                      <td className="px-6 py-4.5 text-center">
+                      <td className="px-2.5 sm:px-6 py-4.5 text-center">
                         {getStatusBadge(customer.orderStatus)}
                       </td>
 
                       {/* Pending Dues */}
-                      <td className={`px-6 py-4.5 text-right text-sm font-bold transition-all duration-200 ${
+                      <td className={`px-2.5 sm:px-6 py-4.5 text-right text-sm font-bold transition-all duration-200 ${
                         isDues ? "text-[#e11d48] group-hover:scale-102" : "text-slate-500 font-semibold"
                       }`}>
                         {formatCurrency(customer.pendingDues)}
                       </td>
 
                       {/* Action Arrow */}
-                      <td className="px-8 py-4.5 text-right">
+                      <td className="px-3 md:px-8 py-4.5 text-right">
                         <span
                           className="p-1.5 text-slate-400 group-hover:text-[#0a52c3] group-hover:bg-[#0a52c3]/5 rounded-lg transition-all duration-200 inline-block transform group-hover:translate-x-1"
                           title="View customer profile details"
@@ -438,7 +438,7 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
 
         {/* Table Footer / Pagination */}
         {filteredCustomers.length > 0 && (
-          <div className="px-8 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-450 font-bold uppercase tracking-wider bg-slate-50/20">
+          <div className="px-8 py-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-between text-xs text-slate-450 font-bold uppercase tracking-wider bg-slate-50/20 text-center sm:text-left">
             <p>
               Showing {startIndex + 1} - {endIndex} of {filteredCustomers.length} patients
             </p>

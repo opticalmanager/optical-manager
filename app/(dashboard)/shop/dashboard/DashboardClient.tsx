@@ -251,10 +251,10 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
             <table className="w-full">
               <thead className="bg-slate-50/70 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 <tr>
-                  <th className="px-4 py-2.5 text-left rounded-l-lg">
+                  <th className="px-2.5 sm:px-4 py-2.5 text-left rounded-l-lg">
                     Task Description
                   </th>
-                  <th className="px-4 py-2.5 text-right rounded-r-lg w-24">
+                  <th className="px-2.5 sm:px-4 py-2.5 text-right rounded-r-lg w-24">
                     Action
                   </th>
                 </tr>
@@ -262,12 +262,12 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
               <tbody>
                 {data.priorityActions.map((action, idx) => (
                   <tr key={action.id || idx} className="hover:bg-slate-50/30 transition-colors border-b border-slate-100/70 last:border-b-0">
-                    <td className="px-4 py-3.5 pr-2">
+                    <td className="px-2.5 sm:px-4 py-3.5 pr-2">
                       <span className="text-xs font-semibold text-slate-700 block leading-normal">
                         {action.description}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-right">
+                    <td className="px-2.5 sm:px-4 py-3.5 text-right">
                       <Link 
                         href={action.actionHref}
                         className="text-xs font-extrabold text-[#0a52c3] hover:underline"
@@ -339,13 +339,13 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/70 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     <tr>
-                      <th className="px-4 py-2.5 rounded-l-lg">
+                      <th className="px-2.5 sm:px-4 py-2.5 rounded-l-lg">
                         Customer
                       </th>
-                      <th className="px-4 py-2.5 text-right">
+                      <th className="px-2.5 sm:px-4 py-2.5 text-right">
                         Amount
                       </th>
-                      <th className="px-4 py-2.5 text-center rounded-r-lg">
+                      <th className="px-2.5 sm:px-4 py-2.5 text-center rounded-r-lg">
                         Status
                       </th>
                     </tr>
@@ -353,23 +353,23 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
                   <tbody>
                     {data.recentOrders.map((order, idx) => (
                       <tr key={order.id || idx} className="hover:bg-slate-50/30 transition-colors border-b border-slate-100/70 last:border-b-0">
-                        <td className="px-4 py-3.5">
+                        <td className="px-2.5 sm:px-4 py-3.5">
                           <span className="text-xs font-bold text-slate-700 block">
                             {order.customerName}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-right">
+                        <td className="px-2.5 sm:px-4 py-3.5 text-right">
                           <span className="text-xs font-extrabold text-slate-700">
                             {formatCurrency(order.amount)}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-center">
+                        <td className="px-2.5 sm:px-4 py-3.5 text-center">
                           <span 
                             className={`inline-block px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider border ${
                               order.status === "PAID" 
                                 ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
                                 : order.status === "PARTIALLY_PAID"
-                                ? "bg-amber-50 text-amber-600 border-amber-100"
+                                ? "bg-amber-50 text-amber-650 border-amber-100"
                                 : "bg-rose-50 text-rose-600 border-rose-100"
                             }`}
                           >
@@ -405,13 +405,13 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
               <table className="w-full text-left">
                 <thead className="bg-slate-50/70 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   <tr>
-                    <th className="px-4 py-2.5 rounded-l-lg">
+                    <th className="px-2.5 sm:px-4 py-2.5 rounded-l-lg">
                       Product
                     </th>
-                    <th className="px-4 py-2.5 text-center">
+                    <th className="px-2.5 sm:px-4 py-2.5 text-center">
                       Sold
                     </th>
-                    <th className="px-4 py-2.5 text-right rounded-r-lg">
+                    <th className="px-2.5 sm:px-4 py-2.5 text-right rounded-r-lg">
                       Growth
                     </th>
                   </tr>
@@ -419,17 +419,17 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
                 <tbody>
                   {data.topSKUs.map((sku, idx) => (
                     <tr key={sku.id || idx} className="hover:bg-slate-50/30 transition-colors border-b border-slate-100/70 last:border-b-0">
-                      <td className="px-4 py-3.5">
+                      <td className="px-2.5 sm:px-4 py-3.5">
                         <span className="text-xs font-bold text-slate-700 block">
                           {sku.productName}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-2.5 sm:px-4 py-3.5 text-center">
                         <span className="text-xs font-extrabold text-slate-700">
                           {sku.sold}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-right flex items-center justify-end gap-2">
+                      <td className="px-2.5 sm:px-4 py-3.5 text-right flex items-center justify-end gap-2">
                         <span className="text-[9px] font-extrabold text-slate-400 uppercase border border-slate-200 rounded px-1.5 py-0.5 bg-slate-50">
                           {sku.timeframe}
                         </span>
@@ -459,13 +459,13 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
               <table className="w-full text-left">
                 <thead className="bg-slate-50/70 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   <tr>
-                    <th className="px-4 py-2.5 rounded-l-lg">
+                    <th className="px-2.5 sm:px-4 py-2.5 rounded-l-lg">
                       Item
                     </th>
-                    <th className="px-4 py-2.5 text-center">
+                    <th className="px-2.5 sm:px-4 py-2.5 text-center">
                       Units
                     </th>
-                    <th className="px-4 py-2.5 text-center rounded-r-lg">
+                    <th className="px-2.5 sm:px-4 py-2.5 text-center rounded-r-lg">
                       Status
                     </th>
                   </tr>
@@ -473,17 +473,17 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
                 <tbody>
                   {data.stockAlerts.map((alert, idx) => (
                     <tr key={alert.id || idx} className="hover:bg-slate-50/30 transition-colors border-b border-slate-100/70 last:border-b-0">
-                      <td className="px-4 py-3.5">
+                      <td className="px-2.5 sm:px-4 py-3.5">
                         <span className="text-xs font-bold text-slate-700 block">
                           {alert.name}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-2.5 sm:px-4 py-3.5 text-center">
                         <span className="text-xs font-extrabold text-slate-700">
                           {alert.units}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-2.5 sm:px-4 py-3.5 text-center">
                         <span 
                           className={`inline-block px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider border ${
                             alert.status === "IN_STOCK" 

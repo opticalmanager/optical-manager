@@ -47,14 +47,14 @@ export function OrdersTableClient({
         <table className="w-full text-sm text-left border-collapse">
           <thead>
             <tr className="text-[13px] text-slate-900 font-extrabold bg-slate-50 border-b border-slate-200/80">
-              <th className="px-6 py-4.5 uppercase tracking-wider">Order ID</th>
-              <th className="px-6 py-4.5 uppercase tracking-wider">Customer</th>
-              <th className="px-6 py-4.5 uppercase tracking-wider">Date</th>
-              <th className="px-6 py-4.5 uppercase tracking-wider">SKU Details</th>
-              <th className="px-6 py-4.5 uppercase tracking-wider">Amount</th>
-              <th className="px-6 py-4.5 uppercase tracking-wider text-center">Payment Status</th>
-              <th className="px-6 py-4.5 uppercase tracking-wider text-center">Delivery Status</th>
-              <th className="px-6 py-4.5 uppercase tracking-wider text-center">Invoice/Receipt</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Order ID</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Customer</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Date</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">SKU Details</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Amount</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider text-center">Payment Status</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider text-center">Delivery Status</th>
+              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider text-center">Invoice/Receipt</th>
             </tr>
           </thead>
           <tbody>
@@ -79,12 +79,12 @@ export function OrdersTableClient({
                     className="group border-b border-slate-100 last:border-0 hover:bg-[#0a52c3]/5 transition-all duration-200 align-middle cursor-pointer border-l-2 border-l-transparent hover:border-l-[#0a52c3] hover:shadow-sm"
                   >
                     {/* Order ID */}
-                    <td className="px-6 py-5 font-black text-slate-900 group-hover:text-slate-955 transition-colors">
+                    <td className="px-3 md:px-6 py-5 font-black text-slate-900 group-hover:text-slate-955 transition-colors">
                       {order.orderNumber}
                     </td>
 
                     {/* Customer Info */}
-                    <td className="px-6 py-5">
+                    <td className="px-3 md:px-6 py-5">
                       <div className="flex items-center gap-3">
                         {/* Circle Avatar badge */}
                         <div className="h-8 w-8 rounded-full bg-slate-100 text-[#0a52c3] flex items-center justify-center text-[11px] font-black uppercase shrink-0 group-hover:scale-105 transition-transform duration-200">
@@ -102,7 +102,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Date */}
-                    <td className="px-6 py-5 font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
+                    <td className="px-3 md:px-6 py-5 font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
                       {new Date(order.createdAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -111,7 +111,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* SKU Details Hover dropdown */}
-                    <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 md:px-6 py-5" onClick={(e) => e.stopPropagation()}>
                       <SKUDetailsDropdown
                         label={`${itemsCount} SKU${itemsCount !== 1 ? "s" : ""}`}
                         skus={order.skus}
@@ -119,12 +119,12 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Amount */}
-                    <td className="px-6 py-5 font-extrabold text-slate-900 text-[14px] group-hover:text-slate-955 transition-colors">
+                    <td className="px-3 md:px-6 py-5 font-extrabold text-slate-900 text-[14px] group-hover:text-slate-955 transition-colors">
                       {formatCurrency(parseFloat(order.total))}
                     </td>
 
                     {/* Payment Status */}
-                    <td className="px-6 py-5 text-center">
+                    <td className="px-3 md:px-6 py-5 text-center">
                       <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-extrabold uppercase border ${
                         parseFloat(order.balanceDue) === 0
                           ? "bg-emerald-50 text-emerald-700 border-emerald-250"
@@ -137,7 +137,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Delivery Status */}
-                    <td className="px-6 py-5 text-center space-y-1">
+                    <td className="px-3 md:px-6 py-5 text-center space-y-1">
                       <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-extrabold uppercase border ${
                         order.fulfillmentStatus === "DELIVERED"
                           ? "bg-slate-100 text-slate-700 border-slate-200"
@@ -161,7 +161,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Invoice/Receipt Download/Print link */}
-                    <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 md:px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={printUrl}
                         className="p-1.5 rounded-lg inline-block text-slate-400 group-hover:text-[#0a52c3] group-hover:bg-[#0a52c3]/5 transition-all duration-200 transform group-hover:scale-110"
@@ -186,7 +186,7 @@ export function OrdersTableClient({
 
       {/* Table Pagination controls */}
       {totalCount > 0 && (
-        <div className="py-4 px-6 border-t border-slate-200/80 flex items-center justify-between bg-white">
+        <div className="py-4 px-6 border-t border-slate-200/80 flex flex-col sm:flex-row gap-3 items-center justify-between bg-white text-center sm:text-left">
           <p className="text-xs font-semibold text-slate-500">
             Showing <span className="font-extrabold text-slate-900">{offset + 1}</span> to{" "}
             <span className="font-extrabold text-slate-900">{Math.min(offset + limit, totalCount)}</span> of{" "}

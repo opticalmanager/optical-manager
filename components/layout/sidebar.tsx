@@ -9,7 +9,8 @@ import {
   History, 
   Settings, 
   HelpCircle,
-  Eye as EyeLogo
+  Eye as EyeLogo,
+  X
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -40,9 +41,11 @@ const navItems = [
 interface SidebarProps {
   shopName?: string;
   shopAddress?: string;
+  showCloseButton?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({ shopName, shopAddress }: SidebarProps) {
+export function Sidebar({ shopName, shopAddress, showCloseButton, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   // Shorten shop address to display cleanly inside widget
@@ -53,8 +56,17 @@ export function Sidebar({ shopName, shopAddress }: SidebarProps) {
   return (
     <div className="flex h-screen w-64 flex-col border-r border-slate-200/80 bg-slate-50 select-none">
       {/* Top Logo / Software Brand Header */}
-      <div className="flex h-16 items-center px-6 text-[#0a52c3] font-bold text-xl tracking-tight">
-        Software Manager
+      <div className="flex h-16 items-center justify-between px-6 text-[#0a52c3] font-bold text-xl tracking-tight">
+        <span>Software Manager</span>
+        {showCloseButton && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-xl hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 transition-colors border-none cursor-pointer flex items-center justify-center bg-transparent"
+          >
+            <X className="h-4.5 w-4.5" />
+          </button>
+        )}
       </div>
 
       {/* Dynamic Shop Profile Card Widget */}
