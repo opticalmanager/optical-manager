@@ -92,7 +92,7 @@ export default function DashboardClient({ data, currentTimeframe }: DashboardCli
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Revenue (Interactive Timeframe Selection) */}
         <div className="relative bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[120px]">
           <div className="flex items-center justify-between">

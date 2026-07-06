@@ -76,7 +76,7 @@ export default async function OrdersDashboardPage({
       </div>
  
       {/* 2. Analytical Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-stretch">
         
         {/* Metric 1: Total Orders */}
         <Card className={`relative h-full border transition-all duration-200 cursor-pointer rounded-2xl overflow-visible ${
@@ -322,7 +322,7 @@ export default async function OrdersDashboardPage({
                 return (
                   <div 
                     key={idx} 
-                    className={`flex items-center justify-between gap-4 p-4 rounded-xl border ${
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border ${
                       isPayment 
                         ? "bg-rose-50/15 border-rose-100/50" 
                         : "bg-[#0a52c3]/5 border-[#0a52c3]/10"
