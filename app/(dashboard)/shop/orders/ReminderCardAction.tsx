@@ -59,7 +59,7 @@ export function ReminderCardAction({ invoiceId, type }: ReminderCardActionProps)
       <Button
         disabled={isPending}
         onClick={handleSendReminder}
-        className="text-xs font-black uppercase bg-rose-600 hover:bg-rose-700 text-white rounded-lg h-8 px-4 cursor-pointer shrink-0 transition-colors border-none"
+        className="text-xs font-black uppercase bg-rose-600 hover:bg-rose-700 text-white rounded-lg h-8 px-4 cursor-pointer w-full sm:w-auto shrink-0 transition-colors border-none"
       >
         {isPending ? "Sending..." : "Send Reminder"}
       </Button>
@@ -71,7 +71,7 @@ export function ReminderCardAction({ invoiceId, type }: ReminderCardActionProps)
       disabled={isPending}
       onClick={handleUpdateDelivery}
       variant="outline"
-      className="text-xs font-black uppercase border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg h-8 px-4 cursor-pointer shrink-0 bg-white transition-colors"
+      className="text-xs font-black uppercase border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg h-8 px-4 cursor-pointer w-full sm:w-auto shrink-0 bg-white transition-colors"
     >
       {isPending ? "Updating..." : "Update Delivery Estimation"}
     </Button>

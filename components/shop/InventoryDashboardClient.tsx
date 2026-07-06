@@ -365,7 +365,7 @@ export function InventoryDashboardClient({
         const categorySingular = getCategorySingular(category);
 
         return (
-          <div className="grid gap-6 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
             {/* KPI 1: Total SKU Count */}
             <div 
               onClick={() => setFilter("")} 

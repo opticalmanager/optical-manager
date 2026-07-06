@@ -31,7 +31,7 @@ export default async function PrescriptionsPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-6 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-text-muted">Today&apos;s Exams</CardTitle>

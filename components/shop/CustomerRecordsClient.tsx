@@ -200,61 +200,68 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
 
             {/* Float Filter Panel */}
             {showFilters && (
-              <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-250/80 rounded-2xl shadow-xl p-4 z-30 animate-fade-in space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="font-extrabold text-xs uppercase tracking-wider text-slate-700">Refine List</span>
-                  <button 
-                    onClick={() => setShowFilters(false)}
-                    className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* Status Filter selection */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Order Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full h-9 px-3 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none bg-white cursor-pointer"
-                  >
-                    <option value="ALL">All Statuses</option>
-                    <option value="READY">Ready</option>
-                    <option value="PROCESSING">Processing</option>
-                    <option value="DELIVERED">Delivered</option>
-                    <option value="ON_HOLD">On Hold</option>
-                  </select>
-                </div>
-
-                {/* Outstanding balance switch */}
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700 block">Pending Balance Due</span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">Show patients with outstanding balance</span>
+              <>
+                {/* Blurred backdrop overlay for mobile viewports */}
+                <div 
+                  className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
+                  onClick={() => setShowFilters(false)}
+                />
+                <div className="fixed bottom-0 inset-x-0 w-full md:absolute md:bottom-auto md:top-full md:inset-x-auto md:right-0 md:mt-2 md:w-72 bg-white border-t border-slate-200/80 md:border md:border-slate-250/80 rounded-t-2xl md:rounded-2xl shadow-xl p-6 md:p-4 z-50 md:z-30 space-y-4 max-h-[80vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="font-extrabold text-xs uppercase tracking-wider text-slate-700">Refine List</span>
+                    <button 
+                      onClick={() => setShowFilters(false)}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={duesFilter}
-                    onChange={(e) => setDuesFilter(e.target.checked)}
-                    className="h-4.5 w-4.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                  />
-                </div>
 
-                {/* Reset Filters */}
-                {(statusFilter !== "ALL" || duesFilter) && (
-                  <button
-                    onClick={() => {
-                      setStatusFilter("ALL");
-                      setDuesFilter(false);
-                      setShowFilters(false);
-                    }}
-                    className="w-full text-center py-1.5 text-[10px] font-bold text-rose-500 hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition-colors border border-rose-100 border-dashed"
-                  >
-                    Reset Active Filters
-                  </button>
-                )}
-              </div>
+                  {/* Status Filter selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Order Status</label>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="w-full h-9 px-3 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none bg-white cursor-pointer"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="READY">Ready</option>
+                      <option value="PROCESSING">Processing</option>
+                      <option value="DELIVERED">Delivered</option>
+                      <option value="ON_HOLD">On Hold</option>
+                    </select>
+                  </div>
+
+                  {/* Outstanding balance switch */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <span className="text-xs font-bold text-slate-700 block">Pending Balance Due</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Show patients with outstanding balance</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={duesFilter}
+                      onChange={(e) => setDuesFilter(e.target.checked)}
+                      className="h-4.5 w-4.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Reset Filters */}
+                  {(statusFilter !== "ALL" || duesFilter) && (
+                    <button
+                      onClick={() => {
+                        setStatusFilter("ALL");
+                        setDuesFilter(false);
+                        setShowFilters(false);
+                      }}
+                      className="w-full text-center py-1.5 text-[10px] font-bold text-rose-500 hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition-colors border border-rose-100 border-dashed"
+                    >
+                      Reset Active Filters
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
 
