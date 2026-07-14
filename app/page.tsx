@@ -4,6 +4,7 @@ import FeaturesShowcase from "@/components/landing/FeaturesShowcase";
 import DeepDive from "@/components/landing/DeepDive";
 import StatsSection from "@/components/landing/StatsSection";
 import PricingSection from "@/components/landing/PricingSection";
+import ContactSection from "@/components/landing/ContactSection";
 import Footer from "@/components/landing/Footer";
 
 export default function HomePage() {
@@ -15,6 +16,7 @@ export default function HomePage() {
       <DeepDive />
       <StatsSection />
       <PricingSection />
+      <ContactSection />
       <Footer />
     </main>
   );

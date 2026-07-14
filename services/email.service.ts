@@ -6,8 +6,6 @@ import { shops } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 // ── Singleton MailerSend Client ──
-// Initialized once at module level. Avoids re-creating the HTTP client
-// on every function call, saving ~15-30ms per request.
 let _client: MailerSend | null = null;
 
 function getClient(): MailerSend {
@@ -32,7 +30,6 @@ function getFromAddress(): string {
     );
   }
   
-  // Robust fallback: if env var is just a domain name, prepend 'info@' to form a valid email address
   if (!addr.includes("@")) {
     return "info@" + addr;
   }
@@ -51,6 +48,16 @@ interface SendShopEmailParams {
   textContent?: string;
 }
 
+interface SendSystemEmailParams {
+  recipientEmail: string;
+  recipientName?: string;
+  replyToEmail?: string;
+  replyToName?: string;
+  subject: string;
+  htmlContent: string;
+  textContent?: string;
+}
+
 interface SendEmailResult {
   success: boolean;
   messageId?: string;
@@ -60,12 +67,6 @@ interface SendEmailResult {
 
 /**
  * Send a transactional email on behalf of a specific shop.
- *
- * - From Address : MAILERSEND_FROM_ADDRESS env var (verified system domain)
- * - From Name    : The shop's registered name (dynamic)
- * - Reply-To     : The shop's registered email (dynamic)
- *
- * Authorization: Validates shopId belongs to organizationId.
  */
 export async function sendShopEmail(
   params: SendShopEmailParams
@@ -76,7 +77,6 @@ export async function sendShopEmail(
   } = params;
 
   try {
-    // 1. Auth + shop lookup (single indexed query, only 2 columns)
     const [shop] = await db
       .select({ name: shops.name, email: shops.email })
       .from(shops)
@@ -91,12 +91,10 @@ export async function sendShopEmail(
       };
     }
 
-    // 2. Build identities
     const fromAddress = getFromAddress();
     const fromName = shop.name || "Optical Manager";
     const replyToEmail = shop.email || fromAddress;
 
-    // 3. Assemble payload
     const emailParams = new EmailParams()
       .setFrom(new Sender(fromAddress, fromName))
       .setTo([new Recipient(recipientEmail, recipientName || "")])
@@ -106,10 +104,8 @@ export async function sendShopEmail(
 
     if (textContent) emailParams.setText(textContent);
 
-    // 4. Dispatch
     const response = await getClient().email.send(emailParams);
-    const messageId =
-      response?.headers?.["x-message-id"] || "accepted";
+    const messageId = response?.headers?.["x-message-id"] || "accepted";
 
     return { success: true, messageId: String(messageId) };
   } catch (error: any) {
@@ -130,8 +126,50 @@ export async function sendShopEmail(
 }
 
 /**
+ * Send a system notification email (e.g. contact form submission to support@opticalmanager.in).
+ */
+export async function sendSystemNotificationEmail(
+  params: SendSystemEmailParams
+): Promise<SendEmailResult> {
+  const {
+    recipientEmail, recipientName, replyToEmail,
+    replyToName, subject, htmlContent, textContent,
+  } = params;
+
+  try {
+    const fromAddress = getFromAddress();
+    const fromName = "Optical Manager System";
+
+    const emailParams = new EmailParams()
+      .setFrom(new Sender(fromAddress, fromName))
+      .setTo([new Recipient(recipientEmail, recipientName || "")])
+      .setSubject(subject)
+      .setHtml(htmlContent);
+
+    if (replyToEmail) {
+      emailParams.setReplyTo(new Sender(replyToEmail, replyToName || replyToEmail));
+    }
+
+    if (textContent) {
+      emailParams.setText(textContent);
+    }
+
+    const response = await getClient().email.send(emailParams);
+    const messageId = response?.headers?.["x-message-id"] || "accepted";
+
+    return { success: true, messageId: String(messageId) };
+  } catch (error: any) {
+    const errorBody = error?.body || error?.message || "System email dispatch failed";
+    console.warn("[sendSystemNotificationEmail] Email alert notice:", errorBody);
+    return {
+      success: false,
+      error: typeof errorBody === "string" ? errorBody : JSON.stringify(errorBody),
+    };
+  }
+}
+
+/**
  * Get the system email configuration details.
- * Used by the settings UI to display routing info.
  */
 export async function getEmailSystemConfig() {
   const fromAddress = process.env.MAILERSEND_FROM_ADDRESS || null;
