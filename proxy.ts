@@ -10,7 +10,7 @@ import { createServerClient } from "@supabase/ssr";
  * - Protected routes: everything under (dashboard)/*
  */
 
-const publicRoutes = ["/", "/login", "/signup", "/api/auth/callback", "/forgot-password", "/reset-password"];
+const publicRoutes = ["/", "/login", "/signup", "/api/auth/callback", "/forgot-password", "/reset-password", "/privacy-policy", "/terms-of-service"];
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
