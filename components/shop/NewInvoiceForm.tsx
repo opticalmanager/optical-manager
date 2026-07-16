@@ -1582,8 +1582,8 @@ export function NewInvoiceForm() {
       </div>
 
       {/* SECTION 4: PRODUCT SELECTION */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md/5">
-        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between">
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md/5">
+        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between rounded-t-2xl">
           <div className="flex items-center gap-2">
             <span className="h-4 w-1 bg-[#0a52c3] rounded" />
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#0a52c3]">
@@ -1593,29 +1593,34 @@ export function NewInvoiceForm() {
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="overflow-x-auto pb-48">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
+          <div className="overflow-x-auto md:overflow-visible rounded-2xl bg-white p-1 pb-44 md:pb-1">
+            <table className="w-full text-left border-collapse min-w-[850px]">
               <thead>
-                <tr className="border-b border-slate-150 text-[11px] font-extrabold uppercase text-slate-500 tracking-wider">
-                  <th className="py-3 px-2 w-1/4">Product Search (Name/SKU/Model)</th>
-                  <th className="py-3 px-2 w-36">SKU</th>
-                  <th className="py-3 px-2 w-20 text-center">QTY</th>
-                  <th className="py-3 px-2 text-right w-28">Price</th>
-                  <th className="py-3 px-2 text-center w-24">DISC %</th>
-                  <th className="py-3 px-2 text-center w-24">CGST</th>
-                  <th className="py-3 px-2 text-center w-24">SGST</th>
-                  <th className="py-3 px-2 text-center w-24">IGST</th>
-                  <th className="py-3 px-2 text-right w-28">Row Total</th>
-                  <th className="py-3 px-2 w-10"></th>
+                <tr className="border-b border-slate-100 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                  <th className="py-3 px-3 w-[32%]">PRODUCT SEARCH (NAME/SKU/MODEL)</th>
+                  <th className="py-3 px-3 w-32">SKU</th>
+                  <th className="py-3 px-2 w-16 text-center">QTY</th>
+                  <th className="py-3 px-3 text-right w-28">PRICE</th>
+                  <th className="py-3 px-2 text-center w-20">DISC %</th>
+                  <th className="py-3 px-2 text-center w-16">CGST</th>
+                  <th className="py-3 px-2 text-center w-16">SGST</th>
+                  <th className="py-3 px-2 text-center w-16">IGST</th>
+                  <th className="py-3 px-3 text-right w-24">ROW TOTAL</th>
+                  <th className="py-3 px-2 w-10 text-center"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
                 {lineItems.map((item, index) => (
-                  <tr key={index} className="group hover:bg-slate-50/20 transition-colors">
+                  <tr
+                    key={index}
+                    className={`group transition-colors ${
+                      item.showDropdown ? "relative z-40 bg-slate-50/60" : "relative z-1 hover:bg-slate-50/30"
+                    }`}
+                  >
                     {/* Independent Product Search Autocomplete */}
-                    <td className="py-3 px-1.5 relative" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-[#0a52c3] transition-all">
-                        <Search className="h-4 w-4 text-slate-505 shrink-0" />
+                    <td className="py-3 px-3 relative" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-[#0a52c3]/20 focus-within:border-[#0a52c3] transition-all shadow-2xs">
+                        <Search className="h-4 w-4 text-slate-400 shrink-0" />
                         <input
                           type="text"
                           placeholder="Search Frame or SKU..."
@@ -1626,50 +1631,59 @@ export function NewInvoiceForm() {
                               updateLineItem(index, { showDropdown: true });
                             }
                           }}
-                          className="w-full bg-transparent text-sm font-bold outline-none text-slate-900 placeholder:text-slate-400"
+                          className="w-full bg-transparent text-xs font-bold outline-none text-slate-900 placeholder:text-slate-400"
                         />
                         {item.isSearching && (
                           <Loader2 className="h-4 w-4 text-[#0a52c3] animate-spin shrink-0" />
                         )}
                       </div>
 
-                      {/* Dropdown Suggestions */}
+                      {/* Dropdown Suggestions Menu - Floating Overlay Card */}
                       {item.showDropdown && item.suggestions.length > 0 && (
-                        <div className="absolute top-full left-1.5 right-1.5 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 max-h-56 overflow-y-auto">
+                        <div className="absolute top-full left-3 w-[400px] sm:w-[460px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto ring-1 ring-black/10">
                           {item.suggestions.map((prod) => (
                             <button
                               key={prod.id}
                               type="button"
-                              onClick={() => handleSelectProduct(index, prod)}
-                              className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 transition-colors text-xs flex justify-between items-center group cursor-pointer font-bold"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectProduct(index, prod);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-indigo-50/70 transition-colors text-xs flex justify-between items-center group cursor-pointer font-bold"
                             >
-                              <div className="min-w-0 pr-2">
-                                <span className="text-slate-950 block truncate font-bold">{prod.name}</span>
-                                <span className="text-[10px] text-slate-650 block mt-0.5 font-bold">
-                                  SKU: <span className="font-mono text-slate-800">{prod.sku || "N/A"}</span> • Price: ₹{prod.price} • Stock: <span className={prod.quantity <= 0 ? "text-rose-600" : "text-emerald-700 font-extrabold"}>{prod.quantity}</span>
-                                </span>
+                              <div className="min-w-0 pr-3 space-y-0.5">
+                                <span className="text-slate-950 block truncate text-xs font-bold">{prod.name}</span>
+                                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2 flex-wrap">
+                                  <span>SKU: <strong className="font-mono text-slate-900 font-bold">{prod.sku || "N/A"}</strong></span>
+                                  <span>•</span>
+                                  <span>Price: <strong className="text-slate-900">₹{prod.price}</strong></span>
+                                  <span>•</span>
+                                  <span>Stock: <strong className={prod.quantity <= 0 ? "text-rose-600 font-bold" : "text-emerald-700 font-extrabold"}>{prod.quantity}</strong></span>
+                                </div>
                               </div>
-                              <Plus className="h-4 w-4 text-[#0a52c3] opacity-0 group-hover:opacity-100 transition-all shrink-0" />
+                              <div className="h-7 w-7 rounded-xl bg-blue-50 text-[#0a52c3] flex items-center justify-center shrink-0 group-hover:bg-[#0a52c3] group-hover:text-white transition-all shadow-2xs">
+                                <Plus className="h-4 w-4" />
+                              </div>
                             </button>
                           ))}
                         </div>
                       )}
 
                       {!item.isSearching && item.searchQuery.length >= 1 && item.suggestions.length === 0 && item.showDropdown && (
-                        <div className="absolute top-full left-1.5 right-1.5 mt-1.5 bg-white border border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400 shadow-2xl z-50">
+                        <div className="absolute top-full left-3 w-[360px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl p-4 text-center text-xs text-slate-500 font-medium shadow-2xl z-50 ring-1 ring-black/10">
                           No matching stock items found.
                         </div>
                       )}
                     </td>
 
-                    {/* SKU Column */}
-                    <td className="py-3 px-2">
+                    {/* Compact SKU Input */}
+                    <td className="py-3 px-3">
                       <input
                         type="text"
                         value={item.sku}
                         onChange={(e) => updateLineItem(index, { sku: e.target.value })}
                         placeholder="SKU"
-                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 font-mono text-sm font-bold text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-1 focus:ring-[#0a52c3]"
+                        className="w-24 sm:w-28 bg-white border border-slate-200 rounded-2xl px-2.5 py-2.5 font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs transition-all"
                       />
                     </td>
 
@@ -1682,15 +1696,15 @@ export function NewInvoiceForm() {
                           const val = e.target.value;
                           updateLineItem(index, { quantity: val === "" ? "" : parseInt(val, 10) });
                         }}
-                        placeholder="0"
-                        className="w-20 text-center py-2 border border-slate-300 rounded-lg font-bold text-slate-900 text-sm focus:outline-none focus:border-[#0a52c3] focus:ring-1 focus:ring-[#0a52c3] bg-white"
+                        placeholder="1"
+                        className="w-14 text-center py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white shadow-2xs"
                       />
                     </td>
 
                     {/* Unit Price */}
-                    <td className="py-3 px-2">
+                    <td className="py-3 px-3">
                       <div className="relative">
-                        <span className="absolute left-2.5 top-2.5 text-slate-500 font-bold text-sm">₹</span>
+                        <span className="absolute left-3 top-2.5 text-slate-500 font-bold text-xs">₹</span>
                         <input
                           type="number"
                           step="0.01"
@@ -1698,7 +1712,8 @@ export function NewInvoiceForm() {
                           onChange={(e) =>
                             updateLineItem(index, { unitPrice: parseFloat(e.target.value) || 0 })
                           }
-                          className="w-28 text-right bg-white border border-slate-300 rounded-lg pl-6 pr-2.5 py-2 font-bold text-sm text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-1 focus:ring-[#0a52c3]"
+                          placeholder=""
+                          className="w-24 text-right bg-white border border-slate-200 rounded-2xl pl-5 pr-2.5 py-2.5 font-bold text-xs text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs"
                         />
                       </div>
                     </td>
@@ -1716,7 +1731,7 @@ export function NewInvoiceForm() {
                             const val = e.target.value;
                             updateLineItem(index, { discountPercent: val === "" ? 0 : Math.min(100, Math.max(0, parseFloat(val) || 0)) });
                           }}
-                          className="w-20 text-center py-2 border border-slate-300 rounded-lg font-bold text-slate-900 text-sm focus:outline-none focus:border-[#0a52c3] focus:ring-1 focus:ring-[#0a52c3] bg-white pr-5"
+                          className="w-16 text-center py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pr-5 shadow-2xs"
                         />
                         <span className="absolute right-2 top-2.5 text-slate-400 font-bold text-xs">%</span>
                       </div>
@@ -1725,10 +1740,10 @@ export function NewInvoiceForm() {
                     {/* CGST Column */}
                     <td className="py-3 px-2 text-center">
                       <div className="inline-flex flex-col items-center">
-                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-750 text-[10px] font-bold">
+                        <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold">
                           {item.cgstPercent}%
                         </span>
-                        <span className="text-[10px] text-slate-500 font-bold mt-1">
+                        <span className="text-[10px] text-slate-400 font-bold mt-1">
                           ₹{item.cgstAmount.toFixed(2)}
                         </span>
                       </div>
@@ -1737,10 +1752,10 @@ export function NewInvoiceForm() {
                     {/* SGST Column */}
                     <td className="py-3 px-2 text-center">
                       <div className="inline-flex flex-col items-center">
-                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold">
                           {item.sgstPercent}%
                         </span>
-                        <span className="text-[10px] text-slate-500 font-bold mt-1">
+                        <span className="text-[10px] text-slate-400 font-bold mt-1">
                           ₹{item.sgstAmount.toFixed(2)}
                         </span>
                       </div>
@@ -1749,28 +1764,29 @@ export function NewInvoiceForm() {
                     {/* IGST Column */}
                     <td className="py-3 px-2 text-center">
                       <div className="inline-flex flex-col items-center">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-extrabold">
                           {item.igstPercent}%
                         </span>
-                        <span className="text-[10px] text-slate-500 font-bold mt-1">
+                        <span className="text-[10px] text-slate-400 font-bold mt-1">
                           ₹{item.igstAmount.toFixed(2)}
                         </span>
                       </div>
                     </td>
 
                     {/* Row Total */}
-                    <td className="py-3 px-2 text-right font-extrabold text-sm text-slate-950">
+                    <td className="py-3 px-3 text-right font-black text-sm text-slate-900">
                       ₹{item.rowTotal.toFixed(2)}
                     </td>
 
-                    {/* Delete Item Action */}
+                    {/* Subtle Trash Icon Delete Button */}
                     <td className="py-3 px-2 text-center">
                       <button
                         type="button"
                         onClick={() => handleRemoveRow(index)}
-                        className="h-9 w-9 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
+                        title="Delete item"
+                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
                       >
-                        <Trash2 className="h-4.5 w-4.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </td>
                   </tr>

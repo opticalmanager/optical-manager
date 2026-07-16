@@ -29,7 +29,7 @@ export default async function ReceiptDetailPage({
 
   return (
     <div className="bg-slate-100 min-h-screen py-8 px-4 flex flex-col items-center gap-6 print:bg-white print:py-0 print:px-0 font-sans text-black">
-      <DocumentActionBar documentType="Receipt" />
+      <DocumentActionBar documentType="Receipt" data={data} />
       <InvoiceDocument data={data} mode="RECEIPT" />
     </div>
   );
