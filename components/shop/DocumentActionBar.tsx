@@ -6,7 +6,7 @@ import { Printer, ArrowLeft, Send, X, PhoneCall } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
-import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
+import { parseWhatsAppTemplate, openWhatsAppChat } from "@/utils/whatsapp-parser";
 
 interface DocumentActionBarProps {
   documentType: "Invoice" | "Receipt";
@@ -38,16 +38,22 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
     if (!data) return;
 
     // 1. Resolve template from shop settings (with robust default fallback)
-    const templateConfig = data.shop?.settings?.whatsappTemplates?.invoice_sent;
+    const templateKey = isInvoice ? "invoice_sent" : "receipt_sent";
+    const templateConfig = data.shop?.settings?.whatsappTemplates?.[templateKey];
     const isEnabled = templateConfig?.enabled ?? true;
 
     if (!isEnabled) {
-      toast.warning("Invoice notification trigger is disabled in settings.");
+      toast.warning(`${documentType} notification trigger is disabled in settings.`);
       return;
     }
 
-    const templateText = templateConfig?.template || 
+    const defaultInvoiceTemplate = 
       "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!";
+
+    const defaultReceiptTemplate =
+      "Dear {{customer_name}},\n\nThank you for your payment at {{shop_name}}! Here is your payment receipt {{receipt_number}}.\n\n*Receipt Summary:*\n• Receipt Slip #: {{receipt_number}}\n• Amount Received: {{amount_paid}}\n• Remaining Balance: {{balance_due}}\n• Payment Mode: {{payment_method}}\n\nView and download your digital receipt & bill here: {{invoice_url}}\n\nThank you for visiting!";
+
+    const templateText = templateConfig?.template || (isInvoice ? defaultInvoiceTemplate : defaultReceiptTemplate);
 
     // 2. Parse template with variables
     const formattedMessage = parseWhatsAppTemplate(templateText, {
@@ -55,33 +61,23 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       shop_name: data.shop?.name || "Clarity Eyecare",
       phone: data.shop?.phone || "",
       invoice_number: data.invoice?.invoiceNumber || "",
+      receipt_number: data.receipt?.receiptNumber || data.invoice?.invoiceNumber || "",
       amount: `Rs. ${data.invoice?.total || 0}`,
-      amount_paid: `Rs. ${data.invoice?.amountPaid || 0}`,
+      amount_paid: `Rs. ${data.receipt?.amountPaid ?? data.invoice?.amountPaid ?? 0}`,
       balance_due: `Rs. ${data.invoice?.balanceDue || 0}`,
-      payment_method: data.invoice?.paymentMethod || "N/A",
+      payment_method: data.receipt?.paymentMethod || data.invoice?.paymentMethod || "N/A",
       fulfillment_status: data.invoice?.fulfillmentStatus || "PROCESSING",
       estimated_delivery: data.invoice?.estimatedDelivery ? new Date(data.invoice.estimatedDelivery).toLocaleDateString() : "N/A",
       invoice_url: `${window.location.origin}/share/invoice/${data.invoice?.id}`
     });
 
-    // 3. Clean special chars from phone
-    const cleanPhone = phoneNumber.replace(/[^\d]/g, "");
-
-    // 4. Direct Redirection bypassing landing pages and reusing tabs
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      // Trigger native app protocol directly
-      window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(formattedMessage)}`;
-    } else {
-      // Load directly in already opened/reused WhatsApp Web tab to avoid duplicates and save time
-      const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(formattedMessage)}`;
-      window.open(webUrl, "whatsapp_workspace_tab");
-    }
+    // 3. Dispatch via universal multi-platform WhatsApp dispatcher (Desktop app + web fallback + mobile)
+    openWhatsAppChat(phoneNumber, formattedMessage);
     toast.success("WhatsApp message launched!");
   };
 
   const handleWhatsAppSendClick = () => {
-    if (!data || !isInvoice) return;
+    if (!data) return;
 
     const customerPhone = data.customer?.phone;
     if (customerPhone && customerPhone.trim().length >= 10) {
@@ -136,7 +132,7 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
         <Printer className="h-4 w-4" /> Print {documentType}
       </Button>
 
-      {isInvoice && data && (
+      {data && (
         <Button
           onClick={handleWhatsAppSendClick}
           className="h-11 px-5 font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/10 hover:shadow-emerald-600/20 rounded-xl active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer"

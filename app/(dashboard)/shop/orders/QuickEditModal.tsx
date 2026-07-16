@@ -16,7 +16,7 @@ import {
 } from "@/actions/order.actions";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
-import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
+import { parseWhatsAppTemplate, openWhatsAppChat } from "@/utils/whatsapp-parser";
 
 interface QuickEditModalProps {
   order: OrderItem;
@@ -137,14 +137,7 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`
       });
 
-      const cleanPhone = targetPhone.replace(/[^\d]/g, "");
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobile) {
-        window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(parsedText)}`;
-      } else {
-        const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(parsedText)}`;
-        window.open(webUrl, "whatsapp_workspace_tab");
-      }
+      openWhatsAppChat(targetPhone, parsedText);
       toast.success("WhatsApp message launched!");
     } catch (error) {
       toast.error("Failed to trigger WhatsApp message.");

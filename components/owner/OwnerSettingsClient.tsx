@@ -207,7 +207,7 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
         setActiveModal("reports");
         break;
       case "modal_appointments":
-        setActiveModal("appointments");
+        router.push("/owner/settings/appointments");
         break;
       default:
         break;
