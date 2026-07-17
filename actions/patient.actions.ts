@@ -149,6 +149,7 @@ export async function registerPatientAction(
     });
 
     revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
     revalidatePath("/shop/customers");
 
     return {
@@ -471,6 +472,7 @@ export async function registerPatientAndInvoiceAction(
     });
 
     revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
     revalidatePath("/shop/customers");
     revalidatePath("/shop/invoices");
     revalidatePath("/shop/inventory");
@@ -777,6 +779,7 @@ export async function updatePatientAction(
     });
 
     revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
     revalidatePath("/shop/customers");
     revalidatePath(`/shop/customers/${customerId}`);
 

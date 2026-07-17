@@ -174,6 +174,7 @@ export async function updateDeliveryDaysAction(
 
     revalidatePath("/shop/orders");
     revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
 
     return {
       success: true,
@@ -259,6 +260,7 @@ export async function updateOrderStatusAction(
 
     revalidatePath("/shop/orders");
     revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
 
     return {
       success: true,
@@ -356,6 +358,7 @@ export async function generateFullPaymentInvoiceAction(
 
     revalidatePath("/shop/orders");
     revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
     revalidatePath(`/shop/invoices/${invoiceId}`);
 
     return {

@@ -1,12 +1,11 @@
 import { getCurrentUser } from "@/services/auth.service";
 import { getDashboardData } from "@/services/dashboard.service";
-import { getShopById } from "@/services/shop.service";
 import { TimeframeType } from "@/services/order.service";
-import StoreOverviewClient from "@/components/shop/StoreOverviewClient";
+import AnalyticsClient from "@/components/shop/AnalyticsClient";
 
 export const metadata = {
-  title: "Store Overview | Optical Manager",
-  description: "Store Overview dashboard showing appointments, orders, priority actions, and stock alerts.",
+  title: "Analytics & Telemetry | Optical Manager",
+  description: "View store sales analytics, revenue graphs, and performance metrics.",
 };
 
 interface PageProps {
@@ -15,11 +14,11 @@ interface PageProps {
   }>;
 }
 
-export default async function ShopDashboardPage({ searchParams }: PageProps) {
+export default async function ShopAnalyticsPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
   const shopId = user?.shopId;
 
-  if (!shopId || !user) {
+  if (!shopId) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">
@@ -33,13 +32,9 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
   }
 
   const params = await searchParams;
-  const timeframe = (params.timeframe || "24h") as TimeframeType;
+  const timeframe = (params.timeframe || "7d") as TimeframeType;
 
-  const [data, shop] = await Promise.all([
-    getDashboardData(shopId, timeframe),
-    getShopById(shopId, user.organizationId),
-  ]);
+  const data = await getDashboardData(shopId, timeframe);
 
-  return <StoreOverviewClient data={data} shopName={shop?.name || "Vision Plus Outlet"} />;
+  return <AnalyticsClient data={data} currentTimeframe={timeframe} />;
 }
-
