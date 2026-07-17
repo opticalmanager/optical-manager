@@ -369,80 +369,133 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
         </div>
       </div>
 
-      {/* Bottom Grid Row: Priority Actions & Stock Alerts (Proportional Design) */}
+      {/* Bottom Grid Row: Recent Orders & Stock Alerts Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-start">
-        {/* Left Column: Priority Actions */}
-        <div className="bg-white border border-slate-200/80 p-5 rounded-xl shadow-xs space-y-3">
-          <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-            <Zap className="h-4.5 w-4.5 text-[#2563eb]" /> Priority Actions
-          </h2>
+        {/* Left Column: Recent Orders Table */}
+        <div className="bg-white border border-slate-200/80 p-4.5 rounded-xl shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <ShoppingBag className="h-4.5 w-4.5 text-[#2563eb]" /> Recent Orders
+            </h2>
+            <Link 
+              href="/shop/orders" 
+              className="text-xs font-bold text-[#2563eb] hover:underline flex items-center gap-1"
+            >
+              View all orders <ChevronRight className="h-3 w-3" />
+            </Link>
+          </div>
 
-          <div className="space-y-2.5">
-            {/* Task Item 1 */}
-            <div className="bg-slate-50/80 border border-slate-100 p-3 rounded-lg flex items-center gap-3 hover:bg-slate-100/60 transition-colors">
-              <div className="p-2 rounded-md bg-rose-50 text-rose-600 shrink-0">
-                <Package className="h-4.5 w-4.5" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-bold text-slate-900">
-                  Replenish Titanium Frames
-                </h3>
-                <p className="text-[11px] font-semibold text-rose-600">
-                  Stock Level: &lt; 5 units
-                </p>
-              </div>
-            </div>
-
-            {/* Task Item 2 */}
-            <div className="bg-slate-50/80 border border-slate-100 p-3 rounded-lg flex items-center gap-3 hover:bg-slate-100/60 transition-colors">
-              <div className="p-2 rounded-md bg-slate-200/60 text-slate-700 shrink-0">
-                <Truck className="h-4.5 w-4.5" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-bold text-slate-900">
-                  Review 5 Delayed Shipments
-                </h3>
-                <p className="text-[11px] font-medium text-slate-400">
-                  Expected delivery was 2 days ago
-                </p>
-              </div>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <tr>
+                  <th className="px-3 py-2 rounded-l-lg">CUSTOMER</th>
+                  <th className="px-3 py-2 text-right">AMOUNT</th>
+                  <th className="px-3 py-2 text-center rounded-r-lg">STATUS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="text-center py-6 text-xs text-slate-400 font-semibold">
+                      No recent orders recorded
+                    </td>
+                  </tr>
+                ) : (
+                  data.recentOrders.map((order, idx) => (
+                    <tr key={order.id || idx} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs font-bold text-slate-800 block">
+                          {order.customerName}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="text-xs font-extrabold text-slate-900">
+                          {formatCurrency(order.amount)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span 
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            order.status === "PAID" 
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
+                              : order.status === "PARTIALLY_PAID"
+                              ? "bg-amber-50 text-amber-600 border-amber-100"
+                              : "bg-rose-50 text-rose-600 border-rose-100"
+                          }`}
+                        >
+                          {order.status === "PARTIALLY_PAID" ? "Partially Paid" : order.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Right Column: Stock Alerts */}
-        <div className="bg-white border border-slate-200/80 p-5 rounded-xl shadow-xs space-y-3 flex flex-col justify-between min-h-[155px]">
-          <div>
-            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2 mb-3">
-              <AlertCircle className="h-4.5 w-4.5 text-rose-600" /> Stock Alerts
+        {/* Right Column: Low Stock Alerts Table */}
+        <div className="bg-white border border-slate-200/80 p-4.5 rounded-xl shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <AlertCircle className="h-4.5 w-4.5 text-amber-600" /> Low Stock Alerts
             </h2>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-100">
-                <div>
-                  <h3 className="text-xs font-bold text-slate-900">
-                    Artisan Leather Case
-                  </h3>
-                  <p className="text-[11px] font-semibold text-slate-400">
-                    SKU: AC-902
-                  </p>
-                </div>
-                <span className="bg-rose-50 text-rose-600 border border-rose-100 text-[11px] font-bold px-2 py-0.5 rounded-full">
-                  0 Units
-                </span>
-              </div>
-            </div>
+            <Link 
+              href="/shop/inventory" 
+              className="text-xs font-bold text-[#2563eb] hover:underline flex items-center gap-1"
+            >
+              View all inventory <ChevronRight className="h-3 w-3" />
+            </Link>
           </div>
 
-          <div className="pt-2">
-            <Link href="/shop/inventory">
-              <Button 
-                variant="outline" 
-                className="w-full h-9 border-[#2563eb] text-[#2563eb] hover:bg-blue-50 text-xs font-bold rounded-lg cursor-pointer"
-              >
-                Manage Inventory
-              </Button>
-            </Link>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <tr>
+                  <th className="px-3 py-2 rounded-l-lg">ITEM</th>
+                  <th className="px-3 py-2 text-center">UNITS</th>
+                  <th className="px-3 py-2 text-center rounded-r-lg">STATUS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.stockAlerts.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="text-center py-6 text-xs text-slate-400 font-semibold">
+                      All inventory items healthy
+                    </td>
+                  </tr>
+                ) : (
+                  data.stockAlerts.map((alert, idx) => (
+                    <tr key={alert.id || idx} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs font-bold text-slate-800 block">
+                          {alert.name}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="text-xs font-extrabold text-slate-900">
+                          {alert.units}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span 
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            alert.status === "IN_STOCK" 
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
+                              : alert.status === "LOW_STOCK"
+                              ? "bg-amber-50 text-amber-600 border-amber-100"
+                              : "bg-rose-50 text-rose-600 border-rose-100"
+                          }`}
+                        >
+                          {alert.status === "LOW_STOCK" ? "Low Stock" : alert.status === "OUT_OF_STOCK" ? "Out of Stock" : "In Stock"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

@@ -5,13 +5,17 @@ import {
   getGSTReport, 
   getInventoryReport, 
   getPaymentCollectionReport, 
-  getAppointmentReport 
+  getAppointmentReport,
+  getDayWiseCollectionReport,
+  getOutstandingDuesReport,
+  getDeadStockReport
 } from "@/services/report.service";
+import { getShopById } from "@/services/shop.service";
 import ReportsClient from "@/components/shop/ReportsClient";
 
 export const metadata = {
   title: "Analytics & Reports | Optical Manager",
-  description: "Explore store performance reports, item-wise sales, GST filings, inventory valuation, and payment collections.",
+  description: "Explore store performance reports, day-wise ledgers, GST filings, inventory valuation, and outstanding dues.",
 };
 
 interface PageProps {
@@ -58,24 +62,46 @@ export default async function ShopReportsPage({ searchParams }: PageProps) {
     to = end.toISOString().split("T")[0];
   }
 
+  // Fetch shop config for auto report schedule
+  const shop = await getShopById(shopId, user.organizationId);
+  const autoReportSchedule = shop?.settings?.autoReportSchedule;
+
   // Parallel data fetching for all report views
-  const [salesData, itemData, gstData, inventoryData, paymentData, appointmentData] = await Promise.all([
+  const [
+    salesData, 
+    itemData, 
+    gstData, 
+    inventoryData, 
+    paymentData, 
+    appointmentData,
+    dayWiseData,
+    duesData,
+    deadStockData
+  ] = await Promise.all([
     getSalesSummaryReport(shopId, from, to),
     getItemWiseReport(shopId, from, to),
     getGSTReport(shopId, from, to),
     getInventoryReport(shopId),
     getPaymentCollectionReport(shopId, from, to),
     getAppointmentReport(shopId, from, to),
+    getDayWiseCollectionReport(shopId, from, to),
+    getOutstandingDuesReport(shopId),
+    getDeadStockReport(shopId),
   ]);
 
   return (
     <ReportsClient
+      shopId={shopId}
       salesData={salesData}
       itemData={itemData}
       gstData={gstData}
       inventoryData={inventoryData}
       paymentData={paymentData}
       appointmentData={appointmentData}
+      dayWiseData={dayWiseData}
+      duesData={duesData}
+      deadStockData={deadStockData}
+      autoReportSchedule={autoReportSchedule}
       initialFrom={from}
       initialTo={to}
     />
