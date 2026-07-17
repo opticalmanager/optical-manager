@@ -18,37 +18,57 @@ import {
   ShoppingBag,
   TrendingUp,
   FlaskConical,
-  MoreHorizontal
+  MoreHorizontal,
+  Printer,
+  Mail,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  DollarSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
+import ScheduleReportModal from "./ScheduleReportModal";
 import { 
   SalesSummaryReportData, 
   ItemWiseReportData, 
   GSTReportData, 
   InventoryReportData, 
   PaymentCollectionReportData, 
-  AppointmentReportData 
+  AppointmentReportData,
+  DayWiseCollectionReportData,
+  OutstandingDuesReportData,
+  DeadStockReportData
 } from "@/services/report.service";
 
 interface ReportsClientProps {
+  shopId: string;
   salesData: SalesSummaryReportData;
   itemData: ItemWiseReportData;
   gstData: GSTReportData;
   inventoryData: InventoryReportData;
   paymentData: PaymentCollectionReportData;
   appointmentData: AppointmentReportData;
+  dayWiseData: DayWiseCollectionReportData;
+  duesData: OutstandingDuesReportData;
+  deadStockData: DeadStockReportData;
+  autoReportSchedule?: { type: "daily" | "weekly" | "off"; email?: string };
   initialFrom?: string;
   initialTo?: string;
 }
 
 export default function ReportsClient({
+  shopId,
   salesData,
   itemData,
   gstData,
   inventoryData,
   paymentData,
   appointmentData,
+  dayWiseData,
+  duesData,
+  deadStockData,
+  autoReportSchedule,
   initialFrom,
   initialTo,
 }: ReportsClientProps) {
@@ -56,6 +76,7 @@ export default function ReportsClient({
   const [activeCategory, setActiveCategory] = useState<"item" | "sales" | "representative" | "invoices" | "misc" | "lab">("sales");
   const [activeSubReport, setActiveSubReport] = useState<string>("Summary Report");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
   // Date Range State
   const [datePreset, setDatePreset] = useState("30d");
@@ -86,10 +107,18 @@ export default function ReportsClient({
     window.location.href = url.toString();
   };
 
+  // Trigger browser print layout
+  const handlePrint = () => {
+    window.print();
+  };
+
   // CSV Export Trigger
   const handleExportCSV = () => {
     let reportType = "sales";
-    if (activeCategory === "item") reportType = "items";
+    if (activeSubReport === "Day-Wise Collection") reportType = "daywise";
+    else if (activeSubReport === "Outstanding Dues") reportType = "dues";
+    else if (activeSubReport === "Dead Stock Audit") reportType = "deadstock";
+    else if (activeCategory === "item") reportType = "items";
     else if (activeCategory === "sales") reportType = "sales";
     else if (activeCategory === "invoices") reportType = "gst";
     else if (activeCategory === "misc") reportType = "inventory";
@@ -103,25 +132,25 @@ export default function ReportsClient({
     window.open(exportUrl, "_blank");
   };
 
-  // Categories & Sub-reports config matching the user's design screenshot
+  // Categories & Sub-reports config matching user design specifications
   const reportCategories = [
     {
       id: "item",
       title: "ITEM WISE",
       icon: Package,
-      items: ["Frame", "Sunglasses", "Accessories", "Spectacle Lens", "Contact Lens"],
+      items: ["Frame", "Sunglasses", "Accessories", "Spectacle Lens", "Contact Lens", "Top Sellers"],
     },
     {
       id: "sales",
       title: "SALES REPORT",
       icon: Receipt,
-      items: ["Orders", "Item Type Wise", "Pending Orders", "Summary Report", "Daily Collection"],
+      items: ["Summary Report", "Day-Wise Collection", "Orders", "Item Type Wise", "Pending Orders"],
     },
     {
       id: "representative",
       title: "REPRESENTATIVE",
       icon: TrendingUp,
-      items: ["Net Sales", "Sales Order", "Sales Return", "Avg Sales (Invoice)"],
+      items: ["Net Sales", "Outstanding Dues", "Sales Order", "Sales Return", "Avg Sales (Invoice)"],
     },
     {
       id: "invoices",
@@ -133,13 +162,13 @@ export default function ReportsClient({
       id: "misc",
       title: "MISCELLANEOUS",
       icon: MoreHorizontal,
-      items: ["Detailed Breakdown", "Uncategorized Items"],
+      items: ["Inventory Valuation", "Dead Stock Audit", "Detailed Breakdown", "Uncategorized Items"],
     },
     {
       id: "lab",
       title: "LAB ORDER",
       icon: FlaskConical,
-      items: ["Tracking Status", "Turnaround Time", "Pending Labs"],
+      items: ["Tracking Status", "Patient Recall", "Turnaround Time", "Pending Labs"],
     },
   ];
 
@@ -155,6 +184,31 @@ export default function ReportsClient({
         item.status.toLowerCase().includes(query)
     );
   }, [salesData.items, query]);
+
+  const filteredDayWise = useMemo(() => {
+    return dayWiseData.days.filter((d) => !query || d.date.includes(query));
+  }, [dayWiseData.days, query]);
+
+  const filteredDues = useMemo(() => {
+    return duesData.items.filter(
+      (d) =>
+        !query ||
+        d.invoiceNumber.toLowerCase().includes(query) ||
+        d.customerName.toLowerCase().includes(query) ||
+        d.customerPhone.includes(query)
+    );
+  }, [duesData.items, query]);
+
+  const filteredDeadStock = useMemo(() => {
+    return deadStockData.items.filter(
+      (item) =>
+        !query ||
+        item.name.toLowerCase().includes(query) ||
+        item.category.toLowerCase().includes(query) ||
+        (item.brand && item.brand.toLowerCase().includes(query)) ||
+        (item.sku && item.sku.toLowerCase().includes(query))
+    );
+  }, [deadStockData.items, query]);
 
   const filteredItems = useMemo(() => {
     return itemData.items.filter(
@@ -209,19 +263,27 @@ export default function ReportsClient({
   }, [appointmentData.items, query]);
 
   return (
-    <div className="space-y-5 select-none max-w-[1400px] mx-auto pb-12">
+    <div className="space-y-5 select-none max-w-[1400px] mx-auto pb-12 print:p-0 print:max-w-none">
+      {/* Schedule EOD Report Modal */}
+      <ScheduleReportModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        shopId={shopId}
+        initialConfig={autoReportSchedule}
+      />
+
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Analytics & Reports
           </h1>
           <p className="text-xs font-semibold text-slate-400 mt-0.5">
-            Explore comprehensive business insights and performance metrics.
+            Explore comprehensive business insights, day-wise ledgers, and audit reports.
           </p>
         </div>
 
-        {/* Global Controls & Export */}
+        {/* Global Controls & Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200/80">
             <Calendar className="h-4 w-4 text-slate-400 ml-1 shrink-0" />
@@ -264,6 +326,14 @@ export default function ReportsClient({
           </div>
 
           <Button
+            onClick={() => setIsScheduleModalOpen(true)}
+            variant="outline"
+            className="h-9 px-3 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl cursor-pointer flex items-center gap-1.5"
+          >
+            <Mail className="h-3.5 w-3.5 text-[#2563eb]" /> Schedule EOD
+          </Button>
+
+          <Button
             onClick={handleExportCSV}
             className="h-9 px-3.5 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-2"
           >
@@ -273,7 +343,7 @@ export default function ReportsClient({
       </div>
 
       {/* 2. Top Report Category Cards Grid (Matching Screenshot UI) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 print:hidden">
         {reportCategories.map((cat) => {
           const IconComp = cat.icon;
           const isActiveCategory = activeCategory === cat.id;
@@ -331,25 +401,25 @@ export default function ReportsClient({
         })}
       </div>
 
-      {/* 3. Active Report Details & Data Workspace */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-4">
+      {/* 4. Active Report Details & Data Workspace */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-4 print:border-none print:shadow-none print:p-0">
         {/* Workspace Title & Search Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 print:pb-0">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-[#2563eb] text-[10px] font-extrabold uppercase tracking-wider border border-blue-100">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-[#2563eb] text-[10px] font-extrabold uppercase tracking-wider border border-blue-100 print:hidden">
                 {activeCategory.toUpperCase()} REPORT
               </span>
               <h2 className="text-base font-extrabold text-slate-900">
                 {activeSubReport}
               </h2>
             </div>
-            <p className="text-xs text-slate-400 font-semibold mt-0.5">
+            <p className="text-xs text-slate-400 font-semibold mt-0.5 print:hidden">
               Live database metrics for store performance analytics
             </p>
           </div>
 
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-64 print:hidden">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
@@ -361,475 +431,536 @@ export default function ReportsClient({
           </div>
         </div>
 
-        {/* 4. Category Specific KPI Metric Cards */}
-        {activeCategory === "sales" && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Revenue
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {formatCurrency(salesData.totalRevenue)}
-              </span>
+        {/* 5. Special Sub-Report: Day-Wise Collection Ledger */}
+        {activeSubReport === "Day-Wise Collection" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 print:hidden">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Grand Total Revenue
+                </span>
+                <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
+                  {formatCurrency(dayWiseData.grandTotal)}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Invoices Issued
+                </span>
+                <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
+                  {dayWiseData.totalInvoices} Invoices
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Days Recorded
+                </span>
+                <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
+                  {dayWiseData.days.length} Active Days
+                </span>
+              </div>
             </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Invoices Count
-              </span>
-              <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
-                {salesData.totalInvoices}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Discount
-              </span>
-              <span className="text-xl font-extrabold text-amber-600 tracking-tight mt-1 block">
-                {formatCurrency(salesData.totalDiscount)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Paid vs Pending
-              </span>
-              <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
-                {salesData.paidInvoices} / {salesData.pendingInvoices}
-              </span>
-            </div>
-          </div>
-        )}
 
-        {activeCategory === "item" && (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Items Sold
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {itemData.totalQuantitySold} Units
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Item Sales Revenue
-              </span>
-              <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
-                {formatCurrency(itemData.totalRevenue)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Unique Products
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {itemData.items.length} SKUs
-              </span>
-            </div>
-          </div>
-        )}
-
-        {activeCategory === "invoices" && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Taxable Value
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {formatCurrency(gstData.totalTaxableValue)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                CGST + SGST
-              </span>
-              <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
-                {formatCurrency(gstData.totalCGST + gstData.totalSGST)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                IGST Total
-              </span>
-              <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
-                {formatCurrency(gstData.totalIGST)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Tax Collected
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {formatCurrency(gstData.totalTaxCollected)}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {activeCategory === "misc" && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Stock Quantity
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {inventoryData.totalStockQuantity} Units
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Cost Valuation
-              </span>
-              <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
-                {formatCurrency(inventoryData.totalCostValuation)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Retail Valuation
-              </span>
-              <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
-                {formatCurrency(inventoryData.totalRetailValuation)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Low / Out Stock
-              </span>
-              <span className="text-xl font-extrabold text-rose-600 tracking-tight mt-1 block">
-                {inventoryData.lowStockCount} / {inventoryData.outOfStockCount}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {activeCategory === "representative" && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Collected
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {formatCurrency(paymentData.totalCollected)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Cash Collection
-              </span>
-              <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
-                {formatCurrency(paymentData.cashTotal)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                UPI / Digital
-              </span>
-              <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
-                {formatCurrency(paymentData.upiTotal)}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Card / Bank
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {formatCurrency(paymentData.cardTotal + paymentData.bankTotal)}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {activeCategory === "lab" && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Appointments
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                {appointmentData.totalAppointments}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Completed
-              </span>
-              <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
-                {appointmentData.completed}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Confirmed / Pending
-              </span>
-              <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
-                {appointmentData.confirmed} / {appointmentData.pending}
-              </span>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Cancelled
-              </span>
-              <span className="text-xl font-extrabold text-rose-600 tracking-tight mt-1 block">
-                {appointmentData.cancelled}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* 5. High-Density Data Tables */}
-        <div className="overflow-x-auto">
-          {activeCategory === "sales" && (
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-3.5 py-2.5 rounded-l-lg">Invoice No</th>
-                  <th className="px-3.5 py-2.5">Date</th>
-                  <th className="px-3.5 py-2.5">Customer Name</th>
-                  <th className="px-3.5 py-2.5 text-right">Subtotal</th>
-                  <th className="px-3.5 py-2.5 text-right">Tax</th>
-                  <th className="px-3.5 py-2.5 text-right">Total Amount</th>
-                  <th className="px-3.5 py-2.5 text-center rounded-r-lg">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSales.length === 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-xs font-semibold text-slate-400">
-                      No sales records found for selected period
-                    </td>
+                    <th className="px-3.5 py-2.5 rounded-l-lg">Date</th>
+                    <th className="px-3.5 py-2.5 text-center">Invoices</th>
+                    <th className="px-3.5 py-2.5 text-right">Net Subtotal</th>
+                    <th className="px-3.5 py-2.5 text-right">Tax Collected</th>
+                    <th className="px-3.5 py-2.5 text-right">Total Revenue</th>
+                    <th className="px-3.5 py-2.5 text-right">Cash</th>
+                    <th className="px-3.5 py-2.5 text-right">UPI / Digital</th>
+                    <th className="px-3.5 py-2.5 text-right rounded-r-lg">Outstanding</th>
                   </tr>
-                ) : (
-                  filteredSales.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">{item.invoiceNumber}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.customerName}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.subtotal)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.tax)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-right">{formatCurrency(item.total)}</td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          item.status === "PAID"
-                            ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                            : "bg-amber-50 text-amber-600 border-amber-100"
-                        }`}>
-                          {item.status}
-                        </span>
+                </thead>
+                <tbody>
+                  {filteredDayWise.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-8 text-xs font-semibold text-slate-400">
+                        No day-wise collection records found
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+                  ) : (
+                    filteredDayWise.map((d, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900">{d.date}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb] text-center">{d.totalInvoices}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(d.subtotal)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(d.tax)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-right">{formatCurrency(d.totalRevenue)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-emerald-600 text-right">{formatCurrency(d.cashTotal)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-[#2563eb] text-right">{formatCurrency(d.upiTotal)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-rose-600 text-right">{formatCurrency(d.balanceDue)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-          {activeCategory === "item" && (
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-3.5 py-2.5 rounded-l-lg">Item Description</th>
-                  <th className="px-3.5 py-2.5">Category</th>
-                  <th className="px-3.5 py-2.5 text-center">Quantity Sold</th>
-                  <th className="px-3.5 py-2.5 text-right">Avg Price</th>
-                  <th className="px-3.5 py-2.5 text-right rounded-r-lg">Total Sales</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-8 text-xs font-semibold text-slate-400">
-                      No item sales records found for selected period
-                    </td>
-                  </tr>
-                ) : (
-                  filteredItems.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.description}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-extrabold">
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-center">{item.totalQuantity}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.avgPrice)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb] text-right">{formatCurrency(item.totalSales)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+        {/* 6. Special Sub-Report: Outstanding Dues & Ageing */}
+        {activeSubReport === "Outstanding Dues" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Receivables Overdue
+                </span>
+                <span className="text-xl font-extrabold text-rose-600 tracking-tight mt-1 block">
+                  {formatCurrency(duesData.totalOutstanding)}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  0 – 30 Days Current
+                </span>
+                <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
+                  {formatCurrency(duesData.total0to30)} ({duesData.count0to30})
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  31 – 60 Days Overdue
+                </span>
+                <span className="text-xl font-extrabold text-amber-600 tracking-tight mt-1 block">
+                  {formatCurrency(duesData.total31to60)} ({duesData.count31to60})
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  60+ Days Critical
+                </span>
+                <span className="text-xl font-extrabold text-rose-600 tracking-tight mt-1 block">
+                  {formatCurrency(duesData.total60Plus)} ({duesData.count60Plus})
+                </span>
+              </div>
+            </div>
 
-          {activeCategory === "invoices" && (
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-3.5 py-2.5 rounded-l-lg">Invoice No</th>
-                  <th className="px-3.5 py-2.5">Date</th>
-                  <th className="px-3.5 py-2.5">HSN Code</th>
-                  <th className="px-3.5 py-2.5 text-right">Taxable Subtotal</th>
-                  <th className="px-3.5 py-2.5 text-right">CGST</th>
-                  <th className="px-3.5 py-2.5 text-right">SGST</th>
-                  <th className="px-3.5 py-2.5 text-right rounded-r-lg">Total Tax</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredGST.length === 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-xs font-semibold text-slate-400">
-                      No tax records found for selected period
-                    </td>
+                    <th className="px-3.5 py-2.5 rounded-l-lg">Invoice No</th>
+                    <th className="px-3.5 py-2.5">Date</th>
+                    <th className="px-3.5 py-2.5">Patient Name</th>
+                    <th className="px-3.5 py-2.5">Phone</th>
+                    <th className="px-3.5 py-2.5 text-right">Invoice Total</th>
+                    <th className="px-3.5 py-2.5 text-right">Paid</th>
+                    <th className="px-3.5 py-2.5 text-right">Balance Due</th>
+                    <th className="px-3.5 py-2.5 text-center rounded-r-lg">Aging Bucket</th>
                   </tr>
-                ) : (
-                  filteredGST.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">{item.invoiceNumber}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-slate-700">{item.hsnCode}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.subtotal)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.cgstAmount)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.sgstAmount)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-emerald-600 text-right">{formatCurrency(item.totalTax)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-
-          {activeCategory === "misc" && (
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-3.5 py-2.5 rounded-l-lg">Item Name</th>
-                  <th className="px-3.5 py-2.5">Category</th>
-                  <th className="px-3.5 py-2.5 text-center">In Stock</th>
-                  <th className="px-3.5 py-2.5 text-right">Cost Price</th>
-                  <th className="px-3.5 py-2.5 text-right">Selling Price</th>
-                  <th className="px-3.5 py-2.5 text-right">Total Cost Val</th>
-                  <th className="px-3.5 py-2.5 text-center rounded-r-lg">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInventory.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-xs font-semibold text-slate-400">
-                      No inventory items found
-                    </td>
-                  </tr>
-                ) : (
-                  filteredInventory.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.name}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{item.category}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-center">{item.quantity}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.costPrice)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.sellingPrice)}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb] text-right">{formatCurrency(item.totalCostValue)}</td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          item.status === "IN_STOCK"
-                            ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                            : item.status === "LOW_STOCK"
-                            ? "bg-amber-50 text-amber-600 border-amber-100"
-                            : "bg-rose-50 text-rose-600 border-rose-100"
-                        }`}>
-                          {item.status}
-                        </span>
+                </thead>
+                <tbody>
+                  {filteredDues.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-8 text-xs font-semibold text-slate-400">
+                        No outstanding receivables found — all invoices fully settled!
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+                  ) : (
+                    filteredDues.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">{item.invoiceNumber}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.customerName}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">{item.customerPhone}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.totalAmount)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-emerald-600 text-right">{formatCurrency(item.amountPaid)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-rose-600 text-right">{formatCurrency(item.balanceDue)}</td>
+                        <td className="px-3.5 py-2.5 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            item.agingBucket === "0-30"
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                              : item.agingBucket === "31-60"
+                              ? "bg-amber-50 text-amber-600 border-amber-100"
+                              : "bg-rose-50 text-rose-600 border-rose-100"
+                          }`}>
+                            {item.agingBucket} ({item.ageDays}d)
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-          {activeCategory === "representative" && (
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-3.5 py-2.5 rounded-l-lg">Receipt No</th>
-                  <th className="px-3.5 py-2.5">Invoice No</th>
-                  <th className="px-3.5 py-2.5">Date</th>
-                  <th className="px-3.5 py-2.5">Customer Name</th>
-                  <th className="px-3.5 py-2.5">Method</th>
-                  <th className="px-3.5 py-2.5 text-right rounded-r-lg">Amount Paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8 text-xs font-semibold text-slate-400">
-                      No payment collection receipts found for selected period
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPayments.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">{item.receiptNumber}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-slate-700">{item.invoiceNumber}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.customerName}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-extrabold">
-                          {item.paymentMethod}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-xs font-extrabold text-emerald-600 text-right">{formatCurrency(item.amountPaid)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+        {/* 7. Special Sub-Report: Dead Stock Audit */}
+        {activeSubReport === "Dead Stock Audit" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 print:hidden">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Dead Stock Items
+                </span>
+                <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
+                  {deadStockData.totalDeadItems} SKUs
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Unsold Units
+                </span>
+                <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
+                  {deadStockData.totalDeadQuantity} Units
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Dead Capital Tied Up
+                </span>
+                <span className="text-xl font-extrabold text-rose-600 tracking-tight mt-1 block">
+                  {formatCurrency(deadStockData.totalDeadCostValuation)}
+                </span>
+              </div>
+            </div>
 
-          {activeCategory === "lab" && (
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-3.5 py-2.5 rounded-l-lg">Patient Name</th>
-                  <th className="px-3.5 py-2.5">Phone</th>
-                  <th className="px-3.5 py-2.5">Date</th>
-                  <th className="px-3.5 py-2.5">Time</th>
-                  <th className="px-3.5 py-2.5">Purpose</th>
-                  <th className="px-3.5 py-2.5 text-center rounded-r-lg">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAppointments.length === 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-xs font-semibold text-slate-400">
-                      No appointment records found for selected period
-                    </td>
+                    <th className="px-3.5 py-2.5 rounded-l-lg">Product Name</th>
+                    <th className="px-3.5 py-2.5">Category</th>
+                    <th className="px-3.5 py-2.5">Brand / SKU</th>
+                    <th className="px-3.5 py-2.5 text-center">Unsold Units</th>
+                    <th className="px-3.5 py-2.5 text-right">Cost Price</th>
+                    <th className="px-3.5 py-2.5 text-right">Total Dead Value</th>
+                    <th className="px-3.5 py-2.5 text-center rounded-r-lg">Days in Inventory</th>
                   </tr>
-                ) : (
-                  filteredAppointments.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.customerName}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{item.customerPhone}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">{item.dateKey}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">{item.visitTime}</td>
-                      <td className="px-3.5 py-2.5 text-xs font-bold text-[#2563eb]">{item.purposeOfVisit}</td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          item.status === "COMPLETED"
-                            ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                            : item.status === "CONFIRMED"
-                            ? "bg-blue-50 text-[#2563eb] border-blue-100"
-                            : item.status === "PENDING"
-                            ? "bg-amber-50 text-amber-600 border-amber-100"
-                            : "bg-rose-50 text-rose-600 border-rose-100"
-                        }`}>
-                          {item.status}
-                        </span>
+                </thead>
+                <tbody>
+                  {filteredDeadStock.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-8 text-xs font-semibold text-slate-400">
+                        No dead stock items found — inventory turnover is optimal!
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+                  ) : (
+                    filteredDeadStock.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                        <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.name}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{item.category}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">{item.brand || "—"} / {item.sku || "—"}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-center">{item.quantity}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.costPrice)}</td>
+                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-rose-600 text-right">{formatCurrency(item.deadCostValuation)}</td>
+                        <td className="px-3.5 py-2.5 text-center">
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100">
+                            {item.daysInStock} Days
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Default Standard Tables for other sub-reports */}
+        {activeSubReport !== "Day-Wise Collection" && activeSubReport !== "Outstanding Dues" && activeSubReport !== "Dead Stock Audit" && (
+          <>
+            {/* Category KPIs */}
+            {activeCategory === "sales" && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Total Revenue
+                  </span>
+                  <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
+                    {formatCurrency(salesData.totalRevenue)}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Invoices Count
+                  </span>
+                  <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
+                    {salesData.totalInvoices}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Total Discount
+                  </span>
+                  <span className="text-xl font-extrabold text-amber-600 tracking-tight mt-1 block">
+                    {formatCurrency(salesData.totalDiscount)}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Paid vs Pending
+                  </span>
+                  <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
+                    {salesData.paidInvoices} / {salesData.pendingInvoices}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Tables */}
+            <div className="overflow-x-auto">
+              {activeCategory === "sales" && (
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3.5 py-2.5 rounded-l-lg">Invoice No</th>
+                      <th className="px-3.5 py-2.5">Date</th>
+                      <th className="px-3.5 py-2.5">Customer Name</th>
+                      <th className="px-3.5 py-2.5 text-right">Subtotal</th>
+                      <th className="px-3.5 py-2.5 text-right">Tax</th>
+                      <th className="px-3.5 py-2.5 text-right">Total Amount</th>
+                      <th className="px-3.5 py-2.5 text-center rounded-r-lg">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSales.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-xs font-semibold text-slate-400">
+                          No sales records found for selected period
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredSales.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">{item.invoiceNumber}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.customerName}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.subtotal)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.tax)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-right">{formatCurrency(item.total)}</td>
+                          <td className="px-3.5 py-2.5 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              item.status === "PAID"
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                : "bg-amber-50 text-amber-600 border-amber-100"
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {activeCategory === "item" && (
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3.5 py-2.5 rounded-l-lg">Item Description</th>
+                      <th className="px-3.5 py-2.5">Category</th>
+                      <th className="px-3.5 py-2.5 text-center">Quantity Sold</th>
+                      <th className="px-3.5 py-2.5 text-right">Avg Price</th>
+                      <th className="px-3.5 py-2.5 text-right rounded-r-lg">Total Sales</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-xs font-semibold text-slate-400">
+                          No item sales records found for selected period
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredItems.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.description}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-extrabold">
+                              {item.category}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-center">{item.totalQuantity}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.avgPrice)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb] text-right">{formatCurrency(item.totalSales)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {activeCategory === "invoices" && (
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3.5 py-2.5 rounded-l-lg">Invoice No</th>
+                      <th className="px-3.5 py-2.5">Date</th>
+                      <th className="px-3.5 py-2.5">HSN Code</th>
+                      <th className="px-3.5 py-2.5 text-right">Taxable Subtotal</th>
+                      <th className="px-3.5 py-2.5 text-right">CGST</th>
+                      <th className="px-3.5 py-2.5 text-right">SGST</th>
+                      <th className="px-3.5 py-2.5 text-right rounded-r-lg">Total Tax</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredGST.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-xs font-semibold text-slate-400">
+                          No tax records found for selected period
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredGST.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">{item.invoiceNumber}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-slate-700">{item.hsnCode}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.subtotal)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.cgstAmount)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.sgstAmount)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-emerald-600 text-right">{formatCurrency(item.totalTax)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {activeCategory === "misc" && (
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3.5 py-2.5 rounded-l-lg">Item Name</th>
+                      <th className="px-3.5 py-2.5">Category</th>
+                      <th className="px-3.5 py-2.5 text-center">In Stock</th>
+                      <th className="px-3.5 py-2.5 text-right">Cost Price</th>
+                      <th className="px-3.5 py-2.5 text-right">Selling Price</th>
+                      <th className="px-3.5 py-2.5 text-right">Total Cost Val</th>
+                      <th className="px-3.5 py-2.5 text-center rounded-r-lg">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredInventory.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-xs font-semibold text-slate-400">
+                          No inventory items found
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredInventory.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.name}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{item.category}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-center">{item.quantity}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.costPrice)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(item.sellingPrice)}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb] text-right">{formatCurrency(item.totalCostValue)}</td>
+                          <td className="px-3.5 py-2.5 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              item.status === "IN_STOCK"
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                : item.status === "LOW_STOCK"
+                                ? "bg-amber-50 text-amber-600 border-amber-100"
+                                : "bg-rose-50 text-rose-600 border-rose-100"
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {activeCategory === "representative" && (
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3.5 py-2.5 rounded-l-lg">Receipt No</th>
+                      <th className="px-3.5 py-2.5">Invoice No</th>
+                      <th className="px-3.5 py-2.5">Date</th>
+                      <th className="px-3.5 py-2.5">Customer Name</th>
+                      <th className="px-3.5 py-2.5">Method</th>
+                      <th className="px-3.5 py-2.5 text-right rounded-r-lg">Amount Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPayments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-xs font-semibold text-slate-400">
+                          No payment collection receipts found for selected period
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredPayments.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">{item.receiptNumber}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-slate-700">{item.invoiceNumber}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.customerName}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-extrabold">
+                              {item.paymentMethod}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-emerald-600 text-right">{formatCurrency(item.amountPaid)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {activeCategory === "lab" && (
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3.5 py-2.5 rounded-l-lg">Patient Name</th>
+                      <th className="px-3.5 py-2.5">Phone</th>
+                      <th className="px-3.5 py-2.5">Date</th>
+                      <th className="px-3.5 py-2.5">Time</th>
+                      <th className="px-3.5 py-2.5">Purpose</th>
+                      <th className="px-3.5 py-2.5 text-center rounded-r-lg">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAppointments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-xs font-semibold text-slate-400">
+                          No appointment records found for selected period
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAppointments.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">{item.customerName}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500">{item.customerPhone}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">{item.dateKey}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600">{item.visitTime}</td>
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-[#2563eb]">{item.purposeOfVisit}</td>
+                          <td className="px-3.5 py-2.5 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              item.status === "COMPLETED"
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                : item.status === "CONFIRMED"
+                                ? "bg-blue-50 text-[#2563eb] border-blue-100"
+                                : item.status === "PENDING"
+                                ? "bg-amber-50 text-amber-600 border-amber-100"
+                                : "bg-rose-50 text-rose-600 border-rose-100"
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

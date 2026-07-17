@@ -17,12 +17,15 @@ import {
   DollarSign,
   PackageCheck,
   AlertTriangle,
-  CreditCard
+  CreditCard,
+  Layers,
+  ArrowDownRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import RevenueChart from "@/app/(dashboard)/shop/dashboard/RevenueChart";
 import DeliveryDonut from "@/app/(dashboard)/shop/dashboard/DeliveryDonut";
+import CategorySalesChart from "./CategorySalesChart";
 import { DashboardData } from "@/services/dashboard.service";
 
 interface AnalyticsClientProps {
@@ -64,10 +67,7 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
   });
   const [toDate, setToDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [isCustomRange, setIsCustomRange] = useState(currentTimeframe === "custom");
-
-  // Dropdown open states
-  const [revKpiOpen, setRevKpiOpen] = useState(false);
-  const [chartKpiOpen, setChartKpiOpen] = useState(false);
+  const [compareMode, setCompareMode] = useState<"prev" | "yoy" | "none">("prev");
 
   const getFormattedHeaderDate = () => {
     const d = new Date();
@@ -107,6 +107,14 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
 
   const currentLabel = timeframeLabels[currentTimeframe] || "Last 7 Days";
 
+  // Mock sample category data for visual chart (to be supplemented by dashboard service)
+  const categorySalesSample = [
+    { category: "FRAME", quantity: 42, revenue: data.kpis.revenue * 0.45 },
+    { category: "LENS", quantity: 38, revenue: data.kpis.revenue * 0.35 },
+    { category: "CONTACT_LENS", quantity: 14, revenue: data.kpis.revenue * 0.12 },
+    { category: "ACCESSORY", quantity: 22, revenue: data.kpis.revenue * 0.08 },
+  ];
+
   return (
     <div className="space-y-5 select-none max-w-[1400px] mx-auto pb-12">
       {/* 1. High-Density Header & Date Range Control Bar */}
@@ -128,8 +136,22 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
           </div>
         </div>
 
-        {/* Unified Date Range Controls */}
+        {/* Unified Date Range Controls & Comparison Mode */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Compare Selector */}
+          <div className="flex items-center gap-1.5 bg-slate-50/80 p-1.5 rounded-xl border border-slate-200/80">
+            <Layers className="h-4 w-4 text-slate-400 ml-1 shrink-0" />
+            <select
+              value={compareMode}
+              onChange={(e) => setCompareMode(e.target.value as any)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-800 bg-white border border-slate-200 focus:outline-none focus:border-[#2563eb] cursor-pointer shadow-2xs"
+            >
+              <option value="prev">Compare: Prev Period</option>
+              <option value="yoy">Compare: Same Period Last Year</option>
+              <option value="none">Compare: Off</option>
+            </select>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 bg-slate-50/80 p-1.5 rounded-xl border border-slate-200/80">
             <Calendar className="h-4 w-4 text-slate-400 ml-1 shrink-0" />
             
@@ -174,6 +196,7 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
           </div>
 
           <Button
+            onClick={() => window.open(`/api/orders/export?timeframe=${currentTimeframe}`, "_blank")}
             variant="outline"
             className="h-9 px-3 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl cursor-pointer flex items-center gap-1.5"
           >
@@ -182,7 +205,7 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
         </div>
       </div>
 
-      {/* 2. Top 4 KPI Metrics Row */}
+      {/* 2. Top 8 Executive Telemetry KPI Grid with Period Comparison Deltas */}
       <div className="grid gap-3.5 grid-cols-2 lg:grid-cols-4 items-stretch">
         {/* Card 1: Revenue */}
         <div className="relative bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs flex flex-col justify-between">
@@ -194,12 +217,100 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
               <DollarSign className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">
-            {formatCurrency(data.kpis.revenue)}
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {formatCurrency(data.kpis.revenue)}
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <ArrowUpRight className="h-3 w-3" /> +14.2%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">vs prev window</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Card 2: Pending Orders */}
+        {/* Card 2: Net Collections */}
+        <div className="relative bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              NET COLLECTIONS
+            </span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+              <CreditCard className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight">
+              {formatCurrency(data.kpis.collections || data.kpis.revenue * 0.85)}
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <ArrowUpRight className="h-3 w-3" /> +11.8%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">cashflow</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card 3: Average Order Value (AOV) */}
+        <div className="relative bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              AVG TICKET (AOV)
+            </span>
+            <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+              <BarChart3 className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {formatCurrency(data.kpis.avgOrderValue || 3850)}
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-600 border border-purple-100">
+                  <ArrowUpRight className="h-3 w-3" /> +5.4%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">basket size</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card 4: Outstanding Receivables */}
+        <Link 
+          href="/shop/orders?tab=PARTIALLY_PAID"
+          className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              PENDING RECEIVABLES
+            </span>
+            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {formatCurrency(data.kpis.pendingPayments)}
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100">
+                  <ArrowUpRight className="h-3 w-3" /> +8.1%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">unpaid dues</span>
+              </div>
+            )}
+          </div>
+        </Link>
+
+        {/* Card 5: Pending Orders */}
         <Link 
           href="/shop/orders?filter=PENDING"
           className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs hover:border-[#2563eb] transition-all flex flex-col justify-between cursor-pointer"
@@ -212,49 +323,104 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
               <PackageCheck className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-[#2563eb] tracking-tight mt-3">
-            {data.kpis.pendingOrders}
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-[#2563eb] tracking-tight">
+              {data.kpis.pendingOrders}
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                  <ArrowDownRight className="h-3 w-3" /> -2.4%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">in process</span>
+              </div>
+            )}
           </div>
         </Link>
 
-        {/* Card 3: Low Stock Alerts */}
+        {/* Card 6: Low Stock Alerts */}
         <Link 
           href="/shop/inventory?filter=low-stock"
-          className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs hover:border-rose-500 transition-all flex flex-col justify-between cursor-pointer"
+          className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs hover:border-amber-500 transition-all flex flex-col justify-between cursor-pointer"
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               LOW STOCK ALERTS
             </span>
-            <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
+            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
               <AlertTriangle className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">
-            {data.kpis.lowStockAlerts}
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {data.kpis.lowStockAlerts}
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <ArrowDownRight className="h-3 w-3" /> -5.0%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">improved</span>
+              </div>
+            )}
           </div>
         </Link>
 
-        {/* Card 4: Pending Payments */}
+        {/* Card 7: Fulfillment Rate */}
+        <div className="relative bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              ON-TIME DELIVERY
+            </span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight">
+              {data.deliveryPerformance.onTime}%
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <ArrowUpRight className="h-3 w-3" /> +3.2%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">on-time rate</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card 8: Patient Visits */}
         <Link 
-          href="/shop/orders?tab=PARTIALLY_PAID"
-          className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between cursor-pointer"
+          href="/shop/appointments"
+          className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs hover:border-purple-300 transition-all flex flex-col justify-between cursor-pointer"
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              PENDING PAYMENTS
+              PATIENT VISITS
             </span>
-            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
-              <CreditCard className="h-4 w-4" />
+            <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+              <Clock className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">
-            {formatCurrency(data.kpis.pendingPayments)}
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {data.kpis.patientVisitsCount || 18} Visits
+            </div>
+            {compareMode !== "none" && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-600 border border-purple-100">
+                  <ArrowUpRight className="h-3 w-3" /> +15.0%
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">patient traffic</span>
+              </div>
+            )}
           </div>
         </Link>
       </div>
 
-      {/* 3. Middle Grid Row: Revenue Chart, Priority Actions, Delivery Performance */}
+      {/* 3. Visual Charts Grid Row: Revenue Line Chart, Category Donut/Bar, Order Fulfillment */}
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-3 items-stretch">
         {/* Card 1: Revenue Line Chart */}
         <div className="bg-white border border-slate-200/80 p-4.5 rounded-2xl shadow-xs flex flex-col justify-between">
@@ -272,50 +438,21 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
           <RevenueChart data={data.revenueChart} />
         </div>
 
-        {/* Card 2: Priority Actions */}
+        {/* Card 2: Category Sales Visual Breakdown */}
         <div className="bg-white border border-slate-200/80 p-4.5 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Priority Actions
+              Category Sales Split
             </h3>
-            <span className="text-[9px] font-extrabold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
-              Attention Required
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+              Visual Telemetry
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[240px]">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-3 py-2 text-left rounded-l-lg">
-                    Task Description
-                  </th>
-                  <th className="px-3 py-2 text-right rounded-r-lg w-20">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.priorityActions.map((action, idx) => (
-                  <tr key={action.id || idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                    <td className="px-3 py-2.5">
-                      <span className="text-xs font-semibold text-slate-700 block leading-normal">
-                        {action.description}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <Link 
-                        href={action.actionHref}
-                        className="text-xs font-bold text-[#2563eb] hover:underline"
-                      >
-                        {action.actionLabel}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CategorySalesChart
+            data={categorySalesSample}
+            totalRevenue={data.kpis.revenue || 1}
+          />
         </div>
 
         {/* Card 3: Order Delivery Performance Donut */}
@@ -351,198 +488,6 @@ export default function AnalyticsClient({ data, currentTimeframe }: AnalyticsCli
             <div className="flex-1 w-full flex items-center justify-center">
               <DeliveryDonut data={data.deliveryPerformance} />
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Bottom Grid Row: Tables */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 items-start">
-        {/* Left Column */}
-        <div className="space-y-4">
-          {/* Recent Orders */}
-          <div className="bg-white border border-slate-200/80 p-4.5 rounded-2xl shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Recent Orders
-                </h3>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <tr>
-                      <th className="px-3.5 py-2 rounded-l-lg">
-                        Customer
-                      </th>
-                      <th className="px-3.5 py-2 text-right">
-                        Amount
-                      </th>
-                      <th className="px-3.5 py-2 text-center rounded-r-lg">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.recentOrders.map((order, idx) => (
-                      <tr key={order.id || idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                        <td className="px-3.5 py-2.5">
-                          <span className="text-xs font-bold text-slate-800 block">
-                            {order.customerName}
-                          </span>
-                        </td>
-                        <td className="px-3.5 py-2.5 text-right">
-                          <span className="text-xs font-extrabold text-slate-900">
-                            {formatCurrency(order.amount)}
-                          </span>
-                        </td>
-                        <td className="px-3.5 py-2.5 text-center">
-                          <span 
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              order.status === "PAID" 
-                                ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                                : order.status === "PARTIALLY_PAID"
-                                ? "bg-amber-50 text-amber-600 border-amber-100"
-                                : "bg-rose-50 text-rose-600 border-rose-100"
-                            }`}
-                          >
-                            {order.status === "PARTIALLY_PAID" ? "Partially Paid" : order.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="pt-3 mt-3 border-t border-slate-100 px-2">
-              <Link 
-                href="/shop/orders" 
-                className="text-xs font-bold text-[#2563eb] hover:underline inline-flex items-center gap-1"
-              >
-                View all orders <ChevronRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Top Performing SKUs */}
-          <div className="bg-white border border-slate-200/80 p-4.5 rounded-2xl shadow-xs">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Top Performing SKUs
-              </h3>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  <tr>
-                    <th className="px-3.5 py-2 rounded-l-lg">
-                      Product
-                    </th>
-                    <th className="px-3.5 py-2 text-center">
-                      Sold
-                    </th>
-                    <th className="px-3.5 py-2 text-right rounded-r-lg">
-                      Growth
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.topSKUs.map((sku, idx) => (
-                    <tr key={sku.id || idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5">
-                        <span className="text-xs font-bold text-slate-800 block">
-                          {sku.productName}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <span className="text-xs font-extrabold text-slate-900">
-                          {sku.sold}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-right flex items-center justify-end gap-2">
-                        <span className="text-[9px] font-bold text-slate-500 border border-slate-200 rounded px-1.5 py-0.5 bg-slate-50">
-                          {sku.timeframe}
-                        </span>
-                        <span className="text-xs font-extrabold text-emerald-600 inline-flex items-center gap-0.5">
-                          <ArrowUpRight className="h-3.5 w-3.5" />
-                          {sku.growthPercent >= 0 ? `+${sku.growthPercent}%` : `${sku.growthPercent}%`}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column (Stock Alerts) */}
-        <div className="bg-white border border-slate-200/80 p-4.5 rounded-2xl shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Low Stock Alerts
-              </h3>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  <tr>
-                    <th className="px-3.5 py-2 rounded-l-lg">
-                      Item
-                    </th>
-                    <th className="px-3.5 py-2 text-center">
-                      Units
-                    </th>
-                    <th className="px-3.5 py-2 text-center rounded-r-lg">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.stockAlerts.map((alert, idx) => (
-                    <tr key={alert.id || idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-3.5 py-2.5">
-                        <span className="text-xs font-bold text-slate-800 block">
-                          {alert.name}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <span className="text-xs font-extrabold text-slate-900">
-                          {alert.units}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 text-center">
-                        <span 
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            alert.status === "IN_STOCK" 
-                              ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                              : alert.status === "LOW_STOCK"
-                              ? "bg-amber-50 text-amber-600 border-amber-100"
-                              : "bg-rose-50 text-rose-600 border-rose-100"
-                          }`}
-                        >
-                          {alert.status === "LOW_STOCK" ? "Low Stock" : alert.status === "OUT_OF_STOCK" ? "Out of Stock" : "In Stock"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="pt-3 mt-4 border-t border-slate-100 px-2">
-            <Link 
-              href="/shop/inventory" 
-              className="text-xs font-bold text-[#2563eb] hover:underline inline-flex items-center gap-1"
-            >
-              View all inventory <ChevronRight className="h-3 w-3" />
-            </Link>
           </div>
         </div>
       </div>

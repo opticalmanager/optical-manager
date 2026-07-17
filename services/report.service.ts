@@ -622,6 +622,290 @@ export async function getAppointmentReport(
   };
 }
 
+// 7. Day-Wise Collection Ledger Data
+export interface DayWiseCollectionItem {
+  date: string;
+  totalInvoices: number;
+  subtotal: number;
+  tax: number;
+  totalRevenue: number;
+  cashTotal: number;
+  upiTotal: number;
+  cardTotal: number;
+  balanceDue: number;
+}
+
+export interface DayWiseCollectionReportData {
+  grandTotal: number;
+  totalInvoices: number;
+  days: DayWiseCollectionItem[];
+}
+
+export async function getDayWiseCollectionReport(
+  shopId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<DayWiseCollectionReportData> {
+  const { start, end } = getStartAndEndDates(startDate, endDate);
+
+  const rawInvoices = await db
+    .select({
+      createdAt: invoices.createdAt,
+      subtotal: invoices.subtotal,
+      tax: invoices.tax,
+      total: invoices.total,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      paymentMethod: invoices.paymentMethod,
+    })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.shopId, shopId),
+        gte(invoices.createdAt, start),
+        lte(invoices.createdAt, end)
+      )
+    )
+    .orderBy(desc(invoices.createdAt));
+
+  const dayMap: Record<string, DayWiseCollectionItem> = {};
+  let grandTotal = 0;
+
+  for (const inv of rawInvoices) {
+    const dStr = new Date(inv.createdAt).toISOString().split("T")[0];
+    const sub = parseFloat(inv.subtotal) || 0;
+    const tx = parseFloat(inv.tax) || 0;
+    const tot = parseFloat(inv.total) || 0;
+    const paid = parseFloat(inv.amountPaid) || 0;
+    const bal = parseFloat(inv.balanceDue) || 0;
+
+    grandTotal += tot;
+
+    if (!dayMap[dStr]) {
+      dayMap[dStr] = {
+        date: dStr,
+        totalInvoices: 0,
+        subtotal: 0,
+        tax: 0,
+        totalRevenue: 0,
+        cashTotal: 0,
+        upiTotal: 0,
+        cardTotal: 0,
+        balanceDue: 0,
+      };
+    }
+
+    dayMap[dStr].totalInvoices += 1;
+    dayMap[dStr].subtotal += sub;
+    dayMap[dStr].tax += tx;
+    dayMap[dStr].totalRevenue += tot;
+    dayMap[dStr].balanceDue += bal;
+
+    if (inv.paymentMethod === "CASH") dayMap[dStr].cashTotal += paid;
+    else if (inv.paymentMethod === "UPI") dayMap[dStr].upiTotal += paid;
+    else if (inv.paymentMethod === "CARD") dayMap[dStr].cardTotal += paid;
+  }
+
+  const days = Object.values(dayMap).sort((a, b) => b.date.localeCompare(a.date));
+
+  return {
+    grandTotal,
+    totalInvoices: rawInvoices.length,
+    days,
+  };
+}
+
+// 8. Outstanding Dues & Receivables Ageing Data
+export interface OutstandingDueItem {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  customerPhone: string;
+  createdAt: Date;
+  totalAmount: number;
+  amountPaid: number;
+  balanceDue: number;
+  ageDays: number;
+  agingBucket: "0-30" | "31-60" | "60+";
+}
+
+export interface OutstandingDuesReportData {
+  totalOutstanding: number;
+  count0to30: number;
+  count31to60: number;
+  count60Plus: number;
+  total0to30: number;
+  total31to60: number;
+  total60Plus: number;
+  items: OutstandingDueItem[];
+}
+
+export async function getOutstandingDuesReport(shopId: string): Promise<OutstandingDuesReportData> {
+  const rawInvoices = await db
+    .select({
+      id: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+      createdAt: invoices.createdAt,
+      total: invoices.total,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .where(
+      and(
+        eq(invoices.shopId, shopId),
+        sql`CAST(${invoices.balanceDue} AS NUMERIC) > 0`
+      )
+    )
+    .orderBy(desc(invoices.createdAt));
+
+  const nowTime = Date.now();
+  let totalOutstanding = 0;
+  let count0to30 = 0;
+  let count31to60 = 0;
+  let count60Plus = 0;
+  let total0to30 = 0;
+  let total31to60 = 0;
+  let total60Plus = 0;
+
+  const items: OutstandingDueItem[] = rawInvoices.map((inv) => {
+    const tot = parseFloat(inv.total) || 0;
+    const paid = parseFloat(inv.amountPaid) || 0;
+    const bal = parseFloat(inv.balanceDue) || 0;
+
+    totalOutstanding += bal;
+
+    const diffDays = Math.floor((nowTime - new Date(inv.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    let agingBucket: "0-30" | "31-60" | "60+" = "0-30";
+
+    if (diffDays <= 30) {
+      agingBucket = "0-30";
+      count0to30++;
+      total0to30 += bal;
+    } else if (diffDays <= 60) {
+      agingBucket = "31-60";
+      count31to60++;
+      total31to60 += bal;
+    } else {
+      agingBucket = "60+";
+      count60Plus++;
+      total60Plus += bal;
+    }
+
+    return {
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      customerName: inv.customerName,
+      customerPhone: inv.customerPhone,
+      createdAt: inv.createdAt,
+      totalAmount: tot,
+      amountPaid: paid,
+      balanceDue: bal,
+      ageDays: diffDays,
+      agingBucket,
+    };
+  });
+
+  return {
+    totalOutstanding,
+    count0to30,
+    count31to60,
+    count60Plus,
+    total0to30,
+    total31to60,
+    total60Plus,
+    items,
+  };
+}
+
+// 9. Dead Stock Audit Data
+export interface DeadStockItem {
+  id: string;
+  name: string;
+  category: string;
+  brand: string | null;
+  sku: string | null;
+  quantity: number;
+  costPrice: number;
+  sellingPrice: number;
+  deadCostValuation: number;
+  daysInStock: number;
+}
+
+export interface DeadStockReportData {
+  totalDeadItems: number;
+  totalDeadQuantity: number;
+  totalDeadCostValuation: number;
+  items: DeadStockItem[];
+}
+
+export async function getDeadStockReport(shopId: string): Promise<DeadStockReportData> {
+  // Items active with quantity > 0 created more than 60 days ago
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+  const rawItems = await db
+    .select({
+      id: inventory.id,
+      name: inventory.name,
+      category: inventory.category,
+      brand: inventory.brand,
+      sku: inventory.sku,
+      quantity: inventory.quantity,
+      costPrice: inventory.costPrice,
+      price: inventory.price,
+      createdAt: inventory.createdAt,
+    })
+    .from(inventory)
+    .where(
+      and(
+        eq(inventory.shopId, shopId),
+        eq(inventory.isActive, true),
+        gte(inventory.quantity, 1),
+        lte(inventory.createdAt, sixtyDaysAgo)
+      )
+    )
+    .orderBy(inventory.createdAt);
+
+  let totalDeadQuantity = 0;
+  let totalDeadCostValuation = 0;
+  const nowTime = Date.now();
+
+  const items: DeadStockItem[] = rawItems.map((item) => {
+    const qty = item.quantity || 0;
+    const cost = parseFloat(item.costPrice || "0") || 0;
+    const price = parseFloat(item.price) || 0;
+    const val = qty * cost;
+
+    totalDeadQuantity += qty;
+    totalDeadCostValuation += val;
+
+    const daysInStock = Math.floor((nowTime - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+
+    return {
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      brand: item.brand,
+      sku: item.sku,
+      quantity: qty,
+      costPrice: cost,
+      sellingPrice: price,
+      deadCostValuation: val,
+      daysInStock,
+    };
+  });
+
+  return {
+    totalDeadItems: rawItems.length,
+    totalDeadQuantity,
+    totalDeadCostValuation,
+    items,
+  };
+}
+
 /**
  * CSV Exporter for Reports
  */
@@ -722,6 +1006,51 @@ export async function exportReportToCSV(
       escapeCSV(i.purposeOfVisit),
       escapeCSV(i.status),
       escapeCSV(i.notes || ""),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "daywise") {
+    const data = await getDayWiseCollectionReport(shopId, startDate, endDate);
+    const headers = ["Date", "Total Invoices", "Subtotal", "Tax Amount", "Total Revenue", "Cash Total", "UPI Total", "Card Total", "Balance Outstanding"];
+    const rows = data.days.map((d) => [
+      escapeCSV(d.date),
+      escapeCSV(d.totalInvoices),
+      escapeCSV(d.subtotal.toFixed(2)),
+      escapeCSV(d.tax.toFixed(2)),
+      escapeCSV(d.totalRevenue.toFixed(2)),
+      escapeCSV(d.cashTotal.toFixed(2)),
+      escapeCSV(d.upiTotal.toFixed(2)),
+      escapeCSV(d.cardTotal.toFixed(2)),
+      escapeCSV(d.balanceDue.toFixed(2)),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "dues") {
+    const data = await getOutstandingDuesReport(shopId);
+    const headers = ["Invoice No", "Date", "Patient Name", "Phone", "Total Invoice", "Amount Paid", "Balance Overdue", "Overdue Days", "Aging Bucket"];
+    const rows = data.items.map((i) => [
+      escapeCSV(i.invoiceNumber),
+      escapeCSV(new Date(i.createdAt).toLocaleDateString()),
+      escapeCSV(i.customerName),
+      escapeCSV(i.customerPhone),
+      escapeCSV(i.totalAmount.toFixed(2)),
+      escapeCSV(i.amountPaid.toFixed(2)),
+      escapeCSV(i.balanceDue.toFixed(2)),
+      escapeCSV(i.ageDays),
+      escapeCSV(i.agingBucket),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "deadstock") {
+    const data = await getDeadStockReport(shopId);
+    const headers = ["Product Name", "Category", "Brand", "SKU", "Units Unsold", "Unit Cost Price", "Selling Price", "Dead Cost Value", "Days in Inventory"];
+    const rows = data.items.map((i) => [
+      escapeCSV(i.name),
+      escapeCSV(i.category),
+      escapeCSV(i.brand || "N/A"),
+      escapeCSV(i.sku || "N/A"),
+      escapeCSV(i.quantity),
+      escapeCSV(i.costPrice.toFixed(2)),
+      escapeCSV(i.sellingPrice.toFixed(2)),
+      escapeCSV(i.deadCostValuation.toFixed(2)),
+      escapeCSV(i.daysInStock),
     ]);
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   }
