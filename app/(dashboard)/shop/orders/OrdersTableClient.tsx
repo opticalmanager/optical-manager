@@ -44,20 +44,20 @@ export function OrdersTableClient({
   return (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left border-collapse">
+        <table className="w-full text-xs text-left border-collapse">
           <thead>
-            <tr className="text-[13px] text-slate-900 font-extrabold bg-slate-50 border-b border-slate-200/80">
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Order ID</th>
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Customer</th>
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Date</th>
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">SKU Details</th>
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider">Amount</th>
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider text-center">Payment Status</th>
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider text-center">Delivery Status</th>
-              <th className="px-3 md:px-6 py-4.5 uppercase tracking-wider text-center">Invoice/Receipt</th>
+            <tr className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50 border-b border-slate-100 tracking-wider">
+              <th className="px-4 py-2.5">Order ID</th>
+              <th className="px-4 py-2.5">Customer</th>
+              <th className="px-4 py-2.5">Date</th>
+              <th className="px-4 py-2.5">SKU Details</th>
+              <th className="px-4 py-2.5">Amount</th>
+              <th className="px-4 py-2.5 text-center">Payment Status</th>
+              <th className="px-4 py-2.5 text-center">Delivery Status</th>
+              <th className="px-4 py-2.5 text-center">Invoice/Receipt</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 bg-white">
             {orders.length > 0 ? (
               orders.map((order) => {
                 const itemsCount = order.skus.reduce((sum, s) => sum + s.quantity, 0);
@@ -76,25 +76,25 @@ export function OrdersTableClient({
                   <tr
                     key={order.id}
                     onClick={() => handleRowClick(order)}
-                    className="group border-b border-slate-100 last:border-0 hover:bg-[#0a52c3]/5 transition-all duration-200 align-middle cursor-pointer border-l-2 border-l-transparent hover:border-l-[#0a52c3] hover:shadow-sm"
+                    className="group hover:bg-blue-50/30 transition-colors align-middle cursor-pointer"
                   >
                     {/* Order ID */}
-                    <td className="px-3 md:px-6 py-5 font-black text-slate-900 group-hover:text-slate-955 transition-colors">
+                    <td className="px-4 py-2.5 font-bold text-slate-900 text-xs">
                       {order.orderNumber}
                     </td>
 
                     {/* Customer Info */}
-                    <td className="px-3 md:px-6 py-5">
-                      <div className="flex items-center gap-3">
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
                         {/* Circle Avatar badge */}
-                        <div className="h-8 w-8 rounded-full bg-slate-100 text-[#0a52c3] flex items-center justify-center text-[11px] font-black uppercase shrink-0 group-hover:scale-105 transition-transform duration-200">
+                        <div className="h-7 w-7 rounded-full bg-blue-100 text-[#2563eb] flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
                           {order.customerName.substring(0, 2)}
                         </div>
                         <div>
-                          <p className="font-extrabold text-slate-900 leading-tight group-hover:text-[#0a52c3] transition-colors duration-200">
+                          <p className="font-bold text-slate-900 text-xs leading-tight">
                             {order.customerName}
                           </p>
-                          <p className="text-xs text-slate-600 font-semibold mt-0.5 group-hover:text-slate-700 transition-colors">
+                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
                             {order.categoryText}
                           </p>
                         </div>
@@ -102,7 +102,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Date */}
-                    <td className="px-3 md:px-6 py-5 font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
+                    <td className="px-4 py-2.5 font-semibold text-slate-600 text-xs">
                       {new Date(order.createdAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -111,7 +111,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* SKU Details Hover dropdown */}
-                    <td className="px-3 md:px-6 py-5" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <SKUDetailsDropdown
                         label={`${itemsCount} SKU${itemsCount !== 1 ? "s" : ""}`}
                         skus={order.skus}
@@ -119,31 +119,31 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Amount */}
-                    <td className="px-3 md:px-6 py-5 font-extrabold text-slate-900 text-[14px] group-hover:text-slate-955 transition-colors">
+                    <td className="px-4 py-2.5 font-extrabold text-slate-900 text-xs">
                       {formatCurrency(parseFloat(order.total))}
                     </td>
 
                     {/* Payment Status */}
-                    <td className="px-3 md:px-6 py-5 text-center">
-                      <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-extrabold uppercase border ${
+                    <td className="px-4 py-2.5 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                         parseFloat(order.balanceDue) === 0
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-250"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-100"
                           : parseFloat(order.amountPaid) > 0
-                          ? "bg-amber-50 text-amber-700 border-amber-250"
-                          : "bg-rose-50 text-rose-700 border-rose-250"
+                          ? "bg-amber-50 text-amber-600 border-amber-100"
+                          : "bg-rose-50 text-rose-600 border-rose-100"
                       }`}>
                         {parseFloat(order.balanceDue) === 0 ? "PAID" : "PARTIALLY PAID"}
                       </span>
                     </td>
 
                     {/* Delivery Status */}
-                    <td className="px-3 md:px-6 py-5 text-center space-y-1">
-                      <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-extrabold uppercase border ${
+                    <td className="px-4 py-2.5 text-center space-y-0.5">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                         order.fulfillmentStatus === "DELIVERED"
-                          ? "bg-slate-100 text-slate-700 border-slate-200"
+                          ? "bg-slate-100 text-slate-600 border-slate-200"
                           : order.isRescheduled
-                          ? "bg-amber-50 text-amber-700 border-amber-250"
-                          : "bg-indigo-50 text-indigo-700 border-indigo-250"
+                          ? "bg-amber-50 text-amber-600 border-amber-100"
+                          : "bg-blue-50 text-[#2563eb] border-blue-100"
                       }`}>
                         {order.fulfillmentStatus === "DELIVERED"
                           ? "DELIVERED"
@@ -153,7 +153,7 @@ export function OrdersTableClient({
                       </span>
                       {isDelayed && (
                         <div className="block">
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase bg-rose-50 text-rose-600 border border-rose-100 animate-pulse">
+                          <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase bg-rose-50 text-rose-600 border border-rose-100">
                             DELAYED
                           </span>
                         </div>
@@ -161,13 +161,13 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Invoice/Receipt Download/Print link */}
-                    <td className="px-3 md:px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={printUrl}
-                        className="p-1.5 rounded-lg inline-block text-slate-400 group-hover:text-[#0a52c3] group-hover:bg-[#0a52c3]/5 transition-all duration-200 transform group-hover:scale-110"
+                        className="p-1 rounded-lg inline-block text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 transition-colors"
                         title="Print slip"
                       >
-                        <FileDown className="h-4.5 w-4.5" />
+                        <FileDown className="h-4 w-4" />
                       </Link>
                     </td>
                   </tr>

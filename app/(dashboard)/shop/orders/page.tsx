@@ -13,7 +13,11 @@ import {
   AlertCircle,
   Bell,
   CreditCard,
-  Truck
+  Truck,
+  ShoppingBag,
+  CheckCircle2,
+  Clock,
+  AlertTriangle
 } from "lucide-react";
 
 export default async function OrdersDashboardPage({
@@ -33,7 +37,7 @@ export default async function OrdersDashboardPage({
   const page = parseInt(params.page || "1", 10);
   const timeframe = params.timeframe || "30d";
   const filter = (params.filter || "ALL").toUpperCase() as "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
-  const limit = 4; // Display exactly 4 rows per page to match the clean design of the image
+  const limit = 8; // Display 8 rows per page for high-density SaaS viewing
  
   const user = await getCurrentUser();
   const shopId = user?.shopId;
@@ -60,156 +64,149 @@ export default async function OrdersDashboardPage({
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
  
   return (
-    <div className="space-y-8 pb-12 select-none animate-fade-in text-slate-800">
+    <div className="space-y-5 pb-12 select-none text-slate-800 max-w-[1400px] mx-auto">
       
       {/* 1. Header & Title Block */}
-      <div className="space-y-1">
-        <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
-          Financial Ledger
-        </h2>
-        <h1 className="text-3xl font-black text-slate-955 tracking-tight">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
           Orders Management
         </h1>
-        <p className="text-xs font-bold text-slate-700">
+        <p className="text-xs font-semibold text-slate-400 mt-0.5">
           Oversee your clinical revenue stream, track fulfillment, and manage patient billing.
         </p>
       </div>
  
       {/* 2. Analytical Metrics Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-stretch">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 items-stretch">
         
         {/* Metric 1: Total Orders */}
-        <Card className={`relative h-full border transition-all duration-200 cursor-pointer rounded-2xl overflow-visible ${
-          filter === "ALL"
-            ? "border-[#0a52c3] bg-[#0a52c3]/5 shadow-md ring-1 ring-[#0a52c3]/20"
-            : "border-slate-200/80 bg-white shadow-sm hover:border-[#0a52c3]/30 hover:shadow-md hover:-translate-y-0.5"
-        }`}>
-          {/* Absolute overlay link covering the entire card */}
-          <Link 
-            href={`/shop/orders?filter=ALL&tab=${tab}&search=${search}&timeframe=${timeframe}`}
-            className="absolute inset-0 z-0 rounded-2xl font-bold"
-          />
-          
-          <CardContent className="relative z-10 p-6 space-y-4 pointer-events-none">
-            <div className="flex justify-between items-center pointer-events-auto">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-800 block">
+        <div className="relative h-full">
+          <Card className={`relative h-full transition-all cursor-pointer rounded-xl p-4 flex flex-col justify-between ${
+            filter === "ALL"
+              ? "border-2 border-[#2563eb] bg-blue-50/20 shadow-md scale-[1.01]"
+              : "border border-slate-200/80 bg-white shadow-xs hover:border-slate-300"
+          }`}>
+            <Link 
+              href={`/shop/orders?filter=ALL&tab=${tab}&search=${search}&timeframe=${timeframe}`}
+              className="absolute inset-0 z-0 rounded-xl font-bold"
+            />
+            <div className="relative z-10 flex items-center justify-between pointer-events-none">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                 Total Orders
               </span>
-              <TimeframeDropdown currentTimeframe={timeframe} />
-            </div>
-            <div className="pointer-events-none">
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-slate-955 tracking-tight">
-                  {kpis.totalOrders.toLocaleString()}
-                </span>
-                <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                  <TrendingUp className="h-3 w-3" />
-                  {kpis.totalOrdersMoM}
-                </span>
+              <div className="pointer-events-auto">
+                <TimeframeDropdown currentTimeframe={timeframe} />
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="relative z-10 mt-3 flex items-baseline gap-2 pointer-events-none">
+              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                {kpis.totalOrders.toLocaleString()}
+              </span>
+              <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                <TrendingUp className="h-3 w-3" />
+                {kpis.totalOrdersMoM}
+              </span>
+            </div>
+          </Card>
+        </div>
  
         {/* Metric 2: Delivered Orders */}
         <Link 
           href={`/shop/orders?filter=${filter === "DELIVERED" ? "ALL" : "DELIVERED"}&tab=${tab}&search=${search}&timeframe=${timeframe}`}
-          className="block"
+          className="block h-full"
         >
-          <Card className={`h-full border transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden ${
+          <Card className={`h-full transition-all cursor-pointer rounded-xl p-4 flex flex-col justify-between ${
             filter === "DELIVERED"
-              ? "border-[#0a52c3] bg-[#0a52c3]/5 shadow-md ring-1 ring-[#0a52c3]/20"
-              : "border-slate-200/80 bg-white shadow-sm hover:border-[#0a52c3]/30 hover:shadow-md hover:-translate-y-0.5"
+              ? "border-2 border-[#2563eb] bg-blue-50/20 shadow-md scale-[1.01]"
+              : "border border-slate-200/80 bg-white shadow-xs hover:border-slate-300"
           }`}>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-800 block">
-                  Delivered Orders
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Delivered Orders
+              </span>
+              <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  {kpis.deliveredOrders.toLocaleString()}
+                </span>
+                <span className="text-xs font-bold text-slate-500">
+                  {kpis.completionRate}% completion
                 </span>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-black text-slate-955 tracking-tight">
-                    {kpis.deliveredOrders.toLocaleString()}
-                  </span>
-                  <span className="text-xs font-extrabold text-slate-650">
-                    {kpis.completionRate}% completion
-                  </span>
-                </div>
-                {/* Progress bar */}
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                    style={{ width: `${kpis.completionRate}%` }}
-                  />
-                </div>
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                  style={{ width: `${kpis.completionRate}%` }}
+                />
               </div>
-            </CardContent>
+            </div>
           </Card>
         </Link>
  
         {/* Metric 3: Pending Orders */}
         <Link 
           href={`/shop/orders?filter=${filter === "PENDING" ? "ALL" : "PENDING"}&tab=${tab}&search=${search}&timeframe=${timeframe}`}
-          className="block"
+          className="block h-full"
         >
-          <Card className={`h-full border transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden ${
+          <Card className={`h-full transition-all cursor-pointer rounded-xl p-4 flex flex-col justify-between ${
             filter === "PENDING"
-              ? "border-[#0a52c3] bg-[#0a52c3]/5 shadow-md ring-1 ring-[#0a52c3]/20"
-              : "border-slate-200/80 bg-white shadow-sm hover:border-[#0a52c3]/30 hover:shadow-md hover:-translate-y-0.5"
+              ? "border-2 border-[#2563eb] bg-blue-50/20 shadow-md scale-[1.01]"
+              : "border border-slate-200/80 bg-white shadow-xs hover:border-slate-300"
           }`}>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-800 block">
-                  Pending Orders
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Pending Orders
+              </span>
+              <div className="p-1.5 rounded-lg bg-blue-50 text-[#2563eb]">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold text-[#2563eb] tracking-tight">
+                {kpis.pendingOrders.toLocaleString()}
+              </span>
+              {kpis.criticalPending > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                  ! {kpis.criticalPending} critical
                 </span>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-[#0a52c3] tracking-tight">
-                    {kpis.pendingOrders.toLocaleString()}
-                  </span>
-                  {kpis.criticalPending > 0 && (
-                    <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
-                      ! {kpis.criticalPending} critical
-                    </span>
-                  )}
-                </div>
-              </div>
-            </CardContent>
+              )}
+            </div>
           </Card>
         </Link>
  
         {/* Metric 4: Delayed Orders */}
         <Link 
           href={`/shop/orders?filter=${filter === "DELAYED" ? "ALL" : "DELAYED"}&tab=${tab}&search=${search}&timeframe=${timeframe}`}
-          className="block"
+          className="block h-full"
         >
-          <Card className={`h-full border transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden ${
+          <Card className={`h-full transition-all cursor-pointer rounded-xl p-4 flex flex-col justify-between ${
             filter === "DELAYED"
-              ? "border-[#0a52c3] bg-[#0a52c3]/5 shadow-md ring-1 ring-[#0a52c3]/20"
-              : "border-slate-200/80 bg-white shadow-sm hover:border-[#0a52c3]/30 hover:shadow-md hover:-translate-y-0.5"
+              ? "border-2 border-[#2563eb] bg-blue-50/20 shadow-md scale-[1.01]"
+              : "border border-slate-200/80 bg-white shadow-xs hover:border-slate-300"
           }`}>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-800 block">
-                  Delayed Orders
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Delayed Orders
+              </span>
+              <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                {kpis.delayedOrders.toLocaleString()}
+              </span>
+              {kpis.criticalDelayed > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                  <AlertCircle className="h-3 w-3" />
+                  {kpis.criticalDelayed} critical
                 </span>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-slate-800 tracking-tight">
-                    {kpis.delayedOrders.toLocaleString()}
-                  </span>
-                  {kpis.criticalDelayed > 0 && (
-                    <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
-                      <AlertCircle className="h-3 w-3" />
-                      {kpis.criticalDelayed} critical
-                    </span>
-                  )}
-                </div>
-              </div>
-            </CardContent>
+              )}
+            </div>
           </Card>
         </Link>
       </div>

@@ -134,6 +134,13 @@ export async function createShopAppointmentAction(payload: {
     return { success: false, error: "Invalid appointment date and time." };
   }
 
+  // Prevent past date bookings
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (visitDate < todayStart) {
+    return { success: false, error: "Appointments cannot be scheduled for past dates." };
+  }
+
   const { createAppointmentBooking } = await import("@/services/appointment.service");
   const res = await createAppointmentBooking({
     organizationId: user.organizationId,
@@ -145,16 +152,38 @@ export async function createShopAppointmentAction(payload: {
     additionalNotes: payload.additionalNotes,
   });
 
-  if (res.success) {
+  if (res.success && res.data) {
     revalidatePath("/shop/dashboard");
     revalidatePath("/shop/appointments");
+
+    const formattedTime = visitDate.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const dateKey = visitDate.toISOString().split("T")[0];
+
+    const formattedApp = {
+      id: res.data.id,
+      customerName: res.data.customerName,
+      customerPhone: res.data.customerPhone,
+      visitTime: formattedTime,
+      rawVisitTime: visitDate.toISOString(),
+      dateKey,
+      purposeOfVisit: res.data.purposeOfVisit,
+      status: res.data.status,
+      notes: res.data.additionalNotes,
+    };
+
     return {
       success: true,
       message: "New appointment created successfully!",
+      data: formattedApp,
     };
   }
 
   return { success: false, error: res.error || "Failed to create appointment." };
 }
+
 
 

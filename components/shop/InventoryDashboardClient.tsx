@@ -307,32 +307,32 @@ export function InventoryDashboardClient({
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 select-none max-w-[1400px] mx-auto pb-10">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Inventory Ledger
           </h1>
-          <p className="text-slate-500 mt-1">
-            Manage your clinical supply chain with precision. High-fidelity tracking of frames, bespoke lenses, and optical accessories.
+          <p className="text-xs font-semibold text-slate-400 mt-0.5">
+            Manage your clinical supply chain with precision. High-fidelity tracking of frames, lenses, and optical accessories.
           </p>
         </div>
 
         <div className="flex gap-2.5 items-center">
           <Button 
             variant="outline" 
-            className="font-semibold shadow-sm h-10 cursor-pointer"
+            className="font-bold text-xs shadow-xs h-9 cursor-pointer border-slate-200"
             onClick={handleExportCSV}
             disabled={filteredAndSortedItems.length === 0}
           >
-            <Download className="mr-2 h-4 w-4 text-slate-500" /> Export CSV
+            <Download className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Export CSV
           </Button>
           <Link 
             href="/shop/inventory/add" 
-            className="inline-flex items-center justify-center px-4 h-10 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-colors"
+            className="inline-flex items-center justify-center px-3.5 h-9 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 transition-colors"
           >
-            <Plus className="mr-2 h-4 w-4" /> Add Item
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Item
           </Link>
         </div>
       </div>
@@ -365,113 +365,105 @@ export function InventoryDashboardClient({
         const categorySingular = getCategorySingular(category);
 
         return (
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3.5 grid-cols-2 lg:grid-cols-4">
             {/* KPI 1: Total SKU Count */}
             <div 
               onClick={() => setFilter("")} 
-              className="block transition-all hover:-translate-y-0.5 cursor-pointer"
+              className="block transition-all cursor-pointer"
             >
-              <Card className={`shadow-sm transition-all border-slate-200 ${
+              <Card className={`shadow-xs transition-all border p-4 rounded-xl flex flex-col justify-between min-h-[110px] ${
                 !filter 
-                  ? "border-indigo-400 bg-indigo-50/10 shadow-md ring-1 ring-indigo-400/20" 
-                  : "hover:border-indigo-300"
+                  ? "border-2 border-[#2563eb] bg-blue-50/20 shadow-md scale-[1.01]" 
+                  : "border-slate-200/80 hover:border-slate-300"
               }`}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Total SKU Count
-                    <TrendingUp className={`h-4 w-4 ${!filter ? "text-indigo-500" : "text-slate-400"}`} />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-1">
-                    <div className="text-4xl font-bold text-indigo-650">
-                      {kpis.totalSkuCount}
-                    </div>
-                    <span className="text-[10px] font-bold text-indigo-500 flex items-center gap-1 uppercase tracking-wider">
-                      📈 Active {categoryPlural}
-                    </span>
+                  </span>
+                  <TrendingUp className={`h-4 w-4 ${!filter ? "text-[#2563eb]" : "text-slate-400"}`} />
+                </div>
+                <div className="mt-2 space-y-0.5">
+                  <div className="text-2xl font-extrabold text-[#2563eb]">
+                    {kpis.totalSkuCount}
                   </div>
-                </CardContent>
+                  <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1 uppercase tracking-wider">
+                    📈 Active {categoryPlural}
+                  </span>
+                </div>
               </Card>
             </div>
 
             {/* KPI 2: Low Stock Alerts */}
             <div 
               onClick={() => setFilter("low-stock")} 
-              className="block transition-all hover:-translate-y-0.5 cursor-pointer"
+              className="block transition-all cursor-pointer"
             >
-              <Card className={`shadow-sm transition-all border-slate-200 ${
+              <Card className={`shadow-xs transition-all border p-4 rounded-xl flex flex-col justify-between min-h-[110px] ${
                 filter === "low-stock" 
-                  ? "border-amber-400 bg-amber-50/10 shadow-md ring-1 ring-amber-400/20" 
-                  : "hover:border-amber-300"
+                  ? "border-2 border-amber-500 bg-amber-50/20 shadow-md scale-[1.01]" 
+                  : "border-slate-200/80 hover:border-slate-300"
               }`}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Low Stock Alerts
-                    <AlertTriangle className={`h-4 w-4 ${filter === "low-stock" ? "text-amber-500" : "text-slate-400"}`} />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-1">
-                    <div className="text-4xl font-bold text-amber-600">
-                      {kpis.lowStockCount}
-                    </div>
-                    <span className={`text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider ${kpis.lowStockCount > 0 ? "text-amber-600" : "text-slate-400"}`}>
-                      ⚠️ {kpis.lowStockCount > 0 ? `Alerts for ${categoryPlural}` : `${categoryPlural} stable`}
-                    </span>
+                  </span>
+                  <AlertTriangle className={`h-4 w-4 ${filter === "low-stock" ? "text-amber-500" : "text-slate-400"}`} />
+                </div>
+                <div className="mt-2 space-y-0.5">
+                  <div className="text-2xl font-extrabold text-amber-600">
+                    {kpis.lowStockCount}
                   </div>
-                </CardContent>
+                  <span className={`text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider ${kpis.lowStockCount > 0 ? "text-amber-600" : "text-slate-400"}`}>
+                    ⚠️ {kpis.lowStockCount > 0 ? `Alerts for ${categoryPlural}` : `${categoryPlural} stable`}
+                  </span>
+                </div>
               </Card>
             </div>
 
             {/* KPI 3: Out of Order */}
             <div 
               onClick={() => setFilter("out-of-stock")} 
-              className="block transition-all hover:-translate-y-0.5 cursor-pointer"
+              className="block transition-all cursor-pointer"
             >
-              <Card className={`shadow-sm transition-all border-slate-200 ${
+              <Card className={`shadow-xs transition-all border p-4 rounded-xl flex flex-col justify-between min-h-[110px] ${
                 filter === "out-of-stock" 
-                  ? "border-rose-400 bg-rose-50/10 shadow-md ring-1 ring-rose-400/20" 
-                  : "hover:border-rose-300"
+                  ? "border-2 border-rose-500 bg-rose-50/20 shadow-md scale-[1.01]" 
+                  : "border-slate-200/80 hover:border-slate-300"
               }`}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                    Out of Order
-                    <MinusCircle className={`h-4 w-4 ${filter === "out-of-stock" ? "text-rose-550" : "text-slate-400"}`} />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-1">
-                    <div className="text-4xl font-bold text-rose-650">
-                      {kpis.outOfStockCount}
-                    </div>
-                    <span className={`text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider ${kpis.outOfStockCount > 0 ? "text-rose-550" : "text-slate-400"}`}>
-                      🚫 {kpis.outOfStockCount > 0 ? `${categoryPlural} outages` : `No ${categoryPlural} outages`}
-                    </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Out of Stock
+                  </span>
+                  <MinusCircle className={`h-4 w-4 ${filter === "out-of-stock" ? "text-rose-600" : "text-slate-400"}`} />
+                </div>
+                <div className="mt-2 space-y-0.5">
+                  <div className="text-2xl font-extrabold text-rose-600">
+                    {kpis.outOfStockCount}
                   </div>
-                </CardContent>
+                  <span className={`text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider ${kpis.outOfStockCount > 0 ? "text-rose-600" : "text-slate-400"}`}>
+                    🚫 {kpis.outOfStockCount > 0 ? `${categoryPlural} outages` : `No ${categoryPlural} outages`}
+                  </span>
+                </div>
               </Card>
             </div>
 
             {/* KPI 4: Inventory Valuation */}
             <div className="block">
-              <Card className="shadow-sm border-slate-200 bg-emerald-50/5 hover:border-emerald-300 transition-colors">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <Card className="shadow-xs border border-slate-200/80 bg-emerald-50/10 p-4 rounded-xl flex flex-col justify-between min-h-[110px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     {categorySingular} Value
-                    <PiggyBank className="h-4 w-4 text-emerald-500" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-1">
-                    <div className="text-4xl font-bold text-emerald-650">
-                      {formatCompactCurrency(kpis.inventoryCostValue)}
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
-                      💵 Est. Retail: {formatCompactCurrency(kpis.inventoryRetailValue)}
-                    </span>
+                  </span>
+                  <PiggyBank className="h-4 w-4 text-emerald-500" />
+                </div>
+                <div className="mt-2 space-y-0.5">
+                  <div className="text-2xl font-extrabold text-emerald-600">
+                    {formatCompactCurrency(kpis.inventoryCostValue)}
                   </div>
-                </CardContent>
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                    💵 Retail: {formatCompactCurrency(kpis.inventoryRetailValue)}
+                  </span>
+                </div>
               </Card>
             </div>
           </div>
@@ -585,17 +577,17 @@ export function InventoryDashboardClient({
       </div>
 
       {/* Inventory Table */}
-      <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+      <Card className="border-slate-200/80 shadow-xs rounded-2xl overflow-hidden bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-400 uppercase bg-slate-50 border-b border-slate-200">
+          <table className="w-full text-xs text-left border-collapse">
+            <thead className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50 border-b border-slate-100 tracking-wider">
               <tr>
-                <th className="px-3 md:px-6 py-4 font-bold tracking-wider">SKU</th>
-                <th className="px-3 md:px-6 py-4 font-bold tracking-wider">Item Name</th>
-                <th className="px-3 md:px-6 py-4 font-bold tracking-wider">Category</th>
-                <th className="px-3 md:px-6 py-4 font-bold tracking-wider text-center">Stock Level</th>
-                <th className="px-3 md:px-6 py-4 font-bold tracking-wider text-right">Unit Price</th>
-                <th className="px-3 md:px-6 py-4 font-bold tracking-wider text-center">Actions</th>
+                <th className="px-4 py-2.5">SKU</th>
+                <th className="px-4 py-2.5">Item Name</th>
+                <th className="px-4 py-2.5">Category</th>
+                <th className="px-4 py-2.5 text-center">Stock Level</th>
+                <th className="px-4 py-2.5 text-right">Unit Price</th>
+                <th className="px-4 py-2.5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -603,14 +595,14 @@ export function InventoryDashboardClient({
                 paginatedItems.map((item) => (
                   <tr
                     key={item.id}
-                    className="hover:bg-slate-50/50 transition-colors"
+                    className="hover:bg-slate-50/50 transition-colors group"
                   >
-                    <td className="px-3 md:px-6 py-4 font-mono font-bold text-indigo-650 text-xs">
+                    <td className="px-4 py-2.5 font-mono font-bold text-[#2563eb] text-xs">
                       {item.sku}
                     </td>
-                    <td className="px-3 md:px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 flex-shrink-0 bg-white border border-slate-150 rounded-lg flex items-center justify-center text-slate-400 overflow-hidden shadow-sm">
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 flex-shrink-0 bg-white border border-slate-200/80 rounded-lg flex items-center justify-center text-slate-400 overflow-hidden shadow-xs">
                           {item.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -619,28 +611,28 @@ export function InventoryDashboardClient({
                               className="object-cover h-full w-full"
                             />
                           ) : (
-                            <ImageIcon className="h-5 w-5 text-slate-350" />
+                            <ImageIcon className="h-4 w-4 text-slate-350" />
                           )}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800 text-sm">
+                          <p className="font-bold text-slate-900 text-xs leading-snug">
                             {item.name}
                           </p>
-                          <p className="text-[10px] text-slate-455 uppercase font-semibold tracking-wider">
+                          <p className="text-[10px] text-slate-400 uppercase font-semibold">
                             {item.brand || "GENERIC"}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 md:px-6 py-4">
+                    <td className="px-4 py-2.5">
                       <Badge
                         variant="secondary"
-                        className="font-bold uppercase tracking-wider text-[10px] bg-slate-100 text-slate-655"
+                        className="font-bold uppercase tracking-wider text-[10px] bg-slate-100 text-slate-600 border border-slate-200/60"
                       >
                         {item.category.replace("_", " ")}
                       </Badge>
                     </td>
-                    <td className="px-3 md:px-6 py-4 text-center">
+                    <td className="px-4 py-2.5 text-center">
                       <div className="flex flex-col items-center gap-0.5">
                         <Badge
                           variant={
@@ -659,9 +651,9 @@ export function InventoryDashboardClient({
                             : "OUT OF STOCK"}
                         </Badge>
                         <span
-                          className={`text-xs ${
+                          className={`text-[11px] ${
                             item.quantity > item.minQuantity
-                              ? "text-slate-400"
+                              ? "text-slate-400 font-medium"
                               : "text-rose-500 font-bold"
                           }`}
                         >
@@ -669,21 +661,21 @@ export function InventoryDashboardClient({
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 md:px-6 py-4 font-bold text-slate-800 text-right text-sm">
+                    <td className="px-4 py-2.5 font-bold text-slate-900 text-right text-xs">
                       {formatCurrency(Number(item.price))}
                     </td>
-                    <td className="px-3 md:px-6 py-4 text-center whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-center whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => setActiveBarcodeItem(item)}
-                        className="p-2 text-slate-450 hover:text-indigo-650 hover:bg-indigo-50/80 hover:scale-105 active:scale-95 rounded-xl transition-all duration-200 inline-block cursor-pointer bg-transparent border-none"
+                        className="p-1.5 text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors inline-block cursor-pointer bg-transparent border-none"
                         title="Generate Barcodes"
                       >
                         <Barcode className="h-4 w-4" />
                       </button>
                       <Link 
                         href={`/shop/inventory/edit/${item.id}`}
-                        className="p-2 text-slate-450 hover:text-indigo-650 hover:bg-indigo-50/80 hover:scale-105 active:scale-95 rounded-xl transition-all duration-200 inline-block"
+                        className="p-1.5 text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors inline-block"
                         title="Edit Item details"
                       >
                         <Pencil className="h-4 w-4" />

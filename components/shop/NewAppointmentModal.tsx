@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import { X, User, Phone, Calendar, Clock, Stethoscope, FileText, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createShopAppointmentAction } from "@/actions/appointment.actions";
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
+  initialDate?: string;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (createdApp?: any) => void;
 }
 
 const defaultPurposes = [
@@ -19,16 +20,31 @@ const defaultPurposes = [
   "Follow-up Checkup",
 ];
 
-export function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewAppointmentModalProps) {
+export function NewAppointmentModal({ isOpen, initialDate, onClose, onSuccess }: NewAppointmentModalProps) {
   const [isPending, startTransition] = useTransition();
+
+  const todayStr = new Date().toISOString().split("T")[0];
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [visitDate, setVisitDate] = useState("");
+  const [visitDate, setVisitDate] = useState(initialDate && initialDate >= todayStr ? initialDate : todayStr);
   const [visitTime, setVisitTime] = useState("10:30");
   const [purposeOfVisit, setPurposeOfVisit] = useState(defaultPurposes[0]);
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Reset form inputs whenever modal opens or initialDate changes
+  useEffect(() => {
+    if (isOpen) {
+      setCustomerName("");
+      setCustomerPhone("");
+      setVisitDate(initialDate && initialDate >= todayStr ? initialDate : todayStr);
+      setVisitTime("10:30");
+      setPurposeOfVisit(defaultPurposes[0]);
+      setAdditionalNotes("");
+      setErrorMsg("");
+    }
+  }, [isOpen, initialDate, todayStr]);
 
   if (!isOpen) return null;
 
@@ -59,7 +75,7 @@ export function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewAppointme
         });
 
         if (res.success) {
-          onSuccess?.();
+          onSuccess?.(res.data);
           onClose();
         } else {
           setErrorMsg(res.error || "Failed to schedule appointment.");
@@ -154,6 +170,7 @@ export function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewAppointme
                 <input
                   type="date"
                   required
+                  min={todayStr}
                   value={visitDate}
                   onChange={(e) => setVisitDate(e.target.value)}
                   className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"

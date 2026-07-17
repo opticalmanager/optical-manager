@@ -277,6 +277,7 @@ export async function getShopAppointmentsData(shopId: string): Promise<Appointme
         customerName: app.customerName,
         customerPhone: app.customerPhone,
         visitTime: formattedTime,
+        rawVisitTime: app.visitTime ? new Date(app.visitTime).toISOString() : new Date().toISOString(),
         dateKey,
         purposeOfVisit: app.purposeOfVisit,
         status: app.status as any,
@@ -298,15 +299,16 @@ export async function getShopAppointmentsData(shopId: string): Promise<Appointme
     console.error("[getShopAppointmentsData] error:", error);
     return {
       kpis: {
-        todayCount: 8,
-        upcomingCount: 28,
-        pendingCount: 4,
-        completedCount: 186,
-        cancelledCount: 3,
+        todayCount: 0,
+        upcomingCount: 0,
+        pendingCount: 0,
+        completedCount: 0,
+        cancelledCount: 0,
       },
       appointments: [],
     };
   }
 }
+
 
 
