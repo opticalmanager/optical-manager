@@ -13,9 +13,26 @@ interface ShopLayoutClientProps {
 
 export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
 
-  // Close mobile sidebar drawer whenever route path changes (i.e. click a link)
+  // Load sidebar collapse preference from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("optical_manager_sidebar_collapsed");
+    if (saved === "true") {
+      setIsCollapsed(true);
+    }
+  }, []);
+
+  const handleToggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("optical_manager_sidebar_collapsed", String(next));
+      return next;
+    });
+  };
+
+  // Close mobile sidebar drawer whenever route path changes
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
@@ -23,10 +40,12 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
   return (
     <div className="flex flex-1 overflow-hidden relative">
       {/* Desktop Sidebar (visible on desktop monitors) */}
-      <div className="hidden lg:flex shrink-0">
+      <div className="hidden lg:flex shrink-0 transition-all duration-300">
         <Sidebar 
           shopName={shop?.name || undefined} 
           shopAddress={shop?.address || undefined} 
+          isCollapsed={isCollapsed}
+          onToggleCollapse={handleToggleCollapse}
         />
       </div>
 

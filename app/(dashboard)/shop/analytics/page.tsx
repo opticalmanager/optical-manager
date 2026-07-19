@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/services/auth.service";
-import { getDashboardData } from "@/services/dashboard.service";
+import { getDashboardData, DashboardOptions } from "@/services/dashboard.service";
 import { TimeframeType } from "@/services/order.service";
 import AnalyticsClient from "@/components/shop/AnalyticsClient";
 
@@ -11,6 +11,14 @@ export const metadata = {
 interface PageProps {
   searchParams: Promise<{
     timeframe?: string;
+    from?: string;
+    to?: string;
+    compare?: string;
+    compFrom?: string;
+    compTo?: string;
+    granularity?: string;
+    periodA?: string;
+    periodB?: string;
   }>;
 }
 
@@ -32,9 +40,31 @@ export default async function ShopAnalyticsPage({ searchParams }: PageProps) {
   }
 
   const params = await searchParams;
-  const timeframe = (params.timeframe || "7d") as TimeframeType;
+  const timeframe = (params.timeframe || "7d") as TimeframeType | "custom";
+  const compareMode = (params.compare || "none") as any;
 
-  const data = await getDashboardData(shopId, timeframe);
+  const opts: DashboardOptions = {
+    timeframe,
+    customStartDate: params.from ? new Date(params.from) : undefined,
+    customEndDate: params.to ? new Date(params.to) : undefined,
+    compareMode,
+    compareStartDate: params.compFrom ? new Date(params.compFrom) : undefined,
+    compareEndDate: params.compTo ? new Date(params.compTo) : undefined,
+    granularity: params.granularity as any,
+    periodA: params.periodA,
+    periodB: params.periodB,
+  };
 
-  return <AnalyticsClient data={data} currentTimeframe={timeframe} />;
+  const data = await getDashboardData(shopId, opts);
+
+  return (
+    <AnalyticsClient 
+      data={data} 
+      currentTimeframe={timeframe} 
+      currentCompareMode={compareMode}
+      currentGranularity={params.granularity}
+      currentPeriodA={params.periodA}
+      currentPeriodB={params.periodB}
+    />
+  );
 }
