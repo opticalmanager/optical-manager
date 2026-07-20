@@ -13,7 +13,7 @@ export const metadata = {
 
 export default async function AppointmentSettingsPage() {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     redirect("/login");
   }
 

@@ -13,7 +13,7 @@ export async function createCustomerAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user) return { success: false, message: "Unauthorized." };
+  if (!user || !user.organizationId) return { success: false, message: "Unauthorized." };
 
   const shopId = user.shopId || (formData.get("shopId") as string);
   if (!shopId) return { success: false, message: "Shop ID is required." };
@@ -62,7 +62,7 @@ export async function createCustomerAction(
 }
 
 /**
- * Server Action: Update a customer.
+ * Server Action: Update an existing customer.
  */
 export async function updateCustomerAction(
   customerId: string,
@@ -70,7 +70,7 @@ export async function updateCustomerAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user) return { success: false, message: "Unauthorized." };
+  if (!user || !user.organizationId) return { success: false, message: "Unauthorized." };
 
   const validatedFields = customerSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -125,7 +125,7 @@ export async function updateCustomerPhoneAction(
   phone: string
 ): Promise<{ success: boolean; message: string }> {
   const user = await getCurrentUser();
-  if (!user) return { success: false, message: "Unauthorized." };
+  if (!user || !user.organizationId) return { success: false, message: "Unauthorized." };
 
   try {
     await updateCustomer(customerId, user.organizationId, { phone });

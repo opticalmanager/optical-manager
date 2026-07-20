@@ -84,7 +84,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
               .where(
                 and(
                   eq(shops.id, activeShopContextId),
-                  eq(shops.organizationId, profile.organizationId)
+                  eq(shops.organizationId, profile.organizationId!)
                 )
               )
               .limit(1);

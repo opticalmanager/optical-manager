@@ -37,7 +37,7 @@ export async function updateShopProfileAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user || !user.organizationId) {
     return { success: false, message: "Unauthorized." };
   }
 
@@ -85,7 +85,7 @@ export async function updateShopSettingsConfigAction(
   newSettings: any
 ): Promise<{ success: boolean; message: string }> {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user || !user.organizationId) {
     return { success: false, message: "Unauthorized." };
   }
 
@@ -123,7 +123,7 @@ export async function toggleStaffActiveAction(
   isActive: boolean
 ): Promise<{ success: boolean; message: string }> {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, message: "Only owners can manage staff status." };
   }
 
@@ -151,7 +151,7 @@ export async function toggleStaffActiveAction(
  */
 export async function getShopSettingsAction(): Promise<{ success: boolean; data?: any; message?: string }> {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user || !user.organizationId) {
     return { success: false, message: "Unauthorized." };
   }
   if (!user.shopId) {

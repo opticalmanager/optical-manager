@@ -76,7 +76,7 @@ export async function createFrameItemAction(
         .insert(inventory)
         .values({
           shopId: user.shopId!,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           name: data.name,
           category: "FRAME",
           brand: data.brand || null,
@@ -119,7 +119,7 @@ export async function createFrameItemAction(
       await recordStockMovement({
         inventoryId: newInv.id,
         shopId: user.shopId!,
-        organizationId: user.organizationId,
+        organizationId: user.organizationId!,
         movementType: "INITIAL",
         quantityChange: data.quantity,
         balanceAfter: data.quantity,
@@ -380,7 +380,7 @@ export async function createLensItemAction(
         .insert(inventory)
         .values({
           shopId: user.shopId!,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           name: data.name,
           category: "LENS",
           brand: data.brand || null,
@@ -426,7 +426,7 @@ export async function createLensItemAction(
       await recordStockMovement({
         inventoryId: newInv.id,
         shopId: user.shopId!,
-        organizationId: user.organizationId,
+        organizationId: user.organizationId!,
         movementType: "INITIAL",
         quantityChange: data.quantity,
         balanceAfter: data.quantity,
@@ -642,7 +642,7 @@ export async function createContactLensItemAction(
         .insert(inventory)
         .values({
           shopId: user.shopId!,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           name: data.name,
           category: "CONTACT_LENS",
           brand: data.brand || null,
@@ -685,7 +685,7 @@ export async function createContactLensItemAction(
       await recordStockMovement({
         inventoryId: newInv.id,
         shopId: user.shopId!,
-        organizationId: user.organizationId,
+        organizationId: user.organizationId!,
         movementType: "INITIAL",
         quantityChange: data.quantity,
         balanceAfter: data.quantity,
@@ -886,7 +886,7 @@ export async function createAccessoryItemAction(
         .insert(inventory)
         .values({
           shopId: user.shopId!,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           name: data.name,
           category: "ACCESSORY",
           brand: data.brand || null,
@@ -923,7 +923,7 @@ export async function createAccessoryItemAction(
       await recordStockMovement({
         inventoryId: newInv.id,
         shopId: user.shopId!,
-        organizationId: user.organizationId,
+        organizationId: user.organizationId!,
         movementType: "INITIAL",
         quantityChange: data.quantity,
         balanceAfter: data.quantity,

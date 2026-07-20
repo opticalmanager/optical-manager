@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/services/auth.service";
 import { getOrganizationById } from "@/services/organization.service";
 import OnboardingClient from "./_components/OnboardingClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Onboarding | Optical Manager",
   description: "Complete your post-signup organization and first shop setup.",
@@ -17,7 +19,7 @@ export default async function OnboardingPage() {
   }
 
   // 2. Only OWNERs go through this specific onboarding flow
-  if (user.role !== "OWNER") {
+  if (user.role !== "OWNER" || !user.organizationId) {
     redirect("/"); // Or suitable fallback route
   }
 

@@ -6,7 +6,7 @@ import { OwnerSettingsClient } from "@/components/owner/OwnerSettingsClient";
 
 export default async function OwnerSettingsPage() {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user || !user.organizationId) {
     redirect("/login");
   }
 

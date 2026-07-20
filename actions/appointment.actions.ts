@@ -17,7 +17,7 @@ export async function saveAppointmentConfigAction(payload: {
   buttonText: string;
 }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, error: "Unauthorized." };
   }
 
@@ -121,7 +121,7 @@ export async function createShopAppointmentAction(payload: {
   additionalNotes?: string;
 }) {
   const user = await getCurrentUser();
-  if (!user || !user.shopId) {
+  if (!user || !user.shopId || !user.organizationId) {
     return { success: false, error: "Unauthorized or no shop assigned." };
   }
 
@@ -184,6 +184,3 @@ export async function createShopAppointmentAction(payload: {
 
   return { success: false, error: res.error || "Failed to create appointment." };
 }
-
-
-

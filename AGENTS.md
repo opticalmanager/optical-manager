@@ -36,4 +36,5 @@ This version has breaking changes — APIs, conventions, and file structure may 
 9. **Backwards Compatibility & Feature Integrity**:
    - Never break existing functionality, routes, or workflows when adding new features, unless explicitly instructed by the user.
 
-
+10. **Synchronized Documentation Maintenance (`docs/`)**:
+    - Whenever performing any development, adding features, modifying database schemas, updating architecture, adding API endpoints, or configuring external services, you MUST simultaneously update the relevant documentation files inside the `docs/` directory (`docs/overview.md`, `docs/architecture.md`, `docs/tech_stack.md`, `docs/user_flow.md`, `docs/database_schema.md`, `docs/ai_spec.md`, `docs/requirements.md`, `docs/services_used.md`, `docs/api_routes.md`). System documentation must always remain 100% synchronized with the live codebase.

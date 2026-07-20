@@ -20,7 +20,7 @@ export default async function EmailSettingsPage() {
   }
 
   // Restrict access to OWNER role only
-  if (user.role !== "OWNER") {
+  if (user.role !== "OWNER" || !user.organizationId) {
     redirect("/shop/dashboard");
   }
 

@@ -2,7 +2,7 @@
  * Authentication-related TypeScript types.
  */
 
-export type UserRole = "OWNER" | "SHOP_MANAGER";
+export type UserRole = "SUPER_ADMIN" | "OWNER" | "SHOP_MANAGER";
 
 /**
  * Represents the authenticated user's session data.
@@ -13,8 +13,8 @@ export interface SessionUser {
   email: string;
   fullName: string;
   role: UserRole;
-  organizationId: string;
-  shopId: string | null; // null for OWNER
+  organizationId: string | null; // null for SUPER_ADMIN or unassigned
+  shopId: string | null; // null for OWNER / SUPER_ADMIN
   avatarUrl: string | null;
   isActive: boolean;
   isImpersonating?: boolean;

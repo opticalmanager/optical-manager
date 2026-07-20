@@ -18,7 +18,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   const { id } = await params;
   const user = await getCurrentUser();
 
-  if (!user) {
+  if (!user || !user.organizationId) {
     redirect("/login");
   }
 

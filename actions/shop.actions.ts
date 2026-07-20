@@ -14,7 +14,7 @@ export async function createShopAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, message: "Unauthorized." };
   }
 
@@ -55,7 +55,7 @@ export async function updateShopAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, message: "Unauthorized." };
   }
 

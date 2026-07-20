@@ -5,6 +5,8 @@ import { ShopLayoutClient } from "@/components/layout/ShopLayoutClient";
 import { exitShopConsoleAction } from "@/actions/auth.actions";
 import { Sparkles, ArrowLeft } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function ShopDashboardLayout({
   children,
 }: {
@@ -12,7 +14,7 @@ export default async function ShopDashboardLayout({
 }) {
   const user = await getCurrentUser();
   
-  if (!user) {
+  if (!user || !user.organizationId) {
     redirect("/login");
   }
   
