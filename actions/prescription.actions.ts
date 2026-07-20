@@ -16,7 +16,7 @@ export async function createPrescriptionAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user) return { success: false, message: "Unauthorized." };
+  if (!user || !user.organizationId) return { success: false, message: "Unauthorized." };
 
   const shopId = user.shopId || (formData.get("shopId") as string);
   if (!shopId) return { success: false, message: "Shop ID is required." };

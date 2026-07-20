@@ -12,7 +12,7 @@ import { getCurrentUser } from "./auth.service";
  */
 export async function getShopsWithManagers() {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false as const, error: "Unauthorized." };
   }
 
@@ -69,7 +69,7 @@ export async function updateShopManagerPassword(
   newPassword: string
 ) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, error: "Unauthorized." };
   }
 
@@ -118,7 +118,7 @@ export async function updateShopManagerEmail(
   newEmail: string
 ) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, error: "Unauthorized." };
   }
 
@@ -179,7 +179,7 @@ export async function updateShopDetails(
   data: { name?: string; phone?: string; address?: string }
 ) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, error: "Unauthorized." };
   }
 
@@ -211,7 +211,7 @@ export async function createShopManagerCredentials(
   password: string
 ) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, error: "Unauthorized." };
   }
 
@@ -300,4 +300,3 @@ export async function createShopManagerCredentials(
     },
   };
 }
-

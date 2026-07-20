@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Play, ArrowRight } from "lucide-react";
+import { Play, ArrowRight, Sparkles } from "lucide-react";
+import DemoRequestModal from "./DemoRequestModal";
 
 export default function HeroSection() {
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/40 via-white to-white pt-10 pb-16 lg:pt-16 lg:pb-24">
       {/* Premium Fading Grid Background */}
@@ -32,18 +36,21 @@ export default function HeroSection() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
-              <Link href="/signup">
-                <Button size="lg" className="px-6 py-3 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 gap-2">
-                  Get Started <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
+              <Button 
+                size="lg" 
+                onClick={() => setIsDemoModalOpen(true)}
+                className="px-6 py-3 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 gap-2 cursor-pointer"
+              >
+                Request 14-Day Access <ArrowRight className="w-4 h-4" />
+              </Button>
               <Button
                 variant="outline"
                 size="lg"
-                className="px-6 py-3 text-base font-semibold group border-slate-200 hover:border-slate-300"
+                onClick={() => setIsDemoModalOpen(true)}
+                className="px-6 py-3 text-base font-semibold group border-slate-200 hover:border-slate-300 cursor-pointer"
               >
                 <Play className="w-4 h-4 mr-2 group-hover:text-primary transition-colors" />
-                Watch Demo
+                Book Live Demo
               </Button>
             </div>
 
@@ -88,6 +95,11 @@ export default function HeroSection() {
           </div>
         </div>
       </div>
+
+      <DemoRequestModal
+        isOpen={isDemoModalOpen}
+        onClose={() => setIsDemoModalOpen(false)}
+      />
     </section>
   );
 }

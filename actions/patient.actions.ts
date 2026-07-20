@@ -57,7 +57,7 @@ export async function registerPatientAction(
         .insert(customers)
         .values({
           shopId,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           registrationId,
           fullName: data.customer.fullName,
           email: data.customer.email || null,
@@ -86,7 +86,7 @@ export async function registerPatientAction(
           await tx.insert(prescriptions).values({
             customerId: customer.id,
             shopId,
-            organizationId: user.organizationId,
+            organizationId: user.organizationId!,
             prescriptionType: "DISTANCE",
             rightSphere: dp.rightSphere || null,
             rightCylinder: dp.rightCylinder || null,
@@ -118,7 +118,7 @@ export async function registerPatientAction(
           await tx.insert(prescriptions).values({
             customerId: customer.id,
             shopId,
-            organizationId: user.organizationId,
+            organizationId: user.organizationId!,
             prescriptionType: "NEAR",
             rightSphere: np.rightSphere || null,
             rightCylinder: np.rightCylinder || null,
@@ -232,7 +232,7 @@ export async function registerPatientAndInvoiceAction(
           .where(
             and(
               eq(customers.id, customerId),
-              eq(customers.organizationId, user.organizationId)
+              eq(customers.organizationId, user.organizationId!)
             )
           )
           .returning();
@@ -248,7 +248,7 @@ export async function registerPatientAndInvoiceAction(
           .insert(customers)
           .values({
             shopId,
-            organizationId: user.organizationId,
+            organizationId: user.organizationId!,
             registrationId,
             fullName: data.customer.fullName,
             email: data.customer.email || null,
@@ -279,7 +279,7 @@ export async function registerPatientAndInvoiceAction(
           await tx.insert(prescriptions).values({
             customerId: customerRecord.id,
             shopId,
-            organizationId: user.organizationId,
+            organizationId: user.organizationId!,
             prescriptionType: "DISTANCE",
             rightSphere: dp.rightSphere || null,
             rightCylinder: dp.rightCylinder || null,
@@ -310,7 +310,7 @@ export async function registerPatientAndInvoiceAction(
           await tx.insert(prescriptions).values({
             customerId: customerRecord.id,
             shopId,
-            organizationId: user.organizationId,
+            organizationId: user.organizationId!,
             prescriptionType: "NEAR",
             rightSphere: np.rightSphere || null,
             rightCylinder: np.rightCylinder || null,
@@ -373,7 +373,7 @@ export async function registerPatientAndInvoiceAction(
         .insert(invoices)
         .values({
           shopId,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           customerId: customerRecord.id,
           invoiceNumber,
           subtotal: subtotalVal.toString(),
@@ -402,7 +402,7 @@ export async function registerPatientAndInvoiceAction(
           .insert(receipts)
           .values({
             shopId,
-            organizationId: user.organizationId,
+            organizationId: user.organizationId!,
             invoiceId: invoice.id,
             receiptNumber,
             amountPaid: (data.amountPaid || 0).toString(),
@@ -423,7 +423,7 @@ export async function registerPatientAndInvoiceAction(
         .insert(orders)
         .values({
           shopId,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           customerId: customerRecord.id,
           invoiceId: invoice.id,
           receiptId: receiptId,
@@ -438,7 +438,7 @@ export async function registerPatientAndInvoiceAction(
           invoiceId: invoice.id,
           inventoryId: item.inventoryId || null,
           shopId,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice.toString(),
@@ -457,7 +457,7 @@ export async function registerPatientAndInvoiceAction(
         if (item.inventoryId) {
           await decrementInventoryStock(
             item.inventoryId,
-            user.organizationId,
+            user.organizationId!,
             item.quantity,
             tx,
             "SALE_INVOICE",
@@ -508,7 +508,7 @@ export async function getPatientDetailsAction(
       .where(
         and(
           eq(customers.id, customerId),
-          eq(customers.organizationId, user.organizationId)
+          eq(customers.organizationId, user.organizationId!)
         )
       )
       .limit(1);
@@ -522,7 +522,7 @@ export async function getPatientDetailsAction(
       .where(
         and(
           eq(prescriptions.customerId, customerId),
-          eq(prescriptions.organizationId, user.organizationId)
+          eq(prescriptions.organizationId, user.organizationId!)
         )
       )
       .orderBy(sql`created_at DESC`);
@@ -630,7 +630,7 @@ export async function updatePatientAction(
         .where(
           and(
             eq(customers.id, customerId),
-            eq(customers.organizationId, user.organizationId)
+            eq(customers.organizationId, user.organizationId!)
           )
         );
 
@@ -647,7 +647,7 @@ export async function updatePatientAction(
               and(
                 eq(prescriptions.customerId, customerId),
                 eq(prescriptions.prescriptionType, "DISTANCE"),
-                eq(prescriptions.organizationId, user.organizationId)
+                eq(prescriptions.organizationId, user.organizationId!)
               )
             )
             .limit(1);
@@ -681,7 +681,7 @@ export async function updatePatientAction(
             await tx.insert(prescriptions).values({
               customerId,
               shopId,
-              organizationId: user.organizationId,
+              organizationId: user.organizationId!,
               prescriptionType: "DISTANCE",
               rightSphere: dp.rightSphere || null,
               rightCylinder: dp.rightCylinder || null,
@@ -717,7 +717,7 @@ export async function updatePatientAction(
               and(
                 eq(prescriptions.customerId, customerId),
                 eq(prescriptions.prescriptionType, "NEAR"),
-                eq(prescriptions.organizationId, user.organizationId)
+                eq(prescriptions.organizationId, user.organizationId!)
               )
             )
             .limit(1);
@@ -751,7 +751,7 @@ export async function updatePatientAction(
             await tx.insert(prescriptions).values({
               customerId,
               shopId,
-              organizationId: user.organizationId,
+              organizationId: user.organizationId!,
               prescriptionType: "NEAR",
               rightSphere: np.rightSphere || null,
               rightCylinder: np.rightCylinder || null,

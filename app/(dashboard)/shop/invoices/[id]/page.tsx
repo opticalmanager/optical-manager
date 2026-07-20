@@ -17,7 +17,7 @@ export default async function InvoiceDetailPage({
   const { id } = await params;
   const user = await getCurrentUser();
 
-  if (!user) {
+  if (!user || !user.organizationId) {
     redirect("/login");
   }
 

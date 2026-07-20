@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Glasses, Menu, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import DemoRequestModal from "./DemoRequestModal";
 
 const navLinks = [
   { label: "Features", href: "/#features" },
@@ -16,6 +17,7 @@ const navLinks = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -76,12 +78,12 @@ export default function Navbar() {
           >
             Login
           </Link>
-          <Link
-            href="/signup"
-            className={cn(buttonVariants({ variant: "default", size: "default" }))}
+          <Button
+            onClick={() => setIsDemoModalOpen(true)}
+            className="px-4 py-2 text-sm font-semibold cursor-pointer"
           >
-            Get Started
-          </Link>
+            Request Access
+          </Button>
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -155,18 +157,22 @@ export default function Navbar() {
           >
             Login
           </Link>
-          <Link
-            href="/signup"
-            onClick={() => setMobileOpen(false)}
-            className={cn(
-              buttonVariants({ variant: "default", size: "lg" }),
-              "w-full justify-center"
-            )}
+          <Button
+            onClick={() => {
+              setMobileOpen(false);
+              setIsDemoModalOpen(true);
+            }}
+            className="w-full h-11 text-sm font-semibold cursor-pointer"
           >
-            Get Started
-          </Link>
+            Request Access
+          </Button>
         </div>
       </div>
+
+      <DemoRequestModal
+        isOpen={isDemoModalOpen}
+        onClose={() => setIsDemoModalOpen(false)}
+      />
     </header>
   );
 }

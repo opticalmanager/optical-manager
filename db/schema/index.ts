@@ -38,4 +38,4 @@ export { receipts } from "./receipts";
 export { orders } from "./orders";
 export { appointmentConfigs } from "./appointment-configs";
 export { appointments, appointmentStatusEnum } from "./appointments";
-
+export { demoRequests, demoRequestStatusEnum } from "./demo-requests";

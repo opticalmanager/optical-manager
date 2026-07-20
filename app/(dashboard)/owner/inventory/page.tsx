@@ -15,7 +15,7 @@ export default async function OwnerInventoryPage() {
   const dbInventory = await db
     .select()
     .from(inventory)
-    .where(eq(inventory.organizationId, user.organizationId));
+    .where(eq(inventory.organizationId, user.organizationId!));
 
   const hasRealInventory = dbInventory.length > 0;
 

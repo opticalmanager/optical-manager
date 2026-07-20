@@ -30,7 +30,7 @@ export default async function ShopReportsPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
   const shopId = user?.shopId;
 
-  if (!shopId) {
+  if (!shopId || !user || !user.organizationId) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">

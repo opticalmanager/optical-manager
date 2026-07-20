@@ -19,7 +19,7 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
   const shopId = user?.shopId;
 
-  if (!shopId || !user) {
+  if (!shopId || !user || !user.organizationId) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">
@@ -42,4 +42,3 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
 
   return <StoreOverviewClient data={data} shopName={shop?.name || "Vision Plus Outlet"} />;
 }
-

@@ -18,7 +18,7 @@ interface PageProps {
 
 export default async function ShopSettingsPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user || !user.organizationId) {
     redirect("/login");
   }
 

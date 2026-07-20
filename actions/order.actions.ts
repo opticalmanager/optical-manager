@@ -39,7 +39,7 @@ export async function sendPaymentReminderAction(
       .where(
         and(
           eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId)
+          eq(invoices.organizationId, user.organizationId!)
         )
       )
       .limit(1);
@@ -101,7 +101,7 @@ export async function sendPaymentReminderAction(
     // Send email
     const emailResult = await sendShopEmail({
       shopId: invoice.shopId,
-      organizationId: user.organizationId,
+      organizationId: user.organizationId!,
       recipientEmail: customer.email,
       recipientName: customer.fullName,
       subject: `Payment Reminder: Balance due for Invoice ${invoice.invoiceNumber}`,
@@ -147,7 +147,7 @@ export async function updateDeliveryDaysAction(
       .where(
         and(
           eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId)
+          eq(invoices.organizationId, user.organizationId!)
         )
       )
       .limit(1);
@@ -216,7 +216,7 @@ export async function updateOrderStatusAction(
       .where(
         and(
           eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId)
+          eq(invoices.organizationId, user.organizationId!)
         )
       )
       .limit(1);
@@ -298,7 +298,7 @@ export async function generateFullPaymentInvoiceAction(
       .where(
         and(
           eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId)
+          eq(invoices.organizationId, user.organizationId!)
         )
       )
       .limit(1);
@@ -334,7 +334,7 @@ export async function generateFullPaymentInvoiceAction(
         .insert(receipts)
         .values({
           shopId: invoice.shopId,
-          organizationId: user.organizationId,
+          organizationId: user.organizationId!,
           invoiceId: invoice.id,
           receiptNumber,
           amountPaid: remainingBalance.toFixed(2),
@@ -404,7 +404,7 @@ export async function sendRescheduledDeliveryEmailAction(
       .where(
         and(
           eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId)
+          eq(invoices.organizationId, user.organizationId!)
         )
       )
       .limit(1);
@@ -449,7 +449,7 @@ export async function sendRescheduledDeliveryEmailAction(
 
     const emailResult = await sendShopEmail({
       shopId: info.shopId,
-      organizationId: user.organizationId,
+      organizationId: user.organizationId!,
       recipientEmail: info.customerEmail,
       recipientName: info.customerName,
       subject: `Rescheduled Delivery: Order #${info.orderNumber || info.invoiceNumber}`,

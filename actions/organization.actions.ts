@@ -13,7 +13,7 @@ export async function updateOrganizationAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== "OWNER") {
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
     return { success: false, message: "Unauthorized." };
   }
 

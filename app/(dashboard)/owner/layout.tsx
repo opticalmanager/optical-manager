@@ -6,6 +6,8 @@ import { db } from "@/lib/drizzle";
 import { inventory } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Owner Dashboard | Optical Manager",
 };
@@ -23,7 +25,7 @@ export default async function OwnerLayout({
   }
 
   // 2. Fetch profile and verify role is OWNER
-  if (user.role !== "OWNER") {
+  if (user.role !== "OWNER" || !user.organizationId) {
     if (user.role === "SHOP_MANAGER") {
       redirect("/shop/dashboard");
     }
@@ -44,7 +46,6 @@ export default async function OwnerLayout({
     .from(inventory)
     .where(
       eq(inventory.organizationId, user.organizationId)
-      // We can also filter if count < minQuantity (handled below dynamically)
     )
     .limit(1);
 

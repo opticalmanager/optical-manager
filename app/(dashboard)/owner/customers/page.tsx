@@ -15,7 +15,7 @@ export default async function OwnerCustomersPage() {
   const dbCustomers = await db
     .select()
     .from(customers)
-    .where(eq(customers.organizationId, user.organizationId));
+    .where(eq(customers.organizationId, user.organizationId!));
 
   const hasRealCustomers = dbCustomers.length > 0;
 

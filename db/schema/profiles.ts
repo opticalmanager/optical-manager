@@ -11,13 +11,12 @@ import {
 import { organizations } from "./organizations";
 import { shops } from "./shops";
 
-export const userRoleEnum = pgEnum("user_role", ["OWNER", "SHOP_MANAGER"]);
+export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "OWNER", "SHOP_MANAGER"]);
 
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // References auth.users.id — set manually on insert
   organizationId: uuid("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
+    .references(() => organizations.id, { onDelete: "cascade" }), // Nullable for system SUPER_ADMIN
   shopId: uuid("shop_id").references(() => shops.id, {
     onDelete: "set null",
   }),

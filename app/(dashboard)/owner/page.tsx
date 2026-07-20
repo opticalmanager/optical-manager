@@ -29,7 +29,7 @@ import {
 
 export default async function OwnerDashboardPage() {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user || !user.organizationId) {
     redirect("/login");
   }
 
