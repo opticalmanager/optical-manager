@@ -56,8 +56,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
-  const host = request.headers.get("host") || "";
-  const isAdminSubdomain = host.startsWith("admin.");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host") || "";
+  const isAdminSubdomain = host.startsWith("admin.") || forwardedHost?.startsWith("admin.");
 
   // If request arrives on admin.opticalmanager.in subdomain, rewrite root / to /admin
   if (isAdminSubdomain && pathname === "/") {

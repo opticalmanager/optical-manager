@@ -118,6 +118,7 @@ export async function getShopInvoices(shopId: string, organizationId: string) {
 optical-manager/
 ├── actions/                  # Next.js Server Actions (auth, inventory, invoice, etc.)
 ├── app/                      # Next.js App Router routes & API endpoints
+│   ├── (admin)/              # Super Admin control panel (/admin, /admin/leads, /admin/organizations/[id])
 │   ├── (auth)/               # Auth routes (/login, /signup, /forgot-password)
 │   ├── (dashboard)/          # Dashboard routes (/shop/*, /owner/*)
 │   ├── (legal)/              # Legal pages (/privacy-policy, /terms-of-service)
@@ -125,14 +126,15 @@ optical-manager/
 │   ├── book/[slug]/          # Public appointment booking page
 │   └── share/invoice/[id]/   # Public digital invoice viewer
 ├── components/               # UI components & client views
+│   ├── admin/                # Super Admin Client components (Dashboard, Leads, Organizations, Detail)
 │   ├── layout/               # Sidebar, Topbar, Layout Client wrappers
 │   ├── shop/                 # Analytics, Inventory, Invoices, Support Client components
 │   └── ui/                   # Primitive design system components (buttons, badges)
 ├── db/                       # Drizzle ORM database setup
-│   └── schema/               # 19 Relational schema table definitions
+│   └── schema/               # 20 Relational schema table definitions (including demo_requests)
 ├── docs/                     # Comprehensive system documentation
 ├── lib/                      # Drizzle instance, Supabase client, utility helpers
-├── proxy.ts                  # Route protection middleware logic
-├── services/                 # Core business services & Drizzle queries
+├── proxy.ts                  # Route protection middleware logic & subdomain routing
+├── services/                 # Core business services & Drizzle queries (admin, auth, inventory, etc.)
 └── types/                    # TypeScript type interfaces
 ```
