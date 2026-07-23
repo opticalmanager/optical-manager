@@ -165,13 +165,21 @@ function getStartAndEndDates(startStr?: string, endStr?: string) {
   return { start, end };
 }
 
+function getShopFilter(shopCol: any, orgCol: any, shopId: string, orgId?: string) {
+  if (shopId === "all" && orgId) {
+    return eq(orgCol, orgId);
+  }
+  return eq(shopCol, shopId);
+}
+
 /**
  * 1. Sales Summary Report
  */
 export async function getSalesSummaryReport(
   shopId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  organizationId?: string
 ): Promise<SalesSummaryReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
@@ -194,7 +202,7 @@ export async function getSalesSummaryReport(
     .innerJoin(customers, eq(invoices.customerId, customers.id))
     .where(
       and(
-        eq(invoices.shopId, shopId),
+        getShopFilter(invoices.shopId, invoices.organizationId, shopId, organizationId),
         gte(invoices.createdAt, start),
         lte(invoices.createdAt, end)
       )
@@ -255,7 +263,8 @@ export async function getSalesSummaryReport(
 export async function getItemWiseReport(
   shopId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  organizationId?: string
 ): Promise<ItemWiseReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
@@ -273,7 +282,7 @@ export async function getItemWiseReport(
     .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
     .where(
       and(
-        eq(invoiceItems.shopId, shopId),
+        getShopFilter(invoiceItems.shopId, invoiceItems.organizationId, shopId, organizationId),
         gte(invoices.createdAt, start),
         lte(invoices.createdAt, end)
       )
@@ -336,7 +345,8 @@ export async function getItemWiseReport(
 export async function getGSTReport(
   shopId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  organizationId?: string
 ): Promise<GSTReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
@@ -357,7 +367,7 @@ export async function getGSTReport(
     .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
     .where(
       and(
-        eq(invoiceItems.shopId, shopId),
+        getShopFilter(invoiceItems.shopId, invoiceItems.organizationId, shopId, organizationId),
         gte(invoices.createdAt, start),
         lte(invoices.createdAt, end)
       )
@@ -408,7 +418,7 @@ export async function getGSTReport(
 /**
  * 4. Inventory Valuation Report
  */
-export async function getInventoryReport(shopId: string): Promise<InventoryReportData> {
+export async function getInventoryReport(shopId: string, organizationId?: string): Promise<InventoryReportData> {
   const rawItems = await db
     .select({
       id: inventory.id,
@@ -422,7 +432,7 @@ export async function getInventoryReport(shopId: string): Promise<InventoryRepor
       price: inventory.price,
     })
     .from(inventory)
-    .where(and(eq(inventory.shopId, shopId), eq(inventory.isActive, true)))
+    .where(and(getShopFilter(inventory.shopId, inventory.organizationId, shopId, organizationId), eq(inventory.isActive, true)))
     .orderBy(inventory.name);
 
   let totalStockQuantity = 0;
@@ -484,7 +494,8 @@ export async function getInventoryReport(shopId: string): Promise<InventoryRepor
 export async function getPaymentCollectionReport(
   shopId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  organizationId?: string
 ): Promise<PaymentCollectionReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
@@ -505,7 +516,7 @@ export async function getPaymentCollectionReport(
     .innerJoin(customers, eq(invoices.customerId, customers.id))
     .where(
       and(
-        eq(receipts.shopId, shopId),
+        getShopFilter(receipts.shopId, receipts.organizationId, shopId, organizationId),
         gte(receipts.createdAt, start),
         lte(receipts.createdAt, end)
       )
@@ -559,7 +570,8 @@ export async function getPaymentCollectionReport(
 export async function getAppointmentReport(
   shopId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  organizationId?: string
 ): Promise<AppointmentReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
@@ -576,7 +588,7 @@ export async function getAppointmentReport(
     .from(appointments)
     .where(
       and(
-        eq(appointments.shopId, shopId),
+        getShopFilter(appointments.shopId, appointments.organizationId, shopId, organizationId),
         gte(appointments.visitTime, start),
         lte(appointments.visitTime, end)
       )
@@ -644,7 +656,8 @@ export interface DayWiseCollectionReportData {
 export async function getDayWiseCollectionReport(
   shopId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  organizationId?: string
 ): Promise<DayWiseCollectionReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
@@ -661,7 +674,7 @@ export async function getDayWiseCollectionReport(
     .from(invoices)
     .where(
       and(
-        eq(invoices.shopId, shopId),
+        getShopFilter(invoices.shopId, invoices.organizationId, shopId, organizationId),
         gte(invoices.createdAt, start),
         lte(invoices.createdAt, end)
       )
@@ -740,7 +753,7 @@ export interface OutstandingDuesReportData {
   items: OutstandingDueItem[];
 }
 
-export async function getOutstandingDuesReport(shopId: string): Promise<OutstandingDuesReportData> {
+export async function getOutstandingDuesReport(shopId: string, organizationId?: string): Promise<OutstandingDuesReportData> {
   const rawInvoices = await db
     .select({
       id: invoices.id,
@@ -756,7 +769,7 @@ export async function getOutstandingDuesReport(shopId: string): Promise<Outstand
     .innerJoin(customers, eq(invoices.customerId, customers.id))
     .where(
       and(
-        eq(invoices.shopId, shopId),
+        getShopFilter(invoices.shopId, invoices.organizationId, shopId, organizationId),
         sql`CAST(${invoices.balanceDue} AS NUMERIC) > 0`
       )
     )
@@ -842,7 +855,7 @@ export interface DeadStockReportData {
   items: DeadStockItem[];
 }
 
-export async function getDeadStockReport(shopId: string): Promise<DeadStockReportData> {
+export async function getDeadStockReport(shopId: string, organizationId?: string): Promise<DeadStockReportData> {
   // Items active with quantity > 0 created more than 60 days ago
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
@@ -861,7 +874,7 @@ export async function getDeadStockReport(shopId: string): Promise<DeadStockRepor
     .from(inventory)
     .where(
       and(
-        eq(inventory.shopId, shopId),
+        getShopFilter(inventory.shopId, inventory.organizationId, shopId, organizationId),
         eq(inventory.isActive, true),
         gte(inventory.quantity, 1),
         lte(inventory.createdAt, sixtyDaysAgo)

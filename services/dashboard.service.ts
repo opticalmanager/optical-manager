@@ -123,7 +123,8 @@ export interface DashboardOptions {
 
 export async function getDashboardData(
   shopId: string,
-  optsOrTimeframe: TimeframeType | DashboardOptions = "7d"
+  optsOrTimeframe: TimeframeType | DashboardOptions = "7d",
+  organizationId?: string
 ): Promise<DashboardData> {
   const opts: DashboardOptions = typeof optsOrTimeframe === "string" 
     ? { timeframe: optsOrTimeframe } 
@@ -131,6 +132,14 @@ export async function getDashboardData(
 
   const timeframe = opts.timeframe || "7d";
   const compareMode = opts.compareMode || "none";
+
+  // Helper for multi-shop vs single shop query matching
+  const shopCond = (shopCol: any, orgCol: any) => {
+    if (shopId === "all" && organizationId) {
+      return eq(orgCol, organizationId);
+    }
+    return eq(shopCol, shopId);
+  };
 
   const now = new Date();
   const msInDay = 24 * 60 * 60 * 1000;
@@ -198,30 +207,30 @@ export async function getDashboardData(
     periodBLabel = "Previous Window";
 
     if (compareMode === "yoy") {
-      prevStartDate = new Date(startDate.getFullYear() - 1, startDate.getMonth(), startDate.getDate());
-      prevEndDate = new Date(endDate.getFullYear() - 1, endDate.getMonth(), endDate.getDate());
+      prevStartDate = new Date(startDate.getTime());
+      prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+      prevEndDate = new Date(endDate.getTime());
+      prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
       periodBLabel = "Same Period Last Year";
     } else if (compareMode === "mom") {
-      prevStartDate = new Date(startDate.getFullYear(), startDate.getMonth() - 1, startDate.getDate());
-      prevEndDate = new Date(endDate.getFullYear(), endDate.getMonth() - 1, endDate.getDate());
+      prevStartDate = new Date(startDate.getTime());
+      prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+      prevEndDate = new Date(endDate.getTime());
+      prevEndDate.setMonth(prevEndDate.getMonth() - 1);
       periodBLabel = "Previous Month";
     } else if (compareMode === "qoq") {
-      prevStartDate = new Date(startDate.getFullYear(), startDate.getMonth() - 3, startDate.getDate());
-      prevEndDate = new Date(endDate.getFullYear(), endDate.getMonth() - 3, endDate.getDate());
+      prevStartDate = new Date(startDate.getTime());
+      prevStartDate.setMonth(prevStartDate.getMonth() - 3);
+      prevEndDate = new Date(endDate.getTime());
+      prevEndDate.setMonth(prevEndDate.getMonth() - 3);
       periodBLabel = "Previous Quarter";
-    } else if (compareMode === "custom" && opts.compareStartDate && opts.compareEndDate) {
-      prevStartDate = new Date(opts.compareStartDate);
-      prevEndDate = new Date(opts.compareEndDate);
-      periodBLabel = `${prevStartDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${prevEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
     }
   }
 
   const compareLabel = `${periodALabel} vs ${periodBLabel}`;
   const isComparing = compareMode !== "none" || Boolean(opts.granularity && opts.periodA);
-
   const nowStr = now.toISOString().slice(0, 10);
 
-  // Parallel DB Queries for primary period and comparison period
   const [
     revenueResult,
     pendingOrdersCount,
@@ -233,9 +242,8 @@ export async function getDashboardData(
     lowStockInventoryList,
     topSKUsCurrent,
     topSKUsPrevious,
-    topCustomersRaw,
-    categorySalesRaw,
-    // Comparison queries
+    topCustomersList,
+    categorySalesList,
     compareRevenueResult,
     comparePendingPaymentsResult,
     compareInvoices
@@ -246,7 +254,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           eq(invoices.status, "PAID"),
           gte(invoices.createdAt, startDate),
           lte(invoices.createdAt, endDate)
@@ -259,7 +267,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           ne(invoices.fulfillmentStatus, "DELIVERED"),
           ne(invoices.status, "CANCELLED")
         )
@@ -271,7 +279,7 @@ export async function getDashboardData(
       .from(inventory)
       .where(
         and(
-          eq(inventory.shopId, shopId),
+          shopCond(inventory.shopId, inventory.organizationId),
           lte(inventory.quantity, inventory.minQuantity)
         )
       ),
@@ -282,7 +290,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           ne(invoices.status, "CANCELLED"),
           ne(invoices.status, "PAID"),
           gte(invoices.createdAt, startDate),
@@ -296,7 +304,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           gte(invoices.createdAt, startDate),
           lte(invoices.createdAt, endDate)
         )
@@ -314,7 +322,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           gte(invoices.createdAt, startDate),
           lte(invoices.createdAt, endDate)
         )
@@ -335,7 +343,7 @@ export async function getDashboardData(
       })
       .from(invoices)
       .leftJoin(customers, eq(invoices.customerId, customers.id))
-      .where(eq(invoices.shopId, shopId))
+      .where(shopCond(invoices.shopId, invoices.organizationId))
       .orderBy(desc(invoices.createdAt))
       .limit(6),
 
@@ -343,7 +351,7 @@ export async function getDashboardData(
     db
       .select()
       .from(inventory)
-      .where(eq(inventory.shopId, shopId))
+      .where(shopCond(inventory.shopId, inventory.organizationId))
       .orderBy(inventory.quantity)
       .limit(6),
 
@@ -358,7 +366,7 @@ export async function getDashboardData(
       .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
       .where(
         and(
-          eq(invoiceItems.shopId, shopId),
+          shopCond(invoiceItems.shopId, invoiceItems.organizationId),
           gte(invoiceItems.createdAt, startDate),
           lte(invoiceItems.createdAt, endDate)
         )
@@ -376,7 +384,7 @@ export async function getDashboardData(
       .from(invoiceItems)
       .where(
         and(
-          eq(invoiceItems.shopId, shopId),
+          shopCond(invoiceItems.shopId, invoiceItems.organizationId),
           gte(invoiceItems.createdAt, prevStartDate),
           lt(invoiceItems.createdAt, prevEndDate)
         )
@@ -397,7 +405,7 @@ export async function getDashboardData(
       .leftJoin(customers, eq(invoices.customerId, customers.id))
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           eq(invoices.status, "PAID"),
           gte(invoices.createdAt, startDate),
           lte(invoices.createdAt, endDate)
@@ -418,7 +426,7 @@ export async function getDashboardData(
       .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
       .where(
         and(
-          eq(invoiceItems.shopId, shopId),
+          shopCond(invoiceItems.shopId, invoiceItems.organizationId),
           gte(invoiceItems.createdAt, startDate),
           lte(invoiceItems.createdAt, endDate)
         )
@@ -431,7 +439,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           eq(invoices.status, "PAID"),
           gte(invoices.createdAt, prevStartDate),
           lte(invoices.createdAt, prevEndDate)
@@ -443,7 +451,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           ne(invoices.status, "CANCELLED"),
           ne(invoices.status, "PAID"),
           gte(invoices.createdAt, prevStartDate),
@@ -456,7 +464,7 @@ export async function getDashboardData(
       .from(invoices)
       .where(
         and(
-          eq(invoices.shopId, shopId),
+          shopCond(invoices.shopId, invoices.organizationId),
           gte(invoices.createdAt, prevStartDate),
           lte(invoices.createdAt, prevEndDate)
         )
@@ -609,7 +617,7 @@ export async function getDashboardData(
   });
 
   // Top Customers mapping
-  const topCustomers: TopCustomer[] = topCustomersRaw.map(c => ({
+  const topCustomers: TopCustomer[] = topCustomersList.map((c: any) => ({
     id: c.id || "unknown",
     name: c.name || "Walk-in Patient",
     phone: c.phone || "N/A",
@@ -619,7 +627,7 @@ export async function getDashboardData(
   }));
 
   // Category Sales mapping
-  const categorySales: CategorySalesItem[] = categorySalesRaw.map(cat => ({
+  const categorySales: CategorySalesItem[] = categorySalesList.map((cat: any) => ({
     category: cat.category || "GENERAL",
     quantity: Number(cat.quantity || 0),
     revenue: Number(cat.revenue || 0)
@@ -631,7 +639,7 @@ export async function getDashboardData(
     const rawAppointments = await db
       .select()
       .from(appointments)
-      .where(eq(appointments.shopId, shopId))
+      .where(shopCond(appointments.shopId, appointments.organizationId))
       .orderBy(desc(appointments.visitTime))
       .limit(20);
 

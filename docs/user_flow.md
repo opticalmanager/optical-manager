@@ -17,6 +17,9 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 2. **Organization Creation**: If no organization exists, owner is guided through `/onboarding` to set up their clinical organization profile.
 3. **Shop Outlet Configuration**: Owner adds store locations (`/owner/shops`) with store names, addresses, phone numbers, and GST details.
 4. **Manager Delegation**: Owner invites shop managers (`/owner/shop-managers`) and assigns them to specific store branches.
+5. **Multi-Shop Analytics & Reporting**:
+   - Owner accesses `/owner/analytics` or `/owner/reports` with a top Outlet Filter Context toolbar.
+   - Defaults to **All Outlets (Combined)** aggregated across all branches, or switches to isolate specific store locations (`?shopId=<uuid>`).
 
 ---
 
