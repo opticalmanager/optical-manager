@@ -6,9 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
   Store, 
-  Users, 
-  Package, 
+  BarChart3, 
+  TrendingUp, 
   Settings, 
+  HelpCircle,
   LogOut, 
   Glasses 
 } from "lucide-react";
@@ -44,25 +45,16 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
   const navItems = [
     { name: "Dashboard", href: "/owner", icon: LayoutDashboard },
     { name: "Shops", href: "/owner/shops", icon: Store },
-    { name: "Customers", href: "/owner/customers", icon: Users },
-    { name: "Inventory", href: "/owner/inventory", icon: Package },
+    { name: "Analytics", href: "/owner/analytics", icon: BarChart3 },
+    { name: "Reports", href: "/owner/reports", icon: TrendingUp },
     { name: "Settings", href: "/owner/settings", icon: Settings },
   ];
 
-  const initials = user.fullName
-    ? user.fullName
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "OW";
-
   return (
     <aside className="w-[240px] bg-white border-r border-slate-200 text-slate-500 flex flex-col justify-between h-full select-none shadow-sm">
-      {/* Top Brand Logo Area */}
-      <div>
-        <div className="h-16 px-6 border-b border-slate-100 flex items-center gap-3">
+      {/* Top Brand Logo Area & Primary Navigation */}
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="h-16 px-6 border-b border-slate-100 flex items-center gap-3 shrink-0">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/10 border border-indigo-500/10">
             <Glasses className="w-5 h-5 text-white" />
           </div>
@@ -72,9 +64,8 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
         </div>
 
         {/* Navigation Items */}
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-1 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {navItems.map((item) => {
-            // Match exact path or sub-routes
             const isActive = 
               item.href === "/owner" 
                 ? pathname === "/owner" 
@@ -102,31 +93,24 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
         </nav>
       </div>
 
-      {/* User Information Block at bottom */}
-      <div className="p-4 border-t border-slate-100 space-y-4 bg-slate-50/50">
-        <div className="flex items-center gap-3">
-          {user.avatarUrl ? (
-            <img 
-              src={user.avatarUrl} 
-              alt={user.fullName} 
-              className="w-9 h-9 rounded-full object-cover border border-slate-200"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-indigo-50 border border-indigo-100/50 flex items-center justify-center text-xs font-bold text-indigo-700 shadow-inner">
-              {initials}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-900 truncate leading-none">
-              {user.fullName || "Owner Profile"}
-            </p>
-            <p className="text-xs text-slate-400 truncate mt-1">
-              {user.email}
-            </p>
-          </div>
-        </div>
+      {/* Bottom Action Links (Support & Logout) */}
+      <div className="p-4 border-t border-slate-100 space-y-1 bg-slate-50/50 shrink-0">
+        <Link
+          href="/owner/support"
+          onClick={onCloseMobile}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group duration-150 border
+            ${pathname.startsWith("/owner/support") 
+              ? "bg-indigo-50/70 text-indigo-600 border-indigo-100/50 font-semibold" 
+              : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 border-transparent"
+            }
+          `}
+        >
+          <HelpCircle className={`w-[18px] h-[18px] shrink-0 transition-colors
+            ${pathname.startsWith("/owner/support") ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700"}
+          `} />
+          <span>Support</span>
+        </Link>
 
-        {/* Logout Button */}
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-100/50 group text-left cursor-pointer text-slate-500"
