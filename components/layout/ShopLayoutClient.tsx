@@ -40,7 +40,7 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
   return (
     <div className="flex flex-1 overflow-hidden relative">
       {/* Desktop Sidebar (visible on desktop monitors) */}
-      <div className="hidden lg:flex shrink-0 transition-all duration-300">
+      <div className="hidden lg:flex shrink-0 transition-all duration-300 h-full">
         <Sidebar 
           shopName={shop?.name || undefined} 
           shopAddress={shop?.address || undefined} 

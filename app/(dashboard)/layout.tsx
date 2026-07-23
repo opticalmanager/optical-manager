@@ -27,6 +27,10 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  if (user.role === "SUPER_ADMIN") {
+    redirect("/admin");
+  }
+
   return <>{children}</>;
 }
 

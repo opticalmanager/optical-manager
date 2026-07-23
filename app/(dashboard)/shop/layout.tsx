@@ -39,20 +39,21 @@ export default async function ShopDashboardLayout({
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
       {user.isImpersonating && (
-        <div className="bg-indigo-900 text-white px-6 py-2.5 flex items-center justify-between gap-4 border-b border-indigo-950 shrink-0 shadow-md">
-          <div className="flex items-center gap-2">
+        <div className="bg-indigo-900 text-white px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-3 border-b border-indigo-950 shrink-0 shadow-md z-40 relative">
+          <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-4 h-4 text-indigo-200 shrink-0 animate-pulse" />
-            <span className="text-xs font-bold tracking-wider uppercase">
-              Owner Console <span className="mx-2 text-indigo-400">•</span> Managing Branch: <strong className="font-extrabold text-white text-sm normal-case">{shop?.name || "Corporate Outlet"}</strong>
+            <span className="text-[11px] sm:text-xs font-bold tracking-wider uppercase truncate">
+              Owner Console <span className="mx-1.5 text-indigo-400">•</span> Managing Branch: <strong className="font-extrabold text-white text-xs sm:text-sm normal-case">{shop?.name || "Corporate Outlet"}</strong>
             </span>
           </div>
-          <form action={exitShopConsoleAction}>
+          <form action={exitShopConsoleAction} className="shrink-0">
             <button
               type="submit"
-              className="flex items-center gap-1.5 bg-white text-indigo-900 px-4 py-1.5 rounded-lg text-xs font-extrabold hover:bg-indigo-50 active:bg-indigo-100 transition-all shadow-sm cursor-pointer border-none"
+              className="flex items-center gap-1.5 bg-white text-indigo-900 px-3 py-1 sm:px-4 sm:py-1.5 rounded-lg text-xs font-extrabold hover:bg-indigo-50 active:bg-indigo-100 transition-all shadow-xs cursor-pointer border-none"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Owner Portal</span>
+              <span className="hidden sm:inline">Back to Owner Portal</span>
+              <span className="sm:hidden">Exit</span>
             </button>
           </form>
         </div>

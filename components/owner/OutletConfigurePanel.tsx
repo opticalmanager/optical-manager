@@ -105,8 +105,14 @@ export function OutletConfigurePanel({
     setIsConsoleLoading(true);
     try {
       toast.loading("Redirecting to shop console...", { id: "shop-console" });
-      await accessShopConsoleAction(shop.id);
-      toast.success("Redirecting...", { id: "shop-console" });
+      const res = await accessShopConsoleAction(shop.id);
+      if (res?.success) {
+        toast.success("Redirecting...", { id: "shop-console" });
+        window.location.href = "/shop/dashboard";
+      } else {
+        toast.error("Failed to open shop console.", { id: "shop-console" });
+        setIsConsoleLoading(false);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to open shop console.", { id: "shop-console" });
