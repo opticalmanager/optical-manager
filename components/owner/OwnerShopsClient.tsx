@@ -62,8 +62,14 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
     setIsViewOutletLoading(shopId);
     try {
       toast.loading("Opening shop console...", { id: "view-outlet" });
-      await accessShopConsoleAction(shopId);
-      toast.success("Redirecting to shop console...", { id: "view-outlet" });
+      const res = await accessShopConsoleAction(shopId);
+      if (res?.success) {
+        toast.success("Redirecting to shop console...", { id: "view-outlet" });
+        window.location.href = "/shop/dashboard";
+      } else {
+        toast.error("Failed to open shop console.", { id: "view-outlet" });
+        setIsViewOutletLoading(null);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to open shop console.", { id: "view-outlet" });

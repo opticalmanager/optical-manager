@@ -43,7 +43,7 @@ export default function AdminLoginClient() {
       const role = data.user?.user_metadata?.role;
       if (role !== "SUPER_ADMIN") {
         await supabase.auth.signOut();
-        setErrorMessage("Access Restricted: Your account does not have Super Admin permissions.");
+        setErrorMessage("Access Restricted: Store Tenant accounts cannot access Super Admin. Please log in at opticalmanager.in/login.");
         setIsLoading(false);
         return;
       }

@@ -152,6 +152,24 @@ export async function login(
     };
   }
 
+  // Deactivated account check
+  if (!user.isActive) {
+    await supabase.auth.signOut();
+    return {
+      success: false,
+      message: "Your account has been deactivated. Please contact platform support.",
+    };
+  }
+
+  // Super Admin security guard on main site login
+  if (user.role === "SUPER_ADMIN") {
+    await supabase.auth.signOut();
+    return {
+      success: false,
+      message: "Access Restricted: Super Admin credentials must sign in via admin.opticalmanager.in.",
+    };
+  }
+
   // Role-based redirect
   if (user.role === "SHOP_MANAGER") {
     redirect("/shop/dashboard");
@@ -204,8 +222,7 @@ export async function accessShopConsoleAction(shopId: string) {
     maxAge: 60 * 60 * 24, // 1 day
   });
 
-  // Redirect to the shop panel dashboard
-  redirect("/shop/dashboard");
+  return { success: true };
 }
 
 /**

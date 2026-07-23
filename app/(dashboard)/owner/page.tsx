@@ -223,8 +223,15 @@ export default async function OwnerDashboardPage() {
     // -------------------------------------------------------------
     // Real Calculations
     // -------------------------------------------------------------
-    displayRevenue = dbInvoices.reduce((acc, inv) => acc + parseFloat(inv.amountPaid || "0"), 0);
-    displayReceivables = dbInvoices.reduce((acc, inv) => acc + parseFloat(inv.balanceDue || "0"), 0);
+    // Helper for safe float parsing
+    const safeFloat = (val?: string | null) => {
+      if (!val) return 0;
+      const parsed = parseFloat(val);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    displayRevenue = dbInvoices.reduce((acc, inv) => acc + safeFloat(inv.amountPaid), 0);
+    displayReceivables = dbInvoices.reduce((acc, inv) => acc + safeFloat(inv.balanceDue), 0);
 
     // Compute rolling 6 months trend data dynamically
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -238,10 +245,12 @@ export default async function OwnerDashboardPage() {
     }
 
     dbInvoices.forEach((inv) => {
+      if (!inv.createdAt) return;
       const invDate = new Date(inv.createdAt);
+      if (isNaN(invDate.getTime())) return;
       const label = `${monthNames[invDate.getMonth()]} ${invDate.getFullYear()}`;
       if (monthlyRevenueMap[label] !== undefined) {
-        monthlyRevenueMap[label] += parseFloat(inv.amountPaid || "0");
+        monthlyRevenueMap[label] += safeFloat(inv.amountPaid);
       }
     });
 
@@ -260,9 +269,10 @@ export default async function OwnerDashboardPage() {
     };
 
     dbInventory.forEach((item) => {
-      const val = (item.quantity || 0) * (parseFloat(item.price || "0"));
-      if (valuationByCategory[item.category] !== undefined) {
-        valuationByCategory[item.category] += val;
+      const val = (item.quantity || 0) * safeFloat(item.price);
+      const categoryKey = item.category ? item.category.toUpperCase() : "FRAME";
+      if (valuationByCategory[categoryKey] !== undefined) {
+        valuationByCategory[categoryKey] += val;
       }
     });
 
@@ -299,14 +309,18 @@ export default async function OwnerDashboardPage() {
         name: shop.name,
         isActive: shop.isActive,
         salesCount: shopInvoices.length,
-        revenue: shopInvoices.reduce((acc, inv) => acc + parseFloat(inv.amountPaid || "0"), 0),
+        revenue: shopInvoices.reduce((acc, inv) => acc + safeFloat(inv.amountPaid), 0),
         stockCount: shopInventory.reduce((acc, item) => acc + (item.quantity || 0), 0),
       };
     });
 
     // Recent Transactions
     recentTransactionsList = [...dbInvoices]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      })
       .slice(0, 5)
       .map((inv) => {
         const cust = dbCustomers.find(c => c.id === inv.customerId);
@@ -318,9 +332,9 @@ export default async function OwnerDashboardPage() {
           customerName: cust?.fullName || "Walk-in Customer",
           shopName: sp?.name || "Main Branch",
           status: inv.status,
-          total: parseFloat(inv.total),
-          amountPaid: parseFloat(inv.amountPaid),
-          createdAt: inv.createdAt,
+          total: safeFloat(inv.total),
+          amountPaid: safeFloat(inv.amountPaid),
+          createdAt: inv.createdAt || new Date(),
         };
       });
   }

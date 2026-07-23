@@ -7,7 +7,10 @@ import { createServerClient } from "@supabase/ssr";
  *
  * Handles auth session refresh, domain subroutines, and route protection.
  * - Public routes: /, /login, /signup, /admin/login, /api/auth/callback, /book/*, /share/*
- * - Super Admin routes: /admin/* (strictly guarded for role === 'SUPER_ADMIN')
+ * - Super Admin subdomain (admin.opticalmanager.in): 
+ *     - Strictly enforced: /admin/* is ONLY accessible when requested via admin.* subdomain
+ *     - If logged in as SUPER_ADMIN: / maps to /admin
+ *     - If unauthenticated: / maps to /admin/login
  * - Protected tenant routes: /shop/*, /owner/*
  */
 
@@ -15,7 +18,6 @@ const publicRoutes = [
   "/", 
   "/login", 
   "/signup", 
-  "/admin/login",
   "/api/auth/callback", 
   "/forgot-password", 
   "/reset-password", 
@@ -49,10 +51,22 @@ export async function proxy(request: NextRequest) {
 
   let user = null;
   try {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    user = authUser;
+    const { data: { user: authUser }, error } = await supabase.auth.getUser();
+    if (error) {
+      // Clear stale/corrupted cookies when Supabase returns refresh_token_not_found or 400 auth errors
+      if (error.code === "refresh_token_not_found" || error.status === 400 || error.name === "AuthApiError") {
+        const allCookies = request.cookies.getAll();
+        allCookies.forEach((cookie) => {
+          if (cookie.name.includes("auth-token") || cookie.name.startsWith("sb-")) {
+            supabaseResponse.cookies.delete(cookie.name);
+          }
+        });
+      }
+    } else {
+      user = authUser;
+    }
   } catch (err) {
-    console.error("[proxy] Supabase connection failed:", err);
+    console.error("[proxy] Supabase auth check failed:", err);
   }
 
   const { pathname } = request.nextUrl;
@@ -60,34 +74,42 @@ export async function proxy(request: NextRequest) {
   const host = forwardedHost || request.headers.get("host") || "";
   const isAdminSubdomain = host.startsWith("admin.") || forwardedHost?.startsWith("admin.");
 
-  // If request arrives on admin.opticalmanager.in subdomain, rewrite root / to /admin
+  const isSuperAdmin = user?.user_metadata?.role === "SUPER_ADMIN";
+
+  // Subdomain rewrite for admin.opticalmanager.in
   if (isAdminSubdomain && pathname === "/") {
-    return NextResponse.rewrite(new URL("/admin", request.url));
+    if (isSuperAdmin) {
+      return NextResponse.rewrite(new URL("/admin", request.url));
+    } else {
+      return NextResponse.rewrite(new URL("/admin/login", request.url));
+    }
   }
 
   // Handle Admin routes (/admin/*)
   if (pathname.startsWith("/admin")) {
+    // ENFORCE SUBDOMAIN ONLY: If accessed via main domain (opticalmanager.in or www.opticalmanager.in), block or redirect to admin subdomain
+    if (!isAdminSubdomain) {
+      if (host.includes("opticalmanager.in")) {
+        return NextResponse.redirect(new URL(`https://admin.opticalmanager.in`, request.url));
+      } else {
+        // Local dev fallback if accessed via localhost:3000/admin instead of admin.lvh.me:3000
+        return NextResponse.redirect(new URL("http://admin.lvh.me:3000/admin/login", request.url));
+      }
+    }
+
     if (pathname === "/admin/login") {
-      if (user) {
-        // If already logged in, check role
-        const role = user.user_metadata?.role;
-        if (role === "SUPER_ADMIN") {
-          return NextResponse.redirect(new URL("/admin", request.url));
-        }
+      if (isSuperAdmin) {
+        return NextResponse.redirect(new URL("/admin", request.url));
       }
       return supabaseResponse;
     }
 
-    // Guard all other /admin routes
-    if (!user) {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
-    }
-
-    const role = user.user_metadata?.role;
-    if (role !== "SUPER_ADMIN") {
-      // Non-admin attempting to access admin portal
+    // Guard all other /admin routes on admin subdomain
+    if (!user || !isSuperAdmin) {
       const loginUrl = new URL("/admin/login", request.url);
-      loginUrl.searchParams.set("error", "unauthorized");
+      if (user && !isSuperAdmin) {
+        loginUrl.searchParams.set("error", "unauthorized");
+      }
       return NextResponse.redirect(loginUrl);
     }
 
@@ -106,6 +128,13 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && (pathname === "/login" || pathname === "/signup")) {
+    const role = user.user_metadata?.role;
+    if (role === "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+    if (role === "SHOP_MANAGER") {
+      return NextResponse.redirect(new URL("/shop/dashboard", request.url));
+    }
     return NextResponse.redirect(new URL("/owner", request.url));
   }
 

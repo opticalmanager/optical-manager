@@ -109,6 +109,8 @@ Usage:
         .update(schema.profiles)
         .set({
           role: "SUPER_ADMIN",
+          organizationId: null,
+          shopId: null,
           fullName: name,
           email: email,
           isActive: true,

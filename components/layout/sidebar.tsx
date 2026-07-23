@@ -101,7 +101,7 @@ export function Sidebar({
 
   return (
     <div className={cn(
-      "flex h-screen flex-col border-r border-slate-200/80 bg-[#f8fafc] select-none transition-all duration-300",
+      "flex h-full flex-col border-r border-slate-200/80 bg-[#f8fafc] select-none transition-all duration-300",
       isCollapsed ? "w-[72px]" : "w-64"
     )}>
       {/* Top Software Branding Header */}
@@ -159,7 +159,7 @@ export function Sidebar({
 
       {/* Main Navigation Links */}
       <nav className={cn(
-        "flex-1 space-y-1.5 py-3 overflow-y-auto",
+        "flex-1 space-y-1.5 py-3 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
         isCollapsed ? "px-2" : "px-3"
       )}>
         {mainNavItems.map((item) => {
