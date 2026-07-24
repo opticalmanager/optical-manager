@@ -8,6 +8,7 @@ import {
   Store, 
   BarChart3, 
   TrendingUp, 
+  Megaphone,
   Settings, 
   HelpCircle,
   LogOut, 
@@ -45,8 +46,9 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
   const navItems = [
     { name: "Dashboard", href: "/owner", icon: LayoutDashboard },
     { name: "Shops", href: "/owner/shops", icon: Store },
-    { name: "Analytics", href: "/owner/analytics", icon: BarChart3 },
     { name: "Reports", href: "/owner/reports", icon: TrendingUp },
+    { name: "Analytics", href: "/owner/analytics", icon: BarChart3 },
+    { name: "Promotion", href: "/owner/promotions", icon: Megaphone },
     { name: "Settings", href: "/owner/settings", icon: Settings },
   ];
 
