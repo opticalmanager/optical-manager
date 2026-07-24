@@ -67,3 +67,23 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Select **Primary Period (A)** (e.g. `Week 29 (Jul 13 - Jul 19)`).
    - Select **Baseline Period (B)** (e.g. `Week 28 (Jul 6 - Jul 12)`).
 5. **Analyze Telemetry**: Review side-by-side KPI values, growth percentages (`↑ +14.2%`), and dual-line revenue trajectory charts.
+
+---
+
+## 5. Promotion & WhatsApp Automation Workflow
+
+```
+┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│ Configure    │───>│ Create WhatsApp │───>│ Set Event       │───>│ Monitor Sent,    │
+│ Connection   │    │ Template        │    │ Trigger Rules   │    │ Delivered & Read │
+└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+```
+
+1. **Access Promotion Portal**: System Owner navigates to `/owner/promotions`.
+2. **Review Overview Telemetry**: Views 4 delivery metrics (Total Sent, Delivered, Read, Replied), recent campaigns, and active triggers.
+3. **Automated Trigger Rule Setup**:
+   - Accesses `/owner/promotions/triggers/new` or Triggers subview.
+   - Configures event type (Birthday, Post Purchase, Appointment Reminder, Re-engagement).
+   - Sets relative timing (e.g. 1 Day Before, 3 Days After) and trigger time (09:00 AM).
+   - Previews real-time message text rendering with variable tags (`{{1}}`, `{{2}}`) inside the live WhatsApp smartphone mockup frame.
+4. **Mass Broadcast Campaigns**: Schedules promotional offer broadcasts to targeted recipient patient lists under `/owner/promotions?tab=campaigns`.
