@@ -65,3 +65,20 @@ CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANC
 | `fullName` | `varchar(255)` | NOT NULL | User full name |
 | `email` | `varchar(255)` | NOT NULL | User email address |
 | `role` | `user_role` | NOT NULL | `SUPER_ADMIN`, `OWNER`, `SHOP_MANAGER` |
+
+---
+
+### 2. Utility Email Communication Tables (`db/schema/email.ts`)
+
+#### `email_configs`
+Stores AES-256-GCM encrypted Gmail SMTP credentials and 3-tier rate limiting counters (`dailySentCount`, `dailyLimit`, `hourlySentCount`, `minuteSentCount`).
+
+#### `email_templates`
+Stores HTML email templates for `INVOICE`, `RECEIPT`, `REMINDER`, `WELCOME`, `APPOINTMENT`, and `CUSTOM` categories with `{{variable}}` placeholders.
+
+#### `email_triggers`
+Stores automated event trigger rules (`CUSTOMER_CREATED`, `INVOICE_CREATED`, `PAYMENT_RECEIVED`, `APPOINTMENT_BOOKED`, `APPOINTMENT_REMINDER`) linked to templates.
+
+#### `email_logs`
+Logs all sent, failed, and rate-limited email dispatches across all store locations with timestamps and error trace messages.
+

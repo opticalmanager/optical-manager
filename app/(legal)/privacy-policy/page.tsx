@@ -89,7 +89,7 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-3">5. Electronic Communications & Email Policy</h2>
           <p>
-            All electronic mail dispatched from our verified domain (<code>opticalmanager.in</code>) is processed through high-reputation cloud infrastructure, including Amazon Web Services (AWS SES) and MailerSend.
+            All electronic mail dispatched from our verified domain (<code>opticalmanager.in</code>) is processed through high-reputation cloud infrastructure.
           </p>
           <ul className="list-disc pl-6 space-y-2 mt-2">
             <li><strong>Explicit Triggering:</strong> Emails are sent only when triggered by specific actions (e.g., user clicking &quot;Forgot Password&quot; or store manager clicking &quot;Send Digital Receipt&quot;).</li>
@@ -122,11 +122,6 @@ export default function PrivacyPolicyPage() {
                   <td className="p-3 font-medium">Supabase</td>
                   <td className="p-3">Managed PostgreSQL Database & Authentication (Mumbai Region)</td>
                   <td className="p-3"><a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Supabase Privacy</a></td>
-                </tr>
-                <tr>
-                  <td className="p-3 font-medium">MailerSend</td>
-                  <td className="p-3">Store Notification Relays</td>
-                  <td className="p-3"><a href="https://www.mailersend.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">MailerSend Privacy</a></td>
                 </tr>
                 <tr>
                   <td className="p-3 font-medium">Vercel</td>

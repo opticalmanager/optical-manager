@@ -38,3 +38,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 10. **Synchronized Documentation Maintenance (`docs/`)**:
     - Whenever performing any development, adding features, modifying database schemas, updating architecture, adding API endpoints, or configuring external services, you MUST simultaneously update the relevant documentation files inside the `docs/` directory (`docs/overview.md`, `docs/architecture.md`, `docs/tech_stack.md`, `docs/user_flow.md`, `docs/database_schema.md`, `docs/ai_spec.md`, `docs/requirements.md`, `docs/services_used.md`, `docs/api_routes.md`). System documentation must always remain 100% synchronized with the live codebase.
+
+11. **Minimal Compilation & Optimized Rendering Performance**:
+    - Always write lightweight, modular code logic optimized for minimal compilation time and ultra-fast client/server rendering, eliminating heavy unused imports, redundant re-renders, and unnecessary runtime overhead.
+
+12. **Automatic Cleanup of Obsolete & Unused Files/Code**:
+    - Always immediately delete unused files, deprecated route handlers, dead components, or temporary runner scripts after creating replacement features or updating existing code. Never leave redundant, unused, or orphaned files in the codebase.
+

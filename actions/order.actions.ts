@@ -14,7 +14,7 @@ export type ActionResponse = {
 };
 
 /**
- * Server Action: Send payment reminder email using MailerSend
+ * Server Action: Send payment reminder email
  */
 export async function sendPaymentReminderAction(
   invoiceId: string
@@ -116,7 +116,7 @@ export async function sendPaymentReminderAction(
     } else {
       return {
         success: false,
-        message: emailResult.error || "Failed to dispatch email via MailerSend pipeline.",
+        message: emailResult.error || "Failed to dispatch email pipeline.",
       };
     }
   } catch (error: any) {

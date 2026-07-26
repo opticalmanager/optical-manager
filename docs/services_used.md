@@ -9,8 +9,7 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 | Service Category | Provider / Tool | Used For | Current Tier | Estimated Cost (Monthly) |
 | :--- | :--- | :--- | :--- | :--- |
 | **Database & Auth** | **Supabase** | PostgreSQL Database (PgBouncer Pooler) & JWT Auth Session Cookies (`@supabase/ssr`). | Pro Plan / Free Tier | **$0.00 – $25.00 / mo** |
-| **Email Delivery** | **MailerSend** | Transactional invoice dispatches, patient appointment reminders, system alerts. | Starter / Pay-as-you-go | **$0.00 – $14.00 / mo** |
-| **Email Delivery (Alt)** | **AWS SES** | High-volume production transactional email dispatches. | Pay-as-you-go | **~$0.10 per 1,000 emails** (~$1.00 / mo) |
+| **Email Delivery** | **Gmail SMTP (Nodemailer)** | Transactional invoice dispatches, patient appointment receipts, welcome emails. | Gmail App Password (500/day) | **$0.00 / mo** |
 | **Deployment / Hosting**| **AWS Amplify / EC2**| CI/CD build pipelines, SSR edge deployment (`amplify.yml`), domain SSL certificates. | Pay-as-you-go | **~$5.00 – $20.00 / mo** |
 | **Deployment (Alt)** | **Vercel** | Edge network hosting for Next.js App Router. | Pro / Hobby | **$0.00 – $20.00 / mo** |
 | **Performance RUM** | **Vercel Speed Insights** | Real-time Core Web Vitals and user performance tracking. | Included | **$0.00 / mo** |
@@ -21,19 +20,15 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 ## Detailed Service Breakdown
 
 ### 1. Supabase (PostgreSQL Database & Auth)
-- **Primary Function**: Hosts the multi-tenant relational database (19 schemas including `invoices`, `inventory`, `customers`, `prescriptions`, `appointments`) and manages auth session cookies.
+- **Primary Function**: Hosts the multi-tenant relational database (24 schemas including `email_configs`, `email_templates`, `email_triggers`, `email_logs`, `invoices`, `inventory`, `customers`, `prescriptions`, `appointments`) and manages auth session cookies.
 - **Connection Mode**: Connected via Drizzle ORM using Transaction Pooling (`aws-1-ap-south-1.pooler.supabase.com:6543`) for serverless Next.js route handlers.
 - **Cost Analysis**:
   - **Free Tier**: $0/month (up to 500MB database storage, 50,000 monthly active users).
   - **Pro Tier**: $25/month (up to 8GB database, daily automatic backups, dedicated compute).
 
-### 2. MailerSend / AWS SES (Transactional Email Services)
-- **Primary Function**: Dispatches digital invoice links (`/share/invoice/[id]`), appointment reminders, and support ticket notifications.
-- **Implementation**: Managed via `services/email.service.ts` singleton client.
-- **Cost Analysis**:
-  - **MailerSend Free**: $0/month (up to 3,000 emails/month).
-  - **MailerSend Starter**: $14/month (up to 50,000 emails/month).
-  - **AWS SES**: $0.10 per 1,000 emails (highly cost-effective for large-scale chains sending 100,000+ patient emails/month = ~$10/month).
+### 2. Utility Email Communication (Gmail SMTP / Nodemailer)
+- **Primary Function**: Dispatches digital invoice links, payment receipts, appointment confirmations, and welcome emails across all store outlets.
+- **Implementation**: Managed via `services/email.service.ts` and `services/email-trigger.service.ts` with AES-256 password encryption and 3-tier rate limiting (10/min, 100/hr, 450/day soft cap).
 
 ### 3. AWS Amplify / AWS EC2 / Vercel (Hosting Infrastructure)
 - **Primary Function**: Builds and serves the Next.js 16 App Router application, managing dynamic SSR routes, static asset caching, and domain SSL certificates.

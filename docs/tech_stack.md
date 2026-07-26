@@ -42,5 +42,5 @@ Optical Manager is built with cutting-edge web technologies designed for zero-la
 | Technology | Version | Purpose |
 | :--- | :--- | :--- |
 | **Supabase Auth** | `^2.106.0` | JWT-based auth service with cookie session handling (`@supabase/ssr`). |
-| **MailerSend** | `^3.0.0` | Transactional email delivery service for notifications and system alerts. |
+| **Nodemailer** | `^6.10.0` | SMTP client for Gmail transactional email dispatches & verification. |
 | **Vercel Speed Insights**| `^2.0.0` | Real-time Core Web Vitals and performance monitoring. |

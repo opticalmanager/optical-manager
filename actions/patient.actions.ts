@@ -4,6 +4,7 @@ import { db } from "@/lib/drizzle";
 import { eq, and, sql } from "drizzle-orm";
 import { customers, prescriptions, invoices, invoiceItems, orders, receipts } from "@/db/schema";
 import { getCurrentUser } from "@/services/auth.service";
+import { fireEmailTrigger } from "@/services/email-trigger.service";
 import { generateRegistrationId } from "@/services/customer.service";
 import { decrementInventoryStock } from "@/services/inventory.service";
 import { generateInvoiceNumber } from "@/services/invoice.service";
@@ -477,10 +478,39 @@ export async function registerPatientAndInvoiceAction(
     revalidatePath("/shop/invoices");
     revalidatePath("/shop/inventory");
 
+    // Fire-and-forget Email Trigger for INVOICE_CREATED
+    if (result.customer && result.customer.email) {
+      fireEmailTrigger(
+        user.organizationId!,
+        shopId,
+        "INVOICE_CREATED",
+        {
+          customer_name: result.customer.fullName,
+          customer_email: result.customer.email,
+          customer_phone: result.customer.phone || "",
+          invoice_number: result.invoice.invoiceNumber,
+          total: `₹${result.invoice.total}`,
+          balance_due: `₹${result.invoice.balanceDue}`,
+          amount_paid: `₹${result.invoice.amountPaid}`,
+          payment_method: result.invoice.paymentMethod || "UPI",
+          shop_name: "Vision Care Store",
+        },
+        result.customer.email,
+        result.customer.fullName
+      ).catch(console.error);
+    }
+
     return {
       success: true,
       message: "Patient registered and invoice generated successfully.",
-      data: result,
+      data: {
+        invoiceId: result.invoice.id,
+        invoiceNumber: result.invoice.invoiceNumber,
+        receiptId: result.receipt?.id || null,
+        receiptNumber: result.receipt?.receiptNumber || null,
+        total: result.invoice.total,
+        balanceDue: result.invoice.balanceDue,
+      },
     };
   } catch (error: any) {
     console.error("Error registering patient with invoice:", error);
