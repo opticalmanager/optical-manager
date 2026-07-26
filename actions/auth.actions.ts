@@ -306,9 +306,47 @@ export async function updatePasswordAction(
   }
 
   const { password } = validatedFields.data;
+  const tokenHash = formData.get("tokenHash") as string;
+  const email = formData.get("email") as string;
+  const otpCode = formData.get("otpCode") as string;
 
   try {
     const supabase = await createClient();
+
+    // 1. If 6-digit OTP code + email is passed manually
+    if (otpCode && email) {
+      console.log("[updatePasswordAction] Verifying 6-digit OTP code for:", email);
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otpCode.trim(),
+        type: "recovery",
+      });
+
+      if (verifyError) {
+        console.error("[updatePasswordAction] verifyOtp with OTP code failed:", verifyError);
+        return {
+          success: false,
+          message: verifyError.message || "Invalid or expired 6-digit verification code.",
+        };
+      }
+    }
+    // 2. If a token_hash is passed directly via URL query parameter
+    else if (tokenHash) {
+      console.log("[updatePasswordAction] Verifying token_hash:", tokenHash);
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "recovery",
+      });
+
+      if (verifyError) {
+        console.error("[updatePasswordAction] verifyOtp failed:", verifyError);
+        return {
+          success: false,
+          message: verifyError.message || "The password reset token is invalid, expired, or already used.",
+        };
+      }
+    }
+
     const { error } = await supabase.auth.updateUser({
       password: password,
     });

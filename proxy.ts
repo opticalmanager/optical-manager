@@ -26,6 +26,13 @@ const publicRoutes = [
 ];
 
 export async function proxy(request: NextRequest) {
+  const errorCode = request.nextUrl.searchParams.get("error_code");
+  const errorParam = request.nextUrl.searchParams.get("error");
+  
+  if (errorCode === "otp_expired" || errorCode === "otp_disabled" || errorParam === "access_denied") {
+    return NextResponse.redirect(new URL("/reset-password?error=expired", request.url));
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -835,7 +835,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
                         <Mail className="w-4 h-4 text-slate-400" /> Email Notifications Routing
                       </h4>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">Control automated triggers via MailerSend SMTP system</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Control automated notification triggers via system email service</p>
                     </div>
 
                     <div className="space-y-4">

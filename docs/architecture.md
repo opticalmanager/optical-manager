@@ -20,8 +20,8 @@
                     │                                   │
                     ▼                                   ▼
 ┌───────────────────────────────────────┐ ┌─────────────────────────────────┐
-│            SUPABASE AUTH              │ │         MAILERSEND API          │
-│ SSR Cookie Sessions • JWT Tokens      │ │ Transactional Invoices & Alerts │
+│            SUPABASE AUTH              │ │       GMAIL SMTP SERVICE        │
+│ SSR Cookie Sessions • JWT Tokens      │ │ Nodemailer • Rate Limiter       │
 └───────────────────────────────────────┘ └─────────────────────────────────┘
                     │
                     ▼
@@ -63,7 +63,8 @@ The codebase cleanly separates mutation handling from data fetching:
   - `auth.service.ts`: User session retrieval (`getCurrentUser`) and profile verification.
   - `dashboard.service.ts`: Multi-period KPI telemetry calculations and revenue trajectory aggregations.
   - `inventory.service.ts`: Low stock query logic and SKU CRUD.
-  - `email.service.ts`: MailerSend API singleton client dispatching shop emails.
+  - `email.service.ts`: Nodemailer Gmail SMTP client with 3-tier rate limiting and AES-256 password encryption.
+  - `email-trigger.service.ts`: Non-blocking fire-and-forget event trigger service for automated email dispatches.
 - **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`) and invalidates Next.js cache using `revalidatePath`.
 
 ### 3. Database Connection & Pooling (`lib/drizzle.ts`)

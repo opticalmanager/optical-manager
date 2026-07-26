@@ -132,12 +132,11 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
     },
     {
       id: "communication",
-      title: "Communication",
+      title: "Utility Communication",
       icon: MessageSquare,
       tags: [
-        { id: "email_templates", label: "Email Templates", action: "route_comm" },
-        { id: "sms_templates", label: "SMS Templates", action: "route_comm" },
-        { id: "whatsapp_templates", label: "WhatsApp Templates", action: "route_comm" },
+        { id: "email_settings", label: "Email Settings", action: "route_email" },
+        { id: "whatsapp_settings", label: "WhatsApp Settings", action: "route_whatsapp" },
       ],
     },
     {
@@ -194,8 +193,14 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
       case "modal_tax":
         setActiveModal("tax");
         break;
+      case "route_email":
+        router.push("/owner/settings/email");
+        break;
+      case "route_whatsapp":
+        router.push("/owner/promotions");
+        break;
       case "route_comm":
-        router.push("/owner/settings/communication-settings/email");
+        router.push("/owner/settings/email");
         break;
       case "modal_access":
         setActiveModal("access");
