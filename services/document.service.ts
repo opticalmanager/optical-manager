@@ -39,6 +39,7 @@ export interface DocumentData {
   lineItems: LineItemWithInventory[];
   prescriptions: Prescription[];
   receipt?: Receipt | null;
+  allReceipts?: Receipt[];
   order?: Order | null;
 }
 
@@ -55,12 +56,16 @@ export async function getInvoiceDocumentData(
   if (!invoice) return null;
 
   // 2. Fetch all related entities in parallel for optimal latency
-  const [shop, customer, lineItems, prescriptions, orderRecord] = await Promise.all([
+  const [shop, customer, lineItems, prescriptions, orderRecord, receiptsList] = await Promise.all([
     getShopById(invoice.shopId, organizationId),
     getCustomerById(invoice.customerId, organizationId),
     db
       .select({
         id: invoiceItems.id,
+        invoiceId: invoiceItems.invoiceId,
+        inventoryId: invoiceItems.inventoryId,
+        shopId: invoiceItems.shopId,
+        organizationId: invoiceItems.organizationId,
         description: invoiceItems.description,
         quantity: invoiceItems.quantity,
         unitPrice: invoiceItems.unitPrice,
@@ -74,7 +79,6 @@ export async function getInvoiceDocumentData(
         igstPercent: invoiceItems.igstPercent,
         igstAmount: invoiceItems.igstAmount,
         createdAt: invoiceItems.createdAt,
-        inventoryId: invoiceItems.inventoryId,
         sku: inventory.sku,
         brand: inventory.brand,
         hsnCode: inventory.hsnCode,
@@ -93,6 +97,11 @@ export async function getInvoiceDocumentData(
       .where(and(eq(orders.invoiceId, invoice.id), eq(orders.organizationId, organizationId)))
       .limit(1)
       .then((rows) => rows[0] || null),
+    db
+      .select()
+      .from(receipts)
+      .where(and(eq(receipts.invoiceId, invoice.id), eq(receipts.organizationId, organizationId)))
+      .orderBy(receipts.createdAt),
   ]);
 
   return {
@@ -102,6 +111,7 @@ export async function getInvoiceDocumentData(
     lineItems,
     prescriptions,
     order: orderRecord,
+    allReceipts: receiptsList,
   };
 }
 

@@ -96,248 +96,120 @@ export default async function OwnerDashboardPage() {
       minQuantity: item.minQuantity
     }));
 
-  if (useMockData) {
-    // -------------------------------------------------------------
-    // Mock Data Fallbacks
-    // -------------------------------------------------------------
-    displayCustomersCount = 128;
-    displayShopsCount = 3;
-    displayStockCount = 542;
-    displayRevenue = 428450.00;
-    displayReceivables = 52180.00;
-    displayInvoiceVolume = 214;
+  // Helper for safe float parsing
+  const safeFloat = (val?: string | null) => {
+    if (!val) return 0;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
-    // Last 6 months trend
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-      // Simulate an increasing sales revenue curve
-      const simulatedRevenues = [55000, 68000, 72000, 88000, 94000, 110000];
-      revenueTrendData.push({
-        month: label,
-        revenue: simulatedRevenues[5 - i] || 80000,
-      });
+  displayRevenue = dbInvoices.reduce((acc, inv) => acc + safeFloat(inv.amountPaid), 0);
+  displayReceivables = dbInvoices.reduce((acc, inv) => acc + safeFloat(inv.balanceDue), 0);
+
+  // Compute rolling 6 months trend data dynamically
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthlyRevenueMap: { [key: string]: number } = {};
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    monthlyRevenueMap[label] = 0;
+  }
+
+  dbInvoices.forEach((inv) => {
+    if (!inv.createdAt) return;
+    const invDate = new Date(inv.createdAt);
+    if (isNaN(invDate.getTime())) return;
+    const label = `${monthNames[invDate.getMonth()]} ${invDate.getFullYear()}`;
+    if (monthlyRevenueMap[label] !== undefined) {
+      monthlyRevenueMap[label] += safeFloat(inv.amountPaid);
     }
+  });
 
-    // Allocation metrics
-    stockValuationData = [
-      { category: "FRAME", value: 125000.00, label: "Frames", color: "#4f46e5" },
-      { category: "LENS", value: 85000.00, label: "Lenses", color: "#10b981" },
-      { category: "CONTACT_LENS", value: 42000.00, label: "Contact Lenses", color: "#3b82f6" },
-      { category: "SOLUTION", value: 18000.00, label: "Solutions", color: "#f59e0b" },
-      { category: "ACCESSORY", value: 8500.00, label: "Accessories", color: "#a855f7" },
-    ];
+  revenueTrendData = Object.entries(monthlyRevenueMap).map(([month, revenue]) => ({
+    month,
+    revenue,
+  }));
 
-    // Branch Performance KPIs
-    shopPerformanceKPIs = [
-      {
-        id: "mock-s-1",
-        name: "Vision Care Bandra",
-        isActive: true,
-        salesCount: 98,
-        revenue: 210500.00,
-        stockCount: 214,
-      },
-      {
-        id: "mock-s-2",
-        name: "Optical Precision Andheri",
-        isActive: true,
-        salesCount: 82,
-        revenue: 165750.00,
-        stockCount: 198,
-      },
-      {
-        id: "mock-s-3",
-        name: "Colaba Eye Clinic",
-        isActive: true,
-        salesCount: 34,
-        revenue: 52200.00,
-        stockCount: 130,
-      },
-    ];
+  // Stock allocation
+  const valuationByCategory: { [key: string]: number } = {
+    FRAME: 0,
+    LENS: 0,
+    CONTACT_LENS: 0,
+    SOLUTION: 0,
+    ACCESSORY: 0,
+  };
 
-    // Low stock items
-    lowStockAlertsList = [
-      { id: "mock-ls-1", name: "Ray-Ban Aviator Classic (Gold)", category: "FRAME", quantity: 2, minQuantity: 5 },
-      { id: "mock-ls-2", name: "Crizal Prevencia Single Vision 1.56", category: "LENS", quantity: 1, minQuantity: 4 },
-      { id: "mock-ls-3", name: "Acuvue Oasys 2-Week (6 lenses)", category: "CONTACT_LENS", quantity: 3, minQuantity: 8 },
-      { id: "mock-ls-4", name: "Bausch & Lomb Biotrue Solution 300ml", category: "SOLUTION", quantity: 0, minQuantity: 5 }
-    ];
-
-    // Recent Transactions
-    recentTransactionsList = [
-      {
-        id: "mock-tx-1",
-        invoiceNumber: "INV-1-2026-0098",
-        customerName: "Arjun Mehta",
-        shopName: "Vision Care Bandra",
-        status: "PAID",
-        total: 4500.00,
-        amountPaid: 4500.00,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      },
-      {
-        id: "mock-tx-2",
-        invoiceNumber: "INV-2-2026-0082",
-        customerName: "Priya Sharma",
-        shopName: "Optical Precision Andheri",
-        status: "PENDING",
-        total: 6800.00,
-        amountPaid: 2000.00,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-      },
-      {
-        id: "mock-tx-3",
-        invoiceNumber: "INV-1-2026-0097",
-        customerName: "Rajesh Patel",
-        shopName: "Vision Care Bandra",
-        status: "PAID",
-        total: 3200.00,
-        amountPaid: 3200.00,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-      },
-      {
-        id: "mock-tx-4",
-        invoiceNumber: "INV-3-2026-0034",
-        customerName: "Sneha Reddy",
-        shopName: "Colaba Eye Clinic",
-        status: "PAID",
-        total: 1800.00,
-        amountPaid: 1800.00,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-      },
-      {
-        id: "mock-tx-5",
-        invoiceNumber: "INV-2-2026-0081",
-        customerName: "Amit Verma",
-        shopName: "Optical Precision Andheri",
-        status: "CANCELLED",
-        total: 5200.00,
-        amountPaid: 0.00,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 120).toISOString(),
-      },
-    ];
-  } else {
-    // -------------------------------------------------------------
-    // Real Calculations
-    // -------------------------------------------------------------
-    // Helper for safe float parsing
-    const safeFloat = (val?: string | null) => {
-      if (!val) return 0;
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? 0 : parsed;
-    };
-
-    displayRevenue = dbInvoices.reduce((acc, inv) => acc + safeFloat(inv.amountPaid), 0);
-    displayReceivables = dbInvoices.reduce((acc, inv) => acc + safeFloat(inv.balanceDue), 0);
-
-    // Compute rolling 6 months trend data dynamically
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const monthlyRevenueMap: { [key: string]: number } = {};
-
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-      monthlyRevenueMap[label] = 0;
+  dbInventory.forEach((item) => {
+    const val = (item.quantity || 0) * safeFloat(item.price);
+    const categoryKey = item.category ? item.category.toUpperCase() : "FRAME";
+    if (valuationByCategory[categoryKey] !== undefined) {
+      valuationByCategory[categoryKey] += val;
     }
+  });
 
-    dbInvoices.forEach((inv) => {
-      if (!inv.createdAt) return;
-      const invDate = new Date(inv.createdAt);
-      if (isNaN(invDate.getTime())) return;
-      const label = `${monthNames[invDate.getMonth()]} ${invDate.getFullYear()}`;
-      if (monthlyRevenueMap[label] !== undefined) {
-        monthlyRevenueMap[label] += safeFloat(inv.amountPaid);
-      }
-    });
+  const categoryColors: { [key: string]: string } = {
+    FRAME: "#4f46e5",
+    LENS: "#10b981",
+    CONTACT_LENS: "#3b82f6",
+    SOLUTION: "#f59e0b",
+    ACCESSORY: "#a855f7",
+  };
 
-    revenueTrendData = Object.entries(monthlyRevenueMap).map(([month, revenue]) => ({
-      month,
-      revenue,
-    }));
+  const categoryLabels: { [key: string]: string } = {
+    FRAME: "Frames",
+    LENS: "Lenses",
+    CONTACT_LENS: "Contact Lenses",
+    SOLUTION: "Solutions",
+    ACCESSORY: "Accessories",
+  };
 
-    // Stock allocation
-    const valuationByCategory: { [key: string]: number } = {
-      FRAME: 0,
-      LENS: 0,
-      CONTACT_LENS: 0,
-      SOLUTION: 0,
-      ACCESSORY: 0,
+  stockValuationData = Object.entries(valuationByCategory).map(([category, value]) => ({
+    category,
+    value,
+    label: categoryLabels[category] || category,
+    color: categoryColors[category] || "#94a3b8",
+  }));
+
+  // Shop branch KPIs
+  shopPerformanceKPIs = dbShops.map((shop) => {
+    const shopInvoices = dbInvoices.filter(inv => inv.shopId === shop.id);
+    const shopInventory = dbInventory.filter(item => item.shopId === shop.id);
+
+    return {
+      id: shop.id,
+      name: shop.name,
+      isActive: shop.isActive,
+      salesCount: shopInvoices.length,
+      revenue: shopInvoices.reduce((acc, inv) => acc + safeFloat(inv.amountPaid), 0),
+      stockCount: shopInventory.reduce((acc, item) => acc + (item.quantity || 0), 0),
     };
+  });
 
-    dbInventory.forEach((item) => {
-      const val = (item.quantity || 0) * safeFloat(item.price);
-      const categoryKey = item.category ? item.category.toUpperCase() : "FRAME";
-      if (valuationByCategory[categoryKey] !== undefined) {
-        valuationByCategory[categoryKey] += val;
-      }
-    });
-
-    const categoryColors: { [key: string]: string } = {
-      FRAME: "#4f46e5",
-      LENS: "#10b981",
-      CONTACT_LENS: "#3b82f6",
-      SOLUTION: "#f59e0b",
-      ACCESSORY: "#a855f7",
-    };
-
-    const categoryLabels: { [key: string]: string } = {
-      FRAME: "Frames",
-      LENS: "Lenses",
-      CONTACT_LENS: "Contact Lenses",
-      SOLUTION: "Solutions",
-      ACCESSORY: "Accessories",
-    };
-
-    stockValuationData = Object.entries(valuationByCategory).map(([category, value]) => ({
-      category,
-      value,
-      label: categoryLabels[category] || category,
-      color: categoryColors[category] || "#94a3b8",
-    }));
-
-    // Shop branch KPIs
-    shopPerformanceKPIs = dbShops.map((shop) => {
-      const shopInvoices = dbInvoices.filter(inv => inv.shopId === shop.id);
-      const shopInventory = dbInventory.filter(item => item.shopId === shop.id);
+  // Recent Transactions
+  recentTransactionsList = [...dbInvoices]
+    .sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    })
+    .slice(0, 5)
+    .map((inv) => {
+      const cust = dbCustomers.find(c => c.id === inv.customerId);
+      const sp = dbShops.find(s => s.id === inv.shopId);
 
       return {
-        id: shop.id,
-        name: shop.name,
-        isActive: shop.isActive,
-        salesCount: shopInvoices.length,
-        revenue: shopInvoices.reduce((acc, inv) => acc + safeFloat(inv.amountPaid), 0),
-        stockCount: shopInventory.reduce((acc, item) => acc + (item.quantity || 0), 0),
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        customerName: cust?.fullName || "Walk-in Customer",
+        shopName: sp?.name || "Main Branch",
+        status: inv.status,
+        total: safeFloat(inv.total),
+        amountPaid: safeFloat(inv.amountPaid),
+        createdAt: inv.createdAt || new Date(),
       };
     });
-
-    // Recent Transactions
-    recentTransactionsList = [...dbInvoices]
-      .sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeB - timeA;
-      })
-      .slice(0, 5)
-      .map((inv) => {
-        const cust = dbCustomers.find(c => c.id === inv.customerId);
-        const sp = dbShops.find(s => s.id === inv.shopId);
-
-        return {
-          id: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          customerName: cust?.fullName || "Walk-in Customer",
-          shopName: sp?.name || "Main Branch",
-          status: inv.status,
-          total: safeFloat(inv.total),
-          amountPaid: safeFloat(inv.amountPaid),
-          createdAt: inv.createdAt || new Date(),
-        };
-      });
-  }
 
   return (
     <div className="space-y-8 select-none">
@@ -351,13 +223,6 @@ export default async function OwnerDashboardPage() {
             Here&apos;s your multi-shop business performance report today.
           </p>
         </div>
-        
-        {useMockData && (
-          <div className="inline-flex shrink-0 self-start sm:self-center items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-150 shadow-inner">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-650 animate-pulse" />
-            Showing Demo Analytics (Database Empty)
-          </div>
-        )}
       </div>
 
       {/* Stats Cards Grid */}
@@ -366,7 +231,6 @@ export default async function OwnerDashboardPage() {
           title="Total Revenue"
           value={formatCurrency(displayRevenue)}
           icon={IndianRupee}
-          trend={useMockData ? { value: "14.2%", isPositive: true } : undefined}
           color="emerald"
           description="Collected cash payments"
         />
@@ -374,7 +238,6 @@ export default async function OwnerDashboardPage() {
           title="Sales Invoices"
           value={displayInvoiceVolume}
           icon={FileText}
-          trend={useMockData ? { value: "8.5%", isPositive: true } : undefined}
           color="indigo"
           description="Created invoice slips"
         />

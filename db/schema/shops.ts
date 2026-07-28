@@ -47,6 +47,9 @@ export const shops = pgTable("shops", {
     expenseVendors?: Array<{ name: string; contact?: string; phone?: string; email?: string; gstin?: string }>;
     pdfInvoiceTemplate?: "classic" | "elegant" | "compact";
     autoReportSchedule?: { type: "daily" | "weekly" | "off"; email?: string };
+    enableBankDetails?: boolean;
+    enableTerms?: boolean;
+    invoiceTermsNotes?: string;
     customerGroups?: string[];
     secondaryContacts?: Array<{ name: string; role: string; phone: string; email?: string }>;
   }>().default({}),

@@ -32,8 +32,8 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 └──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
 ```
 
-1. **Customer Selection**: Store Manager searches existing patients or registers a new patient in `/shop/patients/new`.
-2. **Prescription Recording**: Manager inputs SPH, CYL, Axis, and Addition values for Right (OD) and Left (OS) eyes under `/shop/prescriptions`.
+1. **Customer Selection**: Store Manager searches existing patients or registers a new patient in `/shop/patients/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
+2. **Prescription Recording**: Manager inputs SPH, CYL, Axis, V/N, and Addition diopter values for Right (OD) and Left (OS) eyes with smart optometry datalist suggestions, prescribed date tracking, and doctor attribution under `/shop/prescriptions`.
 3. **Line Item Assembly**: Manager adds optical inventory items (spectacle frame, anti-reflective lenses, cleaning kit) from `/shop/invoices/new`.
 4. **Checkout & Partial Payment**:
    - Applies GST rates (12% / 18%) and HSN codes (`9004` / `9001`).

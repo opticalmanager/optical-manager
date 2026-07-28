@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FileDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { SKUDetailsDropdown } from "./SKUDetailsDropdown";
 import { QuickEditModal } from "./QuickEditModal";
@@ -18,6 +18,164 @@ interface OrdersTableClientProps {
   timeframe: string;
   filter: string;
   limit: number;
+}
+
+function ReceiptsDropdown({
+  order,
+  isFullyPaid,
+}: {
+  order: OrderItem;
+  isFullyPaid: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const receiptsList = order.receipts || [];
+
+  // Sort receipts chronologically (oldest first -> Receipt 1, Receipt 2)
+  const chronologicalReceipts = [...receiptsList].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+  const latestReceipt = receiptsList[0] || null;
+
+  // Primary URL for single click
+  const primaryUrl = isFullyPaid
+    ? `/shop/invoices/${order.invoiceId}`
+    : latestReceipt
+    ? `/shop/receipts/${latestReceipt.id}`
+    : order.receiptId
+    ? `/shop/receipts/${order.receiptId}`
+    : `/shop/invoices/${order.invoiceId}`;
+
+  const hasDocuments = isFullyPaid || receiptsList.length > 0;
+
+  return (
+    <div className="relative inline-flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+      {/* Primary Icon Link */}
+      <Link
+        href={primaryUrl}
+        className={`p-1.5 rounded-lg flex items-center gap-1 transition-all ${
+          isFullyPaid
+            ? "text-emerald-600 hover:bg-emerald-50"
+            : "text-[#0a52c3] hover:bg-blue-50"
+        }`}
+        title={isFullyPaid ? "View Final Tax Invoice" : "View Payment Receipt"}
+      >
+        {isFullyPaid ? (
+          <FileCheck className="h-4 w-4 shrink-0" />
+        ) : (
+          <Receipt className="h-4 w-4 shrink-0" />
+        )}
+      </Link>
+
+      {/* Dropdown Toggle Button (Only for partially paid orders with receipts) */}
+      {!isFullyPaid && receiptsList.length > 0 && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(!isOpen);
+            }}
+            className={`p-1 rounded-md transition-all cursor-pointer border ${
+              isOpen
+                ? "bg-[#0a52c3] text-white border-[#0a52c3]"
+                : "bg-slate-50 text-slate-500 hover:text-slate-900 border-slate-200 hover:bg-slate-100"
+            }`}
+            title="View invoice & payment receipts list"
+          >
+            <ChevronDown className="h-3 w-3" />
+          </button>
+
+          {/* Popover Menu */}
+          {isOpen && (
+            <>
+              {/* Invisible overlay backdrop */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                }}
+              />
+
+              <div
+                className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl border border-slate-200/90 shadow-xl p-2.5 z-50 animate-in fade-in-50 zoom-in-95 text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <Receipt className="h-3 w-3 text-[#0a52c3]" />
+                    Order Documents
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {order.orderNumber}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                  {/* Tax Invoice Item (if Fully Paid) */}
+                  {isFullyPaid && (
+                    <Link
+                      href={`/shop/invoices/${order.invoiceId}`}
+                      className="block p-2 rounded-lg bg-emerald-50/60 hover:bg-emerald-100/60 border border-emerald-150 transition-all group/inv"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-emerald-800 flex items-center gap-1 group-hover/inv:underline">
+                          <FileCheck className="h-3.5 w-3.5 text-emerald-600" /> Tax Invoice
+                        </span>
+                        <span className="font-extrabold text-xs text-emerald-700">
+                          {formatCurrency(parseFloat(order.total))}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] font-semibold text-emerald-600/80 mt-1">
+                        <span>
+                          {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                        <span className="uppercase font-bold text-emerald-700">PAID IN FULL</span>
+                      </div>
+                    </Link>
+                  )}
+
+                  {/* Receipt Items (Receipt 1, Receipt 2, etc.) */}
+                  {chronologicalReceipts.map((r, idx) => (
+                    <Link
+                      key={r.id}
+                      href={`/shop/receipts/${r.id}`}
+                      className="block p-2 rounded-lg bg-slate-50/70 hover:bg-blue-50/60 border border-slate-100 hover:border-blue-150 transition-all group/rcp"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-[#0a52c3] group-hover/rcp:underline flex items-center gap-1">
+                          <Receipt className="h-3.5 w-3.5 text-[#0a52c3]" />
+                          Receipt {idx + 1}
+                        </span>
+                        <span className="font-extrabold text-xs text-slate-900">
+                          {formatCurrency(parseFloat(r.amountPaid))}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] font-semibold text-slate-400 mt-1">
+                        <span>
+                          {new Date(r.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                        <span className="uppercase text-slate-500 font-bold">{r.paymentMethod}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function OrdersTableClient({
@@ -54,7 +212,7 @@ export function OrdersTableClient({
               <th className="px-4 py-2.5">Amount</th>
               <th className="px-4 py-2.5 text-center">Payment Status</th>
               <th className="px-4 py-2.5 text-center">Delivery Status</th>
-              <th className="px-4 py-2.5 text-center">Invoice/Receipt</th>
+              <th className="px-4 py-2.5 text-center">Invoice / Receipts</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
@@ -66,11 +224,7 @@ export function OrdersTableClient({
                   order.estimatedDelivery &&
                   order.estimatedDelivery < new Date().toISOString().split("T")[0];
 
-                // Link download triggers to invoice or receipt
-                const isPartial = parseFloat(order.balanceDue) > 0 && parseFloat(order.amountPaid) > 0;
-                const printUrl = isPartial && order.receiptId
-                  ? `/shop/receipts/${order.receiptId}`
-                  : `/shop/invoices/${order.invoiceId}`;
+                const isFullyPaid = parseFloat(order.balanceDue) === 0;
 
                 return (
                   <tr
@@ -126,13 +280,13 @@ export function OrdersTableClient({
                     {/* Payment Status */}
                     <td className="px-4 py-2.5 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                        parseFloat(order.balanceDue) === 0
+                        isFullyPaid
                           ? "bg-emerald-50 text-emerald-600 border-emerald-100"
                           : parseFloat(order.amountPaid) > 0
                           ? "bg-amber-50 text-amber-600 border-amber-100"
                           : "bg-rose-50 text-rose-600 border-rose-100"
                       }`}>
-                        {parseFloat(order.balanceDue) === 0 ? "PAID" : "PARTIALLY PAID"}
+                        {isFullyPaid ? "PAID" : "PARTIALLY PAID"}
                       </span>
                     </td>
 
@@ -160,15 +314,9 @@ export function OrdersTableClient({
                       )}
                     </td>
 
-                    {/* Invoice/Receipt Download/Print link */}
+                    {/* Invoice/Receipt Download/Print link with Dropdown */}
                     <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={printUrl}
-                        className="p-1 rounded-lg inline-block text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 transition-colors"
-                        title="Print slip"
-                      >
-                        <FileDown className="h-4 w-4" />
-                      </Link>
+                      <ReceiptsDropdown order={order} isFullyPaid={isFullyPaid} />
                     </td>
                   </tr>
                 );

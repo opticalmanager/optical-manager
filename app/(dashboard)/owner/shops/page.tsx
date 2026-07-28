@@ -16,27 +16,5 @@ export default async function OwnerShopsPage() {
     dbShops = shopsRes.data || [];
   }
 
-  const hasRealShops = dbShops.length > 0;
-
-  // Fallback demo data if database shops list is empty
-  const displayShops = hasRealShops
-    ? dbShops
-    : [
-        {
-          id: "mock-s1",
-          name: "dhaba opticals",
-          address: "Main Road, Central Market",
-          phone: "+91 98765 43210",
-          email: "testuser12@gmail.com",
-          isActive: true,
-          manager: {
-            id: "mock-m1",
-            email: "testuser12@gmail.com",
-            fullName: "dhaba opticals Manager",
-            isActive: true,
-          },
-        },
-      ];
-
-  return <OwnerShopsClient initialShops={displayShops} />;
+  return <OwnerShopsClient initialShops={dbShops} />;
 }

@@ -109,7 +109,7 @@ export async function registerPatientAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: new Date().toISOString().split("T")[0],
+            prescribedAt: data.prescribedAt || new Date().toISOString().split("T")[0],
           });
         }
 
@@ -141,7 +141,7 @@ export async function registerPatientAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: new Date().toISOString().split("T")[0],
+            prescribedAt: data.prescribedAt || new Date().toISOString().split("T")[0],
           });
         }
       }
@@ -302,7 +302,7 @@ export async function registerPatientAndInvoiceAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: new Date().toISOString().split("T")[0],
+            prescribedAt: data.prescribedAt || new Date().toISOString().split("T")[0],
           });
         }
 
@@ -333,7 +333,7 @@ export async function registerPatientAndInvoiceAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: new Date().toISOString().split("T")[0],
+            prescribedAt: data.prescribedAt || new Date().toISOString().split("T")[0],
           });
         }
       }
@@ -510,6 +510,16 @@ export async function registerPatientAndInvoiceAction(
         receiptNumber: result.receipt?.receiptNumber || null,
         total: result.invoice.total,
         balanceDue: result.invoice.balanceDue,
+        invoice: {
+          id: result.invoice.id,
+          invoiceNumber: result.invoice.invoiceNumber,
+        },
+        receipt: result.receipt
+          ? {
+              id: result.receipt.id,
+              receiptNumber: result.receipt.receiptNumber,
+            }
+          : null,
       },
     };
   } catch (error: any) {
@@ -822,6 +832,168 @@ export async function updatePatientAction(
     return {
       success: false,
       message: error.message || "Failed to update patient profile.",
+    };
+  }
+}
+
+/**
+ * Server action to fetch clinical suggestions (Referred By & Prescribed By Doctors).
+ */
+export async function getClinicalSuggestionsAction(): Promise<{
+  success: boolean;
+  referredByList: string[];
+  doctorNameList: string[];
+}> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, referredByList: [], doctorNameList: [] };
+    }
+
+    const { getClinicalSuggestions } = await import("@/services/customer.service");
+    const data = await getClinicalSuggestions(user.organizationId);
+
+    return {
+      success: true,
+      ...data,
+    };
+  } catch (error) {
+    console.error("Error in getClinicalSuggestionsAction:", error);
+    return { success: false, referredByList: [], doctorNameList: [] };
+  }
+}
+
+/**
+ * Server action to save a new optical prescription for an existing patient.
+ */
+export async function savePatientPrescriptionAction(payload: {
+  customerId: string;
+  doctorName?: string;
+  prescribedAt?: string;
+  prescriptionNotes?: string;
+  partyName?: string;
+  frameName?: string;
+  distanceEnabled: boolean;
+  nearEnabled: boolean;
+  distancePrescription?: {
+    rightSphere?: string;
+    rightCylinder?: string;
+    rightAxis?: string;
+    rightAdd?: string;
+    rightNv?: string;
+    leftSphere?: string;
+    leftCylinder?: string;
+    leftAxis?: string;
+    leftAdd?: string;
+    leftNv?: string;
+    pd?: string;
+  };
+  nearPrescription?: {
+    rightSphere?: string;
+    rightCylinder?: string;
+    rightAxis?: string;
+    rightAdd?: string;
+    rightNv?: string;
+    leftSphere?: string;
+    leftCylinder?: string;
+    leftAxis?: string;
+    leftAdd?: string;
+    leftNv?: string;
+    pd?: string;
+  };
+}): Promise<ActionResponse> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized." };
+    }
+
+    const shopId = user.shopId;
+    if (!shopId) {
+      return { success: false, message: "No shop associated with your session." };
+    }
+
+    const { customerId, distanceEnabled, nearEnabled, distancePrescription, nearPrescription, doctorName, prescribedAt, prescriptionNotes, partyName, frameName } = payload;
+
+    if (!customerId) {
+      return { success: false, message: "Invalid customer ID." };
+    }
+
+    if (!distanceEnabled && !nearEnabled) {
+      return { success: false, message: "Please enable at least Distance Vision or Near Vision prescription." };
+    }
+
+    const pDate = prescribedAt || new Date().toISOString().split("T")[0];
+
+    await db.transaction(async (tx) => {
+      if (distanceEnabled && distancePrescription) {
+        const dp = distancePrescription;
+        await tx.insert(prescriptions).values({
+          customerId,
+          shopId,
+          organizationId: user.organizationId!,
+          prescriptionType: "DISTANCE",
+          rightSphere: dp.rightSphere || null,
+          rightCylinder: dp.rightCylinder || null,
+          rightAxis: dp.rightAxis || null,
+          rightAdd: dp.rightAdd || null,
+          rightNv: dp.rightNv || null,
+          leftSphere: dp.leftSphere || null,
+          leftCylinder: dp.leftCylinder || null,
+          leftAxis: dp.leftAxis || null,
+          leftAdd: dp.leftAdd || null,
+          leftNv: dp.leftNv || null,
+          pd: dp.pd || null,
+          doctorName: doctorName || null,
+          partyName: partyName || null,
+          frameName: frameName || null,
+          notes: prescriptionNotes || null,
+          prescribedBy: doctorName || null,
+          prescribedAt: pDate,
+        });
+      }
+
+      if (nearEnabled && nearPrescription) {
+        const np = nearPrescription;
+        await tx.insert(prescriptions).values({
+          customerId,
+          shopId,
+          organizationId: user.organizationId!,
+          prescriptionType: "NEAR",
+          rightSphere: np.rightSphere || null,
+          rightCylinder: np.rightCylinder || null,
+          rightAxis: np.rightAxis || null,
+          rightAdd: np.rightAdd || null,
+          rightNv: np.rightNv || null,
+          leftSphere: np.leftSphere || null,
+          leftCylinder: np.leftCylinder || null,
+          leftAxis: np.leftAxis || null,
+          leftAdd: np.leftAdd || null,
+          leftNv: np.leftNv || null,
+          pd: np.pd || null,
+          doctorName: doctorName || null,
+          partyName: partyName || null,
+          frameName: frameName || null,
+          notes: prescriptionNotes || null,
+          prescribedBy: doctorName || null,
+          prescribedAt: pDate,
+        });
+      }
+    });
+
+    revalidatePath(`/shop/customers/${customerId}`);
+    revalidatePath(`/shop/customers`);
+    revalidatePath(`/shop/prescriptions`);
+
+    return {
+      success: true,
+      message: "Optical prescription recorded successfully.",
+    };
+  } catch (error: any) {
+    console.error("Error saving patient prescription:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to save prescription.",
     };
   }
 }

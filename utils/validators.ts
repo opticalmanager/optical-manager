@@ -57,7 +57,7 @@ export const createShopSchema = z.object({
   address: z.string().optional(),
   phone: z
     .string()
-    .regex(/^[+]?[\d\s()-]{7,20}$/, "Please enter a valid phone number.")
+    .regex(/^(\+91[\s-]?)?[6-9]\d{9}$|^[0-9]{10}$/, "Please enter a valid 10-digit mobile number.")
     .optional()
     .or(z.literal("")),
   email: z.string().email("Please enter a valid email.").optional().or(z.literal("")),
@@ -80,10 +80,10 @@ export const customerSchema = z.object({
   email: z.string().email("Invalid email address.").optional().or(z.literal("")),
   phone: z
     .string()
-    .min(7, "Phone number must be at least 7 digits.")
-    .max(20)
-    .trim(),
+    .trim()
+    .regex(/^(\+91[\s-]?)?[6-9]\d{9}$|^[0-9]{10}$/, "Please enter a valid 10-digit mobile number."),
   dateOfBirth: z.string().optional().or(z.literal("")),
+  age: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
   city: z.string().optional().or(z.literal("")),
   state: z.string().optional().or(z.literal("")),
@@ -481,6 +481,7 @@ export const patientVisitSchema = z.object({
   distancePrescription: prescriptionRowSchema.optional(),
   nearPrescription: prescriptionRowSchema.optional(),
   doctorName: z.string().optional().or(z.literal("")),
+  prescribedAt: z.string().optional().or(z.literal("")),
   partyName: z.string().optional().or(z.literal("")),
   frameName: z.string().optional().or(z.literal("")),
   estimatedDelivery: z.string().optional().or(z.literal("")),

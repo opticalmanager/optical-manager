@@ -24,6 +24,8 @@ interface CustomerDashboardItem {
   registrationId: string | null;
   phone: string;
   email: string | null;
+  referredBy?: string | null;
+  doctorName?: string | null;
   lastVisitDate: Date | string;
   orderStatus: "READY" | "PROCESSING" | "DELIVERED" | "ON_HOLD";
   pendingDues: number;
@@ -67,14 +69,33 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [referredFilter, setReferredFilter] = useState<string>("ALL");
+  const [doctorFilter, setDoctorFilter] = useState<string>("ALL");
   const [duesFilter, setDuesFilter] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Extract distinct referredBy and doctorName values for filter dropdowns
+  const uniqueReferredByList = useMemo(() => {
+    const set = new Set<string>();
+    initialCustomers.forEach((c) => {
+      if (c.referredBy?.trim()) set.add(c.referredBy.trim());
+    });
+    return Array.from(set).sort();
+  }, [initialCustomers]);
+
+  const uniqueDoctorList = useMemo(() => {
+    const set = new Set<string>();
+    initialCustomers.forEach((c) => {
+      if (c.doctorName?.trim()) set.add(c.doctorName.trim());
+    });
+    return Array.from(set).sort();
+  }, [initialCustomers]);
+
   // Reset page on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, duesFilter]);
+  }, [searchQuery, statusFilter, referredFilter, doctorFilter, duesFilter]);
 
   // Sync Search Query from global URL if any (e.g. if they searched from Topbar)
   useEffect(() => {
@@ -87,7 +108,7 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
   const filteredCustomers = useMemo(() => {
     let result = [...initialCustomers];
 
-    // Search query
+    // Search query (fullName, regId, phone, email, referredBy, doctorName)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
@@ -95,7 +116,9 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
           c.fullName.toLowerCase().includes(q) ||
           (c.registrationId || "").toLowerCase().includes(q) ||
           c.phone.includes(q) ||
-          (c.email || "").toLowerCase().includes(q)
+          (c.email || "").toLowerCase().includes(q) ||
+          (c.referredBy || "").toLowerCase().includes(q) ||
+          (c.doctorName || "").toLowerCase().includes(q)
       );
     }
 
@@ -104,13 +127,23 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
       result = result.filter((c) => c.orderStatus === statusFilter);
     }
 
+    // Referred By filter
+    if (referredFilter !== "ALL") {
+      result = result.filter((c) => (c.referredBy || "").trim() === referredFilter);
+    }
+
+    // Doctor filter
+    if (doctorFilter !== "ALL") {
+      result = result.filter((c) => (c.doctorName || "").trim() === doctorFilter);
+    }
+
     // Dues filter
     if (duesFilter) {
       result = result.filter((c) => c.pendingDues > 0);
     }
 
     return result;
-  }, [initialCustomers, searchQuery, statusFilter, duesFilter]);
+  }, [initialCustomers, searchQuery, statusFilter, referredFilter, doctorFilter, duesFilter]);
 
   // Pagination calculations
   const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE));
@@ -233,6 +266,44 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
                     </select>
                   </div>
 
+                  {/* Referred By Filter */}
+                  {uniqueReferredByList.length > 0 && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Referred By</label>
+                      <select
+                        value={referredFilter}
+                        onChange={(e) => setReferredFilter(e.target.value)}
+                        className="w-full h-9 px-3 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none bg-white cursor-pointer"
+                      >
+                        <option value="ALL">All Referrals</option>
+                        {uniqueReferredByList.map((refName) => (
+                          <option key={refName} value={refName}>
+                            {refName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Prescribed By Doctor Filter */}
+                  {uniqueDoctorList.length > 0 && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Prescribed By Doctor</label>
+                      <select
+                        value={doctorFilter}
+                        onChange={(e) => setDoctorFilter(e.target.value)}
+                        className="w-full h-9 px-3 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none bg-white cursor-pointer"
+                      >
+                        <option value="ALL">All Doctors</option>
+                        {uniqueDoctorList.map((drName) => (
+                          <option key={drName} value={drName}>
+                            {drName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Outstanding balance switch */}
                   <div className="flex items-center justify-between pt-1">
                     <div>
@@ -248,10 +319,12 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
                   </div>
 
                   {/* Reset Filters */}
-                  {(statusFilter !== "ALL" || duesFilter) && (
+                  {(statusFilter !== "ALL" || referredFilter !== "ALL" || doctorFilter !== "ALL" || duesFilter) && (
                     <button
                       onClick={() => {
                         setStatusFilter("ALL");
+                        setReferredFilter("ALL");
+                        setDoctorFilter("ALL");
                         setDuesFilter(false);
                         setShowFilters(false);
                       }}

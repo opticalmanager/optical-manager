@@ -13,6 +13,8 @@ import {
   updateOrderStatusAction,
   generateFullPaymentInvoiceAction,
   sendRescheduledDeliveryEmailAction,
+  recordPartialPaymentAction,
+  settleDuesWithDiscountAction,
 } from "@/actions/order.actions";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
@@ -34,15 +36,22 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
   // Get current date string in local YYYY-MM-DD
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Component local states
+// Component local states
   const isPaidInitially = parseFloat(order.balanceDue) === 0;
-  const [paymentStatus, setPaymentStatus] = useState<"PAID" | "PARTIALLY_PAID">(
-    isPaidInitially ? "PAID" : "PARTIALLY_PAID"
-  );
+  const [paymentStatus, setPaymentStatus] = useState<
+    "PAID" | "PARTIALLY_PAID" | "RECORD_PARTIAL_PAYMENT" | "SETTLE_WITH_DISCOUNT"
+  >(isPaidInitially ? "PAID" : "PARTIALLY_PAID");
+
   const [paymentMethod, setPaymentMethod] = useState<
     "CASH" | "CARD" | "UPI" | "BANK_TRANSFER"
   >((order.paymentMethod as any) || "CASH");
   const [paymentReference, setPaymentReference] = useState("");
+
+  // New Partial & Settlement local states
+  const balanceDueNum = parseFloat(order.balanceDue || "0");
+  const [partialAmount, setPartialAmount] = useState<string>("");
+  const [settleAmountReceived, setSettleAmountReceived] = useState<string>("");
+  const [settleDiscount, setSettleDiscount] = useState<string>("");
 
   const [fulfillmentStatus, setFulfillmentStatus] = useState<
     "PROCESSING" | "READY" | "DELIVERED" | "ON_HOLD"
@@ -61,9 +70,12 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     setPaymentStatus(isPaidInitially ? "PAID" : "PARTIALLY_PAID");
     setPaymentMethod((order.paymentMethod as any) || "CASH");
     setPaymentReference("");
+    setPartialAmount("");
+    setSettleAmountReceived(balanceDueNum > 0 ? balanceDueNum.toFixed(2) : "0.00");
+    setSettleDiscount("0.00");
     setFulfillmentStatus(order.fulfillmentStatus as any);
     setEstimatedDelivery(order.estimatedDelivery || "");
-  }, [order, isPaidInitially]);
+  }, [order, isPaidInitially, balanceDueNum]);
 
   useEffect(() => {
     setMounted(true);
@@ -245,6 +257,100 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     });
   };
 
+  // Handle Recording Partial Payment / Deposit
+  const handleRecordPartialPayment = () => {
+    const amount = parseFloat(partialAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid partial payment amount (e.g. ₹500).");
+      return;
+    }
+    if (amount > balanceDueNum + 0.01) {
+      toast.error(`Payment amount (₹${amount.toFixed(2)}) cannot exceed remaining balance due (₹${balanceDueNum.toFixed(2)}).`);
+      return;
+    }
+
+    startInvoiceTransition(async () => {
+      try {
+        const res = await recordPartialPaymentAction(order.invoiceId, {
+          amountPaid: amount,
+          paymentMethod,
+          transactionId: paymentReference || undefined,
+        });
+
+        if (res.success) {
+          toast.success(res.message);
+          router.refresh();
+          onClose();
+          if (res.redirectUrl) {
+            router.push(res.redirectUrl);
+          }
+        } else {
+          toast.error(res.message);
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to record partial payment.");
+      }
+    });
+  };
+
+  // Synchronized inputs for Settle with Discount
+  const handleSettleAmountChange = (val: string) => {
+    setSettleAmountReceived(val);
+    const num = parseFloat(val);
+    if (!isNaN(num) && num >= 0 && num <= balanceDueNum) {
+      setSettleDiscount((balanceDueNum - num).toFixed(2));
+    }
+  };
+
+  const handleSettleDiscountChange = (val: string) => {
+    setSettleDiscount(val);
+    const disc = parseFloat(val);
+    if (!isNaN(disc) && disc >= 0 && disc <= balanceDueNum) {
+      setSettleAmountReceived((balanceDueNum - disc).toFixed(2));
+    }
+  };
+
+  // Handle Settlement with Discount
+  const handleSettleWithDiscount = () => {
+    const amtRec = parseFloat(settleAmountReceived) || 0;
+    const disc = parseFloat(settleDiscount) || 0;
+
+    if (amtRec < 0 || disc < 0) {
+      toast.error("Amount received and discount must be positive numbers.");
+      return;
+    }
+
+    const totalSettled = amtRec + disc;
+    if (Math.abs(totalSettled - balanceDueNum) > 0.05) {
+      toast.error(`Total settlement (₹${amtRec.toFixed(2)} paid + ₹${disc.toFixed(2)} discount = ₹${totalSettled.toFixed(2)}) must equal balance due (₹${balanceDueNum.toFixed(2)}).`);
+      return;
+    }
+
+    startInvoiceTransition(async () => {
+      try {
+        const res = await settleDuesWithDiscountAction(order.invoiceId, {
+          amountReceived: amtRec,
+          discountAmount: disc,
+          paymentMethod,
+          transactionId: paymentReference || undefined,
+        });
+
+        if (res.success) {
+          toast.success(res.message);
+          router.refresh();
+          onClose();
+          if (res.redirectUrl) {
+            router.push(res.redirectUrl);
+          }
+        } else {
+          toast.error(res.message);
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to settle dues with discount.");
+      }
+    });
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-55 flex items-center justify-center p-4">
       {/* Overlay */}
@@ -307,7 +413,9 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                         className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all cursor-pointer shadow-sm disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed appearance-none"
                       >
                         <option value="PARTIALLY_PAID">Partially Paid</option>
-                        <option value="PAID">Paid</option>
+                        <option value="RECORD_PARTIAL_PAYMENT">Record Partial Payment / Deposit</option>
+                        <option value="SETTLE_WITH_DISCOUNT">Settle Dues with Discount</option>
+                        <option value="PAID">Paid (Full Balance)</option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
                         <ChevronDown className="h-4 w-4" />
@@ -315,6 +423,204 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                     </div>
                   </div>
 
+                  {/* 1. Default Partially Paid View */}
+                  {paymentStatus === "PARTIALLY_PAID" && !isPaidInitially && (
+                    <div className="p-3.5 bg-amber-50/50 border border-amber-200/60 rounded-xl space-y-1.5 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                        <span>Current Outstanding Balance:</span>
+                        <span className="text-sm font-extrabold text-rose-600">
+                          ₹{balanceDueNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-medium text-slate-500 leading-snug">
+                        Select <span className="font-bold text-slate-700">"Record Partial Payment"</span> to add a deposit or <span className="font-bold text-slate-700">"Settle Dues with Discount"</span> to close balance.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 2. Record Partial Payment View */}
+                  {paymentStatus === "RECORD_PARTIAL_PAYMENT" && !isPaidInitially && (
+                    <div className="space-y-3 bg-blue-50/30 p-3.5 rounded-xl border border-blue-100/80 animate-in slide-in-from-top-1 duration-200">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700">
+                            New Partial Payment Amount (₹)
+                          </label>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">
+                            Max: ₹{balanceDueNum.toFixed(2)}
+                          </span>
+                        </div>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder={`e.g. 500 (Max ₹${balanceDueNum.toFixed(2)})`}
+                          value={partialAmount}
+                          onChange={(e) => setPartialAmount(e.target.value)}
+                          disabled={isInvoicePending}
+                          className="h-10 text-sm font-extrabold text-slate-900 rounded-xl border-slate-200 bg-white"
+                        />
+                      </div>
+
+                      {/* Remaining Dues Live Indicator */}
+                      {partialAmount && !isNaN(parseFloat(partialAmount)) && (
+                        <div className="flex items-center justify-between text-xs font-bold px-3 py-2 bg-white rounded-lg border border-slate-200/80">
+                          <span className="text-slate-500">Remaining Balance:</span>
+                          <span className="font-extrabold text-[#0a52c3]">
+                            ₹{Math.max(0, balanceDueNum - (parseFloat(partialAmount) || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700">
+                          Payment Method
+                        </label>
+                        <div className="relative">
+                          <select
+                            disabled={isInvoicePending}
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value as any)}
+                            className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all cursor-pointer shadow-sm appearance-none"
+                          >
+                            <option value="CASH">Cash</option>
+                            <option value="CARD">Card</option>
+                            <option value="UPI">UPI</option>
+                            <option value="BANK_TRANSFER">Bank Transfer</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                            <ChevronDown className="h-4 w-4" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700">
+                          Payment Reference / Txn ID
+                        </label>
+                        <Input
+                          placeholder="e.g. UPI/12345 (optional)"
+                          value={paymentReference}
+                          onChange={(e) => setPaymentReference(e.target.value)}
+                          disabled={isInvoicePending}
+                          className="h-9 text-xs font-semibold rounded-xl border-slate-200 bg-white"
+                        />
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={handleRecordPartialPayment}
+                        disabled={isInvoicePending}
+                        className="w-full bg-[#0a52c3] hover:bg-[#004bb5] text-white font-extrabold text-xs h-10 rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all border-none cursor-pointer mt-2"
+                      >
+                        {isInvoicePending ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Recording Payment...
+                          </>
+                        ) : (
+                          "Record Payment & Generate Receipt"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* 3. Settle Dues with Discount View */}
+                  {paymentStatus === "SETTLE_WITH_DISCOUNT" && !isPaidInitially && (
+                    <div className="space-y-3 bg-emerald-50/30 p-3.5 rounded-xl border border-emerald-100/80 animate-in slide-in-from-top-1 duration-200">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700">
+                            Amount Received (₹)
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={settleAmountReceived}
+                            onChange={(e) => handleSettleAmountChange(e.target.value)}
+                            disabled={isInvoicePending}
+                            className="h-10 text-sm font-extrabold text-emerald-800 rounded-xl border-slate-200 bg-white"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700">
+                            Discount / Waiver (₹)
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={settleDiscount}
+                            onChange={(e) => handleSettleDiscountChange(e.target.value)}
+                            disabled={isInvoicePending}
+                            className="h-10 text-sm font-extrabold text-rose-700 rounded-xl border-slate-200 bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Settlement Summary */}
+                      <div className="text-[11px] font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200/80 flex items-center justify-between">
+                        <span>Settlement Total:</span>
+                        <span className="font-black text-slate-900">
+                          ₹{(parseFloat(settleAmountReceived) || 0).toFixed(2)} Paid + ₹{(parseFloat(settleDiscount) || 0).toFixed(2)} Disc
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700">
+                          Payment Method
+                        </label>
+                        <div className="relative">
+                          <select
+                            disabled={isInvoicePending}
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value as any)}
+                            className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all cursor-pointer shadow-sm appearance-none"
+                          >
+                            <option value="CASH">Cash</option>
+                            <option value="CARD">Card</option>
+                            <option value="UPI">UPI</option>
+                            <option value="BANK_TRANSFER">Bank Transfer</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                            <ChevronDown className="h-4 w-4" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700">
+                          Payment Reference / Txn ID
+                        </label>
+                        <Input
+                          placeholder="e.g. UPI/12345 (optional)"
+                          value={paymentReference}
+                          onChange={(e) => setPaymentReference(e.target.value)}
+                          disabled={isInvoicePending}
+                          className="h-9 text-xs font-semibold rounded-xl border-slate-200 bg-white"
+                        />
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={handleSettleWithDiscount}
+                        disabled={isInvoicePending}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs h-10 rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all border-none cursor-pointer mt-2"
+                      >
+                        {isInvoicePending ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Settling Dues...
+                          </>
+                        ) : (
+                          "Settle Dues & Generate Final Invoice"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* 4. Pay Full Balance View */}
                   {paymentStatus === "PAID" && !isPaidInitially && (
                     <div className="space-y-4 animate-in slide-in-from-top-1 duration-200">
                       <div className="space-y-1.5">
@@ -362,6 +668,7 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                           </span>
                         </div>
                         <Button
+                          type="button"
                           onClick={handleGenerateInvoice}
                           disabled={isInvoicePending}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs h-10 px-4 rounded-xl flex items-center gap-1.5 shadow-sm transition-colors border-none cursor-pointer"
@@ -390,7 +697,7 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                     </div>
                   )}
 
-                  {paymentStatus === "PAID" && (
+                  {(paymentStatus === "PAID" || isPaidInitially) && (
                     <Button
                       type="button"
                       onClick={() => handleSendWhatsApp("invoice_sent")}

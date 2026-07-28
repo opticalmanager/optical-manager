@@ -183,6 +183,7 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
     .select({
       customerId: prescriptions.customerId,
       maxPrescriptionDate: sql`max(${prescriptions.createdAt})`.as("max_prescription_date"),
+      latestDoctorName: sql`(array_agg(${prescriptions.doctorName} order by ${prescriptions.createdAt} desc))[1]`.as("latest_doctor_name"),
     })
     .from(prescriptions)
     .groupBy(prescriptions.customerId)
@@ -197,11 +198,13 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
       fullName: customers.fullName,
       email: customers.email,
       phone: customers.phone,
+      referredBy: customers.referredBy,
       createdAt: customers.createdAt,
       maxInvoiceDate: lastInvoiceSubquery.maxInvoiceDate,
       latestFulfillmentStatus: lastInvoiceSubquery.latestFulfillmentStatus,
       pendingDues: lastInvoiceSubquery.pendingDues,
       maxPrescriptionDate: lastPrescriptionSubquery.maxPrescriptionDate,
+      latestDoctorName: lastPrescriptionSubquery.latestDoctorName,
     })
     .from(customers)
     .leftJoin(lastInvoiceSubquery, eq(customers.id, lastInvoiceSubquery.customerId))
@@ -227,11 +230,51 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
       fullName: row.fullName,
       email: row.email,
       phone: row.phone,
+      referredBy: row.referredBy || null,
+      doctorName: (row.latestDoctorName as string) || null,
       lastVisitDate,
       orderStatus: (row.latestFulfillmentStatus as string) || "DELIVERED",
       pendingDues: Number(row.pendingDues || 0),
     };
   });
+}
+
+/**
+ * Fetch distinct Referred By and Doctor Name values for autocomplete suggestions.
+ */
+export async function getClinicalSuggestions(organizationId: string): Promise<{
+  referredByList: string[];
+  doctorNameList: string[];
+}> {
+  const [referredRows, doctorRows] = await Promise.all([
+    db
+      .selectDistinct({ name: customers.referredBy })
+      .from(customers)
+      .where(
+        and(
+          eq(customers.organizationId, organizationId),
+          sql`${customers.referredBy} IS NOT NULL AND ${customers.referredBy} != ''`
+        )
+      ),
+    db
+      .selectDistinct({ name: prescriptions.doctorName })
+      .from(prescriptions)
+      .where(
+        and(
+          eq(prescriptions.organizationId, organizationId),
+          sql`${prescriptions.doctorName} IS NOT NULL AND ${prescriptions.doctorName} != ''`
+        )
+      ),
+  ]);
+
+  const referredByList = referredRows
+    .map((r) => r.name)
+    .filter((n): n is string => Boolean(n));
+  const doctorNameList = doctorRows
+    .map((r) => r.name)
+    .filter((n): n is string => Boolean(n));
+
+  return { referredByList, doctorNameList };
 }
 
 /**

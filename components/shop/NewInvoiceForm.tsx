@@ -3,13 +3,27 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
+  calculateAgeFromDOB,
+  calculateDOBFromAge,
+  formatDiopterValue,
+  formatAxisValue,
+  SPH_OPTIONS,
+  CYL_OPTIONS,
+  AXIS_OPTIONS,
+  DISTANCE_VN_OPTIONS,
+  NEAR_VN_OPTIONS,
+  ADD_OPTIONS,
+} from "@/utils/optometry";
+import {
   registerPatientAndInvoiceAction,
   getNextRegistrationIdAction,
   getPatientDetailsAction,
+  getClinicalSuggestionsAction,
 } from "@/actions/patient.actions";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteInput";
 import {
   ArrowLeft,
   ChevronDown,
@@ -110,7 +124,27 @@ export function NewInvoiceForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  // Date of Birth & Age Sync
   const [dob, setDob] = useState("");
+  const [age, setAge] = useState("");
+  const [prescribedAt, setPrescribedAt] = useState(new Date().toISOString().split("T")[0]);
+
+  const handleDobChange = (dobVal: string) => {
+    setDob(dobVal);
+    if (dobVal) {
+      setAge(calculateAgeFromDOB(dobVal));
+    } else {
+      setAge("");
+    }
+  };
+
+  const handleAgeChange = (ageVal: string) => {
+    setAge(ageVal);
+    if (ageVal) {
+      const calcDOB = calculateDOBFromAge(ageVal);
+      if (calcDOB) setDob(calcDOB);
+    }
+  };
   const [gender, setGender] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
   const [referredBy, setReferredBy] = useState("");
@@ -217,13 +251,29 @@ export function NewInvoiceForm() {
     }
   }, [selectedCustomerId]);
 
-  // Pre-load patient details if redirected from customer profile page
+  const [referredBySuggestions, setReferredBySuggestions] = useState<string[]>([]);
+  const [doctorSuggestions, setDoctorSuggestions] = useState<string[]>([]);
+
+  // Pre-load patient details if redirected from customer profile page & clinical suggestions
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const customerId = params.get("customerId");
     if (customerId) {
       handleSelectPatient(customerId);
     }
+
+    async function loadSuggestions() {
+      try {
+        const res = await getClinicalSuggestionsAction();
+        if (res.success) {
+          setReferredBySuggestions(res.referredByList);
+          setDoctorSuggestions(res.doctorNameList);
+        }
+      } catch (err) {
+        console.error("Failed to load clinical suggestions:", err);
+      }
+    }
+    loadSuggestions();
   }, []);
 
   // Debounced Patient Search Trigger
@@ -717,6 +767,8 @@ export function NewInvoiceForm() {
   const handleSubmitInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isPending) return;
+
     if (!fullName.trim() || !phone.trim()) {
       toast.error("Please enter patient Full Name and Mobile Number.");
       return;
@@ -796,8 +848,7 @@ export function NewInvoiceForm() {
           leftNv: nearOSNv || undefined,
         },
         doctorName: doctorName || undefined,
-        partyName: partyName || undefined,
-        frameName: frameName || undefined,
+        prescribedAt: prescribedAt || undefined,
         estimatedDelivery: undefined,
         specialInstructions: undefined,
         prescriptionNotes: lensType || undefined,
@@ -832,21 +883,26 @@ export function NewInvoiceForm() {
       };
 
       const res = await registerPatientAndInvoiceAction(payload);
-      if (res.success && res.data?.invoice?.id) {
-        toast.success("Transaction success! Invoice compiled.", { id: savingToast });
-        if (paymentType === "PARTIAL" && res.data?.receipt?.id) {
-          router.push(`/shop/receipts/${res.data.receipt.id}`);
+      const targetInvoiceId = res.data?.invoiceId || res.data?.invoice?.id;
+      const targetReceiptId = res.data?.receiptId || res.data?.receipt?.id;
+
+      if (res.success && (targetInvoiceId || targetReceiptId)) {
+        toast.success(res.message || "Transaction success! Invoice compiled.", { id: savingToast });
+        if (paymentType === "PARTIAL" && targetReceiptId) {
+          router.push(`/shop/receipts/${targetReceiptId}`);
+        } else if (targetInvoiceId) {
+          router.push(`/shop/invoices/${targetInvoiceId}`);
         } else {
-          router.push(`/shop/invoices/${res.data.invoice.id}`);
+          router.push(`/shop/invoices`);
         }
       } else {
         toast.error(res.message || "Failed to process patient invoice transaction.", {
           id: savingToast,
         });
+        setIsPending(false);
       }
     } catch (err: any) {
       toast.error(err.message || "Unexpected transaction error occurred.", { id: savingToast });
-    } finally {
       setIsPending(false);
     }
   };
@@ -1004,23 +1060,48 @@ export function NewInvoiceForm() {
               </label>
               <Input
                 type="tel"
-                placeholder="+1 (555) 000-0000"
+                inputMode="numeric"
+                pattern="[0-9+]*"
+                maxLength={13}
+                placeholder="9876543210"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                onKeyPress={(e) => {
+                  if (!/[0-9+]/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
               />
             </div>
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Date of Birth
-              </label>
-              <Input
-                type="date"
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-              />
+            {/* Date of Birth & Age */}
+            <div className="grid grid-cols-5 gap-2">
+              <div className="col-span-3">
+                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                  Date of Birth
+                </label>
+                <Input
+                  type="date"
+                  value={dob}
+                  onChange={(e) => handleDobChange(e.target.value)}
+                  className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                  Age (Yrs)
+                </label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 28"
+                  min="0"
+                  max="120"
+                  value={age}
+                  onChange={(e) => handleAgeChange(e.target.value)}
+                  className="h-10 bg-white font-semibold border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+                />
+              </div>
             </div>
 
             <div>
@@ -1062,8 +1143,9 @@ export function NewInvoiceForm() {
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Referred By
               </label>
-              <Input
-                type="text"
+              <ClinicalAutocompleteInput
+                options={referredBySuggestions}
+                iconType="referrer"
                 placeholder="Dr. Sarah Jenkins"
                 value={referredBy}
                 onChange={(e) => setReferredBy(e.target.value)}
@@ -1285,9 +1367,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+0.00"
                             value={distODSphere}
                             onChange={(e) => setDistODSphere(e.target.value)}
+                            onBlur={(e) => setDistODSphere(formatDiopterValue(e.target.value))}
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1295,9 +1379,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.25"
                             value={distODCylinder}
                             onChange={(e) => setDistODCylinder(e.target.value)}
+                            onBlur={(e) => setDistODCylinder(formatDiopterValue(e.target.value))}
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1305,9 +1391,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="180"
                             value={distODAxis}
                             onChange={(e) => setDistODAxis(e.target.value)}
+                            onBlur={(e) => setDistODAxis(formatAxisValue(e.target.value))}
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1315,6 +1403,7 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="dist-vn-options"
                             placeholder="6/6"
                             value={distODNv}
                             onChange={(e) => setDistODNv(e.target.value)}
@@ -1329,9 +1418,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+1.50"
                             value={nearODSphere}
                             onChange={(e) => setNearODSphere(e.target.value)}
+                            onBlur={(e) => setNearODSphere(formatDiopterValue(e.target.value))}
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1339,9 +1430,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.25"
                             value={nearODCylinder}
                             onChange={(e) => setNearODCylinder(e.target.value)}
+                            onBlur={(e) => setNearODCylinder(formatDiopterValue(e.target.value))}
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1349,9 +1442,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="180"
                             value={nearODAxis}
                             onChange={(e) => setNearODAxis(e.target.value)}
+                            onBlur={(e) => setNearODAxis(formatAxisValue(e.target.value))}
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1359,6 +1454,7 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="near-vn-options"
                             placeholder="N6"
                             value={nearODNv}
                             onChange={(e) => setNearODNv(e.target.value)}
@@ -1373,8 +1469,14 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
-                            placeholder="P.D."
+                            list="add-options"
+                            placeholder="+1.50"
                             value={distODAdd}
+                            onBlur={(e) => {
+                              const formatted = formatDiopterValue(e.target.value);
+                              setDistODAdd(formatted);
+                              setDistOSAdd(formatted);
+                            }}
                             onChange={(e) => {
                               setDistODAdd(e.target.value);
                               setDistOSAdd(e.target.value);
@@ -1411,9 +1513,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+0.50"
                             value={distOSSphere}
                             onChange={(e) => setDistOSSphere(e.target.value)}
+                            onBlur={(e) => setDistOSSphere(formatDiopterValue(e.target.value))}
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1421,9 +1525,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.50"
                             value={distOSCylinder}
                             onChange={(e) => setDistOSCylinder(e.target.value)}
+                            onBlur={(e) => setDistOSCylinder(formatDiopterValue(e.target.value))}
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1431,9 +1537,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="175"
                             value={distOSAxis}
                             onChange={(e) => setDistOSAxis(e.target.value)}
+                            onBlur={(e) => setDistOSAxis(formatAxisValue(e.target.value))}
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1441,6 +1549,7 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="dist-vn-options"
                             placeholder="6/9"
                             value={distOSNv}
                             onChange={(e) => setDistOSNv(e.target.value)}
@@ -1455,9 +1564,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+2.00"
                             value={nearOSSphere}
                             onChange={(e) => setNearOSSphere(e.target.value)}
+                            onBlur={(e) => setNearOSSphere(formatDiopterValue(e.target.value))}
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1465,9 +1576,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.50"
                             value={nearOSCylinder}
                             onChange={(e) => setNearOSCylinder(e.target.value)}
+                            onBlur={(e) => setNearOSCylinder(formatDiopterValue(e.target.value))}
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1475,9 +1588,11 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="175"
                             value={nearOSAxis}
                             onChange={(e) => setNearOSAxis(e.target.value)}
+                            onBlur={(e) => setNearOSAxis(formatAxisValue(e.target.value))}
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                           />
@@ -1485,6 +1600,7 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="near-vn-options"
                             placeholder="N6"
                             value={nearOSNv}
                             onChange={(e) => setNearOSNv(e.target.value)}
@@ -1499,8 +1615,14 @@ export function NewInvoiceForm() {
                         <td className="py-1 px-1">
                           <input
                             type="text"
-                            placeholder="P.D."
+                            list="add-options"
+                            placeholder="+1.50"
                             value={distOSAdd}
+                            onBlur={(e) => {
+                              const formatted = formatDiopterValue(e.target.value);
+                              setDistODAdd(formatted);
+                              setDistOSAdd(formatted);
+                            }}
                             onChange={(e) => {
                               setDistODAdd(e.target.value);
                               setDistOSAdd(e.target.value);
@@ -1542,8 +1664,9 @@ export function NewInvoiceForm() {
                 <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                   Prescribed By
                 </label>
-                <Input
-                  type="text"
+                <ClinicalAutocompleteInput
+                  options={doctorSuggestions}
+                  iconType="doctor"
                   placeholder="Dr. Name"
                   value={doctorName}
                   onChange={(e) => setDoctorName(e.target.value)}
@@ -1553,26 +1676,12 @@ export function NewInvoiceForm() {
 
               <div>
                 <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Party Name
+                  Prescribing Date
                 </label>
                 <Input
-                  type="text"
-                  placeholder="Supplier/Clinic name"
-                  value={partyName}
-                  onChange={(e) => setPartyName(e.target.value)}
-                  className="h-10 bg-white font-semibold border-slate-200 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Frame Name
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Brand/Model name"
-                  value={frameName}
-                  onChange={(e) => setFrameName(e.target.value)}
+                  type="date"
+                  value={prescribedAt}
+                  onChange={(e) => setPrescribedAt(e.target.value)}
                   className="h-10 bg-white font-semibold border-slate-200 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
                 />
               </div>
@@ -2136,6 +2245,43 @@ export function NewInvoiceForm() {
           )}
         </Button>
       </div>
+
+      {/* OPTOMETRY INDUSTRY DATALISTS FOR SMART PRESCRIPTION SELECTION */}
+      <datalist id="sph-options">
+        {SPH_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="cyl-options">
+        {CYL_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="axis-options">
+        {AXIS_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="dist-vn-options">
+        {DISTANCE_VN_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="near-vn-options">
+        {NEAR_VN_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="add-options">
+        {ADD_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
     </form>
   );
 }
