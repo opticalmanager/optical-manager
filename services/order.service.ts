@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { orders, invoices, customers, invoiceItems, inventory, shops } from "@/db/schema";
+import { orders, invoices, customers, invoiceItems, inventory, shops, receipts } from "@/db/schema";
 import { eq, ne, and, or, ilike, sql, desc, inArray, lte, gt, gte } from "drizzle-orm";
 
 export interface OrderDashboardKPIs {
@@ -20,6 +20,15 @@ export interface SKUDetail {
   quantity: number;
   category: string | null;
   sku: string | null;
+}
+
+export interface ReceiptItem {
+  id: string;
+  receiptNumber: string;
+  amountPaid: string;
+  balanceDue: string;
+  paymentMethod: string;
+  createdAt: Date;
 }
 
 export interface OrderItem {
@@ -42,6 +51,7 @@ export interface OrderItem {
   skus: SKUDetail[];
   categoryText?: string; // e.g. "Progressive Lens Fitting" or "Spectacles Order"
   receiptId?: string | null;
+  receipts?: ReceiptItem[];
 }
 
 export interface PriorityReminder {
@@ -350,31 +360,58 @@ export async function getOrdersDashboardData(params: {
     .limit(limit)
     .offset(offset);
 
-  // 5. Gather line items for SKU details (resolving N+1 query issue)
+  // 5. Gather line items for SKU details & receipts (resolving N+1 query issue)
   let ordersList: OrderItem[] = [];
   if (ordersListRaw.length > 0) {
     const invoiceIds = ordersListRaw.map((o) => o.invoiceId);
     
-    const itemsRaw = await db
-      .select({
-        invoiceId: invoiceItems.invoiceId,
-        description: invoiceItems.description,
-        quantity: invoiceItems.quantity,
-        category: inventory.category,
-        sku: inventory.sku,
-      })
-      .from(invoiceItems)
-      .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
-      .where(inArray(invoiceItems.invoiceId, invoiceIds));
+    const [itemsRaw, receiptsRaw] = await Promise.all([
+      db
+        .select({
+          invoiceId: invoiceItems.invoiceId,
+          description: invoiceItems.description,
+          quantity: invoiceItems.quantity,
+          category: inventory.category,
+          sku: inventory.sku,
+        })
+        .from(invoiceItems)
+        .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
+        .where(inArray(invoiceItems.invoiceId, invoiceIds)),
 
-    // Map items to orders
+      db
+        .select({
+          id: receipts.id,
+          invoiceId: receipts.invoiceId,
+          receiptNumber: receipts.receiptNumber,
+          amountPaid: receipts.amountPaid,
+          balanceDue: receipts.balanceDue,
+          paymentMethod: receipts.paymentMethod,
+          createdAt: receipts.createdAt,
+        })
+        .from(receipts)
+        .where(inArray(receipts.invoiceId, invoiceIds))
+        .orderBy(desc(receipts.createdAt)),
+    ]);
+
+    // Map items & receipts to orders
     ordersList = ordersListRaw.map((o) => {
       const relatedItems = itemsRaw.filter((item) => item.invoiceId === o.invoiceId);
+      const relatedReceipts = receiptsRaw.filter((r) => r.invoiceId === o.invoiceId);
+
       const skus: SKUDetail[] = relatedItems.map((item) => ({
         description: item.description,
         quantity: item.quantity,
         category: item.category,
         sku: item.sku,
+      }));
+
+      const orderReceipts: ReceiptItem[] = relatedReceipts.map((r) => ({
+        id: r.id,
+        receiptNumber: r.receiptNumber,
+        amountPaid: r.amountPaid,
+        balanceDue: r.balanceDue,
+        paymentMethod: r.paymentMethod,
+        createdAt: r.createdAt,
       }));
 
       // Guess category description text
@@ -394,6 +431,7 @@ export async function getOrdersDashboardData(params: {
         ...o,
         skus,
         categoryText,
+        receipts: orderReceipts,
       };
     });
   }

@@ -476,3 +476,243 @@ export async function sendRescheduledDeliveryEmailAction(
   }
 }
 
+/**
+ * Server Action: Record an additional partial payment for an order and generate a receipt
+ */
+export async function recordPartialPaymentAction(
+  invoiceId: string,
+  data: {
+    amountPaid: number;
+    paymentMethod?: "CASH" | "CARD" | "UPI" | "BANK_TRANSFER";
+    transactionId?: string;
+  }
+): Promise<{ success: boolean; message: string; receiptId?: string; redirectUrl?: string }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, message: "Unauthorized." };
+    }
+
+    if (!data.amountPaid || data.amountPaid <= 0) {
+      return { success: false, message: "Please enter a valid partial payment amount." };
+    }
+
+    // Load invoice
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.id, invoiceId),
+          eq(invoices.organizationId, user.organizationId!)
+        )
+      )
+      .limit(1);
+
+    if (!invoice) {
+      return { success: false, message: "Invoice not found or unauthorized." };
+    }
+
+    const currentBalance = parseFloat(invoice.balanceDue);
+    if (currentBalance <= 0) {
+      return { success: false, message: "This invoice has zero pending balance." };
+    }
+
+    if (data.amountPaid > currentBalance + 0.01) {
+      return {
+        success: false,
+        message: `Payment amount (₹${data.amountPaid}) cannot exceed remaining balance due (₹${currentBalance.toFixed(2)}).`,
+      };
+    }
+
+    const payMethod = data.paymentMethod || invoice.paymentMethod || "CASH";
+    const currentPaid = parseFloat(invoice.amountPaid || "0");
+    const newAmountPaid = currentPaid + data.amountPaid;
+    const newBalanceDue = Math.max(0, currentBalance - data.amountPaid);
+    const newStatus = newBalanceDue <= 0 ? "PAID" : "PENDING";
+
+    const newReceiptId = await db.transaction(async (tx) => {
+      // 1. Update invoice
+      await tx
+        .update(invoices)
+        .set({
+          status: newStatus as any,
+          amountPaid: newAmountPaid.toFixed(2),
+          balanceDue: newBalanceDue.toFixed(2),
+          paymentMethod: payMethod,
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, invoiceId));
+
+      // 2. Generate Receipt
+      const receiptNumber = await generateReceiptNumber(invoice.shopId, tx);
+      const [receipt] = await tx
+        .insert(receipts)
+        .values({
+          shopId: invoice.shopId,
+          organizationId: user.organizationId!,
+          invoiceId: invoice.id,
+          receiptNumber,
+          amountPaid: data.amountPaid.toFixed(2),
+          balanceDue: newBalanceDue.toFixed(2),
+          paymentMethod: payMethod,
+          transactionId: data.transactionId || null,
+        })
+        .returning();
+
+      // 3. Link receipt to Order
+      await tx
+        .update(orders)
+        .set({
+          receiptId: receipt.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.invoiceId, invoiceId));
+
+      return receipt.id;
+    });
+
+    revalidatePath("/shop/orders");
+    revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
+    revalidatePath(`/shop/invoices/${invoiceId}`);
+    revalidatePath(`/shop/receipts/${newReceiptId}`);
+
+    return {
+      success: true,
+      message: `Partial payment of ₹${data.amountPaid.toFixed(2)} recorded successfully. Receipt generated.`,
+      receiptId: newReceiptId,
+      redirectUrl: `/shop/receipts/${newReceiptId}`,
+    };
+  } catch (error: any) {
+    console.error("Error recording partial payment action:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to record partial payment.",
+    };
+  }
+}
+
+/**
+ * Server Action: Settle remaining order dues with a discount/waiver and mark invoice fully paid
+ */
+export async function settleDuesWithDiscountAction(
+  invoiceId: string,
+  data: {
+    amountReceived: number;
+    discountAmount: number;
+    paymentMethod?: "CASH" | "CARD" | "UPI" | "BANK_TRANSFER";
+    transactionId?: string;
+  }
+): Promise<{ success: boolean; message: string; receiptId?: string; redirectUrl?: string }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, message: "Unauthorized." };
+    }
+
+    // Load invoice
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.id, invoiceId),
+          eq(invoices.organizationId, user.organizationId!)
+        )
+      )
+      .limit(1);
+
+    if (!invoice) {
+      return { success: false, message: "Invoice not found or unauthorized." };
+    }
+
+    const currentBalance = parseFloat(invoice.balanceDue);
+    if (currentBalance <= 0) {
+      return { success: false, message: "This invoice is already fully settled." };
+    }
+
+    const amountRec = Math.max(0, data.amountReceived || 0);
+    const discAmt = Math.max(0, data.discountAmount || 0);
+
+    const totalSettlement = amountRec + discAmt;
+    if (Math.abs(totalSettlement - currentBalance) > 0.05) {
+      return {
+        success: false,
+        message: `Settlement total (₹${amountRec.toFixed(2)} paid + ₹${discAmt.toFixed(2)} discount = ₹${totalSettlement.toFixed(2)}) must equal current balance due (₹${currentBalance.toFixed(2)}).`,
+      };
+    }
+
+    const payMethod = data.paymentMethod || invoice.paymentMethod || "CASH";
+    const currentPaid = parseFloat(invoice.amountPaid || "0");
+    const currentDiscount = parseFloat(invoice.discount || "0");
+    const currentTotal = parseFloat(invoice.total || "0");
+
+    const newDiscount = currentDiscount + discAmt;
+    const newTotal = Math.max(0, currentTotal - discAmt);
+    const newAmountPaid = currentPaid + amountRec;
+
+    const newReceiptId = await db.transaction(async (tx) => {
+      // 1. Update invoice
+      await tx
+        .update(invoices)
+        .set({
+          status: "PAID",
+          discount: newDiscount.toFixed(2),
+          total: newTotal.toFixed(2),
+          amountPaid: newAmountPaid.toFixed(2),
+          balanceDue: "0.00",
+          paymentMethod: payMethod,
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, invoiceId));
+
+      // 2. Generate Receipt for amount received (if any received)
+      const receiptNumber = await generateReceiptNumber(invoice.shopId, tx);
+      const [receipt] = await tx
+        .insert(receipts)
+        .values({
+          shopId: invoice.shopId,
+          organizationId: user.organizationId!,
+          invoiceId: invoice.id,
+          receiptNumber,
+          amountPaid: amountRec.toFixed(2),
+          balanceDue: "0.00",
+          paymentMethod: payMethod,
+          transactionId: data.transactionId || null,
+        })
+        .returning();
+
+      // 3. Link receipt to Order
+      await tx
+        .update(orders)
+        .set({
+          receiptId: receipt.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.invoiceId, invoiceId));
+
+      return receipt.id;
+    });
+
+    revalidatePath("/shop/orders");
+    revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
+    revalidatePath(`/shop/invoices/${invoiceId}`);
+
+    return {
+      success: true,
+      message: `Invoice settled successfully! ₹${amountRec.toFixed(2)} received and ₹${discAmt.toFixed(2)} discount applied.`,
+      receiptId: newReceiptId,
+      redirectUrl: `/shop/invoices/${invoiceId}`,
+    };
+  } catch (error: any) {
+    console.error("Error settling dues with discount action:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to settle dues with discount.",
+    };
+  }
+}
+
+

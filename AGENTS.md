@@ -45,3 +45,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 12. **Automatic Cleanup of Obsolete & Unused Files/Code**:
     - Always immediately delete unused files, deprecated route handlers, dead components, or temporary runner scripts after creating replacement features or updating existing code. Never leave redundant, unused, or orphaned files in the codebase.
 
+13. **Strict Input Field Typing & Datatype Enforcement**:
+    - When creating or updating any input field, always ensure that only valid datatypes and strict input constraints are permitted (e.g. numeric-only restrictions for mobile numbers with 10-digit regional formatting and `onKeyPress`/`inputMode` restrictions, proper date controls for dates, structured email formatters). Never permit arbitrary string entry in fields requiring specific data formats.
+

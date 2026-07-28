@@ -6,22 +6,28 @@ import type { Shop, Customer } from "@/types";
  * when the settings pages are developed.
  */
 export function getShopBusinessDetails(shop: Shop | null | undefined) {
+  const settings = (shop?.settings as Record<string, any>) || {};
+
   return {
-    name: shop?.name || "Clarity Eyecare Pvt. Ltd.",
-    address: shop?.address || "Clarity Eyecare Pvt. Ltd., D 25/8, MIDC Turbhe, Turbhe, Maharashtra (27), India, 400710",
-    phone: shop?.phone || "9137012156",
-    email: shop?.email || "info@clarityeyecare.in",
+    name: shop?.name || "Optical Store",
+    address: shop?.address || "",
+    phone: shop?.phone || "",
+    email: shop?.email || "",
 
-    // Business compliance (fetch from DB, fallback to default)
-    gstin: shop?.gstin || "27AALCC7382F1ZC",
-    cin: shop?.cin || "U32507MH2024PTC422044",
-    msmeUdyam: shop?.msmeUdyam || "UDYAM-MH-33-0456381",
+    // Business compliance (only real DB fields, no hardcoded fallbacks)
+    gstin: shop?.gstin || "",
+    cin: shop?.cin || "",
+    msmeUdyam: shop?.msmeUdyam || "",
 
-    // Bank details (fetch from DB, fallback to default)
-    bankName: shop?.bankName || "Axis Bank Limited.",
-    bankBranch: shop?.bankBranch || "MIDC Turbhe",
-    bankAccountNumber: shop?.bankAccountNumber || "924020033652178",
-    bankIfsc: shop?.bankIfsc || "UTIB0000661",
+    // Bank details (only real DB fields, no hardcoded fallbacks)
+    bankName: shop?.bankName || "",
+    bankBranch: shop?.bankBranch || "",
+    bankAccountNumber: shop?.bankAccountNumber || "",
+    bankIfsc: shop?.bankIfsc || "",
+
+    // Toggle flags from JSONB settings
+    enableBankDetails: settings.enableBankDetails ?? false,
+    enableTerms: settings.enableTerms ?? true,
   };
 }
 
@@ -31,9 +37,9 @@ export function getShopBusinessDetails(shop: Shop | null | undefined) {
  */
 export function getCustomerTaxDetails(customer: Customer | null | undefined) {
   return {
-    pan: "ABQFA8202M",        // Hardcoded fallback matching current invoices
-    gstin: "19ABQFA8202M1ZY",  // Hardcoded fallback matching current invoices
-    state: customer?.state || "West Bengal",
-    stateCode: "19",           // West Bengal state code matching current supply place
+    pan: (customer as any)?.pan || "",
+    gstin: (customer as any)?.gstin || "",
+    state: customer?.state || "",
+    stateCode: (customer as any)?.stateCode || "",
   };
 }

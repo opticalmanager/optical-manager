@@ -8,11 +8,13 @@ import {
   registerPatientAction,
   getNextRegistrationIdAction,
   updatePatientAction,
+  getClinicalSuggestionsAction,
 } from "@/actions/patient.actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteInput";
 import {
   ArrowLeft,
   ChevronDown,
@@ -22,6 +24,18 @@ import {
   Eye,
   Check,
 } from "lucide-react";
+import {
+  calculateAgeFromDOB,
+  calculateDOBFromAge,
+  formatDiopterValue,
+  formatAxisValue,
+  SPH_OPTIONS,
+  CYL_OPTIONS,
+  AXIS_OPTIONS,
+  DISTANCE_VN_OPTIONS,
+  NEAR_VN_OPTIONS,
+  ADD_OPTIONS,
+} from "@/utils/optometry";
 
 const INDIAN_STATES = [
   "Andhra Pradesh",
@@ -85,6 +99,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
         email: initialPatientData.customer.email || "",
         phone: initialPatientData.customer.phone || "",
         dateOfBirth: initialPatientData.customer.dateOfBirth || "",
+        age: calculateAgeFromDOB(initialPatientData.customer.dateOfBirth || ""),
         address: initialPatientData.customer.address || "",
         city: initialPatientData.customer.city || "",
         state: initialPatientData.customer.state || "",
@@ -134,8 +149,9 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
         pd: initialPatientData.nearPrescription?.pd || "",
       },
       doctorName: initialPatientData.distancePrescription?.doctorName || initialPatientData.nearPrescription?.doctorName || "",
-      partyName: initialPatientData.distancePrescription?.partyName || initialPatientData.nearPrescription?.partyName || "",
-      frameName: initialPatientData.distancePrescription?.frameName || initialPatientData.nearPrescription?.frameName || "",
+      prescribedAt: initialPatientData.distancePrescription?.prescribedAt || initialPatientData.nearPrescription?.prescribedAt || new Date().toISOString().split("T")[0],
+      partyName: "",
+      frameName: "",
       estimatedDelivery: "",
       specialInstructions: initialPatientData.distancePrescription?.specialInstructions || initialPatientData.nearPrescription?.specialInstructions || "",
       prescriptionNotes: initialPatientData.distancePrescription?.notes || initialPatientData.nearPrescription?.notes || "",
@@ -151,6 +167,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
         email: "",
         phone: "",
         dateOfBirth: "",
+        age: "",
         address: "",
         city: "",
         state: "",
@@ -200,6 +217,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
         pd: "",
       },
       doctorName: "",
+      prescribedAt: new Date().toISOString().split("T")[0],
       partyName: "",
       frameName: "",
       estimatedDelivery: "",
@@ -225,8 +243,33 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
 
   const distanceEnabled = watch("prescriptionType.distance");
   const nearEnabled = watch("prescriptionType.near");
+  const watchDOB = watch("customer.dateOfBirth");
 
-  // Fetch the next Registration ID on load
+  // Auto calculate age when Date of Birth is selected
+  useEffect(() => {
+    if (watchDOB) {
+      const calculated = calculateAgeFromDOB(watchDOB);
+      if (calculated && calculated !== form.getValues("customer.age")) {
+        setValue("customer.age", calculated);
+      }
+    }
+  }, [watchDOB, setValue, form]);
+
+  const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setValue("customer.age", val);
+    if (val) {
+      const estimatedDOB = calculateDOBFromAge(val);
+      if (estimatedDOB) {
+        setValue("customer.dateOfBirth", estimatedDOB);
+      }
+    }
+  };
+
+  const [referredBySuggestions, setReferredBySuggestions] = useState<string[]>([]);
+  const [doctorSuggestions, setDoctorSuggestions] = useState<string[]>([]);
+
+  // Fetch the next Registration ID and Clinical Suggestions on load
   useEffect(() => {
     async function fetchNextId() {
       if (patientId) {
@@ -242,7 +285,21 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
         console.error("Failed to load sequential registration ID:", err);
       }
     }
+
+    async function loadClinicalSuggestions() {
+      try {
+        const res = await getClinicalSuggestionsAction();
+        if (res.success) {
+          setReferredBySuggestions(res.referredByList);
+          setDoctorSuggestions(res.doctorNameList);
+        }
+      } catch (err) {
+        console.error("Failed to load clinical suggestions:", err);
+      }
+    }
+
     fetchNextId();
+    loadClinicalSuggestions();
   }, [patientId, initialPatientData]);
 
   // Close state suggestions dropdown on click outside
@@ -378,9 +435,17 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               </label>
               <Input
                 type="tel"
-                placeholder="+91 9821716423"
+                inputMode="numeric"
+                pattern="[0-9+]*"
+                maxLength={13}
+                placeholder="9876543210"
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.phone")}
+                onKeyPress={(e) => {
+                  if (!/[0-9+]/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
               />
               {errors.customer?.phone?.message && (
                 <span className="text-[10px] font-bold text-rose-500 mt-1.5 block">
@@ -389,16 +454,32 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               )}
             </div>
 
-            {/* Date of Birth */}
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Date of Birth
-              </label>
-              <Input
-                type="date"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-                {...register("customer.dateOfBirth")}
-              />
+            {/* Date of Birth & Age */}
+            <div className="grid grid-cols-5 gap-2">
+              <div className="col-span-3">
+                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                  Date of Birth
+                </label>
+                <Input
+                  type="date"
+                  className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                  {...register("customer.dateOfBirth")}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                  Age (Yrs)
+                </label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 28"
+                  min="0"
+                  max="120"
+                  className="h-10 bg-white font-semibold border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                  value={watch("customer.age") || ""}
+                  onChange={handleAgeChange}
+                />
+              </div>
             </div>
 
             {/* Gender */}
@@ -428,7 +509,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               <Input
                 type="email"
                 placeholder="example@mail.com"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.email")}
               />
               {errors.customer?.email?.message && (
@@ -445,11 +526,13 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Referred By
               </label>
-              <Input
-                type="text"
+              <ClinicalAutocompleteInput
+                options={referredBySuggestions}
+                iconType="referrer"
                 placeholder="Dr. Sarah Jenkins"
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-                {...register("customer.referredBy")}
+                value={watch("customer.referredBy") || ""}
+                onChange={(e) => setValue("customer.referredBy", e.target.value)}
               />
             </div>
           </div>
@@ -671,33 +754,40 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+0.00"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("distancePrescription.rightSphere")}
+                            onBlur={(e) => setValue("distancePrescription.rightSphere", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.25"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("distancePrescription.rightCylinder")}
+                            onBlur={(e) => setValue("distancePrescription.rightCylinder", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="180"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("distancePrescription.rightAxis")}
+                            onBlur={(e) => setValue("distancePrescription.rightAxis", formatAxisValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="dist-vn-options"
                             placeholder="6/6"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
@@ -714,33 +804,40 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+1.50"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("nearPrescription.rightSphere")}
+                            onBlur={(e) => setValue("nearPrescription.rightSphere", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.25"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("nearPrescription.rightCylinder")}
+                            onBlur={(e) => setValue("nearPrescription.rightCylinder", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="180"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("nearPrescription.rightAxis")}
+                            onBlur={(e) => setValue("nearPrescription.rightAxis", formatAxisValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="near-vn-options"
                             placeholder="N6"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
@@ -757,9 +854,15 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                         <td className="py-1 px-1">
                           <input
                             type="text"
-                            placeholder="P.D."
+                            list="add-options"
+                            placeholder="+1.50"
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold text-indigo-600 bg-indigo-50/10 placeholder:text-indigo-400/50"
                             {...register("distancePrescription.rightAdd")}
+                            onBlur={(e) => {
+                              const formatted = formatDiopterValue(e.target.value);
+                              setValue("distancePrescription.rightAdd", formatted);
+                              setValue("nearPrescription.rightAdd", formatted);
+                            }}
                             onChange={(e) => {
                               setValue("distancePrescription.rightAdd", e.target.value);
                               setValue("nearPrescription.rightAdd", e.target.value);
@@ -798,33 +901,40 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+0.50"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("distancePrescription.leftSphere")}
+                            onBlur={(e) => setValue("distancePrescription.leftSphere", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.50"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("distancePrescription.leftCylinder")}
+                            onBlur={(e) => setValue("distancePrescription.leftCylinder", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="175"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("distancePrescription.leftAxis")}
+                            onBlur={(e) => setValue("distancePrescription.leftAxis", formatAxisValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="dist-vn-options"
                             placeholder="6/9"
                             disabled={!distanceEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
@@ -841,33 +951,40 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="sph-options"
                             placeholder="+2.00"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("nearPrescription.leftSphere")}
+                            onBlur={(e) => setValue("nearPrescription.leftSphere", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="cyl-options"
                             placeholder="-0.50"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("nearPrescription.leftCylinder")}
+                            onBlur={(e) => setValue("nearPrescription.leftCylinder", formatDiopterValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="axis-options"
                             placeholder="175"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                             {...register("nearPrescription.leftAxis")}
+                            onBlur={(e) => setValue("nearPrescription.leftAxis", formatAxisValue(e.target.value))}
                           />
                         </td>
                         <td className="py-1 px-1">
                           <input
                             type="text"
+                            list="near-vn-options"
                             placeholder="N6"
                             disabled={!nearEnabled}
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
@@ -884,9 +1001,15 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                         <td className="py-1 px-1">
                           <input
                             type="text"
-                            placeholder="P.D."
+                            list="add-options"
+                            placeholder="+1.50"
                             className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold text-indigo-600 bg-indigo-50/10 placeholder:text-indigo-400/50"
                             {...register("distancePrescription.leftAdd")}
+                            onBlur={(e) => {
+                              const formatted = formatDiopterValue(e.target.value);
+                              setValue("distancePrescription.leftAdd", formatted);
+                              setValue("nearPrescription.leftAdd", formatted);
+                            }}
                             onChange={(e) => {
                               setValue("distancePrescription.leftAdd", e.target.value);
                               setValue("nearPrescription.leftAdd", e.target.value);
@@ -930,37 +1053,25 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                   Prescribed By
                 </label>
-                <Input
-                  type="text"
+                <ClinicalAutocompleteInput
+                  options={doctorSuggestions}
+                  iconType="doctor"
                   placeholder="Dr. Name"
                   className="h-10 bg-white font-semibold border-slate-200 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-                  {...register("doctorName")}
+                  value={watch("doctorName") || ""}
+                  onChange={(e) => setValue("doctorName", e.target.value)}
                 />
               </div>
 
-              {/* Party Name */}
+              {/* Prescribing Date */}
               <div>
                 <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Party Name
+                  Prescribing Date
                 </label>
                 <Input
-                  type="text"
-                  placeholder="Supplier/Clinic name"
-                  className="h-10 bg-white font-semibold border-slate-200 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-                  {...register("partyName")}
-                />
-              </div>
-
-              {/* Frame Name */}
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Frame Name
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Brand/Model name"
-                  className="h-10 bg-white font-semibold border-slate-200 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-                  {...register("frameName")}
+                  type="date"
+                  className="h-10 bg-white font-semibold border-slate-200 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                  {...register("prescribedAt")}
                 />
               </div>
             </div>
@@ -979,6 +1090,43 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
           {isPending ? "Saving details..." : "Save Client Details"}
         </Button>
       </div>
+
+      {/* OPTOMETRY INDUSTRY DATALISTS FOR SMART PRESCRIPTION SELECTION */}
+      <datalist id="sph-options">
+        {SPH_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="cyl-options">
+        {CYL_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="axis-options">
+        {AXIS_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="dist-vn-options">
+        {DISTANCE_VN_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="near-vn-options">
+        {NEAR_VN_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
+
+      <datalist id="add-options">
+        {ADD_OPTIONS.map((val) => (
+          <option key={val} value={val} />
+        ))}
+      </datalist>
     </form>
   );
 }

@@ -91,102 +91,35 @@ export async function getPromotionDashboardData(orgId: string): Promise<Promotio
       delivered = campaigns.reduce((acc, c) => acc + (c.delivered || 0), 0);
       read = campaigns.reduce((acc, c) => acc + (c.read || 0), 0);
       replied = campaigns.reduce((acc, c) => acc + (c.replied || 0), 0);
-    } else if (whatsappStatus === "CONNECTED") {
-      totalSent = 7227;
-      delivered = 6342;
-      read = 5876;
-      replied = 1234;
     }
 
     // Display Campaigns
-    const displayCampaigns = campaigns.length > 0
-      ? campaigns.slice(0, 5).map((c) => ({
-          id: c.id,
-          name: c.name,
-          offerDetails: c.offerDetails || "Special promotional offer",
-          audience: c.audience,
-          scheduledOn: c.scheduledAt ? new Date(c.scheduledAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "N/A",
-          status: c.status as any,
-        }))
-      : [
-          {
-            id: "camp-1",
-            name: "Summer Sale Offer 🕶️",
-            offerDetails: "Flat 20% off on Sunglasses",
-            audience: "1,250 Customers",
-            scheduledOn: "20 Jul 2025 • 10:00 AM",
-            status: "SCHEDULED" as const,
-          },
-          {
-            id: "camp-2",
-            name: "New Arrivals Alert 👓",
-            offerDetails: "Check out our new frame collection",
-            audience: "858 Customers",
-            scheduledOn: "18 Jul 2025 • 11:30 AM",
-            status: "SCHEDULED" as const,
-          },
-          {
-            id: "camp-3",
-            name: "Weekend Special Offer 🏷️",
-            offerDetails: "Buy 1 Get 1 on Prescription Frames",
-            audience: "1,102 Customers",
-            scheduledOn: "15 Jul 2025 • 11:30 AM",
-            status: "COMPLETED" as const,
-          },
-          {
-            id: "camp-4",
-            name: "Eye Care Tips Campaign 👁️",
-            offerDetails: "Monthly eye care tips & lens cleaning guide",
-            audience: "2,341 Customers",
-            scheduledOn: "12 Jul 2025 • 09:30 AM",
-            status: "COMPLETED" as const,
-          },
-        ];
+    const displayCampaigns = campaigns.slice(0, 5).map((c) => ({
+      id: c.id,
+      name: c.name,
+      offerDetails: c.offerDetails || "Special promotional offer",
+      audience: c.audience,
+      scheduledOn: c.scheduledAt ? new Date(c.scheduledAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "N/A",
+      status: c.status as any,
+    }));
 
-    const displayTriggers = triggers.length > 0
-      ? triggers.slice(0, 5).map((t) => ({
-          id: t.id,
-          name: t.name,
-          description: t.description || `Trigger for ${t.event.toLowerCase()}`,
-          category: t.event as any,
-          nextRun: t.nextRunAt ? new Date(t.nextRunAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "Tomorrow, 09:00 AM",
-          status: t.status as any,
-        }))
-      : [
-          {
-            id: "trig-1",
-            name: "Birthday Wishes",
-            description: "Send birthday wishes to customers",
-            category: "BIRTHDAY" as const,
-            nextRun: "Tomorrow, 09:00 AM",
-            status: "ACTIVE" as const,
-          },
-          {
-            id: "trig-2",
-            name: "Post Purchase Follow-up",
-            description: "Follow up after 3 days of purchase",
-            category: "PURCHASE" as const,
-            nextRun: "Today, 02:00 PM",
-            status: "ACTIVE" as const,
-          },
-          {
-            id: "trig-3",
-            name: "Anniversary Wishes",
-            description: "Send anniversary wishes to registered clients",
-            category: "BIRTHDAY" as const,
-            nextRun: "21 Jul 2025, 09:00 AM",
-            status: "ACTIVE" as const,
-          },
-        ];
+    const displayTriggers = triggers.slice(0, 5).map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description || `Trigger for ${t.event.toLowerCase()}`,
+      category: t.event as any,
+      nextRun: t.nextRunAt ? new Date(t.nextRunAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "Tomorrow, 09:00 AM",
+      status: t.status as any,
+    }));
 
     return {
       whatsappStatus: whatsappStatus as any,
       providerType: "META_CLOUD_API",
       phoneNumber: config?.phoneNumber || undefined,
       businessName: config?.businessName || undefined,
-      activeTemplatesCount: activeTemplatesCount || 12,
-      activeTriggersCount: activeTriggersCount || 6,
-      upcomingCampaignsCount: upcomingCampaignsCount || 4,
+      activeTemplatesCount: activeTemplatesCount || 0,
+      activeTriggersCount: activeTriggersCount || 0,
+      upcomingCampaignsCount: upcomingCampaignsCount || 0,
       telemetry: {
         totalSent,
         delivered,
@@ -205,75 +138,17 @@ export async function getPromotionDashboardData(orgId: string): Promise<Promotio
 function getFallbackData(status: "CONNECTED" | "DISCONNECTED" = "DISCONNECTED"): PromotionOverviewData {
   return {
     whatsappStatus: status,
-    phoneNumber: status === "CONNECTED" ? "+91 98765 43210" : undefined,
-    activeTemplatesCount: 12,
-    activeTriggersCount: 6,
-    upcomingCampaignsCount: 4,
+    phoneNumber: undefined,
+    activeTemplatesCount: 0,
+    activeTriggersCount: 0,
+    upcomingCampaignsCount: 0,
     telemetry: {
-      totalSent: status === "CONNECTED" ? 7227 : 0,
-      delivered: status === "CONNECTED" ? 6342 : 0,
-      read: status === "CONNECTED" ? 5876 : 0,
-      replied: status === "CONNECTED" ? 1234 : 0,
+      totalSent: 0,
+      delivered: 0,
+      read: 0,
+      replied: 0,
     },
-    recentCampaigns: [
-      {
-        id: "camp-1",
-        name: "Summer Sale Offer 🕶️",
-        offerDetails: "Flat 20% off on Sunglasses",
-        audience: "1,250 Customers",
-        scheduledOn: "20 Jul 2025 • 10:00 AM",
-        status: "SCHEDULED",
-      },
-      {
-        id: "camp-2",
-        name: "New Arrivals Alert 👓",
-        offerDetails: "Check out our new frame collection",
-        audience: "858 Customers",
-        scheduledOn: "18 Jul 2025 • 11:30 AM",
-        status: "SCHEDULED",
-      },
-      {
-        id: "camp-3",
-        name: "Weekend Special Offer 🏷️",
-        offerDetails: "Buy 1 Get 1 on Prescription Frames",
-        audience: "1,102 Customers",
-        scheduledOn: "15 Jul 2025 • 11:30 AM",
-        status: "COMPLETED",
-      },
-      {
-        id: "camp-4",
-        name: "Eye Care Tips Campaign 👁️",
-        offerDetails: "Monthly eye care tips",
-        audience: "2,341 Customers",
-        scheduledOn: "12 Jul 2025 • 09:30 AM",
-        status: "COMPLETED",
-      },
-    ],
-    activeTriggers: [
-      {
-        id: "trig-1",
-        name: "Birthday Wishes",
-        description: "Send birthday wishes to customers",
-        category: "BIRTHDAY",
-        nextRun: "Tomorrow, 09:00 AM",
-        status: "ACTIVE",
-      },
-      {
-        id: "trig-2",
-        name: "Post Purchase Follow-up",
-        description: "Follow up after 3 days of purchase",
-        category: "PURCHASE",
-        nextRun: "Today, 02:00 PM",
-        status: "ACTIVE",
-      },
-      {
-        id: "trig-3",
-        name: "Anniversary Wishes",
-        description: "Send anniversary wishes",
-        category: "BIRTHDAY",
-        nextRun: "21 Jul 2025, 09:00 AM",
-        status: "ACTIVE",
-      },
-    ],
+    recentCampaigns: [],
+    activeTriggers: [],
   };
 }

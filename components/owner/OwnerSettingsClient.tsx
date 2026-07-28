@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -28,7 +28,14 @@ import {
   FileCheck,
   Clock,
   Settings,
+  Lock,
+  Unlock,
+  CreditCard,
+  Landmark,
+  Hash,
+  ChevronDown,
 } from "lucide-react";
+import { updateShopInvoiceSettingsAction } from "@/actions/shop.actions";
 import { toast } from "sonner";
 import { updateOrganizationAction } from "@/actions/organization.actions";
 
@@ -42,8 +49,22 @@ interface OrganizationData {
   logo?: string | null;
 }
 
+interface ShopData {
+  id: string;
+  name: string;
+  gstin: string | null;
+  cin: string | null;
+  msmeUdyam: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  bankAccountNumber: string | null;
+  bankIfsc: string | null;
+  settings: Record<string, any> | null;
+}
+
 interface OwnerSettingsClientProps {
   organization: OrganizationData | null;
+  shops: ShopData[];
 }
 
 interface SettingCategory {
@@ -53,14 +74,14 @@ interface SettingCategory {
   tags: { id: string; label: string; action: string }[];
 }
 
-export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) {
+export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClientProps) {
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Search filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [activeModal, setActiveModal] = useState<
-    "org" | "tax" | "customers" | "reports" | "appointments" | "access" | null
+    "org" | "tax" | "customers" | "reports" | "appointments" | "access" | "invoice" | null
   >(null);
 
   // Keyboard shortcut listener to focus search on '/'
@@ -109,6 +130,44 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
   const [enableOnlineReminders, setEnableOnlineReminders] = useState(true);
   const [isSavingAppointments, setIsSavingAppointments] = useState(false);
 
+  // Invoice & Billing Settings state
+  const [selectedShopId, setSelectedShopId] = useState(shops.length > 0 ? shops[0].id : "");
+  const [invGstin, setInvGstin] = useState("");
+  const [invCin, setInvCin] = useState("");
+  const [invMsme, setInvMsme] = useState("");
+  const [invBankName, setInvBankName] = useState("");
+  const [invBankBranch, setInvBankBranch] = useState("");
+  const [invBankAccount, setInvBankAccount] = useState("");
+  const [invBankIfsc, setInvBankIfsc] = useState("");
+  const [invEnableBankDetails, setInvEnableBankDetails] = useState(false);
+  const [invEnableTerms, setInvEnableTerms] = useState(true);
+  const [invTermsNotes, setInvTermsNotes] = useState("");
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+
+  // Populate invoice form from selected shop's existing data
+  const populateInvoiceFormFromShop = useCallback((shopId: string) => {
+    const shop = shops.find((s) => s.id === shopId);
+    if (!shop) return;
+    setInvGstin(shop.gstin || "");
+    setInvCin(shop.cin || "");
+    setInvMsme(shop.msmeUdyam || "");
+    setInvBankName(shop.bankName || "");
+    setInvBankBranch(shop.bankBranch || "");
+    setInvBankAccount(shop.bankAccountNumber || "");
+    setInvBankIfsc(shop.bankIfsc || "");
+    const settings = (shop.settings as Record<string, any>) || {};
+    setInvEnableBankDetails(settings.enableBankDetails ?? false);
+    setInvEnableTerms(settings.enableTerms ?? true);
+    setInvTermsNotes(settings.invoiceTermsNotes ?? "");
+  }, [shops]);
+
+  // When invoice modal opens, populate form
+  useEffect(() => {
+    if (activeModal === "invoice" && selectedShopId) {
+      populateInvoiceFormFromShop(selectedShopId);
+    }
+  }, [activeModal, selectedShopId, populateInvoiceFormFromShop]);
+
   // Define 7 Setting Categories matching Screenshot 1
   const categories: SettingCategory[] = [
     {
@@ -119,6 +178,7 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
         { id: "profile", label: "Profile", action: "modal_org" },
         { id: "business_hours", label: "Business Hours", action: "modal_org" },
         { id: "contact_info", label: "Contact Info", action: "modal_org" },
+        { id: "invoice_settings", label: "Invoice & Billing", action: "modal_invoice" },
       ],
     },
     {
@@ -192,6 +252,9 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
         break;
       case "modal_tax":
         setActiveModal("tax");
+        break;
+      case "modal_invoice":
+        setActiveModal("invoice");
         break;
       case "route_email":
         router.push("/owner/settings/email");
@@ -287,6 +350,40 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
       toast.success("Appointment booking form settings saved!");
       setActiveModal(null);
     }, 500);
+  };
+
+  // Submit Handler: Invoice & Billing Settings
+  const handleSaveInvoiceSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedShopId) {
+      toast.error("Please select a shop.");
+      return;
+    }
+    setIsSavingInvoice(true);
+    try {
+      const result = await updateShopInvoiceSettingsAction(selectedShopId, {
+        gstin: invGstin,
+        cin: invCin,
+        msmeUdyam: invMsme,
+        bankName: invBankName,
+        bankBranch: invBankBranch,
+        bankAccountNumber: invBankAccount,
+        bankIfsc: invBankIfsc,
+        enableBankDetails: invEnableBankDetails,
+        enableTerms: invEnableTerms,
+        invoiceTermsNotes: invTermsNotes,
+      });
+      if (result?.success) {
+        toast.success(result.message || "Invoice settings saved!");
+        setActiveModal(null);
+      } else {
+        toast.error(result?.message || "Failed to save invoice settings.");
+      }
+    } catch {
+      toast.error("An unexpected error occurred.");
+    } finally {
+      setIsSavingInvoice(false);
+    }
   };
 
   return (
@@ -822,6 +919,276 @@ export function OwnerSettingsClient({ organization }: OwnerSettingsClientProps) 
                 >
                   {isSavingAppointments ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   <span>Save Appointment Template</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7: Invoice & Billing Settings */}
+      {activeModal === "invoice" && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <FileCheck className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-base">Invoice & Billing Settings</h3>
+              </div>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <form onSubmit={handleSaveInvoiceSettings} className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Shop Selector (for multi-shop orgs) */}
+              {shops.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
+                    Select Store / Branch
+                  </label>
+                  <div className="relative">
+                    <Store className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <select
+                      value={selectedShopId}
+                      onChange={(e) => {
+                        setSelectedShopId(e.target.value);
+                        populateInvoiceFormFromShop(e.target.value);
+                      }}
+                      className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 appearance-none bg-white"
+                    >
+                      {shops.map((shop) => (
+                        <option key={shop.id} value={shop.id}>
+                          {shop.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic">
+                    Each store can have its own GSTIN, bank details, and invoice preferences.
+                  </p>
+                </div>
+              )}
+
+              {/* Section 1: Business Compliance */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                  <Shield className="w-3.5 h-3.5 text-blue-600" />
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Business Compliance</h4>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600 block">GSTIN (Tax Identification Number)</label>
+                  <div className="relative">
+                    <Hash className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={invGstin}
+                      onChange={(e) => setInvGstin(e.target.value.toUpperCase())}
+                      placeholder="e.g. 07AAAAA0000A1Z5"
+                      maxLength={15}
+                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 block">CIN (Company Identification No.)</label>
+                    <input
+                      type="text"
+                      value={invCin}
+                      onChange={(e) => setInvCin(e.target.value.toUpperCase())}
+                      placeholder="e.g. U32507MH2024PTC422044"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 block">MSME / Udyam Registration</label>
+                    <input
+                      type="text"
+                      value={invMsme}
+                      onChange={(e) => setInvMsme(e.target.value.toUpperCase())}
+                      placeholder="e.g. UDYAM-MH-33-0456381"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Bank Account Details with Toggle */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Landmark className="w-3.5 h-3.5 text-blue-600" />
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Bank Account Details</h4>
+                  </div>
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => setInvEnableBankDetails(!invEnableBankDetails)}
+                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${
+                      invEnableBankDetails ? "bg-blue-600" : "bg-slate-200"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 rounded-full bg-white shadow-xs transform transition-transform duration-200 ${
+                        invEnableBankDetails ? "translate-x-[22px]" : "translate-x-[3px]"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-[10px]">
+                  {invEnableBankDetails ? (
+                    <>
+                      <Unlock className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-700 font-semibold">Bank details will appear on invoices & receipts</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span className="text-slate-400 font-semibold">Bank details hidden from invoices & receipts</span>
+                    </>
+                  )}
+                </div>
+
+                <div className={`grid sm:grid-cols-2 gap-3 transition-opacity duration-200 ${!invEnableBankDetails ? "opacity-40 pointer-events-none" : ""}`}>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 block">Bank Name</label>
+                    <div className="relative">
+                      <Landmark className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        value={invBankName}
+                        onChange={(e) => setInvBankName(e.target.value)}
+                        placeholder="e.g. State Bank of India"
+                        disabled={!invEnableBankDetails}
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 block">Branch Name</label>
+                    <input
+                      type="text"
+                      value={invBankBranch}
+                      onChange={(e) => setInvBankBranch(e.target.value)}
+                      placeholder="e.g. Andheri West"
+                      disabled={!invEnableBankDetails}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 block">Account Number</label>
+                    <div className="relative">
+                      <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        value={invBankAccount}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, "");
+                          setInvBankAccount(val);
+                        }}
+                        inputMode="numeric"
+                        placeholder="e.g. 924020033652178"
+                        disabled={!invEnableBankDetails}
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 block">IFSC Code</label>
+                    <input
+                      type="text"
+                      value={invBankIfsc}
+                      onChange={(e) => setInvBankIfsc(e.target.value.toUpperCase())}
+                      placeholder="e.g. SBIN0001234"
+                      maxLength={11}
+                      disabled={!invEnableBankDetails}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Terms & Conditions with Toggle */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Terms & Conditions on Documents</h4>
+                  </div>
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => setInvEnableTerms(!invEnableTerms)}
+                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${
+                      invEnableTerms ? "bg-blue-600" : "bg-slate-200"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 rounded-full bg-white shadow-xs transform transition-transform duration-200 ${
+                        invEnableTerms ? "translate-x-[22px]" : "translate-x-[3px]"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-[10px]">
+                  {invEnableTerms ? (
+                    <>
+                      <Unlock className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-700 font-semibold">Terms & Conditions will appear on Page 2 of invoices</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span className="text-slate-400 font-semibold">Terms & Conditions hidden from invoices</span>
+                    </>
+                  )}
+                </div>
+
+                <div className={`space-y-1.5 transition-opacity duration-200 ${!invEnableTerms ? "opacity-40 pointer-events-none" : ""}`}>
+                  <label className="text-xs font-semibold text-slate-600 block">Custom Notes / Disclaimer (Optional)</label>
+                  <textarea
+                    rows={3}
+                    value={invTermsNotes}
+                    onChange={(e) => setInvTermsNotes(e.target.value)}
+                    placeholder="e.g. All returns must be within 14 days of purchase..."
+                    disabled={!invEnableTerms}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 resize-none disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                  />
+                  <p className="text-[10px] text-slate-400 italic">
+                    This note will be appended below the default terms on the invoice. Leave blank to use default terms only.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingInvoice}
+                  className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                >
+                  {isSavingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>Save Invoice Settings</span>
                 </button>
               </div>
             </form>

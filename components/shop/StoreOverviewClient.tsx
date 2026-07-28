@@ -23,53 +23,11 @@ interface StoreOverviewClientProps {
   shopName?: string;
 }
 
-// Fallback appointment records matching screenshot if DB table is currently empty
-const mockAppointments: AppointmentItem[] = [
-  {
-    id: "app-1",
-    customerName: "Arjun Kapoor",
-    customerPhone: "+91 98765-43210",
-    visitTime: "10:30 AM",
-    rawVisitTime: new Date().toISOString(),
-    purposeOfVisit: "Eye Examination",
-    status: "CONFIRMED",
-  },
-  {
-    id: "app-2",
-    customerName: "Priya Iyer",
-    customerPhone: "+91 91234-56789",
-    visitTime: "11:15 AM",
-    rawVisitTime: new Date().toISOString(),
-    purposeOfVisit: "Contact Lens Fitting",
-    status: "CONFIRMED",
-  },
-  {
-    id: "app-3",
-    customerName: "Rajesh Sharma",
-    customerPhone: "+91 98111-22334",
-    visitTime: "02:00 PM",
-    rawVisitTime: new Date().toISOString(),
-    purposeOfVisit: "Frame Selection",
-    status: "PENDING",
-  },
-  {
-    id: "app-4",
-    customerName: "Ananya Deshmukh",
-    customerPhone: "+91 97654-32109",
-    visitTime: "03:30 PM",
-    rawVisitTime: new Date().toISOString(),
-    purposeOfVisit: "Vision Checkup",
-    status: "CONFIRMED",
-  },
-];
-
 export default function StoreOverviewClient({ data, shopName }: StoreOverviewClientProps) {
   const [activeTab, setActiveTab] = useState<"appointments" | "pending" | "pickup" | "delayed">("appointments");
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentItem | null>(null);
 
-  const initialList = data.appointments && data.appointments.length > 0
-    ? data.appointments
-    : mockAppointments;
+  const initialList = data.appointments || [];
 
   const [appointmentsList, setAppointmentsList] = useState<AppointmentItem[]>(initialList);
 

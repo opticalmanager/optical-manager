@@ -37,9 +37,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
 
   const customerName = customer?.fullName || "Walk-in Customer";
   const customerPhone = customer?.phone || "";
-  const customerAddress =
-    customer?.address ||
-    "1ST FLOOR, SHOP NO.20/FF AND 21/FF, VIVEKANAND MINI MARKET, HILL CART ROAD, SILIGURI, West Bengal, 734001";
+  const customerAddress = customer?.address || "";
 
   if (mode === "INVOICE") {
     // -------------------------------------------------------------
@@ -263,37 +261,73 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                       {shopName}
                     </h1>
                     <div className="grid grid-cols-[60px_8px_1fr] gap-y-0.5 text-[10px] text-black font-semibold mt-1">
-                      <div>Address</div>
-                      <div>:</div>
-                      <div className="whitespace-pre-line leading-tight">{shopAddress}</div>
+                      {shopAddress && (
+                        <>
+                          <div>Address</div>
+                          <div>:</div>
+                          <div className="whitespace-pre-line leading-tight">{shopAddress}</div>
+                        </>
+                      )}
 
-                      <div>GSTIN</div>
-                      <div>:</div>
-                      <div>{shopGstin}</div>
+                      {shopGstin && (
+                        <>
+                          <div>GSTIN</div>
+                          <div>:</div>
+                          <div>{shopGstin}</div>
+                        </>
+                      )}
 
-                      <div>CIN</div>
-                      <div>:</div>
-                      <div>{shopCin}</div>
+                      {shopCin && (
+                        <>
+                          <div>CIN</div>
+                          <div>:</div>
+                          <div>{shopCin}</div>
+                        </>
+                      )}
 
-                      <div>MSME No.</div>
-                      <div>:</div>
-                      <div>{shopMsme}</div>
+                      {shopMsme && (
+                        <>
+                          <div>MSME No.</div>
+                          <div>:</div>
+                          <div>{shopMsme}</div>
+                        </>
+                      )}
 
-                      <div>Phone</div>
-                      <div>:</div>
-                      <div>{shopPhone}</div>
+                      {shopPhone && (
+                        <>
+                          <div>Phone</div>
+                          <div>:</div>
+                          <div>{shopPhone}</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Invoice Title */}
                 <div className="text-right">
-                  <h2 className="text-2xl font-black text-black tracking-wide leading-none">
-                    TAX INVOICE
-                  </h2>
-                  <p className="text-[11px] font-bold text-black mt-1.5 uppercase">
-                    Tax Invoice # - {invoice.invoiceNumber}
-                  </p>
+                  {parseFloat(invoice.balanceDue) > 0 && invoice.status !== "PAID" ? (
+                    <div>
+                      <h2 className="text-lg font-black text-[#0a52c3] tracking-wide leading-none uppercase">
+                        ADVANCE PAYMENT RECEIPT
+                      </h2>
+                      <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase">
+                        Order Ref # - {invoice.invoiceNumber}
+                      </p>
+                      <div className="inline-block mt-1 px-2 py-0.5 rounded bg-rose-50 text-rose-700 text-[10px] font-extrabold uppercase border border-rose-200">
+                        OUTSTANDING DUES: {formatCurrency(parseFloat(invoice.balanceDue))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h2 className="text-2xl font-black text-black tracking-wide leading-none">
+                        INVOICE
+                      </h2>
+                      <p className="text-[11px] font-bold text-black mt-1.5 uppercase">
+                        Invoice # - {invoice.invoiceNumber}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -305,12 +339,12 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                     Bill To,
                   </span>
                   <span className="text-black font-bold uppercase">{customerName}</span>
-                  <span className="text-slate-700 leading-normal line-clamp-3">{customerAddress}</span>
+                  {customerAddress && <span className="text-slate-700 leading-normal line-clamp-3">{customerAddress}</span>}
                   {customerPhone && <span>Phone: {customerPhone}</span>}
                   <div className="mt-1 flex flex-col gap-0.5">
-                    <span>State : {patientState}</span>
-                    <span>PAN No: {patientPan}</span>
-                    <span>GSTIN: {patientGstin}</span>
+                    {patientState && <span>State : {patientState}</span>}
+                    {patientPan && <span>PAN No: {patientPan}</span>}
+                    {patientGstin && <span>GSTIN: {patientGstin}</span>}
                   </div>
                 </div>
 
@@ -320,10 +354,10 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                     Ship To,
                   </span>
                   <span className="text-black font-bold uppercase">{customerName}</span>
-                  <span className="text-slate-700 leading-normal line-clamp-3">{customerAddress}</span>
+                  {customerAddress && <span className="text-slate-700 leading-normal line-clamp-3">{customerAddress}</span>}
                   <div className="mt-1 flex flex-col gap-0.5">
-                    <span>State : {patientState}</span>
-                    <span>Place of supply (State Code): SILIGURI, {patientState} ({customerTax.stateCode || "19"})</span>
+                    {patientState && <span>State : {patientState}</span>}
+                    {patientState && <span>Place of supply: {patientState}</span>}
                   </div>
                 </div>
 
@@ -583,21 +617,34 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                   </div>
 
                   {/* Bank Account Details */}
-                  <div className="border border-black p-2 flex flex-col gap-0.5">
-                    <span className="font-bold border-b border-black pb-0.5 mb-1 block uppercase">
-                      Bank Account Details:
-                    </span>
-                    <div className="grid grid-cols-[80px_1fr] gap-y-0.5">
-                      <div>Bank Name</div>
-                      <div>: {shopDetails.bankName}</div>
+                  {shopDetails.enableBankDetails && shopDetails.bankAccountNumber ? (
+                    <div className="border border-black p-2 flex flex-col gap-0.5">
+                      <span className="font-bold border-b border-black pb-0.5 mb-1 block uppercase">
+                        Bank Account Details:
+                      </span>
+                      <div className="grid grid-cols-[80px_8px_1fr] gap-y-0.5">
+                        {shopDetails.bankName && (
+                          <>
+                            <div>Bank Name</div>
+                            <div>:</div>
+                            <div>{shopDetails.bankName}</div>
+                          </>
+                        )}
 
-                      <div>Account No.</div>
-                      <div className="font-bold">: {shopDetails.bankAccountNumber}</div>
+                        <div>Account No.</div>
+                        <div>:</div>
+                        <div className="font-bold">{shopDetails.bankAccountNumber}</div>
 
-                      <div>IFS Code</div>
-                      <div className="font-bold">: {shopDetails.bankIfsc}</div>
+                        {shopDetails.bankIfsc && (
+                          <>
+                            <div>IFS Code</div>
+                            <div>:</div>
+                            <div className="font-bold">{shopDetails.bankIfsc}</div>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
 
                 {/* Right Column: Ledger calculations */}
@@ -629,6 +676,54 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Installment Payment History Log */}
+              {data.allReceipts && data.allReceipts.length > 0 && (
+                <div className="border border-black mt-3 text-[9px]">
+                  <div className="bg-slate-100 border-b border-black px-2 py-1 font-bold text-black uppercase flex items-center justify-between">
+                    <span>Payment Settlement History ({data.allReceipts.length} Installments)</span>
+                    <span className="text-[8px] font-extrabold text-emerald-800 uppercase">
+                      {parseFloat(invoice.balanceDue) <= 0 ? "Account Fully Settled (Balance: ₹0.00)" : `Pending Balance: ₹${parseFloat(invoice.balanceDue).toFixed(2)}`}
+                    </span>
+                  </div>
+                  <table className="w-full text-center border-collapse">
+                    <thead>
+                      <tr className="border-b border-black font-bold bg-slate-50 text-slate-700 text-[8px] uppercase">
+                        <th className="py-0.5 px-1.5 border-r border-black text-left">Receipt #</th>
+                        <th className="py-0.5 px-1.5 border-r border-black">Payment Date</th>
+                        <th className="py-0.5 px-1.5 border-r border-black">Payment Mode</th>
+                        <th className="py-0.5 px-1.5 border-r border-black text-right">Amount Paid</th>
+                        <th className="py-0.5 px-1.5 text-right">Remaining Dues</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.allReceipts.map((r) => (
+                        <tr key={r.id} className="border-b border-black/30 font-semibold text-slate-800">
+                          <td className="py-1 px-1.5 border-r border-black text-left font-mono font-bold text-black">
+                            {r.receiptNumber}
+                          </td>
+                          <td className="py-1 px-1.5 border-r border-black">
+                            {new Date(r.createdAt).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </td>
+                          <td className="py-1 px-1.5 border-r border-black font-bold text-slate-700 uppercase">
+                            {r.paymentMethod}
+                          </td>
+                          <td className="py-1 px-1.5 border-r border-black text-right font-black text-emerald-800">
+                            {formatCurrency(parseFloat(r.amountPaid))}
+                          </td>
+                          <td className="py-1 px-1.5 text-right font-extrabold text-slate-700">
+                            {formatCurrency(parseFloat(r.balanceDue))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Footer of Page 1 */}
@@ -662,39 +757,60 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                       {shopName}
                     </h1>
                     <div className="grid grid-cols-[60px_8px_1fr] gap-y-0.5 text-[10px] text-black font-semibold mt-1">
-                      <div>Address</div>
-                      <div>:</div>
-                      <div className="whitespace-pre-line leading-tight">{shopAddress}</div>
+                      {shopAddress && (
+                        <>
+                          <div>Address</div>
+                          <div>:</div>
+                          <div className="whitespace-pre-line leading-tight">{shopAddress}</div>
+                        </>
+                      )}
 
-                      <div>GSTIN</div>
-                      <div>:</div>
-                      <div>{shopGstin}</div>
+                      {shopGstin && (
+                        <>
+                          <div>GSTIN</div>
+                          <div>:</div>
+                          <div>{shopGstin}</div>
+                        </>
+                      )}
 
-                      <div>CIN</div>
-                      <div>:</div>
-                      <div>{shopCin}</div>
+                      {shopCin && (
+                        <>
+                          <div>CIN</div>
+                          <div>:</div>
+                          <div>{shopCin}</div>
+                        </>
+                      )}
 
-                      <div>MSME No.</div>
-                      <div>:</div>
-                      <div>{shopMsme}</div>
+                      {shopMsme && (
+                        <>
+                          <div>MSME No.</div>
+                          <div>:</div>
+                          <div>{shopMsme}</div>
+                        </>
+                      )}
 
-                      <div>Phone</div>
-                      <div>:</div>
-                      <div>{shopPhone}</div>
+                      {shopPhone && (
+                        <>
+                          <div>Phone</div>
+                          <div>:</div>
+                          <div>{shopPhone}</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
                   <h2 className="text-2xl font-black text-black tracking-wide leading-none">
-                    TAX INVOICE
+                    INVOICE
                   </h2>
                   <p className="text-[11px] font-bold text-black mt-1.5 uppercase">
-                    Tax Invoice # - {invoice.invoiceNumber}
+                    Invoice # - {invoice.invoiceNumber}
                   </p>
                 </div>
               </div>
 
-              {/* Terms and conditions */}
+              {/* Terms and conditions (respects enableTerms toggle) */}
+              {shopDetails.enableTerms && (
               <div className="mt-4 font-semibold text-[10px] text-black">
                 <h3 className="text-[11px] font-black border-b border-black pb-0.5 mb-2 uppercase">
                   Terms and conditions:
@@ -719,19 +835,20 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                     <span className="font-bold">6. Modification of Terms:</span> These terms are subject to change without prior notice and as per regulatory or business requirements.
                   </li>
                   <li>
-                    <span className="font-bold">7. Liability:</span> Clarity Eyecare Pvt. Ltd. Navi Mumbai is not liable for any indirect, incidental, or consequential damages arising from the use of the products or services provided.
+                    <span className="font-bold">7. Liability:</span> {shopName} is not liable for any indirect, incidental, or consequential damages arising from the use of the products or services provided.
                   </li>
                   <li>
-                    <span className="font-bold">8. Disputes:</span> Any disputes arising out of this invoice must be reported within 180 days of receipt. All disputes will be governed by the laws of Turbhe.
+                    <span className="font-bold">8. Disputes:</span> Any disputes arising out of this invoice must be reported within 180 days of receipt. All disputes will be governed by the applicable laws of jurisdiction.
                   </li>
                   <li>
-                    <span className="font-bold">9. Ownership of Goods:</span> Ownership of goods remains with Clarity Eyecare Pvt. Ltd. Navi Mumbai until full payment is received.
+                    <span className="font-bold">9. Ownership of Goods:</span> Ownership of goods remains with {shopName} until full payment is received.
                   </li>
                   <li>
-                    <span className="font-bold">10. Contact Information:</span> For inquiries or clarifications regarding this invoice, please contact us at: Clarity Eyecare Pvt. Ltd. Navi Mumbai, Clarity Eyecare Pvt. Ltd., D 25/8, MIDC Turbhe, 9137012156, info@clarityeyecare.in.
+                    <span className="font-bold">10. Contact Information:</span> For inquiries or clarifications regarding this invoice, please contact us at: {shopName}{shopPhone ? `, ${shopPhone}` : ""}{shopDetails.email ? `, ${shopDetails.email}` : ""}.
                   </li>
                 </ol>
               </div>
+              )}
 
               {/* Signature Area */}
               <div className="mt-20 self-end mr-4 text-center font-semibold text-[10px] text-black">
@@ -827,18 +944,26 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 <h1 className="text-xl font-black tracking-tight leading-none text-black uppercase">
                   {shopName}
                 </h1>
-                <p className="font-semibold text-slate-600 max-w-[320px] uppercase">
-                  ADDRESS : {shopAddress}
-                </p>
-                <p className="font-semibold text-slate-600">
-                  GSTIN : <span className="font-extrabold">{shopGstin}</span>
-                </p>
-                <p className="font-semibold text-slate-600">
-                  CIN : <span className="font-extrabold">{shopCin}</span>
-                </p>
-                <p className="font-semibold text-slate-600">
-                  PHONE : <span className="font-extrabold">{shopPhone}</span>
-                </p>
+                {shopAddress && (
+                  <p className="font-semibold text-slate-600 max-w-[320px] uppercase">
+                    ADDRESS : {shopAddress}
+                  </p>
+                )}
+                {shopGstin && (
+                  <p className="font-semibold text-slate-600">
+                    GSTIN : <span className="font-extrabold">{shopGstin}</span>
+                  </p>
+                )}
+                {shopCin && (
+                  <p className="font-semibold text-slate-600">
+                    CIN : <span className="font-extrabold">{shopCin}</span>
+                  </p>
+                )}
+                {shopPhone && (
+                  <p className="font-semibold text-slate-600">
+                    PHONE : <span className="font-extrabold">{shopPhone}</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -870,9 +995,11 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 BILL TO,
               </h3>
               <p className="text-xs font-black text-slate-800 uppercase">{customerName}</p>
-              <p className="font-semibold text-slate-600">
-                Reg ID: <span className="font-bold text-slate-700">{customer?.registrationId || "N/A"}</span>
-              </p>
+              {customer?.registrationId && (
+                <p className="font-semibold text-slate-600">
+                  Reg ID: <span className="font-bold text-slate-700">{customer.registrationId}</span>
+                </p>
+              )}
               {customerPhone && (
                 <p className="font-semibold text-slate-600">
                   Phone: <span className="font-bold text-slate-700">{customerPhone}</span>
@@ -891,9 +1018,11 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 SHIP TO,
               </h3>
               <p className="text-xs font-black text-slate-800 uppercase">{customerName}</p>
-              <p className="font-semibold text-slate-600 max-w-[200px] uppercase leading-relaxed">
-                {customer?.address || shopAddress}
-              </p>
+              {customerAddress && (
+                <p className="font-semibold text-slate-600 max-w-[200px] uppercase leading-relaxed">
+                  {customerAddress}
+                </p>
+              )}
             </div>
 
             {/* TRANSACTION STATUS */}
@@ -1134,7 +1263,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
             <div className="text-center w-[200px] space-y-1">
               <div className="border-b border-slate-800 w-full mb-1" />
               <h4 className="font-black text-slate-900 uppercase">AUTHORITY SIGNATURE</h4>
-              <p className="font-semibold text-slate-500">Dr. Aris Thorne (Chief Optometrist)</p>
+              <p className="font-semibold text-slate-500">For {shopName}</p>
             </div>
           </div>
         </div>
