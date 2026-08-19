@@ -106,12 +106,15 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
       email: profile.email,
       fullName: profile.fullName,
       role: roleOverride,
+      customRoleName: profile.customRoleName || null,
+      permissions: profile.permissions || null,
       organizationId: profile.organizationId,
       shopId: shopIdOverride,
       avatarUrl: profile.avatarUrl,
       isActive: profile.isActive,
       isImpersonating,
     };
+
   } catch (error) {
     console.error("[auth.service] Error in getCurrentUser:", error);
     return null;

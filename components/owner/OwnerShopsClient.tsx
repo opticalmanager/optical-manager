@@ -16,42 +16,28 @@ import {
 import { toast } from "sonner";
 import { accessShopConsoleAction } from "@/actions/auth.actions";
 import { OutletConfigurePanel } from "./OutletConfigurePanel";
-
-interface ManagerInfo {
-  id: string;
-  email: string;
-  fullName: string;
-  isActive: boolean;
-}
-
-interface ShopWithManager {
-  id: string;
-  name: string;
-  address: string | null;
-  phone: string | null;
-  email: string | null;
-  isActive: boolean;
-  manager: ManagerInfo | null;
-}
+import type { ShopWithStaffData } from "@/services/shop-manager.service";
+import { Phone, Users, ShieldCheck } from "lucide-react";
 
 interface OwnerShopsClientProps {
-  initialShops: ShopWithManager[];
+  initialShops: ShopWithStaffData[];
 }
 
 export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
-  const [shopsList, setShopsList] = useState<ShopWithManager[]>(initialShops);
-  const [selectedShop, setSelectedShop] = useState<ShopWithManager | null>(null);
+  const [shopsList, setShopsList] = useState<ShopWithStaffData[]>(initialShops);
+  const [selectedShop, setSelectedShop] = useState<ShopWithStaffData | null>(null);
   const [isViewOutletLoading, setIsViewOutletLoading] = useState<string | null>(null);
 
   // KPI Calculations
   const totalOutlets = shopsList.length;
   const activeStatusCount = shopsList.filter((s) => s.isActive).length;
-  const configuredManagersCount = shopsList.filter((s) => s.manager !== null).length;
-  const pendingCredentialsCount = shopsList.filter((s) => s.manager === null).length;
+  const configuredManagersCount = shopsList.filter((s) => (s.staffCount || 0) > 0).length;
+  const pendingCredentialsCount = shopsList.filter((s) => (s.staffCount || 0) === 0).length;
 
-  const handleOpenConfigureOutlet = (shop: ShopWithManager) => {
+  const handleOpenConfigureOutlet = (shop: ShopWithStaffData) => {
     setSelectedShop(shop);
   };
+
 
   const handleViewOutlet = async (shopId: string) => {
     if (shopId.startsWith("mock-")) {
@@ -77,7 +63,7 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
     }
   };
 
-  const handleShopUpdated = (updatedShop: ShopWithManager) => {
+  const handleShopUpdated = (updatedShop: ShopWithStaffData) => {
     setShopsList((prev) =>
       prev.map((s) => (s.id === updatedShop.id ? updatedShop : s))
     );
@@ -93,7 +79,7 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
             Shops Management
           </h1>
           <p className="text-sm text-slate-500 font-medium mt-1">
-            Manage your physical optical retail branches, contact listings, manager credentials, and operational statuses.
+            Manage your physical optical retail branches, contact listings, staff credentials, and role-based permissions.
           </p>
         </div>
 
@@ -106,7 +92,7 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Configure Outlet</span>
+          <span>Configure Outlet</span>
         </button>
       </div>
 
@@ -188,7 +174,7 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
               className="bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden"
             >
               {/* Card Body */}
-              <div className="p-6 space-y-5">
+              <div className="p-6 space-y-4">
                 {/* Shop Title & Status Badge */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -216,25 +202,46 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
                   </span>
                 </div>
 
-                {/* Email Info */}
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                  <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="break-all">{shop.manager?.email || shop.email || "No email assigned"}</span>
+                {/* Email and Phone Contact Info */}
+                <div className="space-y-1.5 text-xs font-medium text-slate-500 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="break-all">{shop.email || shop.manager?.email || "No email assigned"}</span>
+                  </div>
+                  {shop.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span>{shop.phone}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Outlet Manager Card Container */}
-                <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3.5 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    OUTLET MANAGER
-                  </span>
+                {/* Outlet Staff & Manager Card Container */}
+                <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      ASSIGNED STAFF
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
+                      {shop.staffCount || (shop.manager ? 1 : 0)} Role{shop.staffCount > 1 ? "s" : ""}
+                    </span>
+                  </div>
+
                   <div className="flex items-center gap-2.5 pt-0.5">
-                    <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
-                      <User className="w-3.5 h-3.5" />
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0">
+                      {shop.manager?.fullName ? shop.manager.fullName.substring(0, 2).toUpperCase() : <User className="w-4 h-4 text-indigo-600" />}
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate">
-                        {shop.manager?.fullName || `${shop.name} Manager`}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-slate-800 truncate">
+                          {shop.manager?.fullName || `${shop.name} Manager`}
+                        </p>
+                        {shop.manager?.customRoleName && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-200/70 text-slate-700">
+                            {shop.manager.customRoleName}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-slate-400 truncate">
                         {shop.manager?.email || shop.email || "Unassigned"}
                       </p>
@@ -282,3 +289,4 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
     </div>
   );
 }
+

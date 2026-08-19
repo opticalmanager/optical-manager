@@ -9,12 +9,15 @@ import {
   BarChart3, 
   TrendingUp, 
   Megaphone,
+  Radio,
   Settings, 
   HelpCircle,
   LogOut, 
-  Glasses 
+  Glasses,
+  ChevronDown 
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { generateBroadcastSsoUrl } from "@/actions/sso.actions";
 import { toast } from "sonner";
 
 interface OwnerSidebarProps {
@@ -30,6 +33,8 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [isLaunchingBroadcast, setIsLaunchingBroadcast] = React.useState(false);
+  const [isPromoHovered, setIsPromoHovered] = React.useState(false);
 
   const handleLogout = async () => {
     try {
@@ -43,12 +48,31 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
     }
   };
 
+  const handleLaunchBroadcast = async () => {
+    try {
+      setIsLaunchingBroadcast(true);
+      toast.loading("Authenticating Broadcast Engine...", { id: "sso-launch" });
+      const res = await generateBroadcastSsoUrl();
+      if (res.success && res.url) {
+        toast.success("Redirecting to OpticalManager Broadcast...", { id: "sso-launch" });
+        window.location.href = res.url;
+      } else {
+        toast.error(res.error || "Failed to authenticate Broadcast session", { id: "sso-launch" });
+      }
+    } catch (err: any) {
+      console.error("SSO launch error:", err);
+      toast.error("Error launching Broadcast engine", { id: "sso-launch" });
+    } finally {
+      setIsLaunchingBroadcast(false);
+    }
+  };
+
   const navItems = [
     { name: "Dashboard", href: "/owner", icon: LayoutDashboard },
     { name: "Shops", href: "/owner/shops", icon: Store },
     { name: "Reports", href: "/owner/reports", icon: TrendingUp },
     { name: "Analytics", href: "/owner/analytics", icon: BarChart3 },
-    { name: "Promotion", href: "/owner/promotions", icon: Megaphone },
+    { name: "Promotion", href: "/owner/promotions", icon: Megaphone, hasDropdown: true },
     { name: "Settings", href: "/owner/settings", icon: Settings },
   ];
 
@@ -68,15 +92,66 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
         {/* Navigation Items */}
         <nav className="p-4 space-y-1 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {navItems.map((item) => {
+            if (item.hasDropdown) {
+              const isPromoActive = pathname.startsWith("/owner/promotions");
+              const showPromoSub = isPromoHovered || isPromoActive;
+
+              return (
+                <div
+                  key={item.name}
+                  className="space-y-1"
+                  onMouseEnter={() => setIsPromoHovered(true)}
+                  onMouseLeave={() => setIsPromoHovered(false)}
+                >
+                  <Link
+                    href={item.href!}
+                    onClick={onCloseMobile}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all group duration-150 border
+                      ${isPromoActive 
+                        ? "bg-indigo-50/70 text-indigo-600 border-indigo-100/50 font-semibold" 
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 border-transparent"
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className={`w-[18px] h-[18px] shrink-0 transition-colors
+                        ${isPromoActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700"}
+                      `} />
+                      <span>{item.name}</span>
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${showPromoSub ? "rotate-180 text-indigo-600" : ""}`} />
+                  </Link>
+
+                  {/* Dropdown Sub-item: Broadcast Engine */}
+                  {showPromoSub && (
+                    <div className="pl-4 pr-1 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <button
+                        type="button"
+                        onClick={handleLaunchBroadcast}
+                        disabled={isLaunchingBroadcast}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all group duration-150 border border-emerald-200/80 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer shadow-2xs text-left"
+                      >
+                        <Radio className="w-3.5 h-3.5 shrink-0 text-emerald-600 group-hover:text-emerald-800 animate-pulse" />
+                        <span className="flex-1 font-bold">Broadcast Engine</span>
+                        <span className="text-[9px] uppercase tracking-wider font-black bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded">
+                          NEW
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const isActive = 
               item.href === "/owner" 
                 ? pathname === "/owner" 
-                : pathname.startsWith(item.href);
+                : pathname.startsWith(item.href!);
 
             return (
               <Link
                 key={item.name}
-                href={item.href}
+                href={item.href!}
                 onClick={onCloseMobile}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group duration-150 border
                   ${isActive 
@@ -94,6 +169,7 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
           })}
         </nav>
       </div>
+
 
       {/* Bottom Action Links (Support & Logout) */}
       <div className="p-4 border-t border-slate-100 space-y-1 bg-slate-50/50 shrink-0">

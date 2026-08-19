@@ -41,3 +41,12 @@ export { appointments, appointmentStatusEnum } from "./appointments";
 export { demoRequests, demoRequestStatusEnum } from "./demo-requests";
 export * from "./promotions";
 export * from "./email";
+export {
+  salesReturns,
+  salesReturnItems,
+  returnTypeEnum,
+  returnStatusEnum,
+  inspectionReasonEnum,
+  finalActionEnum,
+} from "./sales-returns";
+

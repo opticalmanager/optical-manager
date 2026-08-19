@@ -65,6 +65,9 @@ CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANC
 | `fullName` | `varchar(255)` | NOT NULL | User full name |
 | `email` | `varchar(255)` | NOT NULL | User email address |
 | `role` | `user_role` | NOT NULL | `SUPER_ADMIN`, `OWNER`, `SHOP_MANAGER` |
+| `customRoleName` | `varchar(100)` | NULLABLE | Custom role title (e.g. Optometrist, Cashier, Sales & Billing) |
+| `permissions` | `jsonb` | NULLABLE | Granular module permission flags (`dashboard`, `inventory`, `sales`, `returns`, `customers`, `appointments`, `analytics`, `reports`, `settings`, `support`) |
+
 
 ---
 

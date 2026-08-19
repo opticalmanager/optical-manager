@@ -20,6 +20,8 @@ import type {
   stockMovements,
   receipts,
   orders,
+  salesReturns,
+  salesReturnItems,
 } from "@/db/schema";
 
 
@@ -37,6 +39,8 @@ export type InvoiceItem = InferSelectModel<typeof invoiceItems>;
 export type StockMovement = InferSelectModel<typeof stockMovements>;
 export type Receipt = InferSelectModel<typeof receipts>;
 export type Order = InferSelectModel<typeof orders>;
+export type SalesReturn = InferSelectModel<typeof salesReturns>;
+export type SalesReturnItem = InferSelectModel<typeof salesReturnItems>;
 
 // --- Insert Types (writing to DB) ---
 export type NewOrganization = InferInsertModel<typeof organizations>;
@@ -52,5 +56,8 @@ export type NewInvoiceItem = InferInsertModel<typeof invoiceItems>;
 export type NewStockMovement = InferInsertModel<typeof stockMovements>;
 export type NewReceipt = InferInsertModel<typeof receipts>;
 export type NewOrder = InferInsertModel<typeof orders>;
+export type NewSalesReturn = InferInsertModel<typeof salesReturns>;
+export type NewSalesReturnItem = InferInsertModel<typeof salesReturnItems>;
+
 
 

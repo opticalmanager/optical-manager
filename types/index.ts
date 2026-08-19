@@ -24,6 +24,8 @@ export type {
   StockMovement,
   Receipt,
   Order,
+  SalesReturn,
+  SalesReturnItem,
   NewOrganization,
   NewProfile,
   NewShop,
@@ -37,5 +39,8 @@ export type {
   NewStockMovement,
   NewReceipt,
   NewOrder,
+  NewSalesReturn,
+  NewSalesReturnItem,
 } from "./database";
+
 

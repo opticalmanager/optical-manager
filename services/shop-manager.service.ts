@@ -6,9 +6,33 @@ import { eq, and } from "drizzle-orm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "./auth.service";
 
+import { defaultFullPermissions, type ModulePermissions } from "@/db/schema/profiles";
+
+export interface StaffProfileInfo {
+  id: string;
+  email: string;
+  fullName: string;
+  customRoleName: string | null;
+  permissions: ModulePermissions;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export interface ShopWithStaffData {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  isActive: boolean;
+  staffCount: number;
+  manager: StaffProfileInfo | null;
+  staffList: StaffProfileInfo[];
+}
+
 /**
  * Fetches all shops for the current owner's organization,
- * along with their linked shop manager profile (if any).
+ * along with their linked staff profiles and permission assignments.
  */
 export async function getShopsWithManagers() {
   const user = await getCurrentUser();
@@ -25,8 +49,8 @@ export async function getShopsWithManagers() {
     .where(eq(shops.organizationId, orgId))
     .orderBy(shops.createdAt);
 
-  // Fetch all shop manager profiles for this org
-  const managerProfiles = await db
+  // Fetch all staff profiles for this org
+  const staffProfiles = await db
     .select()
     .from(profiles)
     .where(
@@ -34,11 +58,23 @@ export async function getShopsWithManagers() {
         eq(profiles.organizationId, orgId),
         eq(profiles.role, "SHOP_MANAGER")
       )
-    );
+    )
+    .orderBy(profiles.createdAt);
 
-  // Merge shops with their managers
-  const shopsWithManagers = orgShops.map((shop) => {
-    const manager = managerProfiles.find((p) => p.shopId === shop.id) ?? null;
+  // Merge shops with their staff profiles
+  const shopsWithStaff: ShopWithStaffData[] = orgShops.map((shop) => {
+    const shopStaff = staffProfiles.filter((p) => p.shopId === shop.id).map((p) => ({
+      id: p.id,
+      email: p.email,
+      fullName: p.fullName,
+      customRoleName: p.customRoleName || "Store Manager",
+      permissions: (p.permissions as ModulePermissions) || defaultFullPermissions,
+      isActive: p.isActive,
+      createdAt: p.createdAt,
+    }));
+
+    const primaryManager = shopStaff[0] || null;
+
     return {
       id: shop.id,
       name: shop.name,
@@ -46,19 +82,15 @@ export async function getShopsWithManagers() {
       phone: shop.phone,
       email: shop.email,
       isActive: shop.isActive,
-      manager: manager
-        ? {
-            id: manager.id,
-            email: manager.email,
-            fullName: manager.fullName,
-            isActive: manager.isActive,
-          }
-        : null,
+      staffCount: shopStaff.length,
+      manager: primaryManager,
+      staffList: shopStaff,
     };
   });
 
-  return { success: true as const, data: shopsWithManagers };
+  return { success: true as const, data: shopsWithStaff };
 }
+
 
 /**
  * Updates the password for a shop manager account.
@@ -300,3 +332,277 @@ export async function createShopManagerCredentials(
     },
   };
 }
+
+/**
+ * Creates a new staff role account for a specific shop outlet with customized module permissions.
+ */
+export async function createShopStaffAccount(payload: {
+  shopId: string;
+  email: string;
+  password: string;
+  fullName: string;
+  customRoleName?: string;
+  permissions?: ModulePermissions;
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
+    return { success: false, error: "Unauthorized access." };
+  }
+
+  const { shopId, email, password, fullName, customRoleName = "Store Manager", permissions = defaultFullPermissions } = payload;
+
+  if (!email || !email.includes("@")) {
+    return { success: false, error: "A valid email address is required." };
+  }
+
+  if (!password || password.length < 8) {
+    return { success: false, error: "Password must be at least 8 characters long." };
+  }
+
+  if (!fullName || fullName.trim().length === 0) {
+    return { success: false, error: "Full name is required." };
+  }
+
+  // 1. Verify shop belongs to owner's organization
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(
+      and(
+        eq(shops.id, shopId),
+        eq(shops.organizationId, user.organizationId)
+      )
+    )
+    .limit(1);
+
+  if (!shop) {
+    return { success: false, error: "Shop not found or access denied." };
+  }
+
+  // 2. Create Auth user via Supabase Admin
+  const supabaseAdmin = createAdminClient();
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    email: email.trim().toLowerCase(),
+    password: password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: fullName.trim(),
+    },
+  });
+
+  if (authError || !authData.user) {
+    console.error("Failed to create staff auth user:", authError);
+    return {
+      success: false,
+      error: authError?.message || "Failed to create user account. Email may already be registered.",
+    };
+  }
+
+  // 3. Create profile with assigned permissions and role
+  const [createdProfile] = await db
+    .insert(profiles)
+    .values({
+      id: authData.user.id,
+      organizationId: user.organizationId,
+      shopId: shop.id,
+      fullName: fullName.trim(),
+      email: email.trim().toLowerCase(),
+      role: "SHOP_MANAGER",
+      customRoleName: customRoleName.trim(),
+      permissions: permissions,
+      isActive: true,
+    })
+    .returning();
+
+  return {
+    success: true,
+    staff: {
+      id: createdProfile.id,
+      email: createdProfile.email,
+      fullName: createdProfile.fullName,
+      customRoleName: createdProfile.customRoleName,
+      permissions: (createdProfile.permissions as ModulePermissions) || defaultFullPermissions,
+      isActive: createdProfile.isActive,
+      createdAt: createdProfile.createdAt,
+    },
+  };
+}
+
+/**
+ * Updates staff member permissions and custom role name.
+ */
+export async function updateStaffPermissions(payload: {
+  profileId: string;
+  fullName?: string;
+  customRoleName?: string;
+  permissions: ModulePermissions;
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
+    return { success: false, error: "Unauthorized access." };
+  }
+
+  const { profileId, fullName, customRoleName, permissions } = payload;
+
+  const [existingProfile] = await db
+    .select()
+    .from(profiles)
+    .where(
+      and(
+        eq(profiles.id, profileId),
+        eq(profiles.organizationId, user.organizationId)
+      )
+    )
+    .limit(1);
+
+  if (!existingProfile) {
+    return { success: false, error: "Staff member not found or access denied." };
+  }
+
+  const updateFields: Record<string, unknown> = {
+    permissions: permissions,
+    updatedAt: new Date(),
+  };
+
+  if (fullName) updateFields.fullName = fullName.trim();
+  if (customRoleName) updateFields.customRoleName = customRoleName.trim();
+
+  const [updated] = await db
+    .update(profiles)
+    .set(updateFields)
+    .where(eq(profiles.id, profileId))
+    .returning();
+
+  return {
+    success: true,
+    staff: {
+      id: updated.id,
+      email: updated.email,
+      fullName: updated.fullName,
+      customRoleName: updated.customRoleName,
+      permissions: (updated.permissions as ModulePermissions) || defaultFullPermissions,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt,
+    },
+  };
+}
+
+/**
+ * Updates password for any specific staff profile by ID.
+ */
+export async function updateStaffPasswordById(payload: {
+  profileId: string;
+  newPassword: string;
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
+    return { success: false, error: "Unauthorized access." };
+  }
+
+  const { profileId, newPassword } = payload;
+
+  if (!newPassword || newPassword.length < 8) {
+    return { success: false, error: "Password must be at least 8 characters long." };
+  }
+
+  const [profile] = await db
+    .select()
+    .from(profiles)
+    .where(
+      and(
+        eq(profiles.id, profileId),
+        eq(profiles.organizationId, user.organizationId)
+      )
+    )
+    .limit(1);
+
+  if (!profile) {
+    return { success: false, error: "Staff member not found or access denied." };
+  }
+
+  const supabaseAdmin = createAdminClient();
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(profileId, {
+    password: newPassword,
+  });
+
+  if (error) {
+    console.error("Error updating staff password:", error);
+    return { success: false, error: error.message || "Failed to update password." };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Toggles staff member active/inactive status.
+ */
+export async function toggleStaffStatus(payload: {
+  profileId: string;
+  isActive: boolean;
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
+    return { success: false, error: "Unauthorized access." };
+  }
+
+  const { profileId, isActive } = payload;
+
+  const [profile] = await db
+    .select()
+    .from(profiles)
+    .where(
+      and(
+        eq(profiles.id, profileId),
+        eq(profiles.organizationId, user.organizationId)
+      )
+    )
+    .limit(1);
+
+  if (!profile) {
+    return { success: false, error: "Staff member not found." };
+  }
+
+  await db
+    .update(profiles)
+    .set({ isActive, updatedAt: new Date() })
+    .where(eq(profiles.id, profileId));
+
+  return { success: true };
+}
+
+/**
+ * Deletes a staff account from auth and database.
+ */
+export async function deleteStaffAccount(payload: { profileId: string }) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "OWNER" || !user.organizationId) {
+    return { success: false, error: "Unauthorized access." };
+  }
+
+  const { profileId } = payload;
+
+  const [profile] = await db
+    .select()
+    .from(profiles)
+    .where(
+      and(
+        eq(profiles.id, profileId),
+        eq(profiles.organizationId, user.organizationId)
+      )
+    )
+    .limit(1);
+
+  if (!profile) {
+    return { success: false, error: "Staff member not found." };
+  }
+
+  // Delete from Supabase Auth
+  const supabaseAdmin = createAdminClient();
+  await supabaseAdmin.auth.admin.deleteUser(profileId);
+
+  // Delete from database
+  await db.delete(profiles).where(eq(profiles.id, profileId));
+
+  return { success: true };
+}
+
