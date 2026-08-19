@@ -2,6 +2,8 @@
  * Authentication-related TypeScript types.
  */
 
+import type { ModulePermissions } from "@/db/schema/profiles";
+
 export type UserRole = "SUPER_ADMIN" | "OWNER" | "SHOP_MANAGER";
 
 /**
@@ -13,12 +15,15 @@ export interface SessionUser {
   email: string;
   fullName: string;
   role: UserRole;
+  customRoleName?: string | null;
+  permissions?: ModulePermissions | null;
   organizationId: string | null; // null for SUPER_ADMIN or unassigned
   shopId: string | null; // null for OWNER / SUPER_ADMIN
   avatarUrl: string | null;
   isActive: boolean;
   isImpersonating?: boolean;
 }
+
 
 /**
  * Auth state used in the application context.

@@ -46,6 +46,8 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
           shopAddress={shop?.address || undefined} 
           isCollapsed={isCollapsed}
           onToggleCollapse={handleToggleCollapse}
+          permissions={user?.permissions}
+          role={user?.role}
         />
       </div>
 
@@ -65,10 +67,13 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
               shopAddress={shop?.address || undefined}
               showCloseButton
               onClose={() => setIsSidebarOpen(false)}
+              permissions={user?.permissions}
+              role={user?.role}
             />
           </div>
         </div>
       )}
+
 
       {/* Main content display column */}
       <div className="flex flex-1 flex-col overflow-hidden">

@@ -2,25 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTransition } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { 
   LayoutGrid, 
   Store, 
   ShoppingCart, 
   Users, 
-  CalendarDays,
-  BarChart2,
-  TrendingUp,
+  CalendarDays, 
+  BarChart2, 
+  TrendingUp, 
   Settings, 
-  HelpCircle,
-  LogOut,
-  X,
-  PanelLeftClose,
-  PanelLeftOpen
+  HelpCircle, 
+  LogOut, 
+  X, 
+  PanelLeftClose, 
+  PanelLeftOpen,
+  ChevronDown,
+  RotateCcw,
+  ShoppingBag
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth.actions";
+import type { ModulePermissions } from "@/db/schema/profiles";
 
 interface SidebarProps {
   shopName?: string;
@@ -29,48 +33,83 @@ interface SidebarProps {
   onClose?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  permissions?: ModulePermissions | null;
+  role?: string;
 }
 
-const mainNavItems = [
+interface SubNavItem {
+  title: string;
+  href: string;
+  icon: any;
+}
+
+interface NavItem {
+  title: string;
+  href: string;
+  icon: any;
+  permissionKey?: keyof ModulePermissions;
+  subItems?: SubNavItem[];
+}
+
+const mainNavItems: NavItem[] = [
   {
     title: "Dashboard",
     href: "/shop/dashboard",
     icon: LayoutGrid,
+    permissionKey: "dashboard",
   },
   {
     title: "Inventory",
     href: "/shop/inventory",
     icon: Store,
+    permissionKey: "inventory",
   },
   {
     title: "Sales",
     href: "/shop/orders",
     icon: ShoppingCart,
+    subItems: [
+      {
+        title: "Orders",
+        href: "/shop/orders",
+        icon: ShoppingBag,
+      },
+      {
+        title: "Returns",
+        href: "/shop/returns",
+        icon: RotateCcw,
+      },
+    ],
   },
   {
     title: "Customers",
     href: "/shop/customers",
     icon: Users,
+    permissionKey: "customers",
   },
   {
     title: "Appointments",
     href: "/shop/appointments",
     icon: CalendarDays,
+    permissionKey: "appointments",
   },
   {
     title: "Analytics",
     href: "/shop/analytics",
     icon: BarChart2,
+    permissionKey: "analytics",
   },
   {
     title: "Reports",
     href: "/shop/reports",
     icon: TrendingUp,
+    permissionKey: "reports",
   },
   {
     title: "Settings",
     href: "/shop/settings",
     icon: Settings,
+    permissionKey: "settings",
   },
 ];
 
@@ -80,10 +119,52 @@ export function Sidebar({
   showCloseButton, 
   onClose,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  permissions,
+  role,
 }: SidebarProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
+
+  const isModuleAllowed = (key: keyof ModulePermissions) => {
+    if (role === "OWNER" || role === "SUPER_ADMIN" || !permissions) return true;
+    return permissions[key] !== false;
+  };
+
+  // Filter visible items according to permissions
+  const visibleNavItems = mainNavItems
+    .map((item) => {
+      if (item.title === "Sales" && item.subItems) {
+        const allowedSubItems = item.subItems.filter((sub) => {
+          if (sub.title === "Orders") return isModuleAllowed("sales");
+          if (sub.title === "Returns") return isModuleAllowed("returns");
+          return true;
+        });
+
+        if (allowedSubItems.length === 0) return null;
+        return { ...item, subItems: allowedSubItems };
+      }
+
+      if (item.permissionKey && !isModuleAllowed(item.permissionKey)) {
+        return null;
+      }
+
+      return item;
+    })
+    .filter(Boolean) as NavItem[];
+
+  const isSalesRoute =
+    pathname.startsWith("/shop/orders") ||
+    pathname.startsWith("/shop/invoices") ||
+    pathname.startsWith("/shop/returns");
+
+  const [salesDropdownOpen, setSalesDropdownOpen] = useState(isSalesRoute);
+
+  useEffect(() => {
+    if (isSalesRoute) {
+      setSalesDropdownOpen(true);
+    }
+  }, [isSalesRoute]);
 
   const formattedAddress = shopAddress
     ? shopAddress.split(",")[0].trim().toUpperCase()
@@ -102,18 +183,15 @@ export function Sidebar({
   return (
     <div className={cn(
       "flex h-full flex-col border-r border-slate-200/80 bg-[#f8fafc] select-none transition-all duration-300",
-      isCollapsed ? "w-[72px]" : "w-64"
+      isCollapsed ? "w-16" : "w-60"
     )}>
-      {/* Top Software Branding Header */}
+      {/* Clinic/Brand Header Banner */}
       <div className={cn(
-        "pt-5 pb-3 flex items-center justify-between transition-all",
-        isCollapsed ? "px-3.5 flex-col gap-3" : "px-6"
+        "flex h-16 items-center border-b border-slate-200/80 bg-white transition-all duration-300",
+        isCollapsed ? "justify-center px-0" : "justify-between px-4"
       )}>
         {!isCollapsed ? (
-          <div className="space-y-0.5 min-w-0 pr-1">
-            <h1 className="text-[#2563eb] font-extrabold text-lg tracking-tight leading-tight truncate">
-              Optical Manager
-            </h1>
+          <div className="flex flex-col min-w-0 pr-2">
             <h2 className="text-[12px] font-black text-slate-800 tracking-wider uppercase leading-snug truncate">
               {shopName ? shopName.toUpperCase() : "CLINICAL CURATOR"}
             </h2>
@@ -162,12 +240,102 @@ export function Sidebar({
         "flex-1 space-y-1.5 py-3 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
         isCollapsed ? "px-2" : "px-3"
       )}>
-        {mainNavItems.map((item) => {
+        {visibleNavItems.map((item) => {
+          if (item.subItems) {
+            const hasActiveChild = item.subItems.some((sub) =>
+              sub.href === "/shop/orders"
+                ? pathname.startsWith("/shop/orders") || pathname.startsWith("/shop/invoices")
+                : pathname.startsWith(sub.href)
+            );
+
+            if (isCollapsed) {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.title}
+                  className={cn(
+                    "group flex items-center rounded-xl py-2.5 text-sm font-semibold transition-all duration-150 justify-center px-0",
+                    hasActiveChild
+                      ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/20 font-bold"
+                      : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+                  )}
+                >
+                  <item.icon className={cn("h-4.5 w-4.5 shrink-0 transition-colors", hasActiveChild ? "text-white" : "text-slate-400 group-hover:text-slate-700")} />
+                </Link>
+              );
+            }
+
+            return (
+              <div key={item.title} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setSalesDropdownOpen((prev) => !prev)}
+                  className={cn(
+                    "w-full group flex items-center justify-between rounded-xl py-2.5 px-3.5 text-sm font-semibold transition-all duration-150 cursor-pointer border-none bg-transparent",
+                    hasActiveChild && !salesDropdownOpen
+                      ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/20 font-bold"
+                      : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+                  )}
+                >
+                  <div className="flex items-center gap-3.5">
+                    <item.icon
+                      className={cn(
+                        "h-4.5 w-4.5 shrink-0 transition-colors",
+                        hasActiveChild && !salesDropdownOpen
+                          ? "text-white"
+                          : "text-slate-400 group-hover:text-slate-700"
+                      )}
+                    />
+                    <span>{item.title}</span>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-slate-400 transition-transform duration-200",
+                      salesDropdownOpen ? "rotate-180 text-slate-600" : ""
+                    )}
+                  />
+                </button>
+
+                {/* Sub-items dropdown */}
+                {salesDropdownOpen && (
+                  <div className="pl-4 pr-1 py-1 space-y-1 animate-in slide-in-from-top-1 duration-150">
+                    {item.subItems.map((sub) => {
+                      const isSubActive =
+                        sub.href === "/shop/orders"
+                          ? pathname.startsWith("/shop/orders") || pathname.startsWith("/shop/invoices")
+                          : pathname.startsWith(sub.href);
+
+                      return (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          className={cn(
+                            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150",
+                            isSubActive
+                              ? "bg-blue-50 text-[#2563eb] font-extrabold border border-blue-100 shadow-2xs"
+                              : "text-slate-500 hover:bg-slate-200/40 hover:text-slate-800"
+                          )}
+                        >
+                          <sub.icon
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0",
+                              isSubActive ? "text-[#2563eb]" : "text-slate-400"
+                            )}
+                          />
+                          <span>{sub.title}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           let isActive = false;
           if (item.href === "/shop/dashboard") {
             isActive = pathname === item.href;
-          } else if (item.href === "/shop/orders") {
-            isActive = pathname.startsWith("/shop/orders") || pathname.startsWith("/shop/invoices");
           } else if (item.href === "/shop/customers") {
             isActive = pathname.startsWith("/shop/customers") || pathname.startsWith("/shop/patients");
           } else {
@@ -199,20 +367,22 @@ export function Sidebar({
         "py-3 border-t border-slate-200/70 space-y-1 bg-[#f8fafc]",
         isCollapsed ? "px-2" : "px-3"
       )}>
-        <Link
-          href="/shop/support"
-          title={isCollapsed ? "Support" : undefined}
-          className={cn(
-            "group flex items-center rounded-xl py-2.5 text-sm font-semibold transition-all duration-150",
-            isCollapsed ? "justify-center px-0" : "gap-3.5 px-3.5",
-            pathname.startsWith("/shop/support")
-              ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/20 font-bold"
-              : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-          )}
-        >
-          <HelpCircle className={cn("h-4.5 w-4.5 shrink-0 transition-colors", pathname.startsWith("/shop/support") ? "text-white" : "text-slate-400 group-hover:text-slate-700")} />
-          {!isCollapsed && <span>Support</span>}
-        </Link>
+        {isModuleAllowed("support") && (
+          <Link
+            href="/shop/support"
+            title={isCollapsed ? "Support" : undefined}
+            className={cn(
+              "group flex items-center rounded-xl py-2.5 text-sm font-semibold transition-all duration-150",
+              isCollapsed ? "justify-center px-0" : "gap-3.5 px-3.5",
+              pathname.startsWith("/shop/support")
+                ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/20 font-bold"
+                : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+            )}
+          >
+            <HelpCircle className={cn("h-4.5 w-4.5 shrink-0 transition-colors", pathname.startsWith("/shop/support") ? "text-white" : "text-slate-400 group-hover:text-slate-700")} />
+            {!isCollapsed && <span>Support</span>}
+          </Link>
+        )}
 
         <button
           type="button"

@@ -69,8 +69,9 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-3">5. Subscription Terms & Billing</h2>
           <ul className="list-disc pl-6 space-y-2">
-            <li><strong>Subscription Plans:</strong> Optical Manager offers Monthly (₹899/month) and Yearly (₹9,999/year) subscription plans as published on our website.</li>
+            <li><strong>Subscription Plans:</strong> Optical Manager offers Monthly (₹499/month per store) and Yearly (₹4,999/year per store) subscription plans as published on our website.</li>
             <li><strong>Payment Processing:</strong> Fees are billed in advance in Indian Rupees (INR) and are inclusive of applicable taxes unless stated otherwise.</li>
+
             <li><strong>Renewals:</strong> Subscriptions renew automatically at the end of the billing cycle unless canceled prior to the renewal date.</li>
             <li><strong>Refunds:</strong> Payments are non-refundable once processed, except as required by applicable Indian consumer laws or explicit written agreements.</li>
           </ul>
