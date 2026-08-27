@@ -22,6 +22,7 @@ import { updateLensItemAction } from "@/actions/inventory.actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { LensPowerMatrix } from "@/components/shop/LensPowerMatrix";
 
 interface EditLensItemFormProps {
   initialData: any;
@@ -276,15 +277,41 @@ export function EditLensItemForm({
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Stock Power Range
+                    Stock Power Range / Summary
                   </label>
                   <Input
                     type="text"
                     placeholder="e.g. -4.00 to +4.00"
-                    className="h-11 border-slate-200"
+                    className="h-11 border-slate-200 font-semibold text-slate-800"
                     {...register("stockPower")}
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Auto-calibrated as you adjust lens quantities in the power matrix below.
+                  </p>
                 </div>
+              </div>
+
+              {/* Lens Power SPH / CYL Matrix Chart */}
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Lens Power Sphere &amp; Cylinder Stock Matrix
+                    </label>
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      Select plus/minus sphere chart mode and review or update lens unit counts across SPH and CYL powers.
+                    </p>
+                  </div>
+                </div>
+
+                <LensPowerMatrix
+                  initialStockPower={initialData.stockPower}
+                  onMatrixChange={({ powerSummary }) => {
+                    if (powerSummary) {
+                      setValue("stockPower", powerSummary);
+                    }
+                  }}
+                />
               </div>
 
               {/* Coatings & Enhancements */}
