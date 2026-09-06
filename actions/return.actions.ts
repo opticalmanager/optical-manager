@@ -8,6 +8,8 @@ import {
   invoiceItems,
   inventory,
   stockMovements,
+  customers,
+  customerCreditLedger,
 } from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { getCurrentUser } from "@/services/auth.service";
@@ -39,6 +41,8 @@ export interface ReturnItemPayload {
 export interface SubmitReturnPayload {
   invoiceId: string;
   returnType: "SELECTED_PRODUCTS" | "ENTIRE_INVOICE";
+  refundMethod?: "CASH" | "STORE_CREDIT";
+  customRefundAmount?: number;
   items: ReturnItemPayload[];
   notes?: string;
   isDraft?: boolean;
@@ -141,6 +145,16 @@ export async function submitReturnAction(payload: SubmitReturnPayload) {
       const isDraft = payload.isDraft === true;
       const returnStatus = isDraft ? "DRAFT" : "COMPLETED";
 
+      const finalRefundAmount =
+        typeof payload.customRefundAmount === "number" &&
+        !isNaN(payload.customRefundAmount) &&
+        payload.customRefundAmount >= 0
+          ? payload.customRefundAmount
+          : totalRefund;
+
+      const refundMethod = payload.refundMethod === "STORE_CREDIT" ? "STORE_CREDIT" : "CASH";
+      const creditAmount = refundMethod === "STORE_CREDIT" ? finalRefundAmount : 0;
+
       // 6. Insert sales_returns record
       const [newReturn] = await tx
         .insert(salesReturns)
@@ -152,7 +166,9 @@ export async function submitReturnAction(payload: SubmitReturnPayload) {
           returnNumber,
           returnType: payload.returnType,
           status: returnStatus,
-          totalRefundAmount: totalRefund.toFixed(2),
+          totalRefundAmount: finalRefundAmount.toFixed(2),
+          refundMethod,
+          creditAmount: creditAmount.toFixed(2),
           notes: payload.notes || null,
           processedBy: userId,
         })
@@ -237,21 +253,82 @@ export async function submitReturnAction(payload: SubmitReturnPayload) {
         }
       }
 
-      // 8. If completed, adjust invoice financials
+      // 8. If completed, adjust customer credit or invoice financials
       if (!isDraft) {
-        const currentTotal = parseFloat(invoice.total || "0");
-        const currentAmountPaid = parseFloat(invoice.amountPaid || "0");
-        const newTotal = Math.max(0, currentTotal - totalRefund);
-        const newBalanceDue = Math.max(0, newTotal - currentAmountPaid);
+        if (refundMethod === "STORE_CREDIT") {
+          // Add credit to customer's profile balance
+          const [cust] = await tx
+            .select({ id: customers.id, storeCredit: customers.storeCredit })
+            .from(customers)
+            .where(eq(customers.id, invoice.customerId))
+            .limit(1);
 
-        await tx
-          .update(invoices)
-          .set({
-            total: newTotal.toFixed(2),
-            balanceDue: newBalanceDue.toFixed(2),
-            updatedAt: new Date(),
-          })
-          .where(eq(invoices.id, invoice.id));
+          const prevCredit = parseFloat(cust?.storeCredit || "0");
+          const newCredit = prevCredit + finalRefundAmount;
+
+          await tx
+            .update(customers)
+            .set({
+              storeCredit: newCredit.toFixed(2),
+              updatedAt: new Date(),
+            })
+            .where(eq(customers.id, invoice.customerId));
+
+          // Record entry in customer_credit_ledger
+          await tx.insert(customerCreditLedger).values({
+            customerId: invoice.customerId,
+            shopId,
+            organizationId,
+            transactionType: "CREDIT_ISSUED",
+            amount: finalRefundAmount.toFixed(2),
+            balanceBefore: prevCredit.toFixed(2),
+            balanceAfter: newCredit.toFixed(2),
+            referenceType: "SALES_RETURN",
+            referenceId: newReturn.id,
+            referenceNumber: returnNumber,
+            notes: `Store credit issued via return ${returnNumber} for invoice #${invoice.invoiceNumber}`,
+            performedBy: userId,
+          });
+
+          // Also adjust invoice balance if the customer had an outstanding balance on the invoice
+          const currentTotal = parseFloat(invoice.total || "0");
+          const currentAmountPaid = parseFloat(invoice.amountPaid || "0");
+          const newTotal = Math.max(0, currentTotal - finalRefundAmount);
+          const newBalanceDue = Math.max(0, newTotal - currentAmountPaid);
+
+          await tx
+            .update(invoices)
+            .set({
+              total: newTotal.toFixed(2),
+              balanceDue: newBalanceDue.toFixed(2),
+              updatedAt: new Date(),
+            })
+            .where(eq(invoices.id, invoice.id));
+        } else {
+          // Cash Refund: store pays out cash, deducting directly from invoice total & collections/revenue
+          const currentTotal = parseFloat(invoice.total || "0");
+          const currentAmountPaid = parseFloat(invoice.amountPaid || "0");
+          const newTotal = Math.max(0, currentTotal - finalRefundAmount);
+          const newAmountPaid = Math.max(0, currentAmountPaid - finalRefundAmount);
+          const newBalanceDue = Math.max(0, newTotal - newAmountPaid);
+          const newStatus =
+            newTotal === 0
+              ? "CANCELLED"
+              : newBalanceDue <= 0
+              ? "PAID"
+              : "PENDING";
+
+          await tx
+            .update(invoices)
+            .set({
+              total: newTotal.toFixed(2),
+              amountPaid: newAmountPaid.toFixed(2),
+              balanceDue: newBalanceDue.toFixed(2),
+              status: newStatus as any,
+              updatedAt: new Date(),
+            })
+            .where(eq(invoices.id, invoice.id));
+        }
       }
 
       return {
@@ -266,6 +343,9 @@ export async function submitReturnAction(payload: SubmitReturnPayload) {
     revalidatePath("/shop/orders");
     revalidatePath("/shop/invoices");
     revalidatePath("/shop/inventory");
+    revalidatePath("/shop/customers");
+    revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
 
     return result;
   } catch (error: any) {

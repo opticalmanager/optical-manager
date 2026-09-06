@@ -67,6 +67,10 @@ export const salesReturns = pgTable(
     totalRefundAmount: decimal("total_refund_amount", { precision: 10, scale: 2 })
       .notNull()
       .default("0.00"),
+    refundMethod: varchar("refund_method", { length: 50 }).notNull().default("CASH"),
+    creditAmount: decimal("credit_amount", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0.00"),
     notes: text("notes"),
     processedBy: uuid("processed_by").references(() => profiles.id, {
       onDelete: "set null",

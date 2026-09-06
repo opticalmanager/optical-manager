@@ -680,6 +680,22 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                     <div className="text-sm font-black text-black text-right">
                       {formatDecimal(databaseTotal)}
                     </div>
+
+                    {parseFloat(invoice.creditApplied || "0") > 0 && (
+                      <>
+                        <div className="text-[9px] font-bold text-emerald-800">Store Credit Applied</div>
+                        <div className="text-[9px] font-bold text-emerald-800">:</div>
+                        <div className="text-[9px] font-bold text-emerald-800 text-right">
+                          -{formatDecimal(parseFloat(invoice.creditApplied))}
+                        </div>
+
+                        <div className="text-xs font-black text-black border-t border-black/40 pt-0.5">Net Payable</div>
+                        <div className="text-xs font-black text-black border-t border-black/40 pt-0.5">:</div>
+                        <div className="text-xs font-black text-black text-right border-t border-black/40 pt-0.5">
+                          {formatDecimal(Math.max(0, databaseTotal - parseFloat(invoice.creditApplied)))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1246,6 +1262,12 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 <div className="flex justify-between font-bold text-rose-600">
                   <span>DISCOUNT ({((discountSum / subTotalSum) * 100).toFixed(0)}%) :</span>
                   <span>-₹{discountSum.toFixed(2)}</span>
+                </div>
+              )}
+              {parseFloat(invoice.creditApplied || "0") > 0 && (
+                <div className="flex justify-between font-bold text-emerald-700">
+                  <span>STORE CREDIT APPLIED :</span>
+                  <span>-₹{parseFloat(invoice.creditApplied).toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between font-black text-slate-900 border-b border-slate-200 pb-1.5">

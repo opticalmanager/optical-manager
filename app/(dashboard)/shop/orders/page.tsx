@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/services/auth.service";
-import { getOrdersDashboardData, TimeframeType } from "@/services/order.service";
-import { canUserEditOrders } from "@/utils/permissions";
+import { getOrdersDashboardData, getDeletedOrders, TimeframeType } from "@/services/order.service";
+import { canUserEditOrders, canUserDeleteOrders } from "@/utils/permissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReminderCardAction } from "./ReminderCardAction";
 import { TimeframeDropdown } from "./TimeframeDropdown";
 import { OrdersTableClient } from "./OrdersTableClient";
+import { DeletedRecordsModal } from "./DeletedRecordsModal";
 import { 
   SlidersHorizontal, 
   Download, 
@@ -62,19 +63,34 @@ export default async function OrdersDashboardPage({
     filter,
   });
  
+  // Check permissions for viewing deleted records
+  const canDelete = user ? canUserDeleteOrders(user) : false;
+  const deletedOrders = canDelete && user?.organizationId
+    ? await getDeletedOrders(shopId, user.organizationId)
+    : [];
+
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
  
   return (
     <div className="space-y-5 pb-12 select-none text-slate-800 max-w-[1400px] mx-auto">
       
       {/* 1. Header & Title Block */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-          Orders Management
-        </h1>
-        <p className="text-xs font-semibold text-slate-400 mt-0.5">
-          Oversee your clinical revenue stream, track fulfillment, and manage patient billing.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            Orders Management
+          </h1>
+          <p className="text-xs font-semibold text-slate-400 mt-0.5">
+            Oversee your clinical revenue stream, track fulfillment, and manage patient billing.
+          </p>
+        </div>
+
+        {/* Deleted Records Action Button (Restricted to Owners and Admins) */}
+        {canDelete && (
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <DeletedRecordsModal deletedOrders={deletedOrders} />
+          </div>
+        )}
       </div>
  
       {/* 2. Analytical Metrics Row */}

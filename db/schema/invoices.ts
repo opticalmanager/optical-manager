@@ -14,6 +14,7 @@ import {
 import { shops } from "./shops";
 import { organizations } from "./organizations";
 import { customers } from "./customers";
+import { profiles } from "./profiles";
 
 export const invoiceStatusEnum = pgEnum("invoice_status", [
   "DRAFT",
@@ -66,6 +67,7 @@ export const invoices = pgTable("invoices", {
   estimatedDelivery: date("estimated_delivery"),
   isRescheduled: boolean("is_rescheduled").notNull().default(false),
   amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  creditApplied: decimal("credit_applied", { precision: 10, scale: 2 }).notNull().default("0.00"),
   balanceDue: decimal("balance_due", { precision: 10, scale: 2 }).notNull().default("0.00"),
   notes: text("notes"),
   specialInstructions: text("special_instructions"),
@@ -76,9 +78,12 @@ export const invoices = pgTable("invoices", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by").references(() => profiles.id, { onDelete: "set null" }),
 }, (table) => ({
   orgInvoiceNumUnique: uniqueIndex("invoices_org_invoice_num_unique").on(table.organizationId, table.invoiceNumber),
   shopIdIdx: index("invoices_shop_id_idx").on(table.shopId),
   orgIdIdx: index("invoices_org_id_idx").on(table.organizationId),
   invoiceNumberIdx: index("invoices_invoice_number_idx").on(table.invoiceNumber),
+  deletedAtIdx: index("invoices_deleted_at_idx").on(table.deletedAt),
 }));

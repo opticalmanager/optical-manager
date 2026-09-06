@@ -42,7 +42,8 @@ import {
   CreditCard,
   CheckCircle,
   Barcode,
-  UserCheck
+  UserCheck,
+  Wallet
 } from "lucide-react";
 
 const INDIAN_STATES = [
@@ -277,6 +278,11 @@ export function NewInvoiceForm() {
   const [soldBy, setSoldBy] = useState("");
   const [deliveryDays, setDeliveryDays] = useState<number | "">(0);
 
+  // Store Credit Management
+  const [customerStoreCredit, setCustomerStoreCredit] = useState<number>(0);
+  const [useStoreCredit, setUseStoreCredit] = useState<boolean>(false);
+  const [creditToApply, setCreditToApply] = useState<string>("");
+
   // Load Next Registration ID on Load
   useEffect(() => {
     async function loadNextId() {
@@ -353,6 +359,12 @@ export function NewInvoiceForm() {
       const res = await getPatientDetailsAction(customerId);
       if (res.success && res.data) {
         const { customer, distancePrescription, nearPrescription } = res.data;
+
+        // Auto-fill Store Credit
+        const creditVal = parseFloat(customer.storeCredit || "0") || 0;
+        setCustomerStoreCredit(creditVal);
+        setUseStoreCredit(false);
+        setCreditToApply(creditVal > 0 ? creditVal.toString() : "");
 
         // Auto-fill Section 01
         setFullName(customer.fullName || "");
@@ -811,6 +823,9 @@ export function NewInvoiceForm() {
     setPaymentType("FULL");
     setAmountPaidOverride("");
     setInvoiceNotes("");
+    setCustomerStoreCredit(0);
+    setUseStoreCredit(false);
+    setCreditToApply("");
     toast.success("Form cleared successfully.");
   };
 
@@ -830,9 +845,18 @@ export function NewInvoiceForm() {
   const totalGSTTax = summedCGST + summedSGST + summedIGST;
   const grandTotal = taxableValue + totalGSTTax;
 
+  // Store Credit Calculations
+  const availableCredit = customerStoreCredit;
+  const parsedCreditInput = parseFloat(creditToApply) || 0;
+  const maxAllowedCredit = Math.min(availableCredit, grandTotal);
+  const appliedCredit = useStoreCredit
+    ? Math.min(maxAllowedCredit, Math.max(0, parsedCreditInput))
+    : 0;
+  const netPayable = Math.max(0, grandTotal - appliedCredit);
+
   // Split calculations
-  const finalAmountPaid = paymentType === "FULL" ? grandTotal : parseFloat(amountPaidOverride) || 0;
-  const finalBalanceDue = Math.max(0, grandTotal - finalAmountPaid);
+  const finalAmountPaid = paymentType === "FULL" ? netPayable : parseFloat(amountPaidOverride) || 0;
+  const finalBalanceDue = Math.max(0, netPayable - finalAmountPaid);
 
   // Handle Form Submission (Save Patient + Unified Invoice)
   const handleSubmitInvoice = async (e: React.FormEvent) => {
@@ -947,6 +971,7 @@ export function NewInvoiceForm() {
         discountPercent: calculatedSubtotal > 0 ? (calculatedDiscount / calculatedSubtotal) * 100 : 0,
         taxPercent: taxableValue > 0 ? (totalGSTTax / taxableValue) * 100 : 0,
         paymentMethod,
+        creditApplied: appliedCredit,
         amountPaid: finalAmountPaid,
         balanceDue: finalBalanceDue,
         notes: invoiceNotes || undefined,
@@ -1042,14 +1067,22 @@ export function NewInvoiceForm() {
             </h2>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowPatientSearch(!showPatientSearch)}
-            className="px-3.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 text-[10px] font-extrabold uppercase text-[#0a52c3] tracking-wide transition-all cursor-pointer flex items-center gap-1"
-          >
-            <Search className="h-3.5 w-3.5" />
-            Load Existing Patient
-          </button>
+          <div className="flex items-center gap-2">
+            {customerStoreCredit > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+                <Wallet className="h-3.5 w-3.5" />
+                Store Credit: ₹{customerStoreCredit.toFixed(2)}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPatientSearch(!showPatientSearch)}
+              className="px-3.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 text-[10px] font-extrabold uppercase text-[#0a52c3] tracking-wide transition-all cursor-pointer flex items-center gap-1"
+            >
+              <Search className="h-3.5 w-3.5" />
+              Load Existing Patient
+            </button>
+          </div>
         </div>
 
         {showPatientSearch && (
@@ -1083,7 +1116,14 @@ export function NewInvoiceForm() {
                       className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors text-xs flex justify-between items-center group cursor-pointer"
                     >
                       <div>
-                        <span className="font-bold text-slate-700 block">{pat.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-700">{pat.name}</span>
+                          {parseFloat(pat.storeCredit || "0") > 0 && (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              ₹{parseFloat(pat.storeCredit).toFixed(2)} Credit
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-slate-400 block mt-0.5">
                           ID: {pat.registrationId || "N/A"} • Phone: {pat.phone}
                         </span>
@@ -2159,6 +2199,82 @@ export function NewInvoiceForm() {
             </div>
           </div>
 
+          {/* Store Credit Redemption */}
+          {availableCredit > 0 && (
+            <div className={`p-4 rounded-xl border transition-all ${
+              useStoreCredit ? "bg-emerald-50/50 border-emerald-300 shadow-sm" : "bg-slate-50/70 border-slate-200"
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useStoreCredit}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setUseStoreCredit(checked);
+                      if (checked && (!creditToApply || parseFloat(creditToApply) <= 0)) {
+                        setCreditToApply(maxAllowedCredit > 0 ? maxAllowedCredit.toFixed(2) : availableCredit.toFixed(2));
+                      }
+                    }}
+                    className="h-4 w-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-emerald-600" />
+                      <span className="text-xs font-bold text-slate-800">Use Available Store Credit</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Available: ₹{availableCredit.toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Deduct balance from customer store credit against this order total
+                    </p>
+                  </div>
+                </label>
+
+                {useStoreCredit && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Credit to Use:</span>
+                    <div className="relative w-36">
+                      <span className="absolute left-2.5 top-2 text-slate-400 font-bold text-xs">₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={maxAllowedCredit}
+                        value={creditToApply}
+                        onChange={(e) => setCreditToApply(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+                        }}
+                        className="w-full h-8 pl-6 pr-2 bg-white border border-emerald-300 rounded-lg text-xs font-extrabold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCreditToApply(maxAllowedCredit.toFixed(2))}
+                      className="px-2.5 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-100 rounded-md border border-emerald-300 transition cursor-pointer whitespace-nowrap"
+                    >
+                      Max
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {useStoreCredit && (
+                <div className="mt-3 pt-2.5 border-t border-emerald-200/60 flex items-center justify-between text-xs">
+                  <span className="text-emerald-700 font-medium">
+                    Credit Applied: <strong className="text-emerald-800">-₹{appliedCredit.toFixed(2)}</strong>
+                  </span>
+                  <span className="text-emerald-700 font-medium">
+                    Remaining Credit: <strong className="text-emerald-800">₹{Math.max(0, availableCredit - appliedCredit).toFixed(2)}</strong>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <h3 className="text-xs font-extrabold uppercase text-slate-400 tracking-wider mb-4">
               2. Payment Type
@@ -2198,12 +2314,17 @@ export function NewInvoiceForm() {
                 <input
                   type="number"
                   step="0.01"
-                  value={paymentType === "FULL" ? grandTotal.toFixed(2) : amountPaidOverride}
+                  value={paymentType === "FULL" ? netPayable.toFixed(2) : amountPaidOverride}
                   onChange={(e) => setAmountPaidOverride(e.target.value)}
                   disabled={paymentType === "FULL"}
                   className="w-full h-10 pl-7 pr-3 bg-white border border-slate-200/80 rounded-lg text-sm font-extrabold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 disabled:bg-slate-50 disabled:text-slate-400"
                 />
               </div>
+              {appliedCredit > 0 && (
+                <p className="text-[10px] text-emerald-600 font-bold mt-1">
+                  (₹{appliedCredit.toFixed(2)} store credit deducted from ₹{grandTotal.toFixed(2)})
+                </p>
+              )}
             </div>
 
             <div>
@@ -2407,13 +2528,45 @@ export function NewInvoiceForm() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-200 mt-4">
+          <div className="pt-4 border-t border-slate-200 mt-4 space-y-2">
             <div className="flex justify-between items-baseline">
               <span className="text-xs font-extrabold uppercase text-slate-400">Grand Total</span>
-              <span className="text-3xl font-extrabold text-[#0a52c3] tracking-tight">
+              <span className={`font-extrabold tracking-tight ${appliedCredit > 0 ? "text-base text-slate-700" : "text-3xl text-[#0a52c3]"}`}>
                 ₹{grandTotal.toFixed(2)}
               </span>
             </div>
+
+            {appliedCredit > 0 && (
+              <div className="flex justify-between items-baseline text-xs font-bold text-emerald-600">
+                <span className="flex items-center gap-1">
+                  <Wallet className="h-3.5 w-3.5" />
+                  Store Credit Applied
+                </span>
+                <span>-₹{appliedCredit.toFixed(2)}</span>
+              </div>
+            )}
+
+            {appliedCredit > 0 && (
+              <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
+                <span className="text-xs font-extrabold uppercase text-slate-600">Net Payable</span>
+                <span className="text-3xl font-extrabold text-[#0a52c3] tracking-tight">
+                  ₹{netPayable.toFixed(2)}
+                </span>
+              </div>
+            )}
+
+            {paymentType === "PARTIAL" && (
+              <div className="pt-2 border-t border-slate-200/80 space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-600 font-semibold">
+                  <span>Paid Now:</span>
+                  <span className="font-bold text-slate-800">₹{finalAmountPaid.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-rose-600 font-extrabold">
+                  <span>Balance Due:</span>
+                  <span>₹{finalBalanceDue.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

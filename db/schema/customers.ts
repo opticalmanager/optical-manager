@@ -8,6 +8,7 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  decimal,
 } from "drizzle-orm/pg-core";
 import { shops } from "./shops";
 import { organizations } from "./organizations";
@@ -49,6 +50,9 @@ export const customers = pgTable("customers", {
   systemicIllness: text("systemic_illness"),
   allergies: text("allergies"),
   notes: text("notes"),
+  storeCredit: decimal("store_credit", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0.00"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -60,5 +64,6 @@ export const customers = pgTable("customers", {
   shopIdIdx: index("customers_shop_id_idx").on(table.shopId),
   orgIdIdx: index("customers_org_id_idx").on(table.organizationId),
   phoneIdx: index("customers_phone_idx").on(table.phone),
+  storeCreditIdx: index("customers_store_credit_idx").on(table.storeCredit),
 }));
 

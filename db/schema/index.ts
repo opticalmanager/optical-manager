@@ -49,4 +49,6 @@ export {
   inspectionReasonEnum,
   finalActionEnum,
 } from "./sales-returns";
+export { customerCreditLedger } from "./customer-credit-ledger";
+
 

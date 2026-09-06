@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
-import { updateFullOrderAction } from "@/actions/order.actions";
+import { updateFullOrderAction, deleteOrderAction } from "@/actions/order.actions";
 import type { OrderForEditData } from "@/services/order.service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -109,9 +109,17 @@ function formatDateTimeLocal(d: Date = new Date()): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-export function EditOrderForm({ initialData }: { initialData: OrderForEditData }) {
+export function EditOrderForm({
+  initialData,
+  canDeleteOrders = false,
+}: {
+  initialData: OrderForEditData;
+  canDeleteOrders?: boolean;
+}) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Customer State
   const [fullName, setFullName] = useState(initialData.customer.fullName || "");
@@ -465,8 +473,51 @@ export function EditOrderForm({ initialData }: { initialData: OrderForEditData }
     }
   };
 
+  // Handle Order Record Deletion
+  const handleDeleteOrder = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await deleteOrderAction(initialData.order.id || initialData.invoice.id);
+      if (res.success) {
+        toast.success(res.message);
+        setShowDeleteModal(false);
+        router.push("/shop/orders");
+        router.refresh();
+      } else {
+        toast.error(res.message || "Failed to delete order record.");
+        setIsDeleting(false);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An unexpected error occurred while deleting the order.");
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Soft-deleted Notification Banner */}
+      {initialData.order.deletedAt && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3 text-xs font-semibold">
+            <div className="p-2 bg-amber-100 text-amber-700 rounded-xl shrink-0">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="font-extrabold text-amber-950">This order record is currently soft-deleted.</span>
+              <p className="text-[11px] text-amber-800/90 mt-0.5">
+                All inventory items were restocked and sales revenue was cancelled. Authorized store owners and admins can retrieve this record from the "Deleted Records" button on the Orders page.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/shop/orders"
+            className="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-bold text-amber-900 hover:bg-amber-100/60 shrink-0 self-start sm:self-center transition-colors"
+          >
+            Back to Orders
+          </Link>
+        </div>
+      )}
+
       {/* 1. Header Block & Navigation */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -1384,6 +1435,113 @@ export function EditOrderForm({ initialData }: { initialData: OrderForEditData }
           </div>
         )}
       </div>
+
+      {/* 7. Record Deletion & Danger Zone (Section 06) */}
+      {canDeleteOrders && !initialData.order.deletedAt && (
+        <div className="bg-rose-50/40 border border-rose-200/90 rounded-2xl p-5 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <h3 className="text-sm font-extrabold text-rose-950 uppercase tracking-tight">
+                  06. Danger Zone: Delete Order Record
+                </h3>
+              </div>
+              <p className="text-xs text-rose-800/80 font-medium max-w-2xl">
+                Soft-delete this order record and its linked invoice. All items in this order ({lineItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)} units) will be automatically returned back to inventory stock, and active sales revenue will be synchronized. Only Store Owners and Administrators can delete or retrieve records.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowDeleteModal(true)}
+              className="border-rose-300 bg-white hover:bg-rose-600 hover:text-white text-rose-700 font-bold text-xs h-10 px-4 rounded-xl shadow-xs transition-all flex items-center gap-2 shrink-0 self-start sm:self-center"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Delete Order Record</span>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Warning Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={() => !isDeleting && setShowDeleteModal(false)}
+          />
+          <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl w-full max-w-md p-6 relative z-10 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            {/* Warning Icon & Title */}
+            <div className="flex items-start gap-3.5">
+              <div className="p-3 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/80 shrink-0">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  Confirm Order Record Deletion
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Are you sure you want to delete order <strong className="text-slate-800">{initialData.order.orderNumber}</strong>?
+                </p>
+              </div>
+            </div>
+
+            {/* Warning Box */}
+            <div className="bg-amber-50/60 border border-amber-200/70 rounded-xl p-3.5 space-y-2 text-xs text-slate-700">
+              <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                <Package className="h-4 w-4 text-amber-700" />
+                <span>Automatic System Synchronizations:</span>
+              </div>
+              <ul className="text-[11px] text-slate-600 space-y-1.5 list-disc list-inside">
+                <li>
+                  <strong>Inventory Restock:</strong> All items in this order ({lineItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)} units) will be credited back into available stock.
+                </li>
+                <li>
+                  <strong>Sales & Revenue:</strong> Linked invoice ({initialData.invoice.invoiceNumber}) will be marked as cancelled and removed from active sales reports.
+                </li>
+                <li>
+                  <strong>Safety & Recovery:</strong> You can retrieve/restore this record at any time from the <em>Deleted Records</em> button on the Orders page.
+                </li>
+              </ul>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="text-xs font-bold rounded-xl h-10 px-4"
+              >
+                Cancel / Keep Order
+              </Button>
+              <Button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteOrder}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl h-10 px-4 flex items-center gap-2 shadow-xs transition-all"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Deleting Record...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    <span>Yes, Delete Order Record</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

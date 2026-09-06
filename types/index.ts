@@ -26,6 +26,7 @@ export type {
   Order,
   SalesReturn,
   SalesReturnItem,
+  CustomerCreditLedger,
   NewOrganization,
   NewProfile,
   NewShop,
@@ -41,6 +42,7 @@ export type {
   NewOrder,
   NewSalesReturn,
   NewSalesReturnItem,
+  NewCustomerCreditLedger,
 } from "./database";
 
 

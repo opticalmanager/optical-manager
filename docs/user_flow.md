@@ -160,4 +160,72 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Every edit writes an immutable audit record to `order_edit_history` with the exact timestamp, editor's full name, role badge, human-readable modification summary, and JSON snapshot of previous vs. updated financial state.
    - The **History of Updates** section at the bottom of `/shop/orders/[id]/edit` renders the full chronological timeline of all changes made to the order.
 
+---
+
+## 8. Order Record Deletion & Deleted Records Retrieval Workflow
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Order Edit Page  │───>│ In-Theme Warning │───>│ Soft-Delete &    │───>│ "Deleted Records"│
+│ Delete Trigger   │    │ Confirmation     │    │ Auto Restock Inv │    │ Retrieve/Restore │
+└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+1. **Permissions & Access Control**:
+   - Only System Owners, Super Admins, or staff accounts with `delete_orders` permission enabled in the outlet configuration can delete order records or access the Deleted Records panel.
+   - Store owners can toggle `delete_orders` on any staff profile in `/owner/shops` (Outlet Configuration -> Access & Roles -> Store Modules).
+2. **Order Record Deletion**:
+   - On `/shop/orders/[id]/edit`, authorized operators find the **Danger Zone: Delete Order Record** section at the bottom of the page.
+   - Clicking **Delete Order Record** triggers a custom modal built inside the application's design theme (amber warning icon, clear synchronization notes, cancellation/confirmation buttons).
+   - Upon confirmation:
+     - The order and linked invoice are soft-deleted (`deleted_at = NOW()`, `deleted_by = profile.id`).
+     - Linked invoice status is set to `CANCELLED` so all dashboard KPIs, revenue analytics, and reports are immediately resynced.
+     - All line items are automatically restocked back into store inventory (`quantity + item.quantity`), and an `ADJUSTMENT` movement is recorded in `stock_movements` (`ORDER_DELETED_RESTOCK`).
+     - An audit log entry is written to `order_edit_history`.
+3. **Viewing Soft-Deleted Records**:
+   - On `/shop/orders` (Orders listing), authorized users see a top-right **Deleted Records** button styled in a clean, neutral SaaS theme (not red) with a dynamic record count badge.
+   - Clicking opens the **Deleted Records** modal featuring live search filtering by Order Number, Invoice Number, Patient Name, or Phone Number.
+   - Displays all soft-deleted records with deletion timestamps, author attribution, patient contact info, financial totals, and item counts.
+4. **Record Retrieval / Restoration**:
+   - In the Deleted Records modal, clicking **Retrieve** opens an in-theme confirmation prompt detailing the reverse synchronization.
+   - Upon confirmation:
+     - Clears soft-delete timestamps (`deleted_at = NULL`, `deleted_by = NULL`).
+     - Restores invoice status to `PAID` (if balance is ₹0) or `PENDING`.
+     - Automatically deducts items from current inventory stock (`quantity - item.quantity`) and logs a `SOLD` movement (`ORDER_RESTORED_SALE`).
+     - An audit log entry records the restoration.
+     - Telemetry, order tables, and inventory counts update with zero latency.
+
+---
+
+## 9. Sales Returns & Store Credit Management Workflow
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Select Invoice   │───>│ Select Items to  │───>│ Refund Method:   │───>│ Generate Return  │
+│ & Patient        │    │ Return & Restock │    │ Cash vs Credit   │    │ Receipt / Note   │
+└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+1. **Processing Sales Return (`/shop/returns/new`)**:
+   - Operator selects the target invoice and specifies quantities to return with optional restock toggles and line-item condition reasons.
+   - **Step 06. Return Credit & Refund Resolution**:
+     - Operator chooses between **Cash Refund** (`CASH`) or **Store Credit** (`STORE_CREDIT`).
+     - Real-time balance calculator displays calculated return value, allowing manual edits if required.
+     - **Cash Refund**: Directly deducts refunded cash from the original invoice `total` and `amountPaid`, recalibrating revenue telemetry and cash collections across the store.
+     - **Store Credit**: Preserves store cash intact and credits the refund value to the customer's account (`customers.storeCredit`), recording an immutable audit entry in `customer_credit_ledger` (`CREDIT_ISSUED`).
+2. **Sales Return Receipt / Credit Note (`/shop/returns/[id]`)**:
+   - Generates an official, printable A4 document (`SALES RETURN & CREDIT NOTE` when store credit is chosen, or `SALES RETURN & REFUND RECEIPT` when cash is refunded).
+   - Features dynamic refund summary, mode badges, restocked items breakdown, and updated customer store credit balance.
+   - A dedicated **Receipt** button on the `/shop/returns` table allows immediate one-click access and printing of return receipts.
+3. **Patient Store Credit Tracking (`/shop/customers/[id]`)**:
+   - In **Patient Snapshot (Section 04)**, **Pending Dues** and **Available Store Credit** are rendered side-by-side in high-density KPI cards.
+   - The **Store Credit Ledger History** section displays a comprehensive timeline of every credit issued and redeemed, including reference return/invoice numbers and running balances.
+4. **Redeeming Store Credit on New Invoices (`/shop/invoices/new`)**:
+   - When a patient with available credit is selected, a credit badge appears in the Basic Details header and search results.
+   - In **Section 5 (Payments & Summary)**, an interactive **Use Available Store Credit** card is presented with available balance, checkbox toggle, and editable amount input (with a **Max** shortcut button).
+   - Credit amount is strictly validated to not exceed available credit nor the order grand total.
+   - Deducts credit from net payable amount and updates the live order summary ledger.
+   - Upon invoice creation, atomically decrements `customers.storeCredit`, records a `CREDIT_REDEEMED` entry in `customer_credit_ledger`, logs `creditApplied` on the invoice, and reflects the credit deduction on printable tax invoices and payment receipts.
+
+
 

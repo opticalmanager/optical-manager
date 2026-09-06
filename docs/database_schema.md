@@ -66,7 +66,7 @@ CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANC
 | `email` | `varchar(255)` | NOT NULL | User email address |
 | `role` | `user_role` | NOT NULL | `SUPER_ADMIN`, `OWNER`, `SHOP_MANAGER` |
 | `customRoleName` | `varchar(100)` | NULLABLE | Custom role title (e.g. Optometrist, Cashier, Sales & Billing) |
-| `permissions` | `jsonb` | NULLABLE | Granular module permission flags (`dashboard`, `inventory`, `sales`, `returns`, `customers`, `appointments`, `analytics`, `reports`, `settings`, `support`, `edit_orders`) |
+| `permissions` | `jsonb` | NULLABLE | Granular module permission flags (`dashboard`, `inventory`, `sales`, `returns`, `customers`, `appointments`, `analytics`, `reports`, `settings`, `support`, `edit_orders`, `delete_orders`) |
 
 ---
 
@@ -102,6 +102,7 @@ Logs all sent, failed, and rate-limited email dispatches across all store locati
 | `tax` | `decimal(10,2)` | NOT NULL, DEFAULT 0 | Total aggregated GST tax |
 | `taxPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 0 | Effective tax percentage |
 | `total` | `decimal(10,2)` | NOT NULL | Net payable invoice amount |
+| `creditApplied` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Store credit deducted from invoice total |
 | `status` | `invoice_status` | NOT NULL, DEFAULT 'DRAFT' | `DRAFT`, `PENDING`, `PAID`, `CANCELLED` |
 | `paymentMethod` | `payment_method` | NULLABLE | `CASH`, `CARD`, `UPI`, `BANK_TRANSFER` |
 | `fulfillmentStatus`| `fulfillment_status`| NOT NULL, DEFAULT 'PROCESSING' | `PROCESSING`, `READY`, `DELIVERED`, `ON_HOLD` |
@@ -112,6 +113,8 @@ Logs all sent, failed, and rate-limited email dispatches across all store locati
 | `notes` | `text` | NULLABLE | Invoice remarks and optometry instructions |
 | `createdAt` | `timestamp` | NOT NULL, defaultNow() | Billing occurrence timestamp (supports backdating) |
 | `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
+| `deletedAt` | `timestamp` | NULLABLE, INDEXED | Soft-deletion timestamp (null for active invoices) |
+| `deletedBy` | `uuid` | FK -> `profiles.id` (SET NULL) | User account who deleted the record |
 
 #### `invoice_items`
 Stores granular line items per invoice with individual pricing, dual discounts (`discountPercent`, `discountAmount`), and per-item tax components (`cgstPercent`, `cgstAmount`, `sgstPercent`, `sgstAmount`, `igstPercent`, `igstAmount`).
@@ -135,6 +138,8 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 | `orderNumber` | `varchar(50)` | NOT NULL, INDEXED | Sequential order number (`ORD-shop-YYYY-NNNN`) |
 | `createdAt` | `timestamp` | NOT NULL, defaultNow() | Order creation timestamp |
 | `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
+| `deletedAt` | `timestamp` | NULLABLE, INDEXED | Soft-deletion timestamp (null for active orders) |
+| `deletedBy` | `uuid` | FK -> `profiles.id` (SET NULL) | User account who deleted the record |
 
 #### `order_edit_history`
 | Column Name | Type | Constraints | Description |
@@ -149,4 +154,78 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 | `summary` | `text` | NOT NULL | Human-readable change summary (items, prices, payment, delivery) |
 | `snapshot` | `jsonb` | NULLABLE | JSON snapshot containing `{ previous, updated }` states |
 | `createdAt` | `timestamp` | NOT NULL, defaultNow() | Exact timestamp of the edit event |
+
+---
+
+### 5. Patients, Customers & Store Credit Ledger (`db/schema/customers.ts`, `db/schema/customer-credit-ledger.ts`)
+
+#### `customers`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Customer unique identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE) | Physical store outlet ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization ID |
+| `registrationId` | `varchar(50)` | NOT NULL, INDEXED | Human-readable ID (`OP-shopNum-YYYY-NNNN`) |
+| `fullName` | `varchar(255)` | NOT NULL | Patient / customer name |
+| `email` | `varchar(255)` | NULLABLE | Patient email address |
+| `phone` | `varchar(20)` | NOT NULL, INDEXED | Primary contact number |
+| `dateOfBirth` | `date` | NULLABLE | Patient date of birth |
+| `gender` | `gender` | NULLABLE | Patient gender |
+| `bloodGroup` | `blood_group` | NULLABLE | Patient blood group |
+| `storeCredit` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00, INDEXED | Accumulated store credit balance |
+| `notes` | `text` | NULLABLE | Clinical & general customer remarks |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Patient registration timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last profile modification timestamp |
+
+#### `customer_credit_ledger`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Ledger entry identifier |
+| `customerId` | `uuid` | FK -> `customers.id` (CASCADE), INDEXED | Associated customer ID |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE), INDEXED | Physical store branch ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization ID |
+| `transactionType` | `varchar(50)` | NOT NULL | `CREDIT_ISSUED` (from sales return) or `CREDIT_REDEEMED` (used in invoice) |
+| `amount` | `decimal(10,2)` | NOT NULL | Transaction credit value |
+| `balanceBefore` | `decimal(10,2)` | NOT NULL | Customer credit balance prior to transaction |
+| `balanceAfter` | `decimal(10,2)` | NOT NULL | Customer credit balance post transaction |
+| `referenceType` | `varchar(50)` | NOT NULL | `SALES_RETURN` or `INVOICE` |
+| `referenceNumber` | `varchar(100)` | NOT NULL | Associated Return # or Invoice # |
+| `notes` | `text` | NULLABLE | Descriptive note or reason |
+| `performedBy` | `uuid` | FK -> `profiles.id` (SET NULL) | Staff member who executed the transaction |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow(), INDEXED | Audit event timestamp |
+
+---
+
+### 6. Sales Returns & Refund Resolutions (`db/schema/sales-returns.ts`)
+
+#### `sales_returns`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Return record unique identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE) | Physical store outlet ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization ID |
+| `invoiceId` | `uuid` | FK -> `invoices.id` (CASCADE) | Original billed invoice reference |
+| `customerId` | `uuid` | FK -> `customers.id` (CASCADE) | Customer returning the items |
+| `returnNumber` | `varchar(50)` | NOT NULL, UNIQUE(org, num) | Sequential return ID (`RET-shopNum-YYYY-NNNN`) |
+| `totalRefundAmount`| `decimal(10,2)` | NOT NULL | Total financial value refunded/credited |
+| `refundMethod` | `varchar(50)` | NOT NULL, DEFAULT 'CASH' | Resolution method: `CASH` or `STORE_CREDIT` |
+| `creditAmount` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Amount converted to customer store credit balance |
+| `reason` | `text` | NULLABLE | Reason for merchandise return |
+| `status` | `varchar(20)` | NOT NULL, DEFAULT 'COMPLETED' | Return workflow state |
+| `processedBy` | `uuid` | FK -> `profiles.id` (SET NULL) | Staff member processing the return |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Return execution timestamp |
+
+#### `sales_return_items`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Item return line ID |
+| `returnId` | `uuid` | FK -> `sales_returns.id` (CASCADE) | Associated return header record |
+| `invoiceItemId` | `uuid` | FK -> `invoice_items.id` (RESTRICT) | Original invoice item reference |
+| `inventoryId` | `uuid` | FK -> `inventory.id` (RESTRICT) | Product inventory ID restored to stock |
+| `quantity` | `integer` | NOT NULL | Quantity returned |
+| `unitPrice` | `decimal(10,2)` | NOT NULL | Item price at time of original invoice |
+| `refundAmount` | `decimal(10,2)` | NOT NULL | Net refund amount allocated to this item |
+| `reason` | `text` | NULLABLE | Item-specific defect or return reason |
+| `restock` | `boolean` | NOT NULL, DEFAULT true | Whether inventory counts were incremented |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Item return line creation timestamp |
 

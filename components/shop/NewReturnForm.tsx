@@ -29,7 +29,9 @@ import {
   Truck,
   Trash2,
   Eye,
-  AlertCircle
+  AlertCircle,
+  Wallet,
+  Banknote,
 } from "lucide-react";
 import { submitReturnAction } from "@/actions/return.actions";
 
@@ -202,6 +204,10 @@ export function NewReturnForm() {
   const [activeReason, setActiveReason] = useState<InspectionReasonType>("DAMAGED");
   const [activeAction, setActiveAction] = useState<FinalActionType>("RESTOCK_INVENTORY");
   const [staffNotes, setStaffNotes] = useState("");
+
+  // Step 6: Return Resolution states
+  const [refundMethod, setRefundMethod] = useState<"CASH" | "STORE_CREDIT">("STORE_CREDIT");
+  const [customRefundAmount, setCustomRefundAmount] = useState<string>("");
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -425,9 +431,16 @@ export function NewReturnForm() {
 
     startTransition(async () => {
       try {
+        const finalResolvedAmount =
+          customRefundAmount !== "" && !isNaN(parseFloat(customRefundAmount))
+            ? parseFloat(customRefundAmount)
+            : totalReturnRefundSum;
+
         const payload = {
           invoiceId: invoice.id,
           returnType,
+          refundMethod,
+          customRefundAmount: finalResolvedAmount,
           items: itemsToSubmit,
           notes: staffNotes.trim() || undefined,
           isDraft,
@@ -440,7 +453,11 @@ export function NewReturnForm() {
               ? `Return draft saved: ${res.returnNumber}`
               : `Return processed successfully: ${res.returnNumber}`
           );
-          router.push(`/shop/returns`);
+          if (res.returnId && !isDraft) {
+            router.push(`/shop/returns/${res.returnId}`);
+          } else {
+            router.push(`/shop/returns`);
+          }
         } else if (!res.success && "error" in res) {
           toast.error(res.error || "Failed to process return.");
         }
@@ -991,6 +1008,160 @@ export function NewReturnForm() {
         </div>
       )}
 
+      {/* 5. Step 6: Return Credit & Refund Resolution */}
+      {invoice && Object.keys(configuredItems).length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50 text-[#2563eb] text-xs font-extrabold">6</span>
+                Return Credit & Refund Resolution
+              </h2>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                Choose how to disburse the return amount and verify resolution balance
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Calculated Items Value:
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-xs font-extrabold">
+                ₹{totalReturnRefundSum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+
+          {/* Refund Mode Selection Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Option 1: Cash / Direct Refund */}
+            <div
+              onClick={() => setRefundMethod("CASH")}
+              className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                refundMethod === "CASH"
+                  ? "border-emerald-500 bg-emerald-50/20 ring-2 ring-emerald-500/20 shadow-xs"
+                  : "border-slate-200 hover:border-slate-300 bg-white"
+              }`}
+            >
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  refundMethod === "CASH"
+                    ? "bg-emerald-500 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                <Banknote className="h-5 w-5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-900">
+                    Cash / Direct Refund
+                  </span>
+                  <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100 uppercase">
+                    Deducts Sales Revenue
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  Cash is paid out to the customer. Deducted from store sales revenue and original invoice paid amount.
+                </p>
+              </div>
+            </div>
+
+            {/* Option 2: Store Credit / Account Balance */}
+            <div
+              onClick={() => setRefundMethod("STORE_CREDIT")}
+              className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                refundMethod === "STORE_CREDIT"
+                  ? "border-[#2563eb] bg-blue-50/20 ring-2 ring-[#2563eb]/20 shadow-xs"
+                  : "border-slate-200 hover:border-slate-300 bg-white"
+              }`}
+            >
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  refundMethod === "STORE_CREDIT"
+                    ? "bg-[#2563eb] text-white shadow-xs"
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                    <span>Store Credit Balance</span>
+                    <Sparkles className="h-3 w-3 text-amber-500" />
+                  </span>
+                  <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#2563eb] border border-blue-100 uppercase">
+                    Recommended
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  Store retains the funds. Balance is credited to the customer&apos;s profile to use for future optical purchases.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Editable Refund / Credit Balance Input */}
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-800 block">
+                  Resolved Refund / Credit Balance (₹)
+                </label>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Editable balance to disburse (defaults to total item refund amount)
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="relative w-44">
+                  <span className="absolute left-3.5 top-2.5 text-slate-400 font-bold text-xs">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={customRefundAmount !== "" ? customRefundAmount : totalReturnRefundSum.toFixed(2)}
+                    onChange={(e) => setCustomRefundAmount(e.target.value)}
+                    className="w-full h-9 pl-7 pr-3 bg-white border border-slate-300 rounded-lg text-xs font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+                  />
+                </div>
+
+                {customRefundAmount !== "" && parseFloat(customRefundAmount) !== totalReturnRefundSum && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomRefundAmount("")}
+                    className="text-[11px] font-bold text-[#2563eb] hover:underline cursor-pointer bg-transparent border-none p-0"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Dynamic Real-time helper message */}
+            <div className="pt-2 border-t border-slate-200/60 flex items-center gap-2 text-xs font-semibold">
+              <AlertCircle className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              {refundMethod === "CASH" ? (
+                <span className="text-slate-600">
+                  <strong className="text-rose-600">
+                    ₹{(customRefundAmount !== "" && !isNaN(parseFloat(customRefundAmount)) ? parseFloat(customRefundAmount) : totalReturnRefundSum).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </strong>{" "}
+                  will be paid out in cash and deducted from store revenue.
+                </span>
+              ) : (
+                <span className="text-slate-600">
+                  <strong className="text-[#2563eb]">
+                    ₹{(customRefundAmount !== "" && !isNaN(parseFloat(customRefundAmount)) ? parseFloat(customRefundAmount) : totalReturnRefundSum).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </strong>{" "}
+                  store credit will be added to <strong>{invoice.customerName}</strong>&apos;s account balance.
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Staff Notes Textarea */}
       {invoice && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-2">
@@ -1021,9 +1192,15 @@ export function NewReturnForm() {
 
             {invoice && (
               <div className="text-xs text-slate-500 font-semibold">
-                Total Refund Credit:{" "}
+                Resolution:{" "}
+                <span className={`inline-block font-black text-[10px] uppercase px-1.5 py-0.5 rounded ${
+                  refundMethod === "STORE_CREDIT" ? "bg-blue-100 text-[#2563eb]" : "bg-emerald-100 text-emerald-700"
+                }`}>
+                  {refundMethod === "STORE_CREDIT" ? "Store Credit" : "Cash Refund"}
+                </span>{" "}
+                Amount:{" "}
                 <strong className="text-sm font-extrabold text-[#2563eb]">
-                  ₹{totalReturnRefundSum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  ₹{(customRefundAmount !== "" && !isNaN(parseFloat(customRefundAmount)) ? parseFloat(customRefundAmount) : totalReturnRefundSum).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </strong>
                 <span className="text-[11px] text-slate-400 ml-1">
                   ({Object.keys(configuredItems).length} item(s) selected)
@@ -1054,7 +1231,10 @@ export function NewReturnForm() {
                   Processing...
                 </>
               ) : (
-                "Submit Return"
+                <>
+                  <Receipt className="h-4 w-4" />
+                  Save & Generate Return Receipt
+                </>
               )}
             </button>
           </div>

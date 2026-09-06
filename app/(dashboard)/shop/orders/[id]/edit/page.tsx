@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getOrderForEdit } from "@/services/order.service";
-import { canUserEditOrders } from "@/utils/permissions";
+import { canUserEditOrders, canUserDeleteOrders } from "@/utils/permissions";
 import { EditOrderForm } from "@/components/shop/EditOrderForm";
 
 export const metadata = {
@@ -26,6 +26,8 @@ export default async function EditOrderPage({
     redirect("/shop/orders?error=unauthorized");
   }
 
+  const canDelete = canUserDeleteOrders(user);
+
   const orderData = await getOrderForEdit(id, user.organizationId);
 
   if (!orderData) {
@@ -34,7 +36,7 @@ export default async function EditOrderPage({
 
   return (
     <div className="max-w-[1400px] mx-auto pb-16 space-y-6 text-slate-900">
-      <EditOrderForm initialData={orderData} />
+      <EditOrderForm initialData={orderData} canDeleteOrders={canDelete} />
     </div>
   );
 }

@@ -32,6 +32,13 @@ This document details the functional, non-functional, and compliance requirement
 - Public online appointment booking page (`/book/[slug]`).
 - Internal clinical booking management (`/shop/appointments`).
 
+### FR-7: Sales Returns, Credit Notes & Customer Store Credit
+- Merchandise returns with itemized condition reasons and inventory restock options.
+- Refund resolution supporting Cash (deducted from sales telemetry) or Store Credit (added to customer profile).
+- Dedicated customer credit ledger with immutable transaction logs.
+- Printable Sales Return Receipt & Credit Note documents with instant access from return listings.
+- Ability to redeem customer store credit against new invoices with strict input validation.
+
 ---
 
 ## 2. Non-Functional Requirements
