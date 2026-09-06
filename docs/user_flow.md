@@ -32,12 +32,18 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 └──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
 ```
 
-1. **Customer Selection**: Store Manager searches existing patients or registers a new patient in `/shop/patients/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
-2. **Prescription Recording**: Manager inputs SPH, CYL, Axis, V/N, and Addition diopter values for Right (OD) and Left (OS) eyes with smart optometry datalist suggestions, prescribed date tracking, and doctor attribution under `/shop/prescriptions`.
-3. **Line Item Assembly**: Manager adds optical inventory items (spectacle frame, anti-reflective lenses, cleaning kit) from `/shop/invoices/new`.
-4. **Checkout & Partial Payment**:
-   - Applies GST rates (12% / 18%) and HSN codes (`9004` / `9001`).
-   - Selects payment mode (`FULL_PAID` or `PARTIALLY_PAID` deposit).
+1. **Customer Selection & Billing Timestamp**:
+   - Store Manager searches existing patients or registers a new patient in `/shop/invoices/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
+   - **Editable Invoice Date & Time**: By default, populates with the store's current local date and time. Staff can freely select any past or future billing timestamp with live indicator badges (`Live Billing Time`, `Backdated Invoice`, or `Future Billing Date`) and a one-click `Reset` control.
+   - Prescriptions, invoices, payment receipts, fulfillment orders, and inventory stock movements are atomically synchronized with the selected timestamp for accurate accounting and historical audit trails.
+2. **Prescription Recording**: Manager inputs SPH, CYL, Axis, V/N, and Addition diopter values for Right (OD) and Left (OS) eyes with smart optometry datalist suggestions, prescribing date tracking, and doctor attribution under `/shop/prescriptions`.
+3. **Line Item Assembly & Pricing Controls**:
+   - Manager adds optical inventory items (spectacle frame, anti-reflective lenses, cleaning kit) from `/shop/invoices/new` via live search autocomplete or barcode scanner.
+   - **Dual Discount Synchronization**: Supports discount entry in percentage (`DISC %`) and in Rupees (`DISC ₹`) with real-time bi-directional recalculation.
+   - **Editable GST Taxes**: CGST, SGST, and IGST percentages are fully editable per row with real-time rupee tax calculations displayed underneath, supporting intra-state and inter-state GST rates (0%, 5%, 12%, 18%, 28%).
+4. **Checkout, Attribution & Payment**:
+   - **Salesperson Attribution ("Sold By")**: Staff can record the name of the sales representative who completed the order, stamped permanently into the invoice database and printed on tax invoices and payment receipts.
+   - Selects payment mode (`FULL_PAID` or `PARTIALLY_PAID` deposit) with configurable delivery schedule presets.
    - Generates digital invoice link (`/share/invoice/[id]`) and dispatches email receipt.
 
 ---
@@ -87,3 +93,71 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Sets relative timing (e.g. 1 Day Before, 3 Days After) and trigger time (09:00 AM).
    - Previews real-time message text rendering with variable tags (`{{1}}`, `{{2}}`) inside the live WhatsApp smartphone mockup frame.
 4. **Mass Broadcast Campaigns**: Schedules promotional offer broadcasts to targeted recipient patient lists under `/owner/promotions?tab=campaigns`.
+
+---
+
+## 6. Super Admin Store Provisioning & Branch Management Workflow
+
+```
+┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│ Admin Panel  │───>│ Input Store &   │───>│ Auto Auth User  │───>│ Live Dashboard   │
+│ /admin/orgs  │    │ Owner Details   │    │ & Branch Setup  │    │ Instant Access   │
+└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+```
+
+1. **Access Tenant Stores**: Super Admin navigates to `/admin/organizations`.
+2. **Click `+ Add New Store`**: Opens the comprehensive Store Provisioning modal.
+3. **Input Store Profile**:
+   - Enters Store/Organization Name, Main Outlet Name, Contact Mobile (10-digit validation), and City Address.
+4. **Configure Owner Credentials**:
+   - Sets Owner Name, Login Email, and Password with real-time match validation.
+5. **Set Plan & Quotas**:
+   - Selects plan tier (`TRIAL`, `BASIC`, `PRO`, `ENTERPRISE`), validity duration, and maximum allowed branch outlets.
+6. **Zero-Latency Creation & Sync**:
+   - Automatically registers Supabase Auth user with confirmed email, inserts organization, owner profile, main shop branch, and active subscription.
+   - Optimistically updates the admin table and presents immediate confirmation.
+7. **Branch Outlet Expansion**:
+   - Admin can navigate to any organization (`/admin/organizations/[id]`) and click `+ Add Store Outlet` to append physical branches.
+8. **Lead Conversion**:
+   - Under `/admin/leads`, click `Provision Store` to convert demo requests directly into active tenant stores.
+9. **Granular Shop Outlet Deletion**:
+   - Inside `/admin/organizations/[id]`, click `Delete` on any branch row.
+   - Requires typing `"CONFIRM"` into the verification dialog.
+   - Permanently wipes only that outlet's records (inventory, invoices, appointments) while leaving the tenant organization and other branches completely unharmed.
+
+---
+
+## 7. Order Editing, Stock Re-balancing & Update Audit History Workflow
+
+```
+┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│ Orders Table │───>│ Edit Order Page │───>│ Modify Items,   │───>│ Save, Rebalance  │
+│ Click "Edit" │    │ Permissions Chk │    │ Customer & Dues │    │ & Audit History  │
+└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+```
+
+1. **Access & Permissions**:
+   - Authorized operators (`OWNER`, `SUPER_ADMIN`, or staff accounts with `edit_orders === true` enabled in shop credentials) see an active **Edit** button on each row in `/shop/orders`.
+   - Unauthorized staff see a locked badge indicator and are blocked server-side from accessing `/shop/orders/[id]/edit`.
+2. **Comprehensive Order Modification**:
+   - Operator clicks **Edit** on any order row to open `/shop/orders/[id]/edit`.
+   - **Customer Details**: Edit Full Name, 10-digit Phone Number, Email, Address, City, State, and Pincode.
+   - **Order & Staff Attribution**: Change salesperson attribution (`Sold By`), order date & time (with backdating picker), delivery presets (Same Day to 7 Days), and fulfillment status (`PROCESSING`, `READY`, `DELIVERED`, `ON_HOLD`).
+   - **Products & Line Items**:
+     - Pre-populated with current order items.
+     - Add new products via real-time autocomplete search or create custom fee/repair items.
+     - Delete line items or adjust quantities and unit prices.
+     - Edit dual discounts (`DISC %` and `DISC ₹`) with real-time bi-directional recalculation.
+     - Edit CGST, SGST, and IGST percentages with live rupee tax amount recalculations.
+3. **Payment Settlement & Invoice / Receipt Regeneration**:
+   - **Paid in Full**: Sets balance due to ₹0.00, marks invoice `PAID`, removes old receipts, and regenerates full Tax Invoice.
+   - **Partial Advance**: User inputs amount paid, computes remaining balance due, marks invoice `PENDING`, replaces old receipts, and generates a fresh sequential payment receipt (`PPS-shopNum-YYYY-NNNN`).
+4. **Automated Inventory Stock Re-balancing**:
+   - Reconciled atomically within a database transaction:
+     - Deleted items or decreased quantities are immediately restocked into inventory with movement type `ADJUSTMENT` (`ORDER_EDIT_RESTOCK`).
+     - Added items or increased quantities are debited from inventory with movement type `SOLD` (`ORDER_EDIT_SALE`).
+5. **Permanent Update Audit Trail**:
+   - Every edit writes an immutable audit record to `order_edit_history` with the exact timestamp, editor's full name, role badge, human-readable modification summary, and JSON snapshot of previous vs. updated financial state.
+   - The **History of Updates** section at the bottom of `/shop/orders/[id]/edit` renders the full chronological timeline of all changes made to the order.
+
+

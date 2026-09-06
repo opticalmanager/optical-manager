@@ -273,6 +273,9 @@ export async function registerPatientAndInvoiceAction(
         customerId = newCustomer.id;
       }
 
+      const invoiceTimestamp = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
+      const invoiceDateStr = invoiceTimestamp.toISOString().split("T")[0];
+
       // 3. Save Prescriptions if enabled
       if (data.prescriptionEnabled) {
         if (data.prescriptionType.distance && data.distancePrescription) {
@@ -302,7 +305,9 @@ export async function registerPatientAndInvoiceAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: data.prescribedAt || new Date().toISOString().split("T")[0],
+            prescribedAt: data.prescribedAt || invoiceDateStr,
+            createdAt: invoiceTimestamp,
+            updatedAt: invoiceTimestamp,
           });
         }
 
@@ -333,7 +338,9 @@ export async function registerPatientAndInvoiceAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: data.prescribedAt || new Date().toISOString().split("T")[0],
+            prescribedAt: data.prescribedAt || invoiceDateStr,
+            createdAt: invoiceTimestamp,
+            updatedAt: invoiceTimestamp,
           });
         }
       }
@@ -360,12 +367,12 @@ export async function registerPatientAndInvoiceAction(
       let fulfillmentStatus: "DELIVERED" | "PROCESSING" = "DELIVERED";
 
       if (data.deliveryDays > 0) {
-        const targetDate = new Date();
+        const targetDate = new Date(invoiceTimestamp);
         targetDate.setDate(targetDate.getDate() + data.deliveryDays);
         estimatedDeliveryDate = targetDate;
         fulfillmentStatus = "PROCESSING";
       } else {
-        estimatedDeliveryDate = new Date();
+        estimatedDeliveryDate = new Date(invoiceTimestamp);
         fulfillmentStatus = "DELIVERED";
       }
 
@@ -391,6 +398,9 @@ export async function registerPatientAndInvoiceAction(
           balanceDue: (data.balanceDue || 0).toString(),
           notes: data.notes || null,
           specialInstructions: data.specialInstructions || null,
+          soldBy: data.soldBy || null,
+          createdAt: invoiceTimestamp,
+          updatedAt: invoiceTimestamp,
         })
         .returning();
 
@@ -412,6 +422,8 @@ export async function registerPatientAndInvoiceAction(
             transactionId: data.paymentMethod === "UPI" || data.paymentMethod === "BANK_TRANSFER"
               ? `${Math.floor(10000 + Math.random() * 90000)}-PRECISION-X${Math.floor(100 + Math.random() * 899)}`
               : null,
+            createdAt: invoiceTimestamp,
+            updatedAt: invoiceTimestamp,
           })
           .returning();
         receiptId = receipt.id;
@@ -429,6 +441,8 @@ export async function registerPatientAndInvoiceAction(
           invoiceId: invoice.id,
           receiptId: receiptId,
           orderNumber,
+          createdAt: invoiceTimestamp,
+          updatedAt: invoiceTimestamp,
         })
         .returning();
 
@@ -452,6 +466,7 @@ export async function registerPatientAndInvoiceAction(
           sgstAmount: (item.sgstAmount || 0).toString(),
           igstPercent: (item.igstPercent || 0).toString(),
           igstAmount: (item.igstAmount || 0).toString(),
+          createdAt: invoiceTimestamp,
         });
 
         // Decrement stock atomically if it corresponds to an inventory product
@@ -464,7 +479,8 @@ export async function registerPatientAndInvoiceAction(
             "SALE_INVOICE",
             invoice.invoiceNumber,
             customerRecord.fullName,
-            user.id
+            user.id,
+            invoiceTimestamp
           );
         }
       }

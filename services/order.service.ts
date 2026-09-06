@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { orders, invoices, customers, invoiceItems, inventory, shops, receipts } from "@/db/schema";
+import { orders, invoices, customers, invoiceItems, inventory, shops, receipts, orderEditHistory } from "@/db/schema";
 import { eq, ne, and, or, ilike, sql, desc, inArray, lte, gt, gte } from "drizzle-orm";
 
 export interface OrderDashboardKPIs {
@@ -668,3 +668,254 @@ export async function exportOrdersToCSVData(params: {
 
   return csvRows.join("\n");
 }
+
+export interface OrderForEditData {
+  order: {
+    id: string;
+    orderNumber: string;
+    shopId: string;
+    organizationId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    receiptId: string | null;
+  };
+  customer: {
+    id: string;
+    fullName: string;
+    phone: string;
+    email: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    pincode: string | null;
+  };
+  invoice: {
+    id: string;
+    invoiceNumber: string;
+    subtotal: string;
+    discount: string;
+    discountPercent: string;
+    tax: string;
+    taxPercent: string;
+    total: string;
+    status: string;
+    paymentMethod: string | null;
+    fulfillmentStatus: string;
+    estimatedDelivery: string | null;
+    isRescheduled: boolean;
+    amountPaid: string;
+    balanceDue: string;
+    notes: string | null;
+    specialInstructions: string | null;
+    soldBy: string | null;
+    createdAt: Date;
+  };
+  lineItems: {
+    id: string;
+    inventoryId: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: string;
+    subtotal: string;
+    discountPercent: string;
+    discountAmount: string;
+    cgstPercent: string;
+    cgstAmount: string;
+    sgstPercent: string;
+    sgstAmount: string;
+    igstPercent: string;
+    igstAmount: string;
+    sku: string | null;
+    brand: string | null;
+    currentStock: number | null;
+  }[];
+  receipts: {
+    id: string;
+    receiptNumber: string;
+    amountPaid: string;
+    balanceDue: string;
+    paymentMethod: string;
+    transactionId: string | null;
+    createdAt: Date;
+  }[];
+  history: {
+    id: string;
+    userName: string;
+    userRole: string;
+    summary: string;
+    snapshot: any;
+    createdAt: Date;
+  }[];
+}
+
+/**
+ * Fetch full order dataset for the Order Edit page.
+ */
+export async function getOrderForEdit(
+  orderId: string,
+  organizationId: string
+): Promise<OrderForEditData | null> {
+  // 1. Fetch Order with Invoice and Customer (supports matching by orders.id, orders.invoiceId, or invoices.id)
+  const [orderRow] = await db
+    .select({
+      orderId: sql<string>`COALESCE(${orders.id}, ${invoices.id})`,
+      orderNumber: sql<string>`COALESCE(${orders.orderNumber}, ${invoices.invoiceNumber})`,
+      shopId: invoices.shopId,
+      organizationId: invoices.organizationId,
+      orderCreatedAt: sql<Date>`COALESCE(${orders.createdAt}, ${invoices.createdAt})`,
+      orderUpdatedAt: sql<Date>`COALESCE(${orders.updatedAt}, ${invoices.updatedAt})`,
+      orderReceiptId: orders.receiptId,
+      // Invoice
+      invoiceId: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      subtotal: invoices.subtotal,
+      discount: invoices.discount,
+      discountPercent: invoices.discountPercent,
+      tax: invoices.tax,
+      taxPercent: invoices.taxPercent,
+      total: invoices.total,
+      invoiceStatus: invoices.status,
+      paymentMethod: invoices.paymentMethod,
+      fulfillmentStatus: invoices.fulfillmentStatus,
+      estimatedDelivery: invoices.estimatedDelivery,
+      isRescheduled: invoices.isRescheduled,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      notes: invoices.notes,
+      specialInstructions: invoices.specialInstructions,
+      soldBy: invoices.soldBy,
+      invoiceCreatedAt: invoices.createdAt,
+      // Customer
+      customerId: customers.id,
+      customerFullName: customers.fullName,
+      customerPhone: customers.phone,
+      customerEmail: customers.email,
+      customerAddress: customers.address,
+      customerCity: customers.city,
+      customerState: customers.state,
+      customerPincode: customers.pincode,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+    .where(
+      and(
+        or(
+          eq(invoices.id, orderId),
+          eq(orders.id, orderId),
+          eq(orders.invoiceId, orderId)
+        ),
+        eq(invoices.organizationId, organizationId)
+      )
+    )
+    .limit(1);
+
+  if (!orderRow) return null;
+
+  // 2. Fetch line items with inventory details, receipts, and edit history in parallel
+  const [items, receiptsList, historyList] = await Promise.all([
+    db
+      .select({
+        id: invoiceItems.id,
+        inventoryId: invoiceItems.inventoryId,
+        description: invoiceItems.description,
+        quantity: invoiceItems.quantity,
+        unitPrice: invoiceItems.unitPrice,
+        subtotal: invoiceItems.subtotal,
+        discountPercent: invoiceItems.discountPercent,
+        discountAmount: invoiceItems.discountAmount,
+        cgstPercent: invoiceItems.cgstPercent,
+        cgstAmount: invoiceItems.cgstAmount,
+        sgstPercent: invoiceItems.sgstPercent,
+        sgstAmount: invoiceItems.sgstAmount,
+        igstPercent: invoiceItems.igstPercent,
+        igstAmount: invoiceItems.igstAmount,
+        sku: inventory.sku,
+        brand: inventory.brand,
+        currentStock: inventory.quantity,
+      })
+      .from(invoiceItems)
+      .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
+      .where(eq(invoiceItems.invoiceId, orderRow.invoiceId))
+      .orderBy(invoiceItems.createdAt),
+
+    db
+      .select({
+        id: receipts.id,
+        receiptNumber: receipts.receiptNumber,
+        amountPaid: receipts.amountPaid,
+        balanceDue: receipts.balanceDue,
+        paymentMethod: receipts.paymentMethod,
+        transactionId: receipts.transactionId,
+        createdAt: receipts.createdAt,
+      })
+      .from(receipts)
+      .where(eq(receipts.invoiceId, orderRow.invoiceId))
+      .orderBy(desc(receipts.createdAt)),
+
+    db
+      .select({
+        id: orderEditHistory.id,
+        userName: orderEditHistory.userName,
+        userRole: orderEditHistory.userRole,
+        summary: orderEditHistory.summary,
+        snapshot: orderEditHistory.snapshot,
+        createdAt: orderEditHistory.createdAt,
+      })
+      .from(orderEditHistory)
+      .where(
+        or(
+          eq(orderEditHistory.orderId, orderRow.orderId),
+          eq(orderEditHistory.orderId, orderRow.invoiceId)
+        )
+      )
+      .orderBy(desc(orderEditHistory.createdAt)),
+  ]);
+
+  return {
+    order: {
+      id: orderRow.orderId,
+      orderNumber: orderRow.orderNumber,
+      shopId: orderRow.shopId,
+      organizationId: orderRow.organizationId,
+      createdAt: orderRow.orderCreatedAt,
+      updatedAt: orderRow.orderUpdatedAt,
+      receiptId: orderRow.orderReceiptId,
+    },
+    customer: {
+      id: orderRow.customerId,
+      fullName: orderRow.customerFullName,
+      phone: orderRow.customerPhone,
+      email: orderRow.customerEmail,
+      address: orderRow.customerAddress,
+      city: orderRow.customerCity,
+      state: orderRow.customerState,
+      pincode: orderRow.customerPincode,
+    },
+    invoice: {
+      id: orderRow.invoiceId,
+      invoiceNumber: orderRow.invoiceNumber,
+      subtotal: orderRow.subtotal,
+      discount: orderRow.discount,
+      discountPercent: orderRow.discountPercent,
+      tax: orderRow.tax,
+      taxPercent: orderRow.taxPercent,
+      total: orderRow.total,
+      status: orderRow.invoiceStatus,
+      paymentMethod: orderRow.paymentMethod,
+      fulfillmentStatus: orderRow.fulfillmentStatus,
+      estimatedDelivery: orderRow.estimatedDelivery,
+      isRescheduled: orderRow.isRescheduled,
+      amountPaid: orderRow.amountPaid,
+      balanceDue: orderRow.balanceDue,
+      notes: orderRow.notes,
+      specialInstructions: orderRow.specialInstructions,
+      soldBy: orderRow.soldBy,
+      createdAt: orderRow.invoiceCreatedAt,
+    },
+    lineItems: items,
+    receipts: receiptsList,
+    history: historyList,
+  };
+}
+

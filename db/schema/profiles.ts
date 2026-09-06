@@ -25,6 +25,7 @@ export interface ModulePermissions {
   reports: boolean;
   settings: boolean;
   support: boolean;
+  edit_orders: boolean;
 }
 
 export const defaultFullPermissions: ModulePermissions = {
@@ -38,6 +39,7 @@ export const defaultFullPermissions: ModulePermissions = {
   reports: true,
   settings: true,
   support: true,
+  edit_orders: false,
 };
 
 export const profiles = pgTable("profiles", {

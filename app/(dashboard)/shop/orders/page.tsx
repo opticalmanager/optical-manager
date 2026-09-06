@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/services/auth.service";
 import { getOrdersDashboardData, TimeframeType } from "@/services/order.service";
+import { canUserEditOrders } from "@/utils/permissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReminderCardAction } from "./ReminderCardAction";
 import { TimeframeDropdown } from "./TimeframeDropdown";
@@ -295,6 +296,7 @@ export default async function OrdersDashboardPage({
           timeframe={timeframe}
           filter={filter}
           limit={limit}
+          canEditOrders={canUserEditOrders(user)}
         />
       </Card>
 

@@ -128,7 +128,11 @@ Data isolation is a critical architectural pillar for OpticalManager.
 * **Subdomain:** `admin.opticalmanager.in`
 * **Metrics:** Tracks total organizations, shops, active subscriptions, pending leads, revenue.
 * **Management:** View org details, shops, and managers. Handle subscriptions (extend, suspend, activate).
-* **CRM:** Demo request pipeline (PENDING → CONTACTED → DEMO_SCHEDULED → APPROVED/REJECTED) and lead management.
+* **Direct Store Provisioning:** Super Admin can provision new tenant stores directly (`+ Add New Store` modal on `/admin/organizations`) with automatic Supabase Auth user generation, organization slugging, initial store branch creation, and subscription validity assignment.
+* **Store Outlet Management:** Super Admin can add physical branch locations (`+ Add Store Outlet` on `/admin/organizations/[id]`) and safely delete any specific shop branch (`Delete` action with required `"CONFIRM"` verification) which purges only that shop's data (inventory, invoices, appointments) while keeping the organization and all other branch outlets completely untouched.
+* **CRM Lead Conversion:** Demo request pipeline (PENDING → CONTACTED → DEMO_SCHEDULED → APPROVED/REJECTED) with one-click `Provision Store` action that pre-fills lead details into a store account.
+
+
 
 ### 4.11. Onboarding Flow
 * **Step 1:** Organization details (name, slug, email, phone, address).
