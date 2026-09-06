@@ -126,7 +126,8 @@ export async function decrementInventoryStock(
   referenceType?: string | null,
   referenceNumber?: string | null,
   vendorParty?: string | null,
-  performedBy?: string | null
+  performedBy?: string | null,
+  createdAt?: Date
 ): Promise<InventoryItem> {
   const client = tx || db;
   const [item] = await client
@@ -158,6 +159,7 @@ export async function decrementInventoryStock(
         costPriceAtTime: item.costPrice || "0.00",
         notes: "Stock debited via sale invoice.",
         performedBy: performedBy || null,
+        createdAt: createdAt || undefined,
       },
       client
     );
@@ -442,6 +444,7 @@ export async function recordStockMovement(
     costPriceAtTime: string;
     notes?: string | null;
     performedBy?: string | null;
+    createdAt?: Date;
   },
   tx?: any
 ): Promise<void> {

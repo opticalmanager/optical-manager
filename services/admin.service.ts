@@ -12,6 +12,9 @@ import {
 import { eq, count, sql, desc, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "./auth.service";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { slugify } from "@/lib/utils";
+
 
 // ── Security Check Helper ──
 export async function verifySuperAdmin() {
@@ -259,3 +262,321 @@ export async function updateDemoRequestStatus(
 
   return { success: true };
 }
+
+// ── 6. Provision New Tenant Store (With Auth Account & Subscription) ──
+export interface ProvisionTenantStorePayload {
+  organizationName: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPassword: string;
+  phone?: string;
+  city?: string;
+  address?: string;
+  initialShopName?: string;
+  plan?: "TRIAL" | "BASIC" | "PRO" | "ENTERPRISE";
+  validityMonths?: number;
+  maxShops?: number;
+  adminNotes?: string;
+  leadId?: string;
+}
+
+export async function provisionNewTenantStore(payload: ProvisionTenantStorePayload) {
+  await verifySuperAdmin();
+
+  const {
+    organizationName,
+    ownerName,
+    ownerEmail,
+    ownerPassword,
+    phone,
+    city,
+    address,
+    initialShopName,
+    plan = "PRO",
+    validityMonths = 12,
+    maxShops = 5,
+    adminNotes,
+    leadId,
+  } = payload;
+
+  if (!organizationName?.trim()) {
+    return { success: false, error: "Store / Organization name is required." };
+  }
+  if (!ownerName?.trim()) {
+    return { success: false, error: "Owner full name is required." };
+  }
+  if (!ownerEmail?.trim() || !ownerEmail.includes("@")) {
+    return { success: false, error: "A valid owner login email is required." };
+  }
+  if (!ownerPassword || ownerPassword.length < 8) {
+    return { success: false, error: "Password must be at least 8 characters long." };
+  }
+
+  const normalizedEmail = ownerEmail.trim().toLowerCase();
+
+  // Check if email already exists in profiles
+  const [existingProfile] = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.email, normalizedEmail))
+    .limit(1);
+
+  if (existingProfile) {
+    return { success: false, error: "An account with this email address already exists in Optical Manager." };
+  }
+
+  // 1. Create Auth User in Supabase Auth via Admin Client
+  const supabaseAdmin = createAdminClient();
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    email: normalizedEmail,
+    password: ownerPassword,
+    email_confirm: true,
+    user_metadata: {
+      full_name: ownerName.trim(),
+      role: "OWNER",
+    },
+  });
+
+  if (authError || !authData.user) {
+    console.error("Supabase Admin user creation error:", authError);
+    return {
+      success: false,
+      error: authError?.message || "Failed to create user authentication account. The email may already be in use.",
+    };
+  }
+
+  const authUserId = authData.user.id;
+
+  try {
+    // 2. Generate unique slug
+    let slug = slugify(organizationName.trim());
+    if (!slug) slug = `store-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const [existingSlug] = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.slug, slug))
+      .limit(1);
+
+    if (existingSlug) {
+      slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
+    // 3. Insert Organization
+    const [newOrg] = await db
+      .insert(organizations)
+      .values({
+        name: organizationName.trim(),
+        slug,
+        email: normalizedEmail,
+        phone: phone?.trim() || null,
+        address: address?.trim() || city?.trim() || null,
+        onboardingCompleted: true,
+      })
+      .returning();
+
+    // 4. Insert Initial Shop Branch
+    const shopName = initialShopName?.trim() || `${organizationName.trim()} - Main Branch`;
+    const [newShop] = await db
+      .insert(shops)
+      .values({
+        organizationId: newOrg.id,
+        name: shopName,
+        phone: phone?.trim() || null,
+        email: normalizedEmail,
+        address: address?.trim() || city?.trim() || null,
+        isActive: true,
+      })
+      .returning();
+
+    // 5. Insert Owner Profile
+    await db.insert(profiles).values({
+      id: authUserId,
+      organizationId: newOrg.id,
+      shopId: newShop.id,
+      fullName: ownerName.trim(),
+      email: normalizedEmail,
+      role: "OWNER",
+      isActive: true,
+    });
+
+    // 6. Calculate Subscription Validity Period
+    const now = new Date();
+    const currentPeriodEnd = new Date(now);
+
+    if (plan === "TRIAL") {
+      currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 14);
+    } else {
+      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + (validityMonths || 12));
+    }
+
+    const noteLog = adminNotes?.trim() 
+      ? `Provisioned by Super Admin on ${now.toISOString().split("T")[0]}: ${adminNotes.trim()}`
+      : `Provisioned by Super Admin on ${now.toISOString().split("T")[0]}`;
+
+    await db.insert(subscriptions).values({
+      organizationId: newOrg.id,
+      plan: plan,
+      status: "ACTIVE",
+      currentPeriodStart: now,
+      currentPeriodEnd,
+      trialEndsAt: plan === "TRIAL" ? currentPeriodEnd : null,
+      maxShops: maxShops || 5,
+      maxUsers: (maxShops || 5) * 3,
+      billingCycle: (validityMonths || 12) >= 12 ? "YEARLY" : "MONTHLY",
+      notes: noteLog,
+    });
+
+    // 7. If linked from a lead, mark lead as APPROVED
+    if (leadId) {
+      await db
+        .update(demoRequests)
+        .set({
+          status: "APPROVED",
+          notes: `Provisioned as store: ${organizationName.trim()} (${newOrg.id})`,
+          updatedAt: now,
+        })
+        .where(eq(demoRequests.id, leadId));
+    }
+
+    return {
+      success: true,
+      organization: {
+        id: newOrg.id,
+        name: newOrg.name,
+        slug: newOrg.slug,
+        createdAt: newOrg.createdAt,
+        plan,
+        status: "ACTIVE",
+        currentPeriodEnd,
+        notes: noteLog,
+        maxShops: maxShops || 5,
+        shopsCount: 1,
+        ownerName: ownerName.trim(),
+        ownerEmail: normalizedEmail,
+      },
+    };
+  } catch (dbError: any) {
+    console.error("Database error during tenant store provisioning, rolling back auth user:", dbError);
+    // Rollback: delete created auth user to avoid orphan accounts
+    await supabaseAdmin.auth.admin.deleteUser(authUserId).catch((delErr) => {
+      console.error("Failed to rollback auth user:", delErr);
+    });
+
+    return {
+      success: false,
+      error: dbError?.message || "Failed to provision tenant store in database. Please check all fields and try again.",
+    };
+  }
+}
+
+// ── 7. Add Store Outlet to Existing Organization ──
+export interface AddShopOutletPayload {
+  organizationId: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+}
+
+export async function addShopOutletToOrganization(payload: AddShopOutletPayload) {
+  await verifySuperAdmin();
+
+  const { organizationId, name, address, phone, email } = payload;
+
+  if (!organizationId) {
+    return { success: false, error: "Organization ID is required." };
+  }
+  if (!name?.trim()) {
+    return { success: false, error: "Outlet / Branch name is required." };
+  }
+
+  // Check organization exists
+  const [org] = await db
+    .select({ id: organizations.id, name: organizations.name })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+
+  if (!org) {
+    return { success: false, error: "Organization not found." };
+  }
+
+  // Insert shop
+  const [newShop] = await db
+    .insert(shops)
+    .values({
+      organizationId,
+      name: name.trim(),
+      address: address?.trim() || null,
+      phone: phone?.trim() || null,
+      email: email?.trim()?.toLowerCase() || null,
+      isActive: true,
+    })
+    .returning();
+
+  return {
+    success: true,
+    shop: {
+      ...newShop,
+      managerName: "Unassigned",
+      managerEmail: newShop.email || "N/A",
+    },
+  };
+}
+
+// ── 8. Delete Single Shop Outlet (Cascade Shop Data Only) ──
+export async function deleteShopOutlet(shopId: string, organizationId: string) {
+  await verifySuperAdmin();
+
+  if (!shopId || !organizationId) {
+    return { success: false, error: "Shop ID and Organization ID are required." };
+  }
+
+  // 1. Verify target shop exists under the organization
+  const [targetShop] = await db
+    .select({ id: shops.id, name: shops.name })
+    .from(shops)
+    .where(and(eq(shops.id, shopId), eq(shops.organizationId, organizationId)))
+    .limit(1);
+
+  if (!targetShop) {
+    return { success: false, error: "Shop outlet not found or does not belong to this organization." };
+  }
+
+  // 2. Clean up any shop manager auth accounts associated with this shop
+  const linkedManagers = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(
+      and(
+        eq(profiles.organizationId, organizationId),
+        eq(profiles.shopId, shopId),
+        eq(profiles.role, "SHOP_MANAGER")
+      )
+    );
+
+  if (linkedManagers.length > 0) {
+    const supabaseAdmin = createAdminClient();
+    for (const manager of linkedManagers) {
+      await supabaseAdmin.auth.admin.deleteUser(manager.id).catch((err) => {
+        console.error(`Failed to delete auth account for manager ${manager.id}:`, err);
+      });
+    }
+  }
+
+  // 3. Delete the shop row
+  // Database foreign keys with `onDelete: "cascade"` will automatically purge
+  // inventory, invoices, invoice_items, prescriptions, appointments, orders, sales_returns, etc. for this shop ONLY.
+  await db
+    .delete(shops)
+    .where(and(eq(shops.id, shopId), eq(shops.organizationId, organizationId)));
+
+  return {
+    success: true,
+    deletedShopId: shopId,
+    deletedShopName: targetShop.name,
+  };
+}
+
+

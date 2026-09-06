@@ -444,6 +444,8 @@ export const editAccessoryItemSchema = z.object({
 
 export const invoiceSchema = z.object({
   customerId: z.string().uuid("Please select a customer."),
+  invoiceDate: z.string().optional().or(z.literal("")),
+  soldBy: z.string().optional().or(z.literal("")),
   subtotal: z.string().min(1, "Subtotal is required."),
   discount: z.string().optional().default("0"),
   tax: z.string().optional().default("0"),
@@ -473,6 +475,8 @@ export const invoiceItemSchema = z.object({
 
 export const patientVisitSchema = z.object({
   customer: customerSchema,
+  invoiceDate: z.string().optional().or(z.literal("")),
+  soldBy: z.string().optional().or(z.literal("")),
   prescriptionEnabled: z.boolean().default(false),
   prescriptionType: z.object({
     distance: z.boolean().default(false),

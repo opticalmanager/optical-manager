@@ -35,7 +35,7 @@ export {
 export { invoiceItems } from "./invoice-items";
 export { stockMovements, movementTypeEnum } from "./stock-movements";
 export { receipts } from "./receipts";
-export { orders } from "./orders";
+export { orders, orderEditHistory } from "./orders";
 export { appointmentConfigs } from "./appointment-configs";
 export { appointments, appointmentStatusEnum } from "./appointments";
 export { demoRequests, demoRequestStatusEnum } from "./demo-requests";

@@ -69,6 +69,7 @@ export const invoices = pgTable("invoices", {
   balanceDue: decimal("balance_due", { precision: 10, scale: 2 }).notNull().default("0.00"),
   notes: text("notes"),
   specialInstructions: text("special_instructions"),
+  soldBy: varchar("sold_by", { length: 255 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

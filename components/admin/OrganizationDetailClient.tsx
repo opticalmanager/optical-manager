@@ -20,10 +20,17 @@ import {
   Phone,
   MapPin,
   FileText,
-  ExternalLink
+  ExternalLink,
+  X,
+  Loader2,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { extendSubscription, toggleStoreSuspension } from "@/services/admin.service";
+import { toast } from "sonner";
+import { extendSubscription, toggleStoreSuspension, addShopOutletToOrganization, deleteShopOutlet } from "@/services/admin.service";
+
+
 
 interface OrganizationDetailClientProps {
   data: {
@@ -67,6 +74,7 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
   const router = useRouter();
   const { organization, owner, shops } = data;
   const [subscription, setSubscription] = useState(data.subscription);
+  const [shopsList, setShopsList] = useState(shops);
 
   // Extension Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -74,9 +82,90 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
   const [adminNotes, setAdminNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Add Outlet Modal state
+  const [isAddOutletModalOpen, setIsAddOutletModalOpen] = useState(false);
+  const [outletName, setOutletName] = useState("");
+  const [outletAddress, setOutletAddress] = useState("");
+  const [outletPhone, setOutletPhone] = useState("");
+  const [outletEmail, setOutletEmail] = useState("");
+  const [isAddingOutlet, setIsAddingOutlet] = useState(false);
+
   const isSuspended = subscription.status === "SUSPENDED";
 
+  const handleAddOutletSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!outletName.trim()) {
+      toast.error("Branch / Outlet name is required.");
+      return;
+    }
+    if (outletPhone.trim() && outletPhone.replace(/\D/g, "").length !== 10) {
+      toast.error("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    setIsAddingOutlet(true);
+    try {
+      const res = await addShopOutletToOrganization({
+        organizationId: organization.id,
+        name: outletName.trim(),
+        address: outletAddress.trim(),
+        phone: outletPhone.trim(),
+        email: outletEmail.trim(),
+      });
+
+      if (res.success && res.shop) {
+        setShopsList((prev) => [res.shop as any, ...prev]);
+        toast.success(`Store branch "${outletName.trim()}" created successfully!`);
+        setIsAddOutletModalOpen(false);
+        setOutletName("");
+        setOutletAddress("");
+        setOutletPhone("");
+        setOutletEmail("");
+      } else {
+        toast.error(res.error || "Failed to add store outlet.");
+      }
+    } catch (err: any) {
+      console.error("Failed to add shop outlet:", err);
+      toast.error(err?.message || "Failed to add store outlet.");
+    } finally {
+      setIsAddingOutlet(false);
+    }
+  };
+
+  // Delete Shop Modal state
+  const [selectedShopForDelete, setSelectedShopForDelete] = useState<any | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeletingShop, setIsDeletingShop] = useState(false);
+
+  const handleConfirmDeleteShop = async () => {
+    if (!selectedShopForDelete) return;
+
+    if (deleteConfirmText.trim().toUpperCase() !== "CONFIRM") {
+      toast.error('Please type "CONFIRM" to authorize deletion.');
+      return;
+    }
+
+    setIsDeletingShop(true);
+    try {
+      const res = await deleteShopOutlet(selectedShopForDelete.id, organization.id);
+      if (res.success) {
+        setShopsList((prev) => prev.filter((s) => s.id !== selectedShopForDelete.id));
+        toast.success(`Store outlet "${selectedShopForDelete.name}" and its associated data have been permanently deleted.`);
+        setSelectedShopForDelete(null);
+        setDeleteConfirmText("");
+      } else {
+        toast.error(res.error || "Failed to delete store outlet.");
+      }
+    } catch (err: any) {
+      console.error("Failed to delete shop:", err);
+      toast.error(err?.message || "An unexpected error occurred while deleting the shop.");
+    } finally {
+      setIsDeletingShop(false);
+    }
+  };
+
   const handleApplyExtension = async () => {
+
     setIsSubmitting(true);
     try {
       const res = await extendSubscription(organization.id, extensionMonths, adminNotes);
@@ -255,15 +344,24 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
 
       {/* Physical Outlets Table */}
       <div className="bg-[#0d1424] border border-slate-800/80 rounded-2xl p-5 shadow-xl space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div>
             <h2 className="text-sm font-bold text-white tracking-tight">
-              Physical Store Outlets ({shops.length})
+              Physical Store Outlets ({shopsList.length})
             </h2>
             <p className="text-xs text-slate-400 font-normal">
               List of configured branch locations and assigned store managers
             </p>
           </div>
+
+          <Button
+            type="button"
+            onClick={() => setIsAddOutletModalOpen(true)}
+            className="h-8 px-3.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-xs border-none cursor-pointer flex items-center gap-1.5 shrink-0"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>+ Add Store Outlet</span>
+          </Button>
         </div>
 
         <div className="overflow-x-auto">
@@ -274,18 +372,19 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
                 <th className="px-4 py-3">Address</th>
                 <th className="px-4 py-3">Branch Manager</th>
                 <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-right rounded-r-xl">Joined Date</th>
+                <th className="px-4 py-3 text-center">Joined Date</th>
+                <th className="px-4 py-3 text-right rounded-r-xl">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50 font-normal">
-              {shops.length === 0 ? (
+              {shopsList.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-slate-500 font-medium">
+                  <td colSpan={6} className="text-center py-8 text-slate-500 font-medium">
                     No physical store branches configured yet.
                   </td>
                 </tr>
               ) : (
-                shops.map((shop) => (
+                shopsList.map((shop) => (
                   <tr key={shop.id} className="hover:bg-[#131b2e] transition-colors">
                     <td className="px-4 py-3">
                       <span className="font-semibold text-white block">
@@ -313,8 +412,23 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
                         {shop.isActive ? "ACTIVE" : "PAUSED"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-400">
+                    <td className="px-4 py-3 text-center text-slate-400">
                       {new Date(shop.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setSelectedShopForDelete(shop);
+                          setDeleteConfirmText("");
+                        }}
+                        variant="outline"
+                        className="h-7 px-2.5 text-[11px] font-medium border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/60 rounded-lg cursor-pointer inline-flex items-center gap-1.5 shadow-xs transition-colors"
+                        title={`Delete store outlet ${shop.name}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>Delete</span>
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -322,7 +436,9 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
             </tbody>
           </table>
         </div>
+
       </div>
+
 
       {/* Admin Notes & Extension Log */}
       {subscription.notes && (
@@ -408,6 +524,233 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD STORE OUTLET                                                   */}
+      {/* ========================================================================= */}
+      {isAddOutletModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-[#0d1424] border border-slate-800/90 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
+                  <Store className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">
+                    Add Physical Store Outlet
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-normal">
+                    New branch location for {organization.name}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsAddOutletModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer border-none bg-transparent"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddOutletSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 block">
+                  Branch / Outlet Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={outletName}
+                  onChange={(e) => setOutletName(e.target.value)}
+                  placeholder="e.g. Phoenix Mall Branch"
+                  className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 block">
+                  Branch Mobile / WhatsApp
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-slate-500 font-mono text-xs">+91</span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={outletPhone}
+                    onChange={(e) => setOutletPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onKeyPress={(e) => {
+                      if (!/[0-9]/.test(e.key)) e.preventDefault();
+                    }}
+                    placeholder="9876543210"
+                    className="w-full pl-11 pr-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 block">
+                  Branch Contact Email
+                </label>
+                <input
+                  type="email"
+                  value={outletEmail}
+                  onChange={(e) => setOutletEmail(e.target.value)}
+                  placeholder="branch@store.com"
+                  className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 block">
+                  Physical Address
+                </label>
+                <textarea
+                  rows={2}
+                  value={outletAddress}
+                  onChange={(e) => setOutletAddress(e.target.value)}
+                  placeholder="e.g. Shop 24, First Floor, Phoenix Mall"
+                  className="w-full p-3 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800/80">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddOutletModalOpen(false)}
+                  className="h-8 px-3 text-xs font-medium border-slate-800 text-slate-300 hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isAddingOutlet}
+                  className="h-8 px-4 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-xs border-none cursor-pointer flex items-center gap-1.5"
+                >
+                  {isAddingOutlet ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create Store Outlet</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: DELETE STORE OUTLET (REQUIRES "CONFIRM" VERIFICATION)             */}
+      {/* ========================================================================= */}
+      {selectedShopForDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-[#0d1424] border border-rose-500/30 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl space-y-5">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight text-white">
+                    Delete Store Outlet
+                  </h3>
+                  <p className="text-[11px] text-rose-400 font-medium">
+                    Permanent data erasure for {selectedShopForDelete.name}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedShopForDelete(null);
+                  setDeleteConfirmText("");
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer border-none bg-transparent"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Warning Callout */}
+            <div className="bg-rose-500/10 border border-rose-500/25 rounded-xl p-3.5 space-y-1.5 text-xs text-rose-200">
+              <p className="font-bold flex items-center gap-1.5 text-rose-300">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                This action is destructive and irreversible!
+              </p>
+              <p className="text-[11px] text-rose-200/80 leading-relaxed">
+                Deleting <strong className="text-white underline">{selectedShopForDelete.name}</strong> will permanently erase all inventory stock, customer invoices, prescriptions, orders, appointments, and receipts associated <strong>ONLY with this shop outlet</strong>.
+              </p>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Organization details and other shop outlets in <strong>{organization.name}</strong> will remain completely intact.
+              </p>
+            </div>
+
+            {/* Confirmation Input Field */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300 block">
+                Type <span className="font-mono font-black text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">CONFIRM</span> to authorize deletion:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="CONFIRM"
+                className="w-full px-3.5 py-2.5 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/30 font-mono tracking-wider font-bold uppercase"
+              />
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800/80">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSelectedShopForDelete(null);
+                  setDeleteConfirmText("");
+                }}
+                className="h-8 px-3 text-xs font-medium border-slate-800 text-slate-300 hover:bg-slate-800 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                disabled={deleteConfirmText.trim().toUpperCase() !== "CONFIRM" || isDeletingShop}
+                onClick={handleConfirmDeleteShop}
+                className="h-8 px-4 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-xl shadow-xs border-none cursor-pointer flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {isDeletingShop ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting Outlet...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Store Outlet</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+

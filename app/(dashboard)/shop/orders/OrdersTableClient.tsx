@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink } from "lucide-react";
+import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { SKUDetailsDropdown } from "./SKUDetailsDropdown";
 import { QuickEditModal } from "./QuickEditModal";
@@ -18,6 +18,7 @@ interface OrdersTableClientProps {
   timeframe: string;
   filter: string;
   limit: number;
+  canEditOrders?: boolean;
 }
 
 function ReceiptsDropdown({
@@ -188,6 +189,7 @@ export function OrdersTableClient({
   timeframe,
   filter,
   limit,
+  canEditOrders = false,
 }: OrdersTableClientProps) {
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -213,6 +215,7 @@ export function OrdersTableClient({
               <th className="px-4 py-2.5 text-center">Payment Status</th>
               <th className="px-4 py-2.5 text-center">Delivery Status</th>
               <th className="px-4 py-2.5 text-center">Invoice / Receipts</th>
+              <th className="px-4 py-2.5 text-center">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
@@ -318,12 +321,34 @@ export function OrdersTableClient({
                     <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <ReceiptsDropdown order={order} isFullyPaid={isFullyPaid} />
                     </td>
+
+                    {/* Order Edit Action Button */}
+                    <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                      {canEditOrders ? (
+                        <Link
+                          href={`/shop/orders/${order.id}/edit`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 hover:text-amber-900 border border-amber-200/90 rounded-lg transition-all shadow-xs hover:scale-[1.02] active:scale-[0.98]"
+                          title="Edit Order, Products & Billing"
+                        >
+                          <Pencil className="h-3 w-3 text-amber-600" />
+                          <span>Edit</span>
+                        </Link>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-slate-350 bg-slate-50 border border-slate-200/60 rounded-md cursor-not-allowed select-none"
+                          title="Permission required to edit orders"
+                        >
+                          <Lock className="h-2.5 w-2.5 text-slate-350" />
+                          <span>Locked</span>
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan={8} className="px-6 py-10 text-center font-bold text-slate-450">
+                <td colSpan={9} className="px-6 py-10 text-center font-bold text-slate-450">
                   No orders matching your search or filters.
                 </td>
               </tr>

@@ -66,8 +66,7 @@ CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANC
 | `email` | `varchar(255)` | NOT NULL | User email address |
 | `role` | `user_role` | NOT NULL | `SUPER_ADMIN`, `OWNER`, `SHOP_MANAGER` |
 | `customRoleName` | `varchar(100)` | NULLABLE | Custom role title (e.g. Optometrist, Cashier, Sales & Billing) |
-| `permissions` | `jsonb` | NULLABLE | Granular module permission flags (`dashboard`, `inventory`, `sales`, `returns`, `customers`, `appointments`, `analytics`, `reports`, `settings`, `support`) |
-
+| `permissions` | `jsonb` | NULLABLE | Granular module permission flags (`dashboard`, `inventory`, `sales`, `returns`, `customers`, `appointments`, `analytics`, `reports`, `settings`, `support`, `edit_orders`) |
 
 ---
 
@@ -84,4 +83,70 @@ Stores automated event trigger rules (`CUSTOMER_CREATED`, `INVOICE_CREATED`, `PA
 
 #### `email_logs`
 Logs all sent, failed, and rate-limited email dispatches across all store locations with timestamps and error trace messages.
+
+---
+
+### 3. POS Billing & Invoicing Tables (`db/schema/invoices.ts`, `db/schema/invoice-items.ts`, `db/schema/receipts.ts`)
+
+#### `invoices`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Invoice unique identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE) | Physical store outlet ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization ID |
+| `customerId` | `uuid` | FK -> `customers.id` (RESTRICT) | Billed patient/customer ID |
+| `invoiceNumber` | `varchar(50)` | NOT NULL, UNIQUE(org, num) | Human-readable sequential invoice number |
+| `subtotal` | `decimal(10,2)` | NOT NULL | Gross items subtotal |
+| `discount` | `decimal(10,2)` | NOT NULL, DEFAULT 0 | Total discount amount in Rupees |
+| `discountPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 0 | Overall discount percentage |
+| `tax` | `decimal(10,2)` | NOT NULL, DEFAULT 0 | Total aggregated GST tax |
+| `taxPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 0 | Effective tax percentage |
+| `total` | `decimal(10,2)` | NOT NULL | Net payable invoice amount |
+| `status` | `invoice_status` | NOT NULL, DEFAULT 'DRAFT' | `DRAFT`, `PENDING`, `PAID`, `CANCELLED` |
+| `paymentMethod` | `payment_method` | NULLABLE | `CASH`, `CARD`, `UPI`, `BANK_TRANSFER` |
+| `fulfillmentStatus`| `fulfillment_status`| NOT NULL, DEFAULT 'PROCESSING' | `PROCESSING`, `READY`, `DELIVERED`, `ON_HOLD` |
+| `estimatedDelivery`| `date` | NULLABLE | Target order fulfillment date |
+| `amountPaid` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Upfront payment deposit |
+| `balanceDue` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Remaining unpaid dues |
+| `soldBy` | `varchar(255)` | NULLABLE | Salesperson / staff attribution |
+| `notes` | `text` | NULLABLE | Invoice remarks and optometry instructions |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Billing occurrence timestamp (supports backdating) |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
+
+#### `invoice_items`
+Stores granular line items per invoice with individual pricing, dual discounts (`discountPercent`, `discountAmount`), and per-item tax components (`cgstPercent`, `cgstAmount`, `sgstPercent`, `sgstAmount`, `igstPercent`, `igstAmount`).
+
+#### `receipts`
+Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices and orders with `amountPaid`, `balanceDue`, `paymentMethod`, and `transactionId`.
+
+---
+
+### 4. Orders & Order Audit History Tables (`db/schema/orders.ts`)
+
+#### `orders`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Order unique identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE) | Physical store outlet ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization ID |
+| `customerId` | `uuid` | FK -> `customers.id` (CASCADE) | Customer / patient reference |
+| `invoiceId` | `uuid` | FK -> `invoices.id` (CASCADE) | Linked tax invoice record |
+| `receiptId` | `uuid` | FK -> `receipts.id` (SET NULL) | Attached payment receipt (if partially paid) |
+| `orderNumber` | `varchar(50)` | NOT NULL, INDEXED | Sequential order number (`ORD-shop-YYYY-NNNN`) |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Order creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
+
+#### `order_edit_history`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Audit entry ID |
+| `orderId` | `uuid` | FK -> `orders.id` (CASCADE) | Modified order reference |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE) | Physical store outlet ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization ID |
+| `userId` | `uuid` | FK -> `profiles.id` (SET NULL) | User account who performed the update |
+| `userName` | `varchar(255)` | NOT NULL | User full name at the time of modification |
+| `userRole` | `varchar(50)` | NOT NULL | User role at time of modification (`OWNER`, `SUPER_ADMIN`, `SHOP_MANAGER`) |
+| `summary` | `text` | NOT NULL | Human-readable change summary (items, prices, payment, delivery) |
+| `snapshot` | `jsonb` | NULLABLE | JSON snapshot containing `{ previous, updated }` states |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Exact timestamp of the edit event |
 

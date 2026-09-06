@@ -72,6 +72,7 @@ const ROLE_PRESETS = [
       reports: true,
       settings: true,
       support: true,
+      edit_orders: false,
     },
   },
   {
@@ -90,6 +91,7 @@ const ROLE_PRESETS = [
       reports: true,
       settings: false,
       support: true,
+      edit_orders: false,
     },
   },
   {
@@ -108,6 +110,7 @@ const ROLE_PRESETS = [
       reports: false,
       settings: false,
       support: true,
+      edit_orders: false,
     },
   },
   {
@@ -126,6 +129,7 @@ const ROLE_PRESETS = [
       reports: false,
       settings: false,
       support: true,
+      edit_orders: false,
     },
   },
   {
@@ -144,6 +148,7 @@ const ROLE_PRESETS = [
       reports: false,
       settings: false,
       support: false,
+      edit_orders: false,
     },
   },
   {
@@ -162,6 +167,7 @@ const ROLE_PRESETS = [
       reports: false,
       settings: false,
       support: true,
+      edit_orders: false,
     },
   },
 ];
@@ -176,6 +182,7 @@ const STORE_MODULES: {
   { key: "dashboard", label: "Dashboard & KPIs", desc: "View main store metrics, quick stats, and daily summary", icon: LayoutGrid, color: "text-[#2563eb]" },
   { key: "inventory", label: "Inventory & Stock", desc: "Manage catalog, inward stock, price tags, and movements", icon: Store, color: "text-indigo-600" },
   { key: "sales", label: "Sales & Invoices", desc: "Create invoices, manage orders, and collect customer payments", icon: ShoppingCart, color: "text-emerald-600" },
+  { key: "edit_orders", label: "Edit Orders & Invoices", desc: "Authorize staff to edit existing orders, products, taxes, and regenerate invoices", icon: Edit2, color: "text-amber-600" },
   { key: "returns", label: "Product Returns", desc: "Process item returns, inspection, restocking, and credit notes", icon: RotateCcw, color: "text-amber-600" },
   { key: "customers", label: "Customers & Patients", desc: "Patient CRM, prescription records, and ophthalmic history", icon: Users, color: "text-blue-600" },
   { key: "appointments", label: "Appointments", desc: "Book and manage clinical eye test visits and testing queues", icon: CalendarDays, color: "text-purple-600" },
@@ -321,6 +328,7 @@ export function OutletConfigurePanel({
       reports: value,
       settings: value,
       support: value,
+      edit_orders: value,
     };
     setFormPermissions(updated);
   };

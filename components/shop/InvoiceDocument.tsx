@@ -371,6 +371,13 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                     <div className="text-black font-bold">
                       {formatDateDMonthY(invoice.createdAt)}
                     </div>
+
+                    {invoice.soldBy && (
+                      <>
+                        <div className="text-slate-600 font-bold">Sold By:</div>
+                        <div className="text-black font-bold">{invoice.soldBy}</div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -981,6 +988,11 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
               <p className="font-bold text-slate-600">
                 TIME: <span className="font-extrabold text-slate-800">{formattedTime}</span>
               </p>
+              {invoice?.soldBy && (
+                <p className="font-bold text-slate-600">
+                  SOLD BY: <span className="font-extrabold text-slate-800">{invoice.soldBy}</span>
+                </p>
+              )}
             </div>
           </div>
 

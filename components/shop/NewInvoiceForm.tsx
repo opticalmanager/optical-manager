@@ -41,7 +41,8 @@ import {
   Smartphone,
   CreditCard,
   CheckCircle,
-  Barcode
+  Barcode,
+  UserCheck
 } from "lucide-react";
 
 const INDIAN_STATES = [
@@ -108,6 +109,15 @@ interface LineItem {
   isSearching: boolean;
 }
 
+function formatDateTimeLocal(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function NewInvoiceForm() {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
@@ -121,13 +131,45 @@ export function NewInvoiceForm() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   // Section 01: Basic Details States
+  const [invoiceDateTime, setInvoiceDateTime] = useState<string>(() => formatDateTimeLocal());
+  const [isCustomDate, setIsCustomDate] = useState<boolean>(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   // Date of Birth & Age Sync
   const [dob, setDob] = useState("");
   const [age, setAge] = useState("");
-  const [prescribedAt, setPrescribedAt] = useState(new Date().toISOString().split("T")[0]);
+  const [prescribedAt, setPrescribedAt] = useState(() => new Date().toISOString().split("T")[0]);
+
+  const handleInvoiceDateTimeChange = (val: string) => {
+    setInvoiceDateTime(val);
+    setIsCustomDate(true);
+    if (val) {
+      const datePart = val.split("T")[0];
+      setPrescribedAt(datePart);
+    }
+  };
+
+  const handleResetDateTimeToNow = () => {
+    const nowStr = formatDateTimeLocal();
+    setInvoiceDateTime(nowStr);
+    setIsCustomDate(false);
+    setPrescribedAt(nowStr.split("T")[0]);
+  };
+
+  const isBackdated = (() => {
+    if (!invoiceDateTime) return false;
+    const selected = new Date(invoiceDateTime).getTime();
+    const now = Date.now();
+    return selected < now - 60000;
+  })();
+
+  const isFutureDate = (() => {
+    if (!invoiceDateTime) return false;
+    const selected = new Date(invoiceDateTime).getTime();
+    const now = Date.now();
+    return selected > now + 60000;
+  })();
 
   const handleDobChange = (dobVal: string) => {
     setDob(dobVal);
@@ -232,6 +274,7 @@ export function NewInvoiceForm() {
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
   const [amountPaidOverride, setAmountPaidOverride] = useState<string>("");
   const [invoiceNotes, setInvoiceNotes] = useState("");
+  const [soldBy, setSoldBy] = useState("");
   const [deliveryDays, setDeliveryDays] = useState<number | "">(0);
 
   // Load Next Registration ID on Load
@@ -484,18 +527,41 @@ export function NewInvoiceForm() {
     const updated = lineItems.map((item, idx) => {
       if (idx === index) {
         const merged = { ...item, ...fields };
-        
+
         // Handle potential empty/blank quantity or price while editing
         const qty = merged.quantity === "" || isNaN(merged.quantity as number) ? 0 : (merged.quantity as number);
         const price = isNaN(merged.unitPrice) ? 0 : merged.unitPrice;
-        
         const lineSubtotal = qty * price;
-        merged.discountAmount = lineSubtotal * ((merged.discountPercent || 0) / 100);
-        merged.taxableSubtotal = lineSubtotal - merged.discountAmount;
-        
-        merged.cgstAmount = merged.taxableSubtotal * ((merged.cgstPercent || 0) / 100);
-        merged.sgstAmount = merged.taxableSubtotal * ((merged.sgstPercent || 0) / 100);
-        merged.igstAmount = merged.taxableSubtotal * ((merged.igstPercent || 0) / 100);
+
+        // Bi-directional Discount calculations:
+        if (fields.discountAmount !== undefined) {
+          const discAmt = Math.max(0, fields.discountAmount || 0);
+          merged.discountAmount = discAmt;
+          merged.discountPercent = lineSubtotal > 0 ? Math.min(100, (discAmt / lineSubtotal) * 100) : 0;
+        } else if (fields.discountPercent !== undefined) {
+          const discPct = Math.min(100, Math.max(0, fields.discountPercent || 0));
+          merged.discountPercent = discPct;
+          merged.discountAmount = lineSubtotal * (discPct / 100);
+        } else {
+          // If price or quantity changed, recompute discountAmount based on existing discountPercent
+          merged.discountAmount = lineSubtotal * ((merged.discountPercent || 0) / 100);
+        }
+
+        merged.taxableSubtotal = Math.max(0, lineSubtotal - merged.discountAmount);
+
+        // Editable GST computations:
+        const cgstPct = Math.max(0, merged.cgstPercent ?? 0);
+        const sgstPct = Math.max(0, merged.sgstPercent ?? 0);
+        const igstPct = Math.max(0, merged.igstPercent ?? 0);
+
+        merged.cgstPercent = cgstPct;
+        merged.sgstPercent = sgstPct;
+        merged.igstPercent = igstPct;
+
+        merged.cgstAmount = merged.taxableSubtotal * (cgstPct / 100);
+        merged.sgstAmount = merged.taxableSubtotal * (sgstPct / 100);
+        merged.igstAmount = merged.taxableSubtotal * (igstPct / 100);
+
         merged.rowTotal =
           merged.taxableSubtotal + merged.cgstAmount + merged.sgstAmount + merged.igstAmount;
         return merged;
@@ -666,6 +732,11 @@ export function NewInvoiceForm() {
   const handleReset = (e: React.MouseEvent) => {
     e.preventDefault();
     setSelectedCustomerId(null);
+    const nowStr = formatDateTimeLocal();
+    setInvoiceDateTime(nowStr);
+    setIsCustomDate(false);
+    setPrescribedAt(nowStr.split("T")[0]);
+    setSoldBy("");
     setFullName("");
     setEmail("");
     setPhone("");
@@ -879,7 +950,9 @@ export function NewInvoiceForm() {
         amountPaid: finalAmountPaid,
         balanceDue: finalBalanceDue,
         notes: invoiceNotes || undefined,
+        soldBy: soldBy.trim() || undefined,
         deliveryDays: deliveryDays === "" ? 0 : deliveryDays,
+        invoiceDate: invoiceDateTime || undefined,
       };
 
       const res = await registerPatientAndInvoiceAction(payload);
@@ -1031,13 +1104,55 @@ export function NewInvoiceForm() {
         )}
 
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Registration ID
               </label>
-              <div className="text-2xl font-extrabold tracking-wide text-[#0a52c3] h-10 flex items-center">
+              <div className="text-xl font-extrabold tracking-wide text-[#0a52c3] h-10 flex items-center">
                 {regId}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                  Invoice Date & Time
+                </label>
+                {isCustomDate && (
+                  <button
+                    type="button"
+                    onClick={handleResetDateTimeToNow}
+                    title="Reset to current live time"
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <RotateCcw className="h-2.5 w-2.5" /> Reset
+                  </button>
+                )}
+              </div>
+              <Input
+                type="datetime-local"
+                value={invoiceDateTime}
+                onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3] text-xs"
+              />
+              <div className="flex items-center gap-1.5 mt-1.5">
+                {isBackdated ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Backdated Invoice
+                  </span>
+                ) : isFutureDate ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                    Future Billing Date
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Current Billing Time
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1074,7 +1189,9 @@ export function NewInvoiceForm() {
                 className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Date of Birth & Age */}
             <div className="grid grid-cols-5 gap-2">
               <div className="col-span-3">
@@ -1703,18 +1820,19 @@ export function NewInvoiceForm() {
 
         <div className="p-6 space-y-4">
           <div className="overflow-x-auto md:overflow-visible rounded-2xl bg-white p-1 pb-44 md:pb-1">
-            <table className="w-full text-left border-collapse min-w-[850px]">
+            <table className="w-full text-left border-collapse min-w-[1060px]">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                  <th className="py-3 px-3 w-[32%]">PRODUCT SEARCH (NAME/SKU/MODEL)</th>
-                  <th className="py-3 px-3 w-32">SKU</th>
-                  <th className="py-3 px-2 w-16 text-center">QTY</th>
-                  <th className="py-3 px-3 text-right w-28">PRICE</th>
+                  <th className="py-3 px-3 w-[26%]">PRODUCT SEARCH (NAME/SKU/MODEL)</th>
+                  <th className="py-3 px-2.5 w-24">SKU</th>
+                  <th className="py-3 px-2 w-14 text-center">QTY</th>
+                  <th className="py-3 px-2.5 text-right w-24">PRICE</th>
                   <th className="py-3 px-2 text-center w-20">DISC %</th>
-                  <th className="py-3 px-2 text-center w-16">CGST</th>
-                  <th className="py-3 px-2 text-center w-16">SGST</th>
-                  <th className="py-3 px-2 text-center w-16">IGST</th>
-                  <th className="py-3 px-3 text-right w-24">ROW TOTAL</th>
+                  <th className="py-3 px-2 text-center w-24">DISC (₹)</th>
+                  <th className="py-3 px-2 text-center w-20">CGST</th>
+                  <th className="py-3 px-2 text-center w-20">SGST</th>
+                  <th className="py-3 px-2 text-center w-20">IGST</th>
+                  <th className="py-3 px-3 text-right w-28">ROW TOTAL</th>
                   <th className="py-3 px-2 w-10 text-center"></th>
                 </tr>
               </thead>
@@ -1786,13 +1904,13 @@ export function NewInvoiceForm() {
                     </td>
 
                     {/* Compact SKU Input */}
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-2.5">
                       <input
                         type="text"
                         value={item.sku}
                         onChange={(e) => updateLineItem(index, { sku: e.target.value })}
                         placeholder="SKU"
-                        className="w-24 sm:w-28 bg-white border border-slate-200 rounded-2xl px-2.5 py-2.5 font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs transition-all"
+                        className="w-24 bg-white border border-slate-200 rounded-2xl px-2 py-2.5 font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs transition-all"
                       />
                     </td>
 
@@ -1811,9 +1929,9 @@ export function NewInvoiceForm() {
                     </td>
 
                     {/* Unit Price */}
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-2.5">
                       <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-slate-500 font-bold text-xs">₹</span>
+                        <span className="absolute left-2.5 top-2.5 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
                         <input
                           type="number"
                           step="0.01"
@@ -1821,69 +1939,138 @@ export function NewInvoiceForm() {
                           onChange={(e) =>
                             updateLineItem(index, { unitPrice: parseFloat(e.target.value) || 0 })
                           }
-                          placeholder=""
+                          placeholder="0"
                           className="w-24 text-right bg-white border border-slate-200 rounded-2xl pl-5 pr-2.5 py-2.5 font-bold text-xs text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs"
                         />
                       </div>
                     </td>
 
-                    {/* Discount Input */}
+                    {/* Discount % Input */}
                     <td className="py-3 px-2 text-center">
-                      <div className="relative inline-block">
+                      <div className="relative inline-block w-18">
                         <input
                           type="number"
                           min={0}
                           max={100}
+                          step="0.1"
                           placeholder="0"
-                          value={item.discountPercent === 0 ? "" : item.discountPercent}
+                          value={item.discountPercent === 0 ? "" : Number(item.discountPercent.toFixed(2))}
                           onChange={(e) => {
                             const val = e.target.value;
-                            updateLineItem(index, { discountPercent: val === "" ? 0 : Math.min(100, Math.max(0, parseFloat(val) || 0)) });
+                            updateLineItem(index, {
+                              discountPercent: val === "" ? 0 : Math.min(100, Math.max(0, parseFloat(val) || 0))
+                            });
                           }}
-                          className="w-16 text-center py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pr-5 shadow-2xs"
+                          className="w-full text-center py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pr-5 shadow-2xs"
                         />
-                        <span className="absolute right-2 top-2.5 text-slate-400 font-bold text-xs">%</span>
+                        <span className="absolute right-2 top-2.5 text-slate-400 font-bold text-xs pointer-events-none">%</span>
                       </div>
                     </td>
 
-                    {/* CGST Column */}
+                    {/* Discount ₹ Input */}
                     <td className="py-3 px-2 text-center">
-                      <div className="inline-flex flex-col items-center">
-                        <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold">
-                          {item.cgstPercent}%
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold mt-1">
+                      <div className="relative inline-block w-22">
+                        <span className="absolute left-2.5 top-2.5 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="1"
+                          placeholder="0"
+                          value={item.discountAmount === 0 ? "" : Number(item.discountAmount.toFixed(2))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateLineItem(index, {
+                              discountAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
+                            });
+                          }}
+                          className="w-full text-right py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pl-5 pr-2.5 shadow-2xs"
+                        />
+                      </div>
+                    </td>
+
+                    {/* CGST Column (Editable Rate + Live ₹ Amount) */}
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex flex-col items-center gap-1">
+                        <div className="relative inline-block w-16">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.5"
+                            value={item.cgstPercent === 0 ? "" : item.cgstPercent}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                cgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
+                              });
+                            }}
+                            placeholder="0"
+                            className="w-full text-center py-1.5 px-1 bg-indigo-50/50 border border-indigo-200/80 rounded-xl font-extrabold text-indigo-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-400 transition-all pr-4.5 shadow-2xs"
+                          />
+                          <span className="absolute right-1.5 top-1.5 text-[10px] font-bold text-indigo-400 pointer-events-none">%</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-bold tracking-tight">
                           ₹{item.cgstAmount.toFixed(2)}
                         </span>
                       </div>
                     </td>
 
-                    {/* SGST Column */}
+                    {/* SGST Column (Editable Rate + Live ₹ Amount) */}
                     <td className="py-3 px-2 text-center">
-                      <div className="inline-flex flex-col items-center">
-                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold">
-                          {item.sgstPercent}%
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold mt-1">
+                      <div className="inline-flex flex-col items-center gap-1">
+                        <div className="relative inline-block w-16">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.5"
+                            value={item.sgstPercent === 0 ? "" : item.sgstPercent}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                sgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
+                              });
+                            }}
+                            placeholder="0"
+                            className="w-full text-center py-1.5 px-1 bg-emerald-50/50 border border-emerald-200/80 rounded-xl font-extrabold text-emerald-700 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white focus:border-emerald-400 transition-all pr-4.5 shadow-2xs"
+                          />
+                          <span className="absolute right-1.5 top-1.5 text-[10px] font-bold text-emerald-400 pointer-events-none">%</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-bold tracking-tight">
                           ₹{item.sgstAmount.toFixed(2)}
                         </span>
                       </div>
                     </td>
 
-                    {/* IGST Column */}
+                    {/* IGST Column (Editable Rate + Live ₹ Amount) */}
                     <td className="py-3 px-2 text-center">
-                      <div className="inline-flex flex-col items-center">
-                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-extrabold">
-                          {item.igstPercent}%
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold mt-1">
+                      <div className="inline-flex flex-col items-center gap-1">
+                        <div className="relative inline-block w-16">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.5"
+                            value={item.igstPercent === 0 ? "" : item.igstPercent}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                igstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
+                              });
+                            }}
+                            placeholder="0"
+                            className="w-full text-center py-1.5 px-1 bg-purple-50/50 border border-purple-200/80 rounded-xl font-extrabold text-purple-700 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:bg-white focus:border-purple-400 transition-all pr-4.5 shadow-2xs"
+                          />
+                          <span className="absolute right-1.5 top-1.5 text-[10px] font-bold text-purple-400 pointer-events-none">%</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-bold tracking-tight">
                           ₹{item.igstAmount.toFixed(2)}
                         </span>
                       </div>
                     </td>
 
                     {/* Row Total */}
-                    <td className="py-3 px-3 text-right font-black text-sm text-slate-900">
+                    <td className="py-3 px-3 text-right font-black text-sm text-slate-900 whitespace-nowrap">
                       ₹{item.rowTotal.toFixed(2)}
                     </td>
 
@@ -2123,17 +2310,35 @@ export function NewInvoiceForm() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-              Invoice Notes & Remarks
-            </label>
-            <textarea
-              placeholder="e.g. Next eye testing due in 6 months..."
-              rows={2}
-              value={invoiceNotes}
-              onChange={(e) => setInvoiceNotes(e.target.value)}
-              className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs text-slate-700 font-semibold focus:outline-none"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                Sold By (Salesperson / Staff)
+              </label>
+              <div className="relative">
+                <UserCheck className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="e.g. Rahul Sharma / Staff Name"
+                  value={soldBy}
+                  onChange={(e) => setSoldBy(e.target.value)}
+                  className="h-10 pl-10 pr-3.5 bg-white border-slate-200/80 rounded-lg text-xs font-bold text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                Invoice Notes & Remarks
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Next eye testing due in 6 months..."
+                value={invoiceNotes}
+                onChange={(e) => setInvoiceNotes(e.target.value)}
+                className="h-10 px-3.5 bg-white border-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+              />
+            </div>
           </div>
         </div>
 
@@ -2214,18 +2419,26 @@ export function NewInvoiceForm() {
       </div>
 
       {/* Control Buttons */}
-      <div className="flex justify-between items-center pt-8 border-t border-slate-200/80">
-        <button
-          type="button"
-          onClick={() => {
-            if (confirm("Are you sure you want to discard this invoice builder session?")) {
-              router.push("/shop/invoices");
-            }
-          }}
-          className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-all cursor-pointer"
-        >
-          Discard Form
-        </button>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pt-8 border-t border-slate-200/80">
+        <div className="flex items-center gap-4 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm("Are you sure you want to discard this invoice builder session?")) {
+                router.push("/shop/invoices");
+              }
+            }}
+            className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-all cursor-pointer"
+          >
+            Discard Form
+          </button>
+          {soldBy.trim() && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#0a52c3] text-xs font-bold border border-blue-100/80">
+              <UserCheck className="h-3.5 w-3.5" />
+              <span>Sold By: <strong>{soldBy.trim()}</strong></span>
+            </div>
+          )}
+        </div>
 
         <Button
           type="submit"
