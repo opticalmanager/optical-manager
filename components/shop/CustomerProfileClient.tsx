@@ -30,7 +30,8 @@ import {
   Clock,
   Tag,
   Zap,
-  Sparkles
+  Sparkles,
+  Wallet
 } from "lucide-react";
 import { AddPrescriptionModal } from "@/components/shop/AddPrescriptionModal";
 
@@ -53,6 +54,7 @@ interface CustomerData {
   systemicIllness: string | null;
   allergies: string | null;
   notes: string | null;
+  storeCredit?: string | number | null;
   isActive: boolean;
 }
 
@@ -97,6 +99,18 @@ interface ProfileData {
   customer: CustomerData;
   prescriptions: PrescriptionData[];
   invoices: InvoiceData[];
+  creditLedger?: Array<{
+    id: string;
+    transactionType: string;
+    amount: string;
+    balanceBefore: string;
+    balanceAfter: string;
+    referenceType: string | null;
+    referenceNumber: string | null;
+    notes: string | null;
+    createdAt: Date | string;
+    performedByName?: string | null;
+  }>;
   pendingDues: number;
   totalOrdersCount: number;
   lastVisitDate: Date | string;
@@ -415,24 +429,50 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
             </div>
             
             <div className="p-3.5 space-y-3">
-              {/* Compact High-Density Dues Card */}
-              <div className={`p-3 rounded-xl border flex items-center justify-between ${
-                pendingDues > 0 
-                  ? "bg-rose-50/70 border-rose-200/80 text-rose-900" 
-                  : "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
-              }`}>
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider block opacity-75">
-                    Total Pending Dues
-                  </span>
-                  <h3 className="text-xl font-extrabold tracking-tight mt-0.5">
-                    {formatCurrency(pendingDues)}
-                  </h3>
-                </div>
-                <div className={`p-2 rounded-lg ${
-                  pendingDues > 0 ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600"
+              {/* Compact High-Density Dues & Store Credit Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Dues Card */}
+                <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                  pendingDues > 0 
+                    ? "bg-rose-50/70 border-rose-200/80 text-rose-900" 
+                    : "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
                 }`}>
-                  <CreditCard className="h-5 w-5" />
+                  <div>
+                    <span className="text-[9.5px] font-extrabold uppercase tracking-wider block opacity-75">
+                      Pending Dues
+                    </span>
+                    <h3 className="text-base sm:text-lg font-extrabold tracking-tight mt-0.5">
+                      {formatCurrency(pendingDues)}
+                    </h3>
+                  </div>
+                  <div className={`p-1.5 rounded-lg shrink-0 ${
+                    pendingDues > 0 ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600"
+                  }`}>
+                    <CreditCard className="h-4 w-4" />
+                  </div>
+                </div>
+
+                {/* Available Store Credit Card */}
+                <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                  parseFloat(customer.storeCredit?.toString() || "0") > 0
+                    ? "bg-blue-50/70 border-blue-200/80 text-[#0a52c3]"
+                    : "bg-slate-50 border-slate-200 text-slate-700"
+                }`}>
+                  <div>
+                    <span className="text-[9.5px] font-extrabold uppercase tracking-wider block opacity-75">
+                      Store Credit
+                    </span>
+                    <h3 className="text-base sm:text-lg font-extrabold tracking-tight mt-0.5">
+                      {formatCurrency(parseFloat(customer.storeCredit?.toString() || "0"))}
+                    </h3>
+                  </div>
+                  <div className={`p-1.5 rounded-lg shrink-0 ${
+                    parseFloat(customer.storeCredit?.toString() || "0") > 0
+                      ? "bg-blue-100 text-[#0a52c3]"
+                      : "bg-slate-200/70 text-slate-500"
+                  }`}>
+                    <Wallet className="h-4 w-4" />
+                  </div>
                 </div>
               </div>
 
@@ -795,6 +835,71 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
           </div>
         </Card>
       </div>
+
+      {/* Row 5: Store Credit History & Ledger */}
+      {profile.creditLedger && profile.creditLedger.length > 0 && (
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold tracking-tight text-slate-900 uppercase flex items-center gap-1.5">
+              <Wallet className="h-4 w-4 text-[#0a52c3]" />
+              <span>Store Credit Ledger History</span>
+            </h2>
+            <span className="text-xs font-bold text-slate-500">
+              Current Available: <strong className="text-[#0a52c3] font-black">{formatCurrency(parseFloat(customer.storeCredit?.toString() || "0"))}</strong>
+            </span>
+          </div>
+
+          <Card className="border-slate-200/80 shadow-sm rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="text-[10px] text-slate-400 uppercase font-extrabold bg-slate-50/50 border-b border-slate-100 tracking-wider">
+                  <tr>
+                    <th className="px-4 py-2.5">Date & Time</th>
+                    <th className="px-4 py-2.5">Transaction</th>
+                    <th className="px-4 py-2.5">Reference #</th>
+                    <th className="px-4 py-2.5 text-right">Amount</th>
+                    <th className="px-4 py-2.5 text-right">Balance After</th>
+                    <th className="px-4 py-2.5">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {profile.creditLedger.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-4 py-2.5 font-semibold text-slate-700">
+                        {formatDateStr(entry.createdAt)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                          entry.transactionType === "CREDIT_ISSUED"
+                            ? "bg-blue-50 text-[#0a52c3] border border-blue-150"
+                            : "bg-amber-50 text-amber-700 border border-amber-150"
+                        }`}>
+                          {entry.transactionType === "CREDIT_ISSUED" ? "Credit Added (Return)" : "Credit Redeemed (Sale)"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 font-mono font-bold text-slate-800">
+                        {entry.referenceNumber || "-"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-extrabold">
+                        <span className={entry.transactionType === "CREDIT_ISSUED" ? "text-emerald-600" : "text-amber-600"}>
+                          {entry.transactionType === "CREDIT_ISSUED" ? "+" : "-"}
+                          {formatCurrency(parseFloat(entry.amount))}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-bold text-slate-900">
+                        {formatCurrency(parseFloat(entry.balanceAfter))}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-500 font-medium">
+                        {entry.notes || "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Add New Prescription Modal */}
       <AddPrescriptionModal

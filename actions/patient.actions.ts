@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/drizzle";
 import { eq, and, sql } from "drizzle-orm";
-import { customers, prescriptions, invoices, invoiceItems, orders, receipts } from "@/db/schema";
+import { customers, prescriptions, invoices, invoiceItems, orders, receipts, customerCreditLedger } from "@/db/schema";
 import { getCurrentUser } from "@/services/auth.service";
 import { fireEmailTrigger } from "@/services/email-trigger.service";
 import { generateRegistrationId } from "@/services/customer.service";
@@ -376,7 +376,46 @@ export async function registerPatientAndInvoiceAction(
         fulfillmentStatus = "DELIVERED";
       }
 
-      // 5. Create Invoice
+      // 5. Handle Store Credit application if applicable
+      const requestedCredit = data.creditApplied || 0;
+      let actualCreditApplied = 0;
+
+      if (requestedCredit > 0) {
+        const [currentCust] = await tx
+          .select({ storeCredit: customers.storeCredit })
+          .from(customers)
+          .where(eq(customers.id, customerRecord.id))
+          .limit(1);
+
+        const prevCredit = parseFloat(currentCust?.storeCredit || "0");
+        actualCreditApplied = Math.min(prevCredit, requestedCredit);
+        const newCredit = Math.max(0, prevCredit - actualCreditApplied);
+
+        await tx
+          .update(customers)
+          .set({
+            storeCredit: newCredit.toFixed(2),
+            updatedAt: new Date(),
+          })
+          .where(eq(customers.id, customerRecord.id));
+
+        await tx.insert(customerCreditLedger).values({
+          customerId: customerRecord.id,
+          shopId,
+          organizationId: user.organizationId!,
+          transactionType: "CREDIT_REDEEMED",
+          amount: actualCreditApplied.toFixed(2),
+          balanceBefore: prevCredit.toFixed(2),
+          balanceAfter: newCredit.toFixed(2),
+          referenceType: "INVOICE",
+          referenceNumber: invoiceNumber,
+          notes: `Applied store credit to invoice #${invoiceNumber}`,
+          performedBy: user.id,
+          createdAt: invoiceTimestamp,
+        });
+      }
+
+      // 6. Create Invoice
       const [invoice] = await tx
         .insert(invoices)
         .values({
@@ -390,6 +429,7 @@ export async function registerPatientAndInvoiceAction(
           tax: taxVal.toString(),
           taxPercent: (subtotalVal - discountVal) > 0 ? ((taxVal / (subtotalVal - discountVal)) * 100).toFixed(2) : "0.00",
           total: totalVal.toString(),
+          creditApplied: actualCreditApplied.toFixed(2),
           status: (data.balanceDue || 0) > 0 ? "PENDING" : "PAID",
           paymentMethod: data.paymentMethod,
           fulfillmentStatus,

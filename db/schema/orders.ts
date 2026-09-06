@@ -29,12 +29,15 @@ export const orders = pgTable("orders", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by").references(() => profiles.id, { onDelete: "set null" }),
 }, (table) => ({
   shopIdIdx: index("orders_shop_id_idx").on(table.shopId),
   orgIdIdx: index("orders_org_id_idx").on(table.organizationId),
   customerIdIdx: index("orders_customer_id_idx").on(table.customerId),
   invoiceIdIdx: index("orders_invoice_id_idx").on(table.invoiceId),
   orderNumberIdx: index("orders_order_number_idx").on(table.orderNumber),
+  deletedAtIdx: index("orders_deleted_at_idx").on(table.deletedAt),
 }));
 
 export const orderEditHistory = pgTable("order_edit_history", {

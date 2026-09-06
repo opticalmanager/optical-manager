@@ -449,6 +449,7 @@ export const invoiceSchema = z.object({
   subtotal: z.string().min(1, "Subtotal is required."),
   discount: z.string().optional().default("0"),
   tax: z.string().optional().default("0"),
+  creditApplied: z.string().optional().default("0"),
   total: z.string().min(1, "Total is required."),
   status: z.enum(["DRAFT", "PENDING", "PAID", "CANCELLED"]).default("DRAFT"),
   paymentMethod: z
@@ -497,6 +498,7 @@ export const patientVisitSchema = z.object({
   taxPercent: z.coerce.number().min(0).max(100).default(0),
   paymentMethod: z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER"]).default("CASH"),
   amountPaid: z.coerce.number().min(0).default(0),
+  creditApplied: z.coerce.number().min(0).default(0),
   balanceDue: z.coerce.number().min(0).default(0),
   notes: z.string().optional().or(z.literal("")),
   deliveryDays: z.coerce.number().min(0).default(0),

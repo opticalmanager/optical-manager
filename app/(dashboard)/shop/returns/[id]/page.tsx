@@ -2,10 +2,10 @@ import { getCurrentUser } from "@/services/auth.service";
 import { getReturnById } from "@/services/return.service";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { ReturnPrintButton } from "@/components/shop/ReturnPrintButton";
 import {
   RotateCcw,
   ArrowLeft,
-  Printer,
   Receipt,
   User,
   Phone,
@@ -66,11 +66,11 @@ export default async function ReturnDetailPage({
             <span>View Original Invoice</span>
           </Link>
           
-          <PrintButton />
+          <ReturnPrintButton isCreditNote={data.refundMethod === "STORE_CREDIT"} />
         </div>
       </div>
 
-      {/* Printable Credit Note Document */}
+      {/* Printable Credit Note / Refund Receipt Document */}
       <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs space-y-8 print:border-none print:shadow-none print:p-0">
         
         {/* Document Header */}
@@ -88,9 +88,17 @@ export default async function ReturnDetailPage({
           </div>
 
           <div className="sm:text-right space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-[#2563eb] text-xs font-black uppercase tracking-wider">
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${
+              data.refundMethod === "STORE_CREDIT"
+                ? "bg-blue-50 text-[#2563eb]"
+                : "bg-emerald-50 text-emerald-700"
+            }`}>
               <RotateCcw className="h-3.5 w-3.5" />
-              <span>Sales Return & Credit Note</span>
+              <span>
+                {data.refundMethod === "STORE_CREDIT"
+                  ? "Sales Return & Credit Note"
+                  : "Sales Return & Refund Receipt"}
+              </span>
             </div>
             <h2 className="text-lg font-black text-slate-900 mt-1">
               {data.returnNumber}
@@ -108,7 +116,7 @@ export default async function ReturnDetailPage({
           </div>
         </div>
 
-        {/* Customer & Invoice Meta Grid */}
+        {/* Customer & Resolution Meta Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50/60 p-4 rounded-xl border border-slate-200/60">
           <div className="space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
@@ -121,20 +129,38 @@ export default async function ReturnDetailPage({
 
           <div className="space-y-1 sm:text-right">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Return Status & Processing
+              Resolution & Refund Method
             </span>
-            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
-              data.status === "COMPLETED"
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-blue-100 text-blue-700"
-            }`}>
-              {data.status}
-            </span>
-            <p className="text-xs text-slate-500 mt-1">
-              Processed By: <strong>{data.processedByName || "Store Manager"}</strong>
-            </p>
+            <div className="flex items-center gap-2 sm:justify-end">
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
+                data.refundMethod === "STORE_CREDIT"
+                  ? "bg-blue-100 text-[#2563eb]"
+                  : "bg-emerald-100 text-emerald-700"
+              }`}>
+                {data.refundMethod === "STORE_CREDIT" ? "Store Credit" : "Cash Refund"}
+              </span>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
+                data.status === "COMPLETED"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}>
+                {data.status}
+              </span>
+            </div>
+            {data.refundMethod === "STORE_CREDIT" ? (
+              <p className="text-xs text-slate-500 mt-1">
+                Customer Available Store Credit:{" "}
+                <strong className="text-[#2563eb] font-extrabold">
+                  ₹{parseFloat(data.customerStoreCredit || "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </strong>
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 mt-1">
+                Cash Payout: <strong className="text-emerald-700 font-extrabold">Disbursed</strong> (Deducted from sales revenue)
+              </p>
+            )}
             <p className="text-xs text-slate-500">
-              Return Type: <strong>{data.returnType === "ENTIRE_INVOICE" ? "Full Invoice Return" : "Selected Product Return"}</strong>
+              Processed By: <strong>{data.processedByName || "Store Manager"}</strong>
             </p>
           </div>
         </div>
@@ -184,7 +210,9 @@ export default async function ReturnDetailPage({
             <tfoot>
               <tr className="border-t-2 border-slate-200">
                 <td colSpan={6} className="py-3 px-2 text-right text-xs font-black uppercase text-slate-600">
-                  Total Refund Credit
+                  {data.refundMethod === "STORE_CREDIT"
+                    ? "Total Store Credit Issued"
+                    : "Total Cash Refund Paid"}
                 </td>
                 <td className="py-3 px-2 text-right text-sm font-extrabold text-[#2563eb]">
                   ₹{parseFloat(data.totalRefundAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -215,18 +243,5 @@ export default async function ReturnDetailPage({
       </div>
 
     </div>
-  );
-}
-
-// Client Print Button
-function PrintButton() {
-  return (
-    <button
-      onClick={() => typeof window !== "undefined" && window.print()}
-      className="h-10 px-5 bg-[#2563eb] hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all inline-flex items-center gap-1.5 cursor-pointer"
-    >
-      <Printer className="h-4 w-4" />
-      <span>Print Credit Note</span>
-    </button>
   );
 }

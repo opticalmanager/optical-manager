@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { orders, invoices, customers, invoiceItems, inventory, shops, receipts, orderEditHistory } from "@/db/schema";
-import { eq, ne, and, or, ilike, sql, desc, inArray, lte, gt, gte } from "drizzle-orm";
+import { orders, invoices, customers, invoiceItems, inventory, shops, receipts, orderEditHistory, profiles } from "@/db/schema";
+import { eq, ne, and, or, ilike, sql, desc, inArray, lte, gt, gte, isNull } from "drizzle-orm";
 
 export interface OrderDashboardKPIs {
   totalOrders: number;
@@ -140,7 +140,11 @@ export async function buildOrderFilters(params: {
   }
 
   // 2. Build where clause filters for queries
-  const filters = [eq(invoices.shopId, shopId)];
+  const filters = [
+    eq(invoices.shopId, shopId),
+    isNull(invoices.deletedAt),
+    sql`(${orders.deletedAt} IS NULL OR ${orders.id} IS NULL)`,
+  ];
 
   if (currentStart > 0) {
     filters.push(gte(invoices.createdAt, new Date(currentStart)));
@@ -223,7 +227,7 @@ export async function getOrdersDashboardData(params: {
       total: invoices.total,
     })
     .from(invoices)
-    .where(eq(invoices.shopId, shopId));
+    .where(and(eq(invoices.shopId, shopId), isNull(invoices.deletedAt)));
 
   // Get active filters and date boundaries
   const {
@@ -677,6 +681,7 @@ export interface OrderForEditData {
     organizationId: string;
     createdAt: Date;
     updatedAt: Date;
+    deletedAt?: Date | null;
     receiptId: string | null;
   };
   customer: {
@@ -709,6 +714,7 @@ export interface OrderForEditData {
     specialInstructions: string | null;
     soldBy: string | null;
     createdAt: Date;
+    deletedAt?: Date | null;
   };
   lineItems: {
     id: string;
@@ -764,9 +770,11 @@ export async function getOrderForEdit(
       organizationId: invoices.organizationId,
       orderCreatedAt: sql<Date>`COALESCE(${orders.createdAt}, ${invoices.createdAt})`,
       orderUpdatedAt: sql<Date>`COALESCE(${orders.updatedAt}, ${invoices.updatedAt})`,
+      orderDeletedAt: sql<Date | null>`COALESCE(${orders.deletedAt}, ${invoices.deletedAt})`,
       orderReceiptId: orders.receiptId,
       // Invoice
       invoiceId: invoices.id,
+      invoiceDeletedAt: invoices.deletedAt,
       invoiceNumber: invoices.invoiceNumber,
       subtotal: invoices.subtotal,
       discount: invoices.discount,
@@ -880,6 +888,7 @@ export async function getOrderForEdit(
       organizationId: orderRow.organizationId,
       createdAt: orderRow.orderCreatedAt,
       updatedAt: orderRow.orderUpdatedAt,
+      deletedAt: orderRow.orderDeletedAt,
       receiptId: orderRow.orderReceiptId,
     },
     customer: {
@@ -912,10 +921,104 @@ export async function getOrderForEdit(
       specialInstructions: orderRow.specialInstructions,
       soldBy: orderRow.soldBy,
       createdAt: orderRow.invoiceCreatedAt,
+      deletedAt: orderRow.invoiceDeletedAt,
     },
     lineItems: items,
     receipts: receiptsList,
     history: historyList,
   };
+}
+
+export interface DeletedOrderItem {
+  id: string;
+  orderId: string;
+  invoiceId: string;
+  orderNumber: string;
+  invoiceNumber: string;
+  customerName: string;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  total: string;
+  amountPaid: string;
+  balanceDue: string;
+  deletedAt: Date;
+  deletedByName: string | null;
+  itemsCount: number;
+  createdAt: Date;
+}
+
+/**
+ * Fetch all soft-deleted orders for the Deleted Records modal.
+ */
+export async function getDeletedOrders(
+  shopId: string,
+  organizationId: string
+): Promise<DeletedOrderItem[]> {
+  const deletedRows = await db
+    .select({
+      orderId: sql<string>`COALESCE(${orders.id}, ${invoices.id})`,
+      invoiceId: invoices.id,
+      orderNumber: sql<string>`COALESCE(${orders.orderNumber}, ${invoices.invoiceNumber})`,
+      invoiceNumber: invoices.invoiceNumber,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+      customerEmail: customers.email,
+      total: invoices.total,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      deletedAt: sql<Date>`COALESCE(${orders.deletedAt}, ${invoices.deletedAt})`,
+      deletedByName: profiles.fullName,
+      createdAt: sql<Date>`COALESCE(${orders.createdAt}, ${invoices.createdAt})`,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+    .leftJoin(
+      profiles,
+      eq(profiles.id, sql`COALESCE(${orders.deletedBy}, ${invoices.deletedBy})`)
+    )
+    .where(
+      and(
+        eq(invoices.shopId, shopId),
+        eq(invoices.organizationId, organizationId),
+        or(
+          sql`${invoices.deletedAt} IS NOT NULL`,
+          sql`${orders.deletedAt} IS NOT NULL`
+        )
+      )
+    )
+    .orderBy(desc(sql`COALESCE(${orders.deletedAt}, ${invoices.deletedAt})`));
+
+  if (deletedRows.length === 0) return [];
+
+  const invoiceIds = deletedRows.map((r) => r.invoiceId);
+  const itemsCounts = await db
+    .select({
+      invoiceId: invoiceItems.invoiceId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(invoiceItems)
+    .where(inArray(invoiceItems.invoiceId, invoiceIds))
+    .groupBy(invoiceItems.invoiceId);
+
+  const countsMap = new Map(itemsCounts.map((i) => [i.invoiceId, i.count]));
+
+  return deletedRows.map((row) => ({
+    id: row.orderId,
+    orderId: row.orderId,
+    invoiceId: row.invoiceId,
+    orderNumber: row.orderNumber,
+    invoiceNumber: row.invoiceNumber,
+    customerName: row.customerName,
+    customerPhone: row.customerPhone,
+    customerEmail: row.customerEmail,
+    total: row.total,
+    amountPaid: row.amountPaid,
+    balanceDue: row.balanceDue,
+    deletedAt: row.deletedAt,
+    deletedByName: row.deletedByName,
+    itemsCount: countsMap.get(row.invoiceId) || 0,
+    createdAt: row.createdAt,
+  }));
 }
 

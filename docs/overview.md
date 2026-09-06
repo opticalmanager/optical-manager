@@ -31,9 +31,10 @@
 - **Cross-Printer Output**: Supports both single continuous thermal roll printers and multi-grid A4/A5 sheet printing with zero layout reflows.
 
 ### 4. POS Billing, Eye Prescriptions & Dues Management
-- **GST Billing Engine**: Automated CGST/SGST/IGST tax calculation (12% for spectacles/lenses, 18% for solutions) and HSN code mapping.
+- **GST Billing Engine**: Automated CGST/SGST/IGST tax calculation (12% for spectacles/lenses, 18% for solutions), HSN code mapping, dual discounts (% & ₹), and salesperson attribution ("Sold By").
 - **Patient Eye Prescriptions**: Integrated SPH, CYL, Axis, and ADD prescription entry for Right Eye (OD) and Left Eye (OS) along with Pupillary Distance (PD).
 - **Public Shareable Invoices**: Generates secure public digital invoice view links (`/share/invoice/[id]`) with printable PDF support.
+- **Sales Returns & Store Credit Management**: Flexible merchandise returns supporting Cash Refunds (with real-time revenue deduction) and Store Credit issuance (added to customer profile and tracked in immutable credit ledgers), official printable Return Receipts / Credit Notes, and seamless store credit redemption on new invoices.
 
 ---
 

@@ -45,6 +45,7 @@ export async function GET(request: Request) {
         name: customers.fullName,
         phone: customers.phone,
         registrationId: customers.registrationId,
+        storeCredit: customers.storeCredit,
       })
       .from(customers)
       .where(

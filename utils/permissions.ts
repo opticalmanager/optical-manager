@@ -19,3 +19,17 @@ export function canUserEditOrders(user?: UserWithPermissions | null): boolean {
   }
   return Boolean(user.permissions?.edit_orders === true);
 }
+
+/**
+ * Check if the user is authorized to delete order records and access the Deleted Records retrieval view.
+ * By default, ONLY OWNER and SUPER_ADMIN have access.
+ * Store staff / managers require the explicit 'delete_orders' permission in their credentials.
+ */
+export function canUserDeleteOrders(user?: UserWithPermissions | null): boolean {
+  if (!user || !user.role) return false;
+  if (user.role === "SUPER_ADMIN" || user.role === "OWNER") {
+    return true;
+  }
+  return Boolean(user.permissions?.delete_orders === true);
+}
+

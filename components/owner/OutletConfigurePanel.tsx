@@ -72,7 +72,8 @@ const ROLE_PRESETS = [
       reports: true,
       settings: true,
       support: true,
-      edit_orders: false,
+      edit_orders: true,
+      delete_orders: true,
     },
   },
   {
@@ -92,6 +93,7 @@ const ROLE_PRESETS = [
       settings: false,
       support: true,
       edit_orders: false,
+      delete_orders: false,
     },
   },
   {
@@ -111,6 +113,7 @@ const ROLE_PRESETS = [
       settings: false,
       support: true,
       edit_orders: false,
+      delete_orders: false,
     },
   },
   {
@@ -130,6 +133,7 @@ const ROLE_PRESETS = [
       settings: false,
       support: true,
       edit_orders: false,
+      delete_orders: false,
     },
   },
   {
@@ -149,6 +153,7 @@ const ROLE_PRESETS = [
       settings: false,
       support: false,
       edit_orders: false,
+      delete_orders: false,
     },
   },
   {
@@ -168,6 +173,7 @@ const ROLE_PRESETS = [
       settings: false,
       support: true,
       edit_orders: false,
+      delete_orders: false,
     },
   },
 ];
@@ -183,6 +189,7 @@ const STORE_MODULES: {
   { key: "inventory", label: "Inventory & Stock", desc: "Manage catalog, inward stock, price tags, and movements", icon: Store, color: "text-indigo-600" },
   { key: "sales", label: "Sales & Invoices", desc: "Create invoices, manage orders, and collect customer payments", icon: ShoppingCart, color: "text-emerald-600" },
   { key: "edit_orders", label: "Edit Orders & Invoices", desc: "Authorize staff to edit existing orders, products, taxes, and regenerate invoices", icon: Edit2, color: "text-amber-600" },
+  { key: "delete_orders", label: "Delete Order Records", desc: "Authorize staff to soft-delete order records and retrieve deleted records", icon: Trash2, color: "text-rose-600" },
   { key: "returns", label: "Product Returns", desc: "Process item returns, inspection, restocking, and credit notes", icon: RotateCcw, color: "text-amber-600" },
   { key: "customers", label: "Customers & Patients", desc: "Patient CRM, prescription records, and ophthalmic history", icon: Users, color: "text-blue-600" },
   { key: "appointments", label: "Appointments", desc: "Book and manage clinical eye test visits and testing queues", icon: CalendarDays, color: "text-purple-600" },
@@ -329,6 +336,7 @@ export function OutletConfigurePanel({
       settings: value,
       support: value,
       edit_orders: value,
+      delete_orders: value,
     };
     setFormPermissions(updated);
   };

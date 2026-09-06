@@ -154,13 +154,14 @@ export function ReturnsTableClient({
               <th className="py-3 px-4">Refund Amount</th>
               <th className="py-3 px-4">Status</th>
               <th className="py-3 px-4">Date</th>
+              <th className="py-3 px-4 text-center">Receipt</th>
               <th className="py-3 px-4 text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
             {returns.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
+                <td colSpan={9} className="py-12 text-center text-slate-400 font-semibold">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <RotateCcw className="h-8 w-8 text-slate-300" />
                     <p className="text-sm font-bold text-slate-600">No product returns found</p>
@@ -251,12 +252,21 @@ export function ReturnsTableClient({
 
                       {/* Refund Amount */}
                       <td className="py-3 px-4">
-                        <span className="font-extrabold text-slate-900 text-xs block">
-                          ₹{parseFloat(ret.totalRefundAmount).toLocaleString("en-IN", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </span>
-                        <span className="text-[10px] text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-extrabold text-slate-900 text-xs">
+                            ₹{parseFloat(ret.totalRefundAmount).toLocaleString("en-IN", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </span>
+                          <span className={`inline-block text-[8.5px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                            ret.refundMethod === "STORE_CREDIT"
+                              ? "bg-blue-50 text-[#2563eb] border border-blue-150"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-150"
+                          }`}>
+                            {ret.refundMethod === "STORE_CREDIT" ? "Credit" : "Cash"}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
                           {ret.returnType === "ENTIRE_INVOICE" ? "Full Return" : "Partial"}
                         </span>
                       </td>
@@ -273,13 +283,25 @@ export function ReturnsTableClient({
                         })}
                       </td>
 
+                      {/* Return Receipt Link */}
+                      <td className="py-3 px-4 text-center">
+                        <Link
+                          href={`/shop/returns/${ret.id}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-[#0a52c3] bg-blue-50/70 hover:bg-blue-100 hover:text-blue-900 border border-blue-200/80 transition-all shadow-2xs"
+                          title={ret.refundMethod === "STORE_CREDIT" ? "View Return Credit Note" : "View Refund Receipt"}
+                        >
+                          <Receipt className="h-3.5 w-3.5 shrink-0" />
+                          <span>Receipt</span>
+                        </Link>
+                      </td>
+
                       {/* Actions */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
                             href={`/shop/returns/${ret.id}`}
                             className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-                            title="View Return Note"
+                            title="View Return Details"
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Link>
@@ -301,7 +323,7 @@ export function ReturnsTableClient({
                     {/* Expandable items preview row */}
                     {isExpanded && (
                       <tr className="bg-blue-50/20 border-b border-slate-200/80 animate-in fade-in duration-150">
-                        <td colSpan={8} className="p-4">
+                        <td colSpan={9} className="p-4">
                           <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
                             <h5 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
                               Returned Items Breakdown

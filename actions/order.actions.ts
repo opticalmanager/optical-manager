@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/services/auth.service";
 import { sendShopEmail } from "@/services/email.service";
 import { revalidatePath } from "next/cache";
 import { generateReceiptNumber, generateOrderNumber } from "@/services/receipt.service";
-import { canUserEditOrders } from "@/utils/permissions";
+import { canUserEditOrders, canUserDeleteOrders } from "@/utils/permissions";
 
 export type ActionResponse = {
   success: boolean;
@@ -1197,6 +1197,360 @@ export async function updateFullOrderAction(
     return {
       success: false,
       message: error.message || "Failed to update order.",
+    };
+  }
+}
+
+/**
+ * Server Action: Soft-delete an order record, restock inventory items, cancel invoice, and log audit history.
+ * Restricted to users with order deletion permission (SUPER_ADMIN, OWNER, or delete_orders permission).
+ */
+export async function deleteOrderAction(
+  orderId: string
+): Promise<ActionResponse> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized. Please log in." };
+    }
+
+    if (!canUserDeleteOrders(user)) {
+      return {
+        success: false,
+        message: "Permission denied: Only store owners and administrators can delete order records.",
+      };
+    }
+
+    // 1. Locate existing invoice and joined order
+    const [row] = await db
+      .select({
+        orderId: orders.id,
+        invoiceId: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        shopId: invoices.shopId,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        balanceDue: invoices.balanceDue,
+        deletedAt: invoices.deletedAt,
+        customerId: invoices.customerId,
+      })
+      .from(invoices)
+      .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+      .where(
+        and(
+          or(
+            eq(invoices.id, orderId),
+            eq(orders.id, orderId),
+            eq(orders.invoiceId, orderId)
+          ),
+          eq(invoices.organizationId, user.organizationId)
+        )
+      )
+      .limit(1);
+
+    if (!row) {
+      return { success: false, message: "Order record not found." };
+    }
+
+    if (row.deletedAt) {
+      return { success: false, message: "This order record is already deleted." };
+    }
+
+    const resolvedOrderId = row.orderId || row.invoiceId;
+
+    // 2. Perform soft-deletion, inventory restock, and audit logging in an atomic transaction
+    await db.transaction(async (tx) => {
+      // A. Fetch line items
+      const items = await tx
+        .select({
+          id: invoiceItems.id,
+          inventoryId: invoiceItems.inventoryId,
+          quantity: invoiceItems.quantity,
+          description: invoiceItems.description,
+        })
+        .from(invoiceItems)
+        .where(eq(invoiceItems.invoiceId, row.invoiceId));
+
+      let totalUnitsRestocked = 0;
+
+      // B. Restock items back to inventory & log movements
+      for (const item of items) {
+        if (item.inventoryId && item.quantity > 0) {
+          totalUnitsRestocked += item.quantity;
+          const [inv] = await tx
+            .update(inventory)
+            .set({
+              quantity: sql`${inventory.quantity} + ${item.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(inventory.id, item.inventoryId),
+                eq(inventory.organizationId, user.organizationId!)
+              )
+            )
+            .returning();
+
+          if (inv) {
+            await tx.insert(stockMovements).values({
+              inventoryId: item.inventoryId,
+              shopId: row.shopId,
+              organizationId: user.organizationId!,
+              movementType: "ADJUSTMENT",
+              quantityChange: item.quantity,
+              balanceAfter: inv.quantity,
+              referenceType: "ORDER_DELETED_RESTOCK",
+              referenceNumber: row.invoiceNumber,
+              costPriceAtTime: inv.costPrice || "0.00",
+              performedBy: user.id,
+              notes: `Restocked ${item.quantity} qty on soft-deletion of Order/Invoice ${row.invoiceNumber}`,
+              createdAt: new Date(),
+            });
+          }
+        }
+      }
+
+      // C. Soft-delete invoice and cancel status
+      await tx
+        .update(invoices)
+        .set({
+          deletedAt: new Date(),
+          deletedBy: user.id,
+          status: "CANCELLED",
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, row.invoiceId));
+
+      // D. Soft-delete order if linked
+      if (row.orderId) {
+        await tx
+          .update(orders)
+          .set({
+            deletedAt: new Date(),
+            deletedBy: user.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(orders.id, row.orderId));
+      }
+
+      // E. Write audit trail
+      await tx.insert(orderEditHistory).values({
+        orderId: resolvedOrderId,
+        shopId: row.shopId,
+        organizationId: user.organizationId!,
+        userId: user.id,
+        userName: user.fullName || "Staff",
+        userRole: user.role || "SHOP_MANAGER",
+        summary: `Order record deleted by ${user.fullName} (${user.role}). Restocked ${totalUnitsRestocked} units back into inventory.`,
+        snapshot: {
+          action: "DELETED",
+          invoiceNumber: row.invoiceNumber,
+          total: row.total,
+          amountPaid: row.amountPaid,
+          balanceDue: row.balanceDue,
+          restockedUnits: totalUnitsRestocked,
+          deletedAt: new Date().toISOString(),
+        },
+        createdAt: new Date(),
+      });
+    });
+
+    // 3. Revalidate dashboard, orders, analytics, and inventory paths
+    revalidatePath("/shop/orders");
+    revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
+    revalidatePath("/shop/inventory");
+    revalidatePath("/shop/invoices");
+    revalidatePath(`/shop/orders/${resolvedOrderId}/edit`);
+
+    return {
+      success: true,
+      message: "Order record deleted successfully. Inventory and sales metrics synchronized.",
+    };
+  } catch (error: any) {
+    console.error("Error in deleteOrderAction:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to delete order record.",
+    };
+  }
+}
+
+/**
+ * Server Action: Retrieve and restore a soft-deleted order record, deduct inventory, restore active invoice status, and log audit history.
+ * Restricted to users with order deletion permission (SUPER_ADMIN, OWNER, or delete_orders permission).
+ */
+export async function restoreOrderAction(
+  orderId: string
+): Promise<ActionResponse> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized. Please log in." };
+    }
+
+    if (!canUserDeleteOrders(user)) {
+      return {
+        success: false,
+        message: "Permission denied: Only store owners and administrators can retrieve deleted records.",
+      };
+    }
+
+    // 1. Locate existing invoice and joined order
+    const [row] = await db
+      .select({
+        orderId: orders.id,
+        invoiceId: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        shopId: invoices.shopId,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        balanceDue: invoices.balanceDue,
+        deletedAt: invoices.deletedAt,
+        customerId: invoices.customerId,
+      })
+      .from(invoices)
+      .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+      .where(
+        and(
+          or(
+            eq(invoices.id, orderId),
+            eq(orders.id, orderId),
+            eq(orders.invoiceId, orderId)
+          ),
+          eq(invoices.organizationId, user.organizationId)
+        )
+      )
+      .limit(1);
+
+    if (!row) {
+      return { success: false, message: "Order record not found." };
+    }
+
+    if (!row.deletedAt) {
+      return { success: false, message: "This order record is not marked as deleted." };
+    }
+
+    const resolvedOrderId = row.orderId || row.invoiceId;
+
+    // 2. Perform restoration, inventory deduction, and audit logging in an atomic transaction
+    await db.transaction(async (tx) => {
+      // A. Fetch line items
+      const items = await tx
+        .select({
+          id: invoiceItems.id,
+          inventoryId: invoiceItems.inventoryId,
+          quantity: invoiceItems.quantity,
+          description: invoiceItems.description,
+        })
+        .from(invoiceItems)
+        .where(eq(invoiceItems.invoiceId, row.invoiceId));
+
+      let totalUnitsDeducted = 0;
+
+      // B. Deduct items from inventory & log movements
+      for (const item of items) {
+        if (item.inventoryId && item.quantity > 0) {
+          totalUnitsDeducted += item.quantity;
+          const [inv] = await tx
+            .update(inventory)
+            .set({
+              quantity: sql`GREATEST(0, ${inventory.quantity} - ${item.quantity})`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(inventory.id, item.inventoryId),
+                eq(inventory.organizationId, user.organizationId!)
+              )
+            )
+            .returning();
+
+          if (inv) {
+            await tx.insert(stockMovements).values({
+              inventoryId: item.inventoryId,
+              shopId: row.shopId,
+              organizationId: user.organizationId!,
+              movementType: "SOLD",
+              quantityChange: -item.quantity,
+              balanceAfter: inv.quantity,
+              referenceType: "ORDER_RESTORED_SALE",
+              referenceNumber: row.invoiceNumber,
+              costPriceAtTime: inv.costPrice || "0.00",
+              performedBy: user.id,
+              notes: `Deducted ${item.quantity} qty on restoration of Order/Invoice ${row.invoiceNumber}`,
+              createdAt: new Date(),
+            });
+          }
+        }
+      }
+
+      // C. Determine restored invoice status based on balanceDue
+      const balanceNum = parseFloat(row.balanceDue || "0");
+      const restoredStatus = balanceNum <= 0 ? "PAID" : "PENDING";
+
+      // D. Clear soft-delete fields on invoice
+      await tx
+        .update(invoices)
+        .set({
+          deletedAt: null,
+          deletedBy: null,
+          status: restoredStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, row.invoiceId));
+
+      // E. Clear soft-delete fields on order if linked
+      if (row.orderId) {
+        await tx
+          .update(orders)
+          .set({
+            deletedAt: null,
+            deletedBy: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(orders.id, row.orderId));
+      }
+
+      // F. Write audit trail
+      await tx.insert(orderEditHistory).values({
+        orderId: resolvedOrderId,
+        shopId: row.shopId,
+        organizationId: user.organizationId!,
+        userId: user.id,
+        userName: user.fullName || "Staff",
+        userRole: user.role || "SHOP_MANAGER",
+        summary: `Order record retrieved and restored by ${user.fullName} (${user.role}). Deducted ${totalUnitsDeducted} units from inventory.`,
+        snapshot: {
+          action: "RESTORED",
+          invoiceNumber: row.invoiceNumber,
+          total: row.total,
+          amountPaid: row.amountPaid,
+          balanceDue: row.balanceDue,
+          deductedUnits: totalUnitsDeducted,
+          restoredAt: new Date().toISOString(),
+        },
+        createdAt: new Date(),
+      });
+    });
+
+    // 3. Revalidate dashboard, orders, analytics, and inventory paths
+    revalidatePath("/shop/orders");
+    revalidatePath("/shop/dashboard");
+    revalidatePath("/shop/analytics");
+    revalidatePath("/shop/inventory");
+    revalidatePath("/shop/invoices");
+    revalidatePath(`/shop/orders/${resolvedOrderId}/edit`);
+
+    return {
+      success: true,
+      message: "Order record retrieved and restored successfully! Inventory and sales metrics synchronized.",
+    };
+  } catch (error: any) {
+    console.error("Error in restoreOrderAction:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to retrieve and restore order record.",
     };
   }
 }

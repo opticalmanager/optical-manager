@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { customers, shops, invoices, prescriptions } from "@/db/schema";
+import { customers, shops, invoices, prescriptions, customerCreditLedger } from "@/db/schema";
 import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
 import type { Customer, NewCustomer } from "@/types";
 
@@ -284,8 +284,8 @@ export async function getCustomerProfileData(
   customerId: string,
   organizationId: string
 ): Promise<any | null> {
-  // Fetch customer, prescriptions, and invoices in parallel to minimize database latency
-  const [customerResult, customerPrescriptions, customerInvoices] = await Promise.all([
+  // Fetch customer, prescriptions, invoices, and credit ledger in parallel to minimize database latency
+  const [customerResult, customerPrescriptions, customerInvoices, creditLedgerResult] = await Promise.all([
     db
       .select()
       .from(customers)
@@ -316,6 +316,16 @@ export async function getCustomerProfileData(
         )
       )
       .orderBy(desc(invoices.createdAt)),
+    db
+      .select()
+      .from(customerCreditLedger)
+      .where(
+        and(
+          eq(customerCreditLedger.customerId, customerId),
+          eq(customerCreditLedger.organizationId, organizationId)
+        )
+      )
+      .orderBy(desc(customerCreditLedger.createdAt)),
   ]);
 
   const customer = customerResult[0] || null;
@@ -343,6 +353,7 @@ export async function getCustomerProfileData(
     customer,
     prescriptions: customerPrescriptions,
     invoices: customerInvoices,
+    creditLedger: creditLedgerResult,
     pendingDues,
     totalOrdersCount,
     lastVisitDate,

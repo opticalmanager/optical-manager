@@ -8,6 +8,7 @@ import {
   inventory,
   shops,
   profiles,
+  customerCreditLedger,
 } from "@/db/schema";
 import { eq, and, or, ilike, sql, desc, inArray, gte, lte } from "drizzle-orm";
 
@@ -45,6 +46,8 @@ export interface SalesReturnListItem {
   customerPhone: string | null;
   returnType: string;
   status: string;
+  refundMethod: string;
+  creditAmount: string;
   totalRefundAmount: string;
   createdAt: Date;
   itemCount: number;
@@ -377,6 +380,8 @@ export async function getReturnsDashboardData(params: {
       customerPhone: customers.phone,
       returnType: salesReturns.returnType,
       status: salesReturns.status,
+      refundMethod: salesReturns.refundMethod,
+      creditAmount: salesReturns.creditAmount,
       totalRefundAmount: salesReturns.totalRefundAmount,
       createdAt: salesReturns.createdAt,
       processedByName: profiles.fullName,
@@ -445,6 +450,8 @@ export async function getReturnById(id: string, organizationId: string) {
       returnNumber: salesReturns.returnNumber,
       returnType: salesReturns.returnType,
       status: salesReturns.status,
+      refundMethod: salesReturns.refundMethod,
+      creditAmount: salesReturns.creditAmount,
       totalRefundAmount: salesReturns.totalRefundAmount,
       notes: salesReturns.notes,
       createdAt: salesReturns.createdAt,
@@ -459,13 +466,13 @@ export async function getReturnById(id: string, organizationId: string) {
       customerPhone: customers.phone,
       customerEmail: customers.email,
       customerAddress: customers.address,
+      customerStoreCredit: customers.storeCredit,
       shopName: shops.name,
       shopAddress: shops.address,
       shopPhone: shops.phone,
       shopEmail: shops.email,
       shopGst: shops.gstin,
       processedByName: profiles.fullName,
-
     })
     .from(salesReturns)
     .innerJoin(invoices, eq(salesReturns.invoiceId, invoices.id))
@@ -506,4 +513,36 @@ export async function getReturnById(id: string, organizationId: string) {
     ...ret,
     items,
   };
+}
+
+/**
+ * Get customer credit ledger transactions
+ */
+export async function getCustomerCreditLedger(
+  customerId: string,
+  organizationId: string
+) {
+  return db
+    .select({
+      id: customerCreditLedger.id,
+      transactionType: customerCreditLedger.transactionType,
+      amount: customerCreditLedger.amount,
+      balanceBefore: customerCreditLedger.balanceBefore,
+      balanceAfter: customerCreditLedger.balanceAfter,
+      referenceType: customerCreditLedger.referenceType,
+      referenceId: customerCreditLedger.referenceId,
+      referenceNumber: customerCreditLedger.referenceNumber,
+      notes: customerCreditLedger.notes,
+      createdAt: customerCreditLedger.createdAt,
+      performedByName: profiles.fullName,
+    })
+    .from(customerCreditLedger)
+    .leftJoin(profiles, eq(customerCreditLedger.performedBy, profiles.id))
+    .where(
+      and(
+        eq(customerCreditLedger.customerId, customerId),
+        eq(customerCreditLedger.organizationId, organizationId)
+      )
+    )
+    .orderBy(desc(customerCreditLedger.createdAt));
 }
