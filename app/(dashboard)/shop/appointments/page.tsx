@@ -42,7 +42,7 @@ export default async function ShopAppointmentsPage() {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Appointments DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Appointments DB query timeout")), 8000)
     );
     const results = await Promise.race([
       Promise.all([

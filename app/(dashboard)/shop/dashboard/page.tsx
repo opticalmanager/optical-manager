@@ -73,7 +73,7 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Dashboard DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Dashboard DB query timeout")), 8000)
     );
     const results = await Promise.race([
       Promise.all([

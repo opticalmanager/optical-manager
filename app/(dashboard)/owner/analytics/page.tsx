@@ -76,7 +76,7 @@ export default async function OwnerAnalyticsPage({ searchParams }: PageProps) {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Analytics fetch timeout")), 1500)
+      setTimeout(() => reject(new Error("Analytics fetch timeout")), 8000)
     );
 
     const [shopsData, dashboardData] = await Promise.race([

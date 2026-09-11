@@ -29,7 +29,7 @@ export default async function OwnerPromotionsPage({ searchParams }: OwnerPromoti
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Promotions fetch timeout")), 1200)
+      setTimeout(() => reject(new Error("Promotions fetch timeout")), 8000)
     );
     dashboardData = await Promise.race([
       getPromotionDashboardData(user?.organizationId || ""),

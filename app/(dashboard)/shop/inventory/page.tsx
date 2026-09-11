@@ -47,7 +47,7 @@ export default async function InventoryPage({ searchParams }: PageProps) {
   let allInventory: any[] = [];
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Inventory DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Inventory DB query timeout")), 8000)
     );
     allInventory = await Promise.race([
       getInventoryByShop(shopId),

@@ -13,7 +13,7 @@ export default async function OwnerShopsPage() {
   let dbShops: any[] = [];
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Shops fetch timeout")), 1200)
+      setTimeout(() => reject(new Error("Shops fetch timeout")), 8000)
     );
     const shopsRes = await Promise.race([
       getShopsWithManagers(),

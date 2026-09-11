@@ -26,7 +26,7 @@ export default async function EditPatientPage({ params }: EditPatientPageProps) 
   let initialData: any = null;
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Patient details DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Patient details DB query timeout")), 8000)
     );
     const res: any = await Promise.race([
       getPatientDetailsAction(id),

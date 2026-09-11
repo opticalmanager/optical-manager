@@ -71,7 +71,7 @@ export default async function OwnerReportsPage({ searchParams }: PageProps) {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Reports fetch timeout")), 1500)
+      setTimeout(() => reject(new Error("Reports fetch timeout")), 8000)
     );
 
     const [

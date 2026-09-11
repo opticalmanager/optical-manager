@@ -31,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={cn("font-sans", inter.variable)}>
-      <body>
+    <html lang="en" data-scroll-behavior="smooth" className={cn("font-sans", inter.variable)} suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <ServiceWorkerRegistrar />
         {children}
         <Toaster position="top-right" richColors />

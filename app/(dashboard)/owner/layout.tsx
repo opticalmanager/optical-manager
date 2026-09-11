@@ -39,7 +39,7 @@ export default async function OwnerLayout({
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Owner layout query timeout")), 1200)
+      setTimeout(() => reject(new Error("Owner layout query timeout")), 8000)
     );
 
     const [orgData, lowStock] = await Promise.race([
@@ -74,7 +74,7 @@ export default async function OwnerLayout({
     try {
       const { shops } = await import("@/db/schema");
       const shopTimeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Shop query timeout")), 800)
+        setTimeout(() => reject(new Error("Shop query timeout")), 8000)
       );
       const [firstShop] = await Promise.race([
         db

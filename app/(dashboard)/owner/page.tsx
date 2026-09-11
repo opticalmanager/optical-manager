@@ -44,7 +44,7 @@ export default async function OwnerDashboardPage() {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Owner dashboard DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Owner dashboard DB query timeout")), 8000)
     );
 
     [

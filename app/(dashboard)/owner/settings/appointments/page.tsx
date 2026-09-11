@@ -24,7 +24,7 @@ export default async function AppointmentSettingsPage() {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Appointment settings fetch timeout")), 1200)
+      setTimeout(() => reject(new Error("Appointment settings fetch timeout")), 8000)
     );
 
     const [orgData, shopsRes, configRes] = await Promise.race([

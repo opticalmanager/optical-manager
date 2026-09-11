@@ -29,7 +29,7 @@ export default async function EmailPortalPage() {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Email settings fetch timeout")), 1200)
+      setTimeout(() => reject(new Error("Email settings fetch timeout")), 8000)
     );
 
     const results = await Promise.race([

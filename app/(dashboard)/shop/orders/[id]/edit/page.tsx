@@ -31,7 +31,7 @@ export default async function EditOrderPage({
   let orderData = null;
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Order edit query timeout")), 1000)
+      setTimeout(() => reject(new Error("Order edit query timeout")), 8000)
     );
     orderData = await Promise.race([
       getOrderForEdit(id, user.organizationId),

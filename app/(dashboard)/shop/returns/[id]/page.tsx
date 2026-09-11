@@ -42,7 +42,7 @@ export default async function ReturnDetailPage({
   let data = null;
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Return query timeout")), 1000)
+      setTimeout(() => reject(new Error("Return query timeout")), 8000)
     );
     data = await Promise.race([
       getReturnById(id, user.organizationId),

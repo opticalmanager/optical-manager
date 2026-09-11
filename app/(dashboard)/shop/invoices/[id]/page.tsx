@@ -27,7 +27,7 @@ export default async function InvoiceDetailPage({
       redirect("/login");
     }
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Invoice query timeout")), 1000)
+      setTimeout(() => reject(new Error("Invoice query timeout")), 8000)
     );
     data = await Promise.race([
       getInvoiceDocumentData(id, user.organizationId),
