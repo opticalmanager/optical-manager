@@ -16,7 +16,7 @@ export default async function OwnerSettingsPage() {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Owner settings fetch timeout")), 1200)
+      setTimeout(() => reject(new Error("Owner settings fetch timeout")), 8000)
     );
 
     [organization, shops] = await Promise.race([

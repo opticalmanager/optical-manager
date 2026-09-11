@@ -54,7 +54,8 @@ export async function getPromotionDashboardData(orgId: string): Promise<Promotio
       .select()
       .from(whatsappConfigs)
       .where(eq(whatsappConfigs.organizationId, orgId))
-      .limit(1);
+      .limit(1)
+      .catch(() => []);
 
     const config = configRows[0];
     const whatsappStatus = (config?.status as any) || "DISCONNECTED";
@@ -63,18 +64,21 @@ export async function getPromotionDashboardData(orgId: string): Promise<Promotio
     const templates = await db
       .select()
       .from(whatsappTemplates)
-      .where(eq(whatsappTemplates.organizationId, orgId));
+      .where(eq(whatsappTemplates.organizationId, orgId))
+      .catch(() => []);
 
     const triggers = await db
       .select()
       .from(promotionTriggers)
-      .where(eq(promotionTriggers.organizationId, orgId));
+      .where(eq(promotionTriggers.organizationId, orgId))
+      .catch(() => []);
 
     const campaigns = await db
       .select()
       .from(promotionCampaigns)
       .where(eq(promotionCampaigns.organizationId, orgId))
-      .orderBy(desc(promotionCampaigns.scheduledAt));
+      .orderBy(desc(promotionCampaigns.scheduledAt))
+      .catch(() => []);
 
     const activeTemplatesCount = templates.filter((t) => t.status === "APPROVED").length;
     const activeTriggersCount = triggers.filter((t) => t.status === "ACTIVE").length;

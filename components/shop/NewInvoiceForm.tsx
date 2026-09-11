@@ -530,16 +530,20 @@ export function NewInvoiceForm() {
     }
   };
 
-  // Row Search Change Handler (Independent per row debouncing)
+  // Row Search Change Handler (Independent per row debouncing + 0ms local suggestion cache)
   const handleRowSearchChange = (index: number, query: string) => {
-    // 1. Immediately update local row searchQuery state
+    // 1. Immediately update local row searchQuery AND description state
+    // For custom non-inventory items, description matches typed query with inventoryId: null
     setLineItems((prev) =>
       prev.map((item, idx) =>
         idx === index
           ? {
               ...item,
               searchQuery: query,
+              description: query,
+              inventoryId: item.searchQuery === query ? item.inventoryId : null,
               showSuggestions: query.trim().length > 0,
+              showDropdown: query.trim().length > 0,
             }
           : item
       )
@@ -559,6 +563,7 @@ export function NewInvoiceForm() {
                 ...item,
                 suggestions: [],
                 showSuggestions: false,
+                showDropdown: false,
                 isSearching: false,
               }
             : item
@@ -567,87 +572,76 @@ export function NewInvoiceForm() {
       return;
     }
 
-    // 3. Set debounced API trigger
-    searchTimeouts.current[index] = setTimeout(async () => {
-      // Toggle row isSearching flag
-      setLineItems((prev) =>
-        prev.map((item, idx) => (idx === index ? { ...item, isSearching: true } : item))
-      );
-
-      // Offline inventory search fallback
-      if (!navigator.onLine || !isOnline) {
-        try {
-          const offlineProducts = await searchInventoryOffline(shopId || "", query);
+    // 2. Instant 0ms Local IndexedDB Lookup (provides immediate suggestions without network lag!)
+    searchInventoryOffline(shopId || "", query)
+      .then((offlineProducts) => {
+        if (offlineProducts && offlineProducts.length > 0) {
           setLineItems((prev) =>
             prev.map((item, idx) =>
-              idx === index
+              idx === index && item.searchQuery === query
                 ? {
                     ...item,
-                    suggestions: offlineProducts || [],
-                    isSearching: false,
+                    suggestions: offlineProducts,
+                    showDropdown: true,
                   }
                 : item
             )
           );
-        } catch (offlineErr) {
-          console.error(`Offline product lookup row ${index} failed:`, offlineErr);
-          setLineItems((prev) =>
-            prev.map((item, idx) => (idx === index ? { ...item, isSearching: false } : item))
-          );
         }
-        return;
+      })
+      .catch(() => {});
+
+    // 3. Debounced Cloud API Enrichment (if online, enrich with fresh server stock)
+    searchTimeouts.current[index] = setTimeout(async () => {
+      if (navigator.onLine && isOnline) {
+        setLineItems((prev) =>
+          prev.map((item, idx) => (idx === index ? { ...item, isSearching: true } : item))
+        );
+
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+          if (res.ok) {
+            const data = await res.json();
+            const cloudProducts = data.inventory || [];
+            if (cloudProducts.length > 0) {
+              setLineItems((prev) =>
+                prev.map((item, idx) =>
+                  idx === index && item.searchQuery === query
+                    ? {
+                        ...item,
+                        suggestions: cloudProducts,
+                        showDropdown: true,
+                        isSearching: false,
+                      }
+                    : item
+                )
+              );
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn(`Row ${index} product lookup network failure:`, err);
+        }
       }
 
+      // Offline or network returned no extra results: finish search spinner
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setLineItems((prev) =>
-            prev.map((item, idx) =>
-              idx === index
-                ? {
-                    ...item,
-                    suggestions: data.inventory || [],
-                    isSearching: false,
-                  }
-                : item
-            )
-          );
-        } else {
-          const offlineProducts = await searchInventoryOffline(shopId || "", query);
-          setLineItems((prev) =>
-            prev.map((item, idx) =>
-              idx === index
-                ? {
-                    ...item,
-                    suggestions: offlineProducts || [],
-                    isSearching: false,
-                  }
-                : item
-            )
-          );
-        }
-      } catch (err) {
-        console.warn(`Row ${index} product lookup network failure, falling back to offline:`, err);
-        try {
-          const offlineProducts = await searchInventoryOffline(shopId || "", query);
-          setLineItems((prev) =>
-            prev.map((item, idx) =>
-              idx === index
-                ? {
-                    ...item,
-                    suggestions: offlineProducts || [],
-                    isSearching: false,
-                  }
-                : item
-            )
-          );
-        } catch (offlineErr) {
-          console.error("Offline product fallback error:", offlineErr);
-          setLineItems((prev) =>
-            prev.map((item, idx) => (idx === index ? { ...item, isSearching: false } : item))
-          );
-        }
+        const offlineProducts = await searchInventoryOffline(shopId || "", query);
+        setLineItems((prev) =>
+          prev.map((item, idx) =>
+            idx === index && item.searchQuery === query
+              ? {
+                  ...item,
+                  suggestions: offlineProducts || item.suggestions || [],
+                  isSearching: false,
+                }
+              : item
+          )
+        );
+      } catch {
+        setLineItems((prev) =>
+          prev.map((item, idx) => (idx === index ? { ...item, isSearching: false } : item))
+        );
       }
     }, 300);
   };
@@ -1027,15 +1021,23 @@ export function NewInvoiceForm() {
       return;
     }
 
-    if (lineItems.length === 0 || !lineItems[0].description) {
+    const validItems = lineItems.filter(
+      (item) => (item.description || item.searchQuery || "").trim().length > 0
+    );
+    if (validItems.length === 0) {
       toast.error("Please add at least one billed product to the items ledger.");
       return;
     }
 
     // Verify blank or invalid quantities
     for (const item of lineItems) {
+      const itemDesc = (item.description || item.searchQuery || "").trim();
+      if (!itemDesc) {
+        toast.error("Please enter a product description or item name for all rows.");
+        return;
+      }
       if (item.quantity === "" || isNaN(item.quantity) || item.quantity <= 0) {
-        toast.error(`Please enter a valid Quantity (greater than 0) for item "${item.description || "Billed Product"}".`);
+        toast.error(`Please enter a valid Quantity (greater than 0) for item "${itemDesc}".`);
         return;
       }
     }
@@ -1044,7 +1046,7 @@ export function NewInvoiceForm() {
     for (const item of lineItems) {
       if (item.inventoryId && (item.quantity as number) > item.maxQty) {
         toast.error(
-          `Out of stock! Billed count of ${item.quantity} for "${item.description}" exceeds available stock (${item.maxQty} left).`
+          `Out of stock! Billed count of ${item.quantity} for "${item.description || item.searchQuery}" exceeds available stock (${item.maxQty} left).`
         );
         return;
       }
@@ -1109,10 +1111,11 @@ export function NewInvoiceForm() {
         invoiceItems: lineItems.map((item) => {
           const qty = item.quantity === "" ? 0 : (item.quantity as number);
           const itemSubtotal = qty * item.unitPrice;
+          const desc = (item.description || item.searchQuery || "Billed Product").trim();
 
           return {
-            inventoryId: item.inventoryId,
-            description: item.description,
+            inventoryId: item.inventoryId || null,
+            description: desc,
             quantity: qty,
             unitPrice: item.unitPrice,
             subtotal: itemSubtotal,
@@ -1152,6 +1155,7 @@ export function NewInvoiceForm() {
             `Offline invoice #${queuedInvoice.offlineInvoiceNumber} created! Ready for printing and will sync automatically when reconnected.`,
             { id: savingToast }
           );
+          setIsPending(false);
           router.push(`/shop/invoices/offline/${queuedInvoice.id}`);
           return;
         } catch (offlineSaveErr: any) {
@@ -1170,6 +1174,7 @@ export function NewInvoiceForm() {
 
         if (res.success && (targetInvoiceId || targetReceiptId)) {
           toast.success(res.message || "Transaction success! Invoice compiled.", { id: savingToast });
+          setIsPending(false);
           if (paymentType === "PARTIAL" && targetReceiptId) {
             router.push(`/shop/receipts/${targetReceiptId}`);
           } else if (targetInvoiceId) {
@@ -1197,6 +1202,7 @@ export function NewInvoiceForm() {
             `Network unreachable. Saved offline as #${queuedInvoice.offlineInvoiceNumber}! Will sync when reconnected.`,
             { id: savingToast }
           );
+          setIsPending(false);
           router.push(`/shop/invoices/offline/${queuedInvoice.id}`);
         } catch (offlineErr: any) {
           toast.error(actionOrNetworkErr.message || "Unexpected transaction error occurred.", { id: savingToast });
@@ -2076,21 +2082,21 @@ export function NewInvoiceForm() {
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="overflow-x-auto md:overflow-visible rounded-2xl bg-white p-1 pb-44 md:pb-1">
-            <table className="w-full text-left border-collapse min-w-[1060px]">
+          <div className="overflow-x-auto rounded-2xl bg-white p-1 pb-36 transition-all">
+            <table className="w-full text-left border-collapse min-w-[940px]">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                  <th className="py-3 px-3 w-[26%]">PRODUCT SEARCH (NAME/SKU/MODEL)</th>
-                  <th className="py-3 px-2.5 w-24">SKU</th>
-                  <th className="py-3 px-2 w-14 text-center">QTY</th>
-                  <th className="py-3 px-2.5 text-right w-24">PRICE</th>
-                  <th className="py-3 px-2 text-center w-20">DISC %</th>
-                  <th className="py-3 px-2 text-center w-24">DISC (₹)</th>
-                  <th className="py-3 px-2 text-center w-20">CGST</th>
-                  <th className="py-3 px-2 text-center w-20">SGST</th>
-                  <th className="py-3 px-2 text-center w-20">IGST</th>
-                  <th className="py-3 px-3 text-right w-28">ROW TOTAL</th>
-                  <th className="py-3 px-2 w-10 text-center"></th>
+                  <th className="py-3 px-3 w-[26%] min-w-[200px]">PRODUCT SEARCH (NAME/SKU/MODEL)</th>
+                  <th className="py-3 px-2 w-20">SKU</th>
+                  <th className="py-3 px-1.5 w-12 text-center">QTY</th>
+                  <th className="py-3 px-2 text-right w-20">PRICE</th>
+                  <th className="py-3 px-1.5 text-center w-16">DISC %</th>
+                  <th className="py-3 px-1.5 text-center w-20">DISC (₹)</th>
+                  <th className="py-3 px-1.5 text-center w-16">CGST</th>
+                  <th className="py-3 px-1.5 text-center w-16">SGST</th>
+                  <th className="py-3 px-1.5 text-center w-16">IGST</th>
+                  <th className="py-3 px-2.5 text-right w-24">ROW TOTAL</th>
+                  <th className="py-3 px-1 w-8 text-center"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -2103,7 +2109,7 @@ export function NewInvoiceForm() {
                   >
                     {/* Independent Product Search Autocomplete */}
                     <td className="py-3 px-3 relative" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-[#0a52c3]/20 focus-within:border-[#0a52c3] transition-all shadow-2xs">
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2 focus-within:ring-2 focus-within:ring-[#0a52c3]/20 focus-within:border-[#0a52c3] transition-all shadow-2xs">
                         <Search className="h-4 w-4 text-slate-400 shrink-0" />
                         <input
                           type="text"
@@ -2124,7 +2130,7 @@ export function NewInvoiceForm() {
 
                       {/* Dropdown Suggestions Menu - Floating Overlay Card */}
                       {item.showDropdown && item.suggestions.length > 0 && (
-                        <div className="absolute top-full left-3 w-[400px] sm:w-[460px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto ring-1 ring-black/10">
+                        <div className="absolute top-full left-3 w-[380px] sm:w-[440px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto ring-1 ring-black/10">
                           {item.suggestions.map((prod) => (
                             <button
                               key={prod.id}
@@ -2154,25 +2160,25 @@ export function NewInvoiceForm() {
                       )}
 
                       {!item.isSearching && item.searchQuery.length >= 1 && item.suggestions.length === 0 && item.showDropdown && (
-                        <div className="absolute top-full left-3 w-[360px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl p-4 text-center text-xs text-slate-500 font-medium shadow-2xl z-50 ring-1 ring-black/10">
-                          No matching stock items found.
+                        <div className="absolute top-full left-3 w-[340px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl p-4 text-center text-xs text-slate-500 font-medium shadow-2xl z-50 ring-1 ring-black/10">
+                          No matching stock items found. Custom item will be billed.
                         </div>
                       )}
                     </td>
 
                     {/* Compact SKU Input */}
-                    <td className="py-3 px-2.5">
+                    <td className="py-3 px-2">
                       <input
                         type="text"
                         value={item.sku}
                         onChange={(e) => updateLineItem(index, { sku: e.target.value })}
                         placeholder="SKU"
-                        className="w-24 bg-white border border-slate-200 rounded-2xl px-2 py-2.5 font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs transition-all"
+                        className="w-20 bg-white border border-slate-200 rounded-2xl px-2 py-2 font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs transition-all"
                       />
                     </td>
 
                     {/* Quantity Selector */}
-                    <td className="py-3 px-2 text-center">
+                    <td className="py-3 px-1.5 text-center">
                       <input
                         type="number"
                         value={item.quantity === "" || isNaN(item.quantity as number) ? "" : item.quantity}
@@ -2181,14 +2187,14 @@ export function NewInvoiceForm() {
                           updateLineItem(index, { quantity: val === "" ? "" : parseInt(val, 10) });
                         }}
                         placeholder="1"
-                        className="w-14 text-center py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white shadow-2xs"
+                        className="w-12 text-center py-2 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white shadow-2xs"
                       />
                     </td>
 
                     {/* Unit Price */}
-                    <td className="py-3 px-2.5">
+                    <td className="py-3 px-2">
                       <div className="relative">
-                        <span className="absolute left-2.5 top-2.5 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
+                        <span className="absolute left-2 top-2 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
                         <input
                           type="number"
                           step="0.01"
@@ -2197,14 +2203,14 @@ export function NewInvoiceForm() {
                             updateLineItem(index, { unitPrice: parseFloat(e.target.value) || 0 })
                           }
                           placeholder="0"
-                          className="w-24 text-right bg-white border border-slate-200 rounded-2xl pl-5 pr-2.5 py-2.5 font-bold text-xs text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs"
+                          className="w-20 text-right bg-white border border-slate-200 rounded-2xl pl-4 pr-2 py-2 font-bold text-xs text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs"
                         />
                       </div>
                     </td>
 
                     {/* Discount % Input */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="relative inline-block w-18">
+                    <td className="py-3 px-1.5 text-center">
+                      <div className="relative inline-block w-16">
                         <input
                           type="number"
                           min={0}
@@ -2218,16 +2224,16 @@ export function NewInvoiceForm() {
                               discountPercent: val === "" ? 0 : Math.min(100, Math.max(0, parseFloat(val) || 0))
                             });
                           }}
-                          className="w-full text-center py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pr-5 shadow-2xs"
+                          className="w-full text-center py-2 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pr-4 shadow-2xs"
                         />
-                        <span className="absolute right-2 top-2.5 text-slate-400 font-bold text-xs pointer-events-none">%</span>
+                        <span className="absolute right-1.5 top-2 text-slate-400 font-bold text-xs pointer-events-none">%</span>
                       </div>
                     </td>
 
                     {/* Discount ₹ Input */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="relative inline-block w-22">
-                        <span className="absolute left-2.5 top-2.5 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
+                    <td className="py-3 px-1.5 text-center">
+                      <div className="relative inline-block w-20">
+                        <span className="absolute left-2 top-2 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
                         <input
                           type="number"
                           min={0}
@@ -2240,15 +2246,15 @@ export function NewInvoiceForm() {
                               discountAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
                             });
                           }}
-                          className="w-full text-right py-2.5 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pl-5 pr-2.5 shadow-2xs"
+                          className="w-full text-right py-2 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pl-4 pr-2 shadow-2xs"
                         />
                       </div>
                     </td>
 
                     {/* CGST Column (Editable Rate + Live ₹ Amount) */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex flex-col items-center gap-1">
-                        <div className="relative inline-block w-16">
+                    <td className="py-3 px-1.5 text-center">
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        <div className="relative inline-block w-14">
                           <input
                             type="number"
                             min={0}
@@ -2262,9 +2268,9 @@ export function NewInvoiceForm() {
                               });
                             }}
                             placeholder="0"
-                            className="w-full text-center py-1.5 px-1 bg-indigo-50/50 border border-indigo-200/80 rounded-xl font-extrabold text-indigo-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-400 transition-all pr-4.5 shadow-2xs"
+                            className="w-full text-center py-1 px-0.5 bg-indigo-50/50 border border-indigo-200/80 rounded-xl font-extrabold text-indigo-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-400 transition-all pr-3.5 shadow-2xs"
                           />
-                          <span className="absolute right-1.5 top-1.5 text-[10px] font-bold text-indigo-400 pointer-events-none">%</span>
+                          <span className="absolute right-1 top-1 text-[10px] font-bold text-indigo-400 pointer-events-none">%</span>
                         </div>
                         <span className="text-[10px] text-slate-500 font-bold tracking-tight">
                           ₹{item.cgstAmount.toFixed(2)}
@@ -2273,9 +2279,9 @@ export function NewInvoiceForm() {
                     </td>
 
                     {/* SGST Column (Editable Rate + Live ₹ Amount) */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex flex-col items-center gap-1">
-                        <div className="relative inline-block w-16">
+                    <td className="py-3 px-1.5 text-center">
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        <div className="relative inline-block w-14">
                           <input
                             type="number"
                             min={0}
@@ -2289,9 +2295,9 @@ export function NewInvoiceForm() {
                               });
                             }}
                             placeholder="0"
-                            className="w-full text-center py-1.5 px-1 bg-emerald-50/50 border border-emerald-200/80 rounded-xl font-extrabold text-emerald-700 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white focus:border-emerald-400 transition-all pr-4.5 shadow-2xs"
+                            className="w-full text-center py-1 px-0.5 bg-emerald-50/50 border border-emerald-200/80 rounded-xl font-extrabold text-emerald-700 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white focus:border-emerald-400 transition-all pr-3.5 shadow-2xs"
                           />
-                          <span className="absolute right-1.5 top-1.5 text-[10px] font-bold text-emerald-400 pointer-events-none">%</span>
+                          <span className="absolute right-1 top-1 text-[10px] font-bold text-emerald-400 pointer-events-none">%</span>
                         </div>
                         <span className="text-[10px] text-slate-500 font-bold tracking-tight">
                           ₹{item.sgstAmount.toFixed(2)}
@@ -2300,9 +2306,9 @@ export function NewInvoiceForm() {
                     </td>
 
                     {/* IGST Column (Editable Rate + Live ₹ Amount) */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex flex-col items-center gap-1">
-                        <div className="relative inline-block w-16">
+                    <td className="py-3 px-1.5 text-center">
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        <div className="relative inline-block w-14">
                           <input
                             type="number"
                             min={0}
@@ -2316,9 +2322,9 @@ export function NewInvoiceForm() {
                               });
                             }}
                             placeholder="0"
-                            className="w-full text-center py-1.5 px-1 bg-purple-50/50 border border-purple-200/80 rounded-xl font-extrabold text-purple-700 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:bg-white focus:border-purple-400 transition-all pr-4.5 shadow-2xs"
+                            className="w-full text-center py-1 px-0.5 bg-purple-50/50 border border-purple-200/80 rounded-xl font-extrabold text-purple-700 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:bg-white focus:border-purple-400 transition-all pr-3.5 shadow-2xs"
                           />
-                          <span className="absolute right-1.5 top-1.5 text-[10px] font-bold text-purple-400 pointer-events-none">%</span>
+                          <span className="absolute right-1 top-1 text-[10px] font-bold text-purple-400 pointer-events-none">%</span>
                         </div>
                         <span className="text-[10px] text-slate-500 font-bold tracking-tight">
                           ₹{item.igstAmount.toFixed(2)}
@@ -2327,12 +2333,12 @@ export function NewInvoiceForm() {
                     </td>
 
                     {/* Row Total */}
-                    <td className="py-3 px-3 text-right font-black text-sm text-slate-900 whitespace-nowrap">
+                    <td className="py-3 px-2.5 text-right font-black text-xs sm:text-sm text-slate-900 whitespace-nowrap">
                       ₹{item.rowTotal.toFixed(2)}
                     </td>
 
                     {/* Subtle Trash Icon Delete Button */}
-                    <td className="py-3 px-2 text-center">
+                    <td className="py-3 px-1 text-center">
                       <button
                         type="button"
                         onClick={() => handleRemoveRow(index)}

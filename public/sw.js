@@ -1,36 +1,13 @@
-// Optical Manager PWA Service Worker (v13 - Resilient Zero-Latency Offline Engine)
-const CACHE_NAME = "optical-manager-cache-v13";
+// Optical Manager PWA Service Worker (v15 - Resilient Zero-Latency Offline Engine)
+const CACHE_NAME = "optical-manager-cache-v15";
 
-// Core static assets to precache on install
+// Core static assets to precache on install (static shell only — zero heavy SSR pages to avoid compilation storms)
 const PRECACHE_ASSETS = [
   "/",
   "/manifest.webmanifest",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
   "/optical-manager%20logo.svg",
-  // Shop Core Routes
-  "/shop/dashboard",
-  "/shop/orders",
-  "/shop/customers",
-  "/shop/inventory",
-  "/shop/appointments",
-  "/shop/returns",
-  "/shop/invoices",
-  "/shop/invoices/new",
-  "/shop/patients/new",
-  "/shop/returns/new",
-  "/shop/inventory/add",
-  // Owner Core Routes
-  "/owner",
-  "/owner/shops",
-  "/owner/reports",
-  "/owner/analytics",
-  "/owner/promotions",
-  "/owner/settings",
-  "/owner/settings/appointments",
-  "/owner/settings/email",
-  "/owner/shop-managers",
-  "/owner/support",
 ];
 
 // 1. Install event: Immediately skip waiting to take over from any stale worker
@@ -132,47 +109,37 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         const cache = await caches.open(CACHE_NAME);
 
-        // 1. If exact route or clean pathname is in cache, serve immediately
+        // 1. When online, prioritize live network response with generous safety ceiling (15s)
+        // Never abort at 2.5s; serverless cold starts and SSR pages in production take 2.5s-4s.
+        if (navigator.onLine) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 15000); // 15 seconds
+
+            const networkResponse = await fetch(request, { signal: controller.signal });
+            clearTimeout(timer);
+
+            if (networkResponse && networkResponse.status === 200) {
+              const clone = networkResponse.clone();
+              cache.put(request, clone);
+              if (request.mode === "navigate") {
+                cache.put(url.pathname, networkResponse.clone());
+              }
+              return networkResponse;
+            }
+          } catch (netErr) {
+            // Network timed out or connection dropped - fall through to offline cache
+            console.warn("[SW] Online fetch failed or timed out, falling back to cache:", url.pathname);
+          }
+        }
+
+        // 2. Offline or network failed: check exact cached route or clean pathname
         const exactCached =
           (await cache.match(request)) ||
           (await cache.match(url.pathname, { ignoreSearch: true }));
 
         if (exactCached) {
-          // In background, refresh cache if online
-          if (navigator.onLine) {
-            fetch(request)
-              .then((fresh) => {
-                if (fresh && fresh.status === 200) {
-                  cache.put(request, fresh.clone());
-                  if (request.mode === "navigate") {
-                    cache.put(url.pathname, fresh.clone());
-                  }
-                }
-              })
-              .catch(() => {});
-          }
           return exactCached;
-        }
-
-        // 2. If not exact match in cache, attempt fast network race
-        try {
-          const controller = new AbortController();
-          const timeoutMs = navigator.onLine ? 2500 : 800;
-          const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-          const networkResponse = await fetch(request, { signal: controller.signal });
-          clearTimeout(timer);
-
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            cache.put(request, clone);
-            if (request.mode === "navigate") {
-              cache.put(url.pathname, networkResponse.clone());
-            }
-            return networkResponse;
-          }
-        } catch {
-          // Network fetch aborted or failed (offline)
         }
 
         // 3. Fallback safely from cache without crashing or hijacking
@@ -221,14 +188,13 @@ async function handleOfflineFallback(request, url, cache) {
       }
     }
 
-    // CRITICAL: Never return 504 for uncached RSC. Return a 307 redirect instructing
-    // Next.js client router to perform a direct page navigation to url.pathname!
+    // CRITICAL: NEVER return a 307 redirect for uncached RSC flight requests!
+    // A 307 redirect instructs the browser/router to follow with the RSC header,
+    // which dumps raw RSC Flight JSON strings (0:{"f":...}) directly on a blank screen.
+    // Return a clean 503 so the client App Router handles the offline boundary gracefully.
     return new Response(null, {
-      status: 307,
-      headers: {
-        Location: url.pathname,
-        "x-nextjs-redirect": url.pathname,
-      },
+      status: 503,
+      statusText: "Service Unavailable (Offline)",
     });
   }
 
@@ -246,7 +212,6 @@ async function handleOfflineFallback(request, url, cache) {
     }
 
     // Module-specific fallback instead of blanket dashboard redirect!
-    // NEVER throw a customer, order, or invoice view back to the dashboard!
     if (url.pathname.startsWith("/shop/customers")) {
       const customersPage = await cache.match("/shop/customers", { ignoreSearch: true });
       if (customersPage) return customersPage;
@@ -272,6 +237,21 @@ async function handleOfflineFallback(request, url, cache) {
       if (inventoryPage) return inventoryPage;
     }
 
+    if (url.pathname.startsWith("/shop/settings")) {
+      const settingsPage = await cache.match("/shop/settings", { ignoreSearch: true });
+      if (settingsPage) return settingsPage;
+    }
+
+    if (url.pathname.startsWith("/shop/support")) {
+      const supportPage = await cache.match("/shop/support", { ignoreSearch: true });
+      if (supportPage) return supportPage;
+    }
+
+    if (url.pathname.startsWith("/shop/analytics")) {
+      const analyticsPage = await cache.match("/shop/analytics", { ignoreSearch: true });
+      if (analyticsPage) return analyticsPage;
+    }
+
     if (url.pathname.startsWith("/owner")) {
       const ownerPage =
         (await cache.match("/owner", { ignoreSearch: true })) ||
@@ -279,10 +259,10 @@ async function handleOfflineFallback(request, url, cache) {
       if (ownerPage) return ownerPage;
     }
 
-    // If still unmatched, return informative offline UI rather than crashing
+    // If still unmatched, return informative offline UI with explicit UTF-8 charset
     return new Response(
-      `<!DOCTYPE html><html><head><title>Offline - Optical Manager</title><meta name='viewport' content='width=device-width, initial-scale=1.0'></head><body style='font-family:system-ui,-apple-system,sans-serif;padding:48px 24px;text-align:center;background:#f8fafc;color:#1e293b;'><div style='max-width:460px;margin:0 auto;background:white;padding:32px;border-radius:16px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.05);border:1px solid #e2e8f0;'><div style='width:48px;height:48px;border-radius:12px;background:#fef3c7;color:#d97706;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:24px;'>⚡</div><h2 style='margin:0 0 8px 0;font-size:20px;font-weight:700;'>Offline Mode Active</h2><p style='color:#64748b;font-size:14px;line-height:1.5;margin:0 0 24px 0;'>The requested view (<code>${url.pathname}</code>) has not been cached in offline databank yet.</p><div style='display:flex;gap:12px;justify-content:center;'><a href='/shop/dashboard' style='padding:10px 20px;border-radius:10px;background:#0a52c3;color:white;text-decoration:none;font-weight:600;font-size:13px;'>Go to Dashboard</a><button onclick='window.location.reload()' style='padding:10px 20px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer;font-weight:600;font-size:13px;'>Retry</button></div></div></body></html>`,
-      { headers: { "Content-Type": "text/html" } }
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline - Optical Manager</title><meta name='viewport' content='width=device-width, initial-scale=1.0'></head><body style='font-family:system-ui,-apple-system,sans-serif;padding:48px 24px;text-align:center;background:#f8fafc;color:#1e293b;'><div style='max-width:460px;margin:0 auto;background:white;padding:32px;border-radius:16px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.05);border:1px solid #e2e8f0;'><div style='width:48px;height:48px;border-radius:12px;background:#fef3c7;color:#d97706;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:24px;'>⚡</div><h2 style='margin:0 0 8px 0;font-size:20px;font-weight:700;'>Offline Mode Active</h2><p style='color:#64748b;font-size:14px;line-height:1.5;margin:0 0 24px 0;'>The requested view (<code>${url.pathname}</code>) has not been cached in offline databank yet.</p><div style='display:flex;gap:12px;justify-content:center;'><a href='/shop/dashboard' style='padding:10px 20px;border-radius:10px;background:#0a52c3;color:white;text-decoration:none;font-weight:600;font-size:13px;'>Go to Dashboard</a><button onclick='window.location.reload()' style='padding:10px 20px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer;font-weight:600;font-size:13px;'>Retry</button></div></div></body></html>`,
+      { headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
   }
 

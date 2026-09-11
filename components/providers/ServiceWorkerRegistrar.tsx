@@ -15,13 +15,13 @@ export function ServiceWorkerRegistrar() {
           try {
             const keys = await window.caches.keys();
             await Promise.all(
-              keys.map((k) => (k !== "optical-manager-cache-v13" ? window.caches.delete(k) : Promise.resolve()))
+              keys.map((k) => (k !== "optical-manager-cache-v15" ? window.caches.delete(k) : Promise.resolve()))
             );
           } catch {}
         }
 
         // Cache-busting URL ensures browser fetches fresh service worker script
-        const registration = await navigator.serviceWorker.register("/sw.js?v=20260911_v13", {
+        const registration = await navigator.serviceWorker.register("/sw.js?v=20260911_v15", {
           scope: "/",
         });
 

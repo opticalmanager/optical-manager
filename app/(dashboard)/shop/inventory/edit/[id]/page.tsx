@@ -39,7 +39,7 @@ export default async function EditItemPage({ params }: PageProps) {
   let baseItem: any = null;
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Inventory query timeout")), 1000)
+      setTimeout(() => reject(new Error("Inventory query timeout")), 8000)
     );
     baseItem = await Promise.race([
       getInventoryItemById(id, user.organizationId),
@@ -69,7 +69,7 @@ export default async function EditItemPage({ params }: PageProps) {
     }
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Inventory details query timeout")), 1000)
+      setTimeout(() => reject(new Error("Inventory details query timeout")), 8000)
     );
 
     const [detailsRes, movementsRes] = (await Promise.race([

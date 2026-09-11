@@ -36,7 +36,7 @@ export default async function ShopDashboardLayout({
   if (user.shopId) {
     try {
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Shop lookup timeout")), 2000)
+        setTimeout(() => reject(new Error("Shop lookup timeout")), 8000)
       );
       shop = await Promise.race([
         getShopById(user.shopId, user.organizationId),

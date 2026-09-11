@@ -65,7 +65,7 @@ export default async function ReturnsDashboardPage({
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Returns DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Returns DB query timeout")), 8000)
     );
     dashboardData = await Promise.race([
       getReturnsDashboardData({

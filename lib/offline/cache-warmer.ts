@@ -232,8 +232,15 @@ export async function precacheAppRoutes(role?: string): Promise<void> {
   if (typeof window === "undefined" || !navigator.onLine || !("caches" in window)) {
     return;
   }
+
+  // In development mode, Turbopack compiles every requested route on the fly.
+  // Precaching dozens of routes creates severe CPU lockups and Neon DB pool exhaustion.
+  if (process.env.NODE_ENV === "development") {
+    return;
+  }
+
   try {
-    const cache = await caches.open("optical-manager-cache-v13");
+    const cache = await caches.open("optical-manager-cache-v15");
     const routesToPrecache =
       role === "OWNER"
         ? [...CORE_OWNER_ROUTES, ...CORE_SHOP_ROUTES]
@@ -241,19 +248,20 @@ export async function precacheAppRoutes(role?: string): Promise<void> {
         ? CORE_SHOP_ROUTES
         : [...CORE_OWNER_ROUTES, ...CORE_SHOP_ROUTES];
 
-    await Promise.allSettled(
-      routesToPrecache.map(async (route) => {
-        try {
-          const match = await cache.match(route);
-          if (!match) {
-            const res = await fetch(route);
-            if (res && res.status === 200) {
-              await cache.put(route, res);
-            }
+    // Warm routes sequentially with idle delays to avoid server overload
+    for (const route of routesToPrecache) {
+      try {
+        const match = await cache.match(route);
+        if (!match) {
+          const res = await fetch(route);
+          if (res && res.status === 200) {
+            await cache.put(route, res);
           }
-        } catch {}
-      })
-    );
+          // 800ms idle delay between requests
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
+      } catch {}
+    }
   } catch (err) {
     console.warn("[precacheAppRoutes] Warning:", err);
   }

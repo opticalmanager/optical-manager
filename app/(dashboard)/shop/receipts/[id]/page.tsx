@@ -24,7 +24,7 @@ export default async function ReceiptDetailPage({
   let data = null;
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Receipt query timeout")), 1000)
+      setTimeout(() => reject(new Error("Receipt query timeout")), 8000)
     );
     data = await Promise.race([
       getReceiptDocumentData(id, user.organizationId),

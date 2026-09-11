@@ -33,7 +33,7 @@ export default async function CustomersPage() {
   let customers: any[] = [];
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Customer DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Customer DB query timeout")), 8000)
     );
     customers = await Promise.race([
       getCustomersDashboard(shopId),

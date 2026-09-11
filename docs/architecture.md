@@ -214,22 +214,25 @@ optical-manager/
 Optical Manager features an offline-first architecture designed for uninterrupted clinical POS billing, inventory lookups, and customer search during internet outages.
 
 ### Core Components:
-1. **Dual-Role Service Worker (`public/sw.js` - v12)**:
-   - **Online**: Directly passes all navigation, RSC flight data (`_rsc`), and API requests to network with zero synthetic timeouts or abort delays. Network responses are cloned into cache asynchronously for offline availability.
+1. **Dual-Role Service Worker (`public/sw.js` - v15)**:
+   - **Static Shell Precaching**: On install, the Service Worker strictly precaches only immutable static shell assets (`/`, `/manifest.webmanifest`, app icons, SVG logo). Heavy SSR routes are never precached on install, completely preventing 35+ concurrent server compilation storms, CPU lockup, and database connection pool starvation on server startup.
+   - **Dynamic Runtime Caching**: As the user navigates through the application, visited page documents and RSC flight streams are cached dynamically and transparently in the background for offline readiness.
+   - **Online Network Ceiling**: Navigation and RSC flight requests are passed directly to the live server with a 15-second safety ceiling (preventing premature network aborts during serverless cold starts).
    - **Offline Navigation & Zero-Crash RSC Handling**: Serves precached desktop shell when disconnected. When Next.js App Router client navigation requests dynamic React Server Component (`RSC: 1` / `?_rsc=...`) chunks while offline:
      - First attempts direct match and match with `ignoreSearch: true` to match cached flight streams regardless of build hashes.
-     - If only the HTML document is cached, returns a `307 Temporary Redirect` with `x-nextjs-redirect`, prompting Next.js client router to perform an instant clean page transition without throwing `504 Gateway Timeout` or crashing error boundaries.
-     - Navigating to un-cached subroutes (e.g. `/shop/customers/*`, `/shop/invoices/*`, `/shop/orders/*`, `/shop/returns/*`, `/shop/inventory/*`) falls back cleanly to their respective section listings rather than hijacking the user to `/shop/dashboard`.
-   - **Cache Busting**: Versioned registration (`/sw.js?v=20260911_v12`) with automatic older cache bucket purging (`optical-manager-cache-v1` through `v11`) ensures instant client upgrades without stale worker persistence.
+     - If uncached in offline mode, returns a clean `503 Service Unavailable (Offline)` response instead of a `307` redirect with Location, preventing the client router from dumping raw RSC flight JSON payloads (`0:{"f":...}`) on a blank screen.
+     - Navigating to un-cached subroutes falls back cleanly to their respective section listings rather than hijacking the user to `/shop/dashboard`.
+     - Offline HTML fallback explicitly provides `charset=utf-8` header to guarantee correct unicode symbol rendering (`⚡`).
+   - **Cache Busting**: Versioned registration (`/sw.js?v=20260911_v15`) with automatic older cache bucket purging (`optical-manager-cache-v1` through `v14`) ensures instant client upgrades without stale worker persistence.
 
-2. **Fast-Fail Server Component Timeouts (`services/*`, `app/(dashboard)/*`)**:
-   - All shop and owner dashboard pages wrap database queries in a `Promise.race` with 1,200ms–2,500ms timeout guards.
-   - If PostgreSQL or Supabase cloud connections stall or drop, server components immediately return clean fallback objects within 1.2–2.5s rather than hanging the browser or throwing uncaught `ENOTFOUND` exceptions.
-   - Client views (`OrdersTableClient`, `CustomerRecordsClient`, `InventoryDashboardClient`, `AppointmentsWorkspaceClient`, `StoreOverviewClient`, `OwnerShopsClient`, `OwnerSettingsClient`) automatically detect offline state or empty initial data and seamlessly hydrate from IndexedDB with zero latency.
+2. **Resilient Server Component Timeouts (`services/*`, `app/(dashboard)/*`)**:
+   - All shop and owner dashboard pages wrap database queries in a `Promise.race` with generous 8,000ms timeout guards.
+   - Ensures serverless Neon Postgres database connections have sufficient headroom for cold query compilation and pooled connection acquisitions, preventing false offline redirects and empty KPI states during transient latency spikes.
+   - Client views automatically detect offline state or empty initial data and seamlessly hydrate from IndexedDB with zero latency.
 
-3. **Background Route Precaching (`lib/offline/cache-warmer.ts`)**:
-   - As soon as a user logs in, `warmCache(shopId)` synchronizes the databank into IndexedDB and triggers `precacheAppRoutes(role)`.
-   - Pre-caches both the HTML document shells and RSC flight streams (`headers: { RSC: "1" }`) for Shop routes (`/shop/dashboard`, `/shop/orders`, `/shop/customers`, `/shop/inventory`, `/shop/appointments`, `/shop/returns`, `/shop/invoices`, `/shop/invoices/new`, `/shop/patients/new`, `/shop/returns/new`, `/shop/inventory/add`) and Owner routes (`/owner`, `/owner/shops`, `/owner/reports`, `/owner/analytics`, `/owner/promotions`, `/owner/settings`, `/owner/settings/appointments`, `/owner/settings/email`, `/owner/shop-managers`, `/owner/support`), ensuring 100% offline availability across all primary tabs.
+3. **Development-Safe Sequential Route Warming (`lib/offline/cache-warmer.ts`)**:
+   - In development mode (`NODE_ENV === "development"`), background route pre-fetching is completely bypassed to prevent Turbopack from triggering simultaneous on-demand route compilations.
+   - In production environments, routes are warmed sequentially with an 800ms idle delay between requests, ensuring zero strain on server memory and Neon Postgres connection pools.
 
 4. **Dexie v5 IndexedDB Databanks (`lib/offline/db.ts`)**:
    - Stores `cached_customers`, `cached_inventory`, `cached_appointments`, `cached_orders`, `cached_invoices`, `cached_returns`, `cached_shop_profile`, `cached_organization`, and `offline_invoices_queue`.

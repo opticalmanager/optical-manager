@@ -83,7 +83,7 @@ export default async function OrdersDashboardPage({
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Orders DB query timeout")), 1200)
+      setTimeout(() => reject(new Error("Orders DB query timeout")), 8000)
     );
 
     const results = await Promise.race([

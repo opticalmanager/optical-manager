@@ -26,7 +26,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   let profileData: any = null;
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Customer profile DB query timeout")), 800)
+      setTimeout(() => reject(new Error("Customer profile DB query timeout")), 8000)
     );
     profileData = await Promise.race([
       getCustomerProfileData(id, user.organizationId),
