@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { editFrameItemSchema } from "@/utils/validators";
 import { updateFrameItemAction } from "@/actions/inventory.actions";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -84,6 +86,71 @@ export function EditFrameItemForm({
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const activeShopId =
+        shopId ||
+        initialData.shopId ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("om_active_shop_id") || "active_shop"
+          : "active_shop");
+
+      const saveLocally = async () => {
+        const addedQty = Number(data.addStockQuantity || 0);
+        const newQty = Number(initialData.quantity || 0) + addedQty;
+
+        await offlineDB.cached_inventory.update(itemId, {
+          name: data.name,
+          brand: data.brand || null,
+          model: data.modelNumber || null,
+          price: (data.price || 0).toFixed(2),
+          quantity: newQty,
+          cgstPercent: (data.cgstPercent || 6).toString(),
+          sgstPercent: (data.sgstPercent || 6).toString(),
+          igstPercent: (data.igstPercent || 12).toString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        if (addedQty !== 0) {
+          await enqueueOfflineMutation(activeShopId, "STOCK_ADJUST", {
+            inventoryId: itemId,
+            quantityChange: addedQty,
+            movementType: "RESTOCK",
+            notes: `Restock via offline edit (${addedQty} units)`,
+          });
+        }
+
+        await enqueueOfflineMutation(activeShopId, "INVENTORY_UPDATE", {
+          itemId,
+          name: data.name,
+          brand: data.brand,
+          model: data.modelNumber,
+          price: data.price,
+          costPrice: data.costPrice,
+          minQuantity: data.minQuantity,
+        });
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("offline-databank-updated", {
+              detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+            })
+          );
+        }
+
+        toast.success("Frame item updated locally (will sync automatically when online).");
+        router.push("/shop/inventory");
+      };
+
+      if (isOffline) {
+        try {
+          await saveLocally();
+        } catch (err: any) {
+          console.error("Local save error:", err);
+          toast.error("Failed to save frame item locally.");
+        }
+        return;
+      }
+
       try {
         const result = await updateFrameItemAction(itemId, undefined, data);
         if (result?.success) {
@@ -93,8 +160,12 @@ export function EditFrameItemForm({
           toast.error(result?.message || "Failed to update frame item.");
         }
       } catch (err: any) {
-        console.error("Update error:", err);
-        toast.error("An unexpected error occurred while saving updates.");
+        try {
+          await saveLocally();
+        } catch {
+          console.error("Update error:", err);
+          toast.error("An unexpected error occurred while saving updates.");
+        }
       }
     });
   };

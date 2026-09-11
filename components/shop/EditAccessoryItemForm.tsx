@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { editAccessoryItemSchema } from "@/utils/validators";
 import { updateAccessoryItemAction } from "@/actions/inventory.actions";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -105,13 +107,76 @@ export function EditAccessoryItemForm({
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
-      try {
-        const payload = { ...data };
-        if (payload.type === "Other") {
-          payload.type = payload.customType || "Other";
-        }
-        delete payload.customType;
+      const payload = { ...data };
+      if (payload.type === "Other") {
+        payload.type = payload.customType || "Other";
+      }
+      delete payload.customType;
 
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const activeShopId =
+        shopId ||
+        initialData.shopId ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("om_active_shop_id") || "active_shop"
+          : "active_shop");
+
+      const saveLocally = async () => {
+        const addedQty = Number(payload.addStockQuantity || 0);
+        const newQty = Number(initialData.quantity || 0) + addedQty;
+
+        await offlineDB.cached_inventory.update(itemId, {
+          name: payload.name,
+          brand: payload.brand || null,
+          price: (payload.price || 0).toFixed(2),
+          quantity: newQty,
+          cgstPercent: (payload.cgstPercent || 6).toString(),
+          sgstPercent: (payload.sgstPercent || 6).toString(),
+          igstPercent: (payload.igstPercent || 12).toString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        if (addedQty !== 0) {
+          await enqueueOfflineMutation(activeShopId, "STOCK_ADJUST", {
+            inventoryId: itemId,
+            quantityChange: addedQty,
+            movementType: "RESTOCK",
+            notes: `Restock via offline edit (${addedQty} units)`,
+          });
+        }
+
+        await enqueueOfflineMutation(activeShopId, "INVENTORY_UPDATE", {
+          itemId,
+          name: payload.name,
+          brand: payload.brand,
+          price: payload.price,
+          costPrice: payload.costPrice,
+          minQuantity: payload.minQuantity,
+        });
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("offline-databank-updated", {
+              detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+            })
+          );
+        }
+
+        toast.success("Accessory item updated locally (will sync automatically when online).");
+        router.push("/shop/inventory");
+      };
+
+      if (isOffline) {
+        try {
+          await saveLocally();
+        } catch (err: any) {
+          console.error("Local save error:", err);
+          toast.error("Failed to save accessory item locally.");
+        }
+        return;
+      }
+
+      try {
         const result = await updateAccessoryItemAction(itemId, undefined, payload);
         if (result?.success) {
           toast.success(result.message || "Accessory item updated successfully.");
@@ -120,8 +185,12 @@ export function EditAccessoryItemForm({
           toast.error(result?.message || "Failed to update accessory item.");
         }
       } catch (err: any) {
-        console.error("Update error:", err);
-        toast.error("An unexpected error occurred while saving updates.");
+        try {
+          await saveLocally();
+        } catch {
+          console.error("Update error:", err);
+          toast.error("An unexpected error occurred while saving updates.");
+        }
       }
     });
   };
