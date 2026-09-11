@@ -32,9 +32,26 @@ export default async function ShopDashboardLayout({
   }
 
   // Fetch shop metadata on the server to display in layout widgets
-  const shop = user.shopId 
-    ? await getShopById(user.shopId, user.organizationId) 
-    : null;
+  let shop: any = null;
+  if (user.shopId) {
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Shop lookup timeout")), 2000)
+      );
+      shop = await Promise.race([
+        getShopById(user.shopId, user.organizationId),
+        timeoutPromise,
+      ]);
+    } catch (shopErr) {
+      console.warn("[ShopDashboardLayout] Shop lookup offline fallback:", shopErr);
+      shop = {
+        id: user.shopId,
+        name: "Corporate Outlet",
+        address: null,
+        organizationId: user.organizationId,
+      };
+    }
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-50">

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { offlineDB } from "@/lib/offline/db";
 import {
   RotateCcw,
   Search,
@@ -49,6 +50,63 @@ export function ReturnsTableClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [expandedReturnId, setExpandedReturnId] = useState<string | null>(null);
+  const [returnsList, setReturnsList] = useState<SalesReturnListItem[]>(returns);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      if (returns && returns.length > 0) {
+        setReturnsList(returns);
+      }
+    }
+  }, [returns]);
+
+  useEffect(() => {
+    async function loadOfflineReturns() {
+      if (typeof navigator === "undefined") return;
+      if (!navigator.onLine || !returns || returns.length === 0) {
+        try {
+          const cached = await offlineDB.cached_returns.toArray();
+          if (cached && cached.length > 0) {
+            const mapped: SalesReturnListItem[] = cached.map((c) => ({
+              id: c.id,
+              returnNumber: c.returnNumber,
+              invoiceId: c.invoiceId,
+              invoiceNumber: c.invoiceNumber,
+              customerId: c.customerId,
+              customerName: c.customerName,
+              customerPhone: c.customerPhone || null,
+              totalRefundAmount: c.totalRefundAmount,
+              creditAmount: c.refundMethod === "STORE_CREDIT" ? c.totalRefundAmount : "0.00",
+              refundMethod: c.refundMethod,
+              returnType: c.returnType,
+              status: c.status,
+              itemCount: c.itemCount,
+              items: c.items || [],
+              notes: c.notes || null,
+              createdAt: new Date(c.createdAt),
+              processedByName: "Local Terminal",
+            }));
+            setReturnsList(mapped);
+          }
+        } catch (err) {
+          console.warn("[ReturnsTableClient] Failed to load offline returns:", err);
+        }
+      }
+    }
+
+    loadOfflineReturns();
+
+    const handleDataUpdated = () => {
+      loadOfflineReturns();
+    };
+
+    window.addEventListener("offline-databank-updated", handleDataUpdated);
+    window.addEventListener("offline", loadOfflineReturns);
+    return () => {
+      window.removeEventListener("offline-databank-updated", handleDataUpdated);
+      window.removeEventListener("offline", loadOfflineReturns);
+    };
+  }, [returns]);
 
   const handleCancelDraft = (returnId: string, returnNumber: string) => {
     if (!confirm(`Are you sure you want to cancel draft return ${returnNumber}?`)) {
@@ -159,7 +217,7 @@ export function ReturnsTableClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-            {returns.length === 0 ? (
+            {returnsList.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-12 text-center text-slate-400 font-semibold">
                   <div className="flex flex-col items-center justify-center gap-2">
@@ -181,7 +239,7 @@ export function ReturnsTableClient({
                 </td>
               </tr>
             ) : (
-              returns.map((ret) => {
+              returnsList.map((ret) => {
                 const isExpanded = expandedReturnId === ret.id;
                 return (
                   <React.Fragment key={ret.id}>

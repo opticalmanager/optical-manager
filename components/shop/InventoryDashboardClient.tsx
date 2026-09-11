@@ -24,6 +24,9 @@ import {
   Barcode
 } from "lucide-react";
 import { BarcodeDesignerModal } from "@/components/shop/BarcodeDesignerModal";
+import { QuickAddItemModal } from "@/components/shop/QuickAddItemModal";
+import { QuickEditStockModal } from "@/components/shop/QuickEditStockModal";
+import { offlineDB } from "@/lib/offline/db";
 
 interface InventoryItem {
   id: string;
@@ -71,12 +74,83 @@ export function InventoryDashboardClient({
   initialSort = "SKU"
 }: InventoryDashboardClientProps) {
   // Client states
+  const [items, setItems] = useState<InventoryItem[]>(initialItems);
   const [category, setCategory] = useState<string>(initialCategory.toUpperCase());
   const [filter, setFilter] = useState<string>(initialFilter.toLowerCase());
   const [sort, setSort] = useState<string>(initialSort.toUpperCase());
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [activeBarcodeItem, setActiveBarcodeItem] = useState<InventoryItem | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+
+  // Sync server prop changes to local state whenever online
+  useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      setItems(initialItems || []);
+    }
+  }, [initialItems]);
+
+  // Resilient IndexedDB hydration: activates when offline or when initial items are empty
+  useEffect(() => {
+    async function loadOfflineInventory() {
+      if (typeof navigator === "undefined") return;
+      if (!navigator.onLine || !initialItems || initialItems.length === 0) {
+        try {
+          const cached = await offlineDB.cached_inventory.toArray();
+          if (cached && cached.length > 0) {
+            const mapped: InventoryItem[] = cached.map((c) => ({
+              id: c.id,
+              shopId: c.shopId,
+              organizationId: c.organizationId,
+              name: c.name,
+              category: c.category as any,
+              brand: c.brand,
+              model: c.model,
+              sku: c.sku,
+              price: c.price,
+              costPrice: null,
+              quantity: c.quantity,
+              minQuantity: 5,
+              isActive: c.isActive,
+              imageUrl: null,
+              hsnCode: null,
+              cgstPercent: c.cgstPercent,
+              sgstPercent: c.sgstPercent,
+              igstPercent: c.igstPercent,
+              vendorName: null,
+              rackLocation: null,
+              requiresExpiryTracking: false,
+              batchNumber: null,
+              expiryDate: null,
+              purchaseInvoiceNo: null,
+              inwardDate: null,
+              createdAt: new Date(),
+              updatedAt: new Date(c.updatedAt),
+            }));
+            setItems(mapped);
+          }
+        } catch (err) {
+          console.warn("[InventoryDashboardClient] Failed to load offline inventory:", err);
+        }
+      }
+    }
+
+    loadOfflineInventory();
+
+    const handleDataUpdated = () => {
+      if (!navigator.onLine) {
+        loadOfflineInventory();
+      }
+    };
+
+    window.addEventListener("offline-databank-updated", handleDataUpdated);
+    window.addEventListener("offline", loadOfflineInventory);
+    return () => {
+      window.removeEventListener("offline-databank-updated", handleDataUpdated);
+      window.removeEventListener("offline", loadOfflineInventory);
+    };
+  }, [initialItems]);
 
   // Synced URL parameters on interaction without Next.js page re-rendering lag
   useEffect(() => {
@@ -109,8 +183,8 @@ export function InventoryDashboardClient({
   // Compute live KPIs based on selected category (All Items, Frames, Lenses, Contacts, Accessories)
   const kpis = useMemo(() => {
     const itemsToCompute = category 
-      ? initialItems.filter((i) => i.category === category)
-      : initialItems;
+      ? items.filter((i) => i.category === category)
+      : items;
 
     const totalSkuCount = itemsToCompute.length;
     const lowStockCount = itemsToCompute.filter(
@@ -135,11 +209,11 @@ export function InventoryDashboardClient({
       inventoryCostValue,
       inventoryRetailValue
     };
-  }, [initialItems, category]);
+  }, [items, category]);
 
   // Filter, Search, and Sort Logic (In-Memory for 0ms lag)
   const filteredAndSortedItems = useMemo(() => {
-    let result = [...initialItems];
+    let result = [...items];
 
     // 1. Category filter
     if (category) {
@@ -176,7 +250,7 @@ export function InventoryDashboardClient({
     }
 
     return result;
-  }, [initialItems, category, filter, searchQuery, sort]);
+  }, [items, category, filter, searchQuery, sort]);
 
   // Client-Side Pagination
   const paginatedItems = useMemo(() => {
@@ -328,12 +402,13 @@ export function InventoryDashboardClient({
           >
             <Download className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Export CSV
           </Button>
-          <Link 
-            href="/shop/inventory/add" 
-            className="inline-flex items-center justify-center px-3.5 h-9 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 transition-colors"
+          <button 
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center justify-center px-3.5 h-9 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 transition-colors cursor-pointer"
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Item
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -673,13 +748,14 @@ export function InventoryDashboardClient({
                       >
                         <Barcode className="h-4 w-4" />
                       </button>
-                      <Link 
-                        href={`/shop/inventory/edit/${item.id}`}
-                        className="p-1.5 text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors inline-block"
-                        title="Edit Item details"
+                      <button
+                        type="button"
+                        onClick={() => setEditingItem(item)}
+                        className="p-1.5 text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors inline-block cursor-pointer bg-transparent border-none"
+                        title="Quick Edit Stock & Details"
                       >
                         <Pencil className="h-4 w-4" />
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -704,13 +780,14 @@ export function InventoryDashboardClient({
                             : "Get started by ingesting your first frames or optical stock items."}
                         </p>
                       </div>
-                      <Link 
-                        href="/shop/inventory/add" 
-                        className="inline-flex items-center justify-center px-3.5 py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors"
+                      <button 
+                        type="button"
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="inline-flex items-center justify-center px-3.5 py-2 bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
                         Add Stock Item
-                      </Link>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -759,6 +836,25 @@ export function InventoryDashboardClient({
         isOpen={activeBarcodeItem !== null}
         onClose={() => setActiveBarcodeItem(null)}
         item={activeBarcodeItem}
+      />
+
+      <QuickAddItemModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onCreated={(createdItem) => {
+          setItems((prev) => [createdItem, ...prev]);
+        }}
+      />
+
+      <QuickEditStockModal
+        isOpen={editingItem !== null}
+        onClose={() => setEditingItem(null)}
+        item={editingItem}
+        onUpdated={(updated) => {
+          setItems((prev) =>
+            prev.map((it) => (it.id === updated.id ? { ...it, ...updated } : it))
+          );
+        }}
       />
     </div>
   );

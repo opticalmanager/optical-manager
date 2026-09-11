@@ -170,6 +170,31 @@ export async function login(
     };
   }
 
+  // Store session profile cookie for instantaneous offline auth
+  try {
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    cookieStore.set(
+      "opt_session_profile",
+      JSON.stringify({
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        organizationId: user.organizationId,
+        shopId: user.shopId,
+        isActive: user.isActive,
+      }),
+      {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        sameSite: "lax",
+      }
+    );
+  } catch {}
+
   // Role-based redirect
   if (user.role === "SHOP_MANAGER") {
     redirect("/shop/dashboard");
@@ -184,6 +209,12 @@ export async function login(
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  try {
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    cookieStore.delete("opt_session_profile");
+    cookieStore.delete("active_shop_context_id");
+  } catch {}
   redirect("/login");
 }
 
@@ -222,6 +253,22 @@ export async function accessShopConsoleAction(shopId: string) {
     maxAge: 60 * 60 * 24, // 1 day
   });
 
+  // Also update opt_session_profile shopId
+  const optRaw = cookieStore.get("opt_session_profile")?.value;
+  if (optRaw) {
+    try {
+      const opt = JSON.parse(optRaw.startsWith("%") ? decodeURIComponent(optRaw) : optRaw);
+      opt.shopId = shopId;
+      cookieStore.set("opt_session_profile", JSON.stringify(opt), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+        sameSite: "lax",
+      });
+    } catch {}
+  }
+
   return { success: true };
 }
 
@@ -233,6 +280,24 @@ export async function exitShopConsoleAction() {
   const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
   cookieStore.delete("active_shop_context_id");
+
+  // Revert shopId in opt_session_profile
+  const optRaw = cookieStore.get("opt_session_profile")?.value;
+  if (optRaw) {
+    try {
+      const opt = JSON.parse(optRaw.startsWith("%") ? decodeURIComponent(optRaw) : optRaw);
+      if (opt.role === "OWNER") {
+        opt.shopId = null;
+        cookieStore.set("opt_session_profile", JSON.stringify(opt), {
+          httpOnly: false,
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 30,
+          sameSite: "lax",
+        });
+      }
+    } catch {}
+  }
 
   // Redirect back to owner dashboard
   redirect("/owner");

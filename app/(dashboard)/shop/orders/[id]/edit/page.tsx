@@ -28,10 +28,21 @@ export default async function EditOrderPage({
 
   const canDelete = canUserDeleteOrders(user);
 
-  const orderData = await getOrderForEdit(id, user.organizationId);
+  let orderData = null;
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Order edit query timeout")), 1000)
+    );
+    orderData = await Promise.race([
+      getOrderForEdit(id, user.organizationId),
+      timeoutPromise,
+    ]);
+  } catch {
+    orderData = null;
+  }
 
   if (!orderData) {
-    notFound();
+    redirect("/shop/orders?error=offline_order_unavailable");
   }
 
   return (

@@ -22,16 +22,24 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
     redirect("/login");
   }
 
-  // Retrieve customer data for profile view
-  const profileData = await getCustomerProfileData(id, user.organizationId);
-
-  if (!profileData) {
-    redirect("/shop/customers");
+  // Retrieve customer data for profile view with fast-fail timeout for offline resilience
+  let profileData: any = null;
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Customer profile DB query timeout")), 800)
+    );
+    profileData = await Promise.race([
+      getCustomerProfileData(id, user.organizationId),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    console.warn("[CustomerDetailPage] Database fetch failed (offline fallback):", err);
+    profileData = null;
   }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-2 sm:py-3">
-      <CustomerProfileClient profile={profileData} />
+      <CustomerProfileClient initialProfile={profileData} customerId={id} />
     </div>
   );
 }

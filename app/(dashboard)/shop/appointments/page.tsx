@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/services/auth.service";
-import { getShopById } from "@/services/shop.service";
+import { getShopById, getShopsByOrganization } from "@/services/shop.service";
 import { getShopAppointmentsData } from "@/services/appointment.service";
 import AppointmentsWorkspaceClient from "@/components/shop/AppointmentsWorkspaceClient";
 
@@ -10,7 +10,16 @@ export const metadata = {
 
 export default async function ShopAppointmentsPage() {
   const user = await getCurrentUser();
-  const shopId = user?.shopId;
+  let shopId = user?.shopId;
+
+  if (!shopId && user?.role === "OWNER" && user?.organizationId) {
+    try {
+      const orgShops = await getShopsByOrganization(user.organizationId);
+      if (orgShops.length > 0) {
+        shopId = orgShops[0].id;
+      }
+    } catch {}
+  }
 
   if (!shopId || !user || !user.organizationId) {
     return (
@@ -25,10 +34,28 @@ export default async function ShopAppointmentsPage() {
     );
   }
 
-  const [data, shop] = await Promise.all([
-    getShopAppointmentsData(shopId),
-    getShopById(shopId, user.organizationId),
-  ]);
+  let data: any = {
+    appointments: [],
+    summary: { total: 0, pending: 0, confirmed: 0, completed: 0 },
+  };
+  let shop: any = null;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Appointments DB query timeout")), 1200)
+    );
+    const results = await Promise.race([
+      Promise.all([
+        getShopAppointmentsData(shopId),
+        getShopById(shopId, user.organizationId),
+      ]),
+      timeoutPromise,
+    ]);
+    data = results[0];
+    shop = results[1];
+  } catch (err) {
+    console.warn("[ShopAppointmentsPage] Failed to fetch appointments from database (offline/timeout fallback):", err);
+  }
 
   return <AppointmentsWorkspaceClient data={data} shopName={shop?.name} />;
 }

@@ -15,16 +15,31 @@ export default async function InvoiceDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await getCurrentUser();
 
-  if (!user || !user.organizationId) {
-    redirect("/login");
+  if (id.startsWith("off-")) {
+    redirect(`/shop/invoices/offline/${id}`);
   }
 
-  const data = await getInvoiceDocumentData(id, user.organizationId);
+  let data = null;
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      redirect("/login");
+    }
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Invoice query timeout")), 1000)
+    );
+    data = await Promise.race([
+      getInvoiceDocumentData(id, user.organizationId),
+      timeoutPromise,
+    ]);
+  } catch {
+    // If offline or DB fails, redirect to offline viewer
+    redirect(`/shop/invoices/offline/${id}`);
+  }
 
   if (!data) {
-    notFound();
+    redirect(`/shop/invoices/offline/${id}`);
   }
 
   return (

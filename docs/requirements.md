@@ -39,6 +39,11 @@ This document details the functional, non-functional, and compliance requirement
 - Printable Sales Return Receipt & Credit Note documents with instant access from return listings.
 - Ability to redeem customer store credit against new invoices with strict input validation.
 
+### FR-8: PWA Offline-First POS Billing & Cloud Synchronization
+- Offline data must be isolated strictly per `shopId` for `SHOP_MANAGER` roles using Dexie IndexedDB to prevent cross-shop data leakage, while `OWNER` accounts maintain multi-branch data caching across all physical outlets in their organization.
+- Offline invoices and all entity CRUD operations (patients, inventory, appointments, orders, returns) must be operable offline and auto-synced with idempotency upon network recovery.
+- The web app must be installable as a standalone PWA across desktop and mobile devices, caching both Shop and Owner view suites.
+
 ---
 
 ## 2. Non-Functional Requirements

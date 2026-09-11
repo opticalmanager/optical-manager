@@ -28,28 +28,35 @@ export default async function EmailPortalPage() {
   let recentLogs: any[] = [];
 
   try {
-    const results = await Promise.allSettled([
-      getOrganizationById(orgId),
-      getEmailConfig(orgId),
-      getEmailSystemConfig(orgId),
-      db
-        .select()
-        .from(emailTemplates)
-        .where(eq(emailTemplates.organizationId, orgId))
-        .orderBy(desc(emailTemplates.createdAt)),
-      db
-        .select()
-        .from(emailTriggers)
-        .where(eq(emailTriggers.organizationId, orgId))
-        .orderBy(desc(emailTriggers.createdAt)),
-      getEmailUsageStats(orgId),
-      getShopsByOrganization(orgId),
-      db
-        .select()
-        .from(emailLogs)
-        .where(eq(emailLogs.organizationId, orgId))
-        .orderBy(desc(emailLogs.sentAt))
-        .limit(100),
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Email settings fetch timeout")), 1200)
+    );
+
+    const results = await Promise.race([
+      Promise.allSettled([
+        getOrganizationById(orgId),
+        getEmailConfig(orgId),
+        getEmailSystemConfig(orgId),
+        db
+          .select()
+          .from(emailTemplates)
+          .where(eq(emailTemplates.organizationId, orgId))
+          .orderBy(desc(emailTemplates.createdAt)),
+        db
+          .select()
+          .from(emailTriggers)
+          .where(eq(emailTriggers.organizationId, orgId))
+          .orderBy(desc(emailTriggers.createdAt)),
+        getEmailUsageStats(orgId),
+        getShopsByOrganization(orgId),
+        db
+          .select()
+          .from(emailLogs)
+          .where(eq(emailLogs.organizationId, orgId))
+          .orderBy(desc(emailLogs.sentAt))
+          .limit(100),
+      ]),
+      timeoutPromise,
     ]);
 
     if (results[0].status === "fulfilled") organization = results[0].value;

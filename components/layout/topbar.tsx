@@ -13,11 +13,19 @@ import {
   Package, 
   ArrowRight,
   Sparkles,
-  Menu
+  Menu,
+  Download,
+  Monitor,
+  RefreshCw,
+  WifiOff
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useOffline } from "@/components/providers/OfflineProvider";
+import { SyncStatusControls } from "@/components/layout/SyncStatusControls";
+import { searchOfflineUnified } from "@/lib/offline/search";
 
 interface TopbarProps {
   user?: {
@@ -33,6 +41,7 @@ interface TopbarProps {
 export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
   const router = useRouter();
   const supabase = createClient();
+  const { isOnline, isSyncing, pendingCount, isInstallable, installPwa, syncNow } = useOffline();
   
   const pathname = usePathname();
   
@@ -65,7 +74,7 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Debounced search trigger
+  // Debounced search trigger (Online via API, Offline via IndexedDB)
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
       setSearchResults({ customers: [], inventory: [], invoices: [] });
@@ -74,6 +83,21 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
 
     const delayDebounce = setTimeout(async () => {
       setIsSearching(true);
+
+      // Offline mode check
+      if (!navigator.onLine || !isOnline) {
+        try {
+          const shopId = (user as any)?.shopId || "";
+          const offlineData = await searchOfflineUnified(shopId, searchQuery);
+          setSearchResults(offlineData);
+        } catch (offlineErr) {
+          console.error("Offline autocomplete search failed:", offlineErr);
+        } finally {
+          setIsSearching(false);
+        }
+        return;
+      }
+
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
         if (res.ok) {
@@ -88,7 +112,7 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
     }, 300);
 
     return () => clearTimeout(delayDebounce);
-  }, [searchQuery]);
+  }, [searchQuery, isOnline, user]);
 
   const handleLogout = async () => {
     try {
@@ -253,7 +277,10 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
       </div>
 
       {/* Header Buttons & Avatar Dropdown */}
-      <div className="flex items-center gap-4 ml-auto">
+      <div className="flex items-center gap-2.5 sm:gap-3.5 ml-auto">
+        {/* Unified Online/Offline & Syncing/Synced Indicator Controls */}
+        <SyncStatusControls />
+
         <button
           onClick={() => router.push("/shop/patients/new")}
           className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer hidden sm:block"
@@ -268,7 +295,7 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
           <span className="hidden md:inline">New Invoice</span>
         </button>
         
-        <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
+        <div className="h-6 w-px bg-slate-200 mx-0.5 hidden sm:block" />
         
         <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
           <Bell className="h-4.5 w-4.5" />
@@ -318,6 +345,18 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
 
               {/* Action Buttons Link */}
               <div className="py-1">
+                {isInstallable && (
+                  <button
+                    onClick={() => {
+                      installPwa();
+                      setDropdownOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-indigo-600 hover:bg-indigo-50 transition-colors text-left font-bold flex items-center gap-2 cursor-pointer"
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    <span>Install Desktop App (PC)</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     router.push("/shop/settings");

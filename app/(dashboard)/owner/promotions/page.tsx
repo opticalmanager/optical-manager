@@ -17,7 +17,27 @@ export default async function OwnerPromotionsPage({ searchParams }: OwnerPromoti
   const resolvedParams = await searchParams;
   const initialTab = resolvedParams.tab || "overview";
 
-  const dashboardData = await getPromotionDashboardData(user?.organizationId || "");
+  let dashboardData: any = {
+    whatsappStatus: "DISCONNECTED",
+    activeTemplatesCount: 0,
+    activeTriggersCount: 0,
+    upcomingCampaignsCount: 0,
+    telemetry: { totalSent: 0, delivered: 0, read: 0, replied: 0 },
+    recentCampaigns: [],
+    activeTriggers: [],
+  };
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Promotions fetch timeout")), 1200)
+    );
+    dashboardData = await Promise.race([
+      getPromotionDashboardData(user?.organizationId || ""),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    // Graceful offline fallback
+  }
 
   return (
     <PromotionsMainClient

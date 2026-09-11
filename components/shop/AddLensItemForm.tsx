@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { lensItemSchema } from "@/utils/validators";
 import { createLensItemAction } from "@/actions/inventory.actions";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -91,6 +93,72 @@ export function AddLensItemForm({ shopId }: AddLensItemFormProps) {
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const activeShopId =
+        shopId ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("om_active_shop_id") || "active_shop"
+          : "active_shop");
+
+      const saveLocally = async () => {
+        const b = (data.brand || "GEN")
+          .replace(/[^A-Za-z]/g, "")
+          .substring(0, 3)
+          .toUpperCase()
+          .padEnd(3, "X");
+        const generatedSku = `LNS-${b}000000-${Math.floor(100 + Math.random() * 900)}`;
+        const offlineItemId = `off-inv-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 6)}`;
+
+        const offlineRecord = {
+          id: offlineItemId,
+          shopId: activeShopId,
+          organizationId: "offline_org",
+          name: data.name,
+          category: "LENS",
+          brand: data.brand || null,
+          model: null,
+          sku: generatedSku,
+          price: (data.price || 0).toFixed(2),
+          quantity: data.quantity || 0,
+          isActive: true,
+          cgstPercent: (data.cgstPercent || 6).toString(),
+          sgstPercent: (data.sgstPercent || 6).toString(),
+          igstPercent: (data.igstPercent || 12).toString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await offlineDB.cached_inventory.put(offlineRecord);
+        await enqueueOfflineMutation(activeShopId, "INVENTORY_CREATE", {
+          category: "LENS",
+          ...data,
+          sku: generatedSku,
+          offlineItemId,
+        });
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("offline-databank-updated", {
+              detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+            })
+          );
+        }
+
+        toast.success("Lens item saved locally (will sync automatically when online).");
+        router.push("/shop/inventory");
+      };
+
+      if (isOffline) {
+        try {
+          await saveLocally();
+        } catch (err: any) {
+          console.error("Local save error:", err);
+          toast.error("Failed to save lens locally.");
+        }
+        return;
+      }
+
       try {
         const result = await createLensItemAction(undefined, data);
         if (result?.success) {
@@ -100,8 +168,12 @@ export function AddLensItemForm({ shopId }: AddLensItemFormProps) {
           toast.error(result?.message || "Failed to save lens item.");
         }
       } catch (err: any) {
-        console.error("Save error:", err);
-        toast.error("An unexpected error occurred while saving.");
+        try {
+          await saveLocally();
+        } catch {
+          console.error("Save error:", err);
+          toast.error("An unexpected error occurred while saving.");
+        }
       }
     });
   };

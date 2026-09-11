@@ -32,28 +32,66 @@ export default async function OwnerLayout({
     redirect("/login");
   }
 
-  // 3. Fetch organization details
-  const organization = await getOrganizationById(user.organizationId);
+  // 3. Fetch organization details with offline timeout resilience
+  let organization: any = null;
+  let hasLowStock = false;
+  let primaryShopId = user.shopId || null;
 
-  // 4. Check if onboarding is completed
-  if (!organization?.onboardingCompleted) {
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Owner layout query timeout")), 1200)
+    );
+
+    const [orgData, lowStock] = await Promise.race([
+      Promise.all([
+        getOrganizationById(user.organizationId),
+        db
+          .select({ id: inventory.id })
+          .from(inventory)
+          .where(eq(inventory.organizationId, user.organizationId))
+          .limit(1)
+          .catch(() => []),
+      ]),
+      timeoutPromise,
+    ]);
+
+    organization = orgData;
+    hasLowStock = (lowStock || []).length > 0;
+  } catch (err) {
+    organization = {
+      id: user.organizationId,
+      name: "Optical Store",
+      onboardingCompleted: true,
+    };
+  }
+
+  // 4. Check if onboarding is completed only when strictly uncompleted
+  if (organization && organization.onboardingCompleted === false) {
     redirect("/onboarding");
   }
 
-  // 5. Fetch if any low stock items exist for notification bell badge
-  const lowStock = await db
-    .select({ id: inventory.id })
-    .from(inventory)
-    .where(
-      eq(inventory.organizationId, user.organizationId)
-    )
-    .limit(1);
-
-  const hasLowStock = lowStock.length > 0;
+  if (!primaryShopId) {
+    try {
+      const { shops } = await import("@/db/schema");
+      const shopTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Shop query timeout")), 800)
+      );
+      const [firstShop] = await Promise.race([
+        db
+          .select({ id: shops.id })
+          .from(shops)
+          .where(eq(shops.organizationId, user.organizationId))
+          .limit(1),
+        shopTimeout,
+      ]);
+      primaryShopId = firstShop?.id || null;
+    } catch {}
+  }
 
   return (
     <OwnerShell 
       organizationName={organization.name}
+      shopId={primaryShopId}
       user={{
         fullName: user.fullName,
         email: user.email,

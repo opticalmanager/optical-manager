@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AppointmentItem } from "@/services/dashboard.service";
 import { updateAppointmentStatusAction } from "@/actions/appointment.actions";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 
 interface AppointmentDetailsModalProps {
   appointment: AppointmentItem | null;
@@ -50,6 +52,23 @@ export function AppointmentDetailsModal({
     setActionType(targetStatus === "COMPLETED" ? "checkin" : "cancel");
     startTransition(async () => {
       try {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const activeShopId = typeof window !== "undefined" ? localStorage.getItem("om_active_shop_id") || "active_shop" : "active_shop";
+          try {
+            await offlineDB.cached_appointments.update(appointment.id, {
+              status: targetStatus,
+              updatedAt: new Date().toISOString(),
+            });
+            await enqueueOfflineMutation(activeShopId, "APPOINTMENT_STATUS", {
+              appointmentId: appointment.id,
+              status: targetStatus,
+            });
+          } catch {}
+          onStatusUpdated?.(appointment.id, targetStatus);
+          onClose();
+          return;
+        }
+
         const res = await updateAppointmentStatusAction(appointment.id, targetStatus);
         if (res.success) {
           onStatusUpdated?.(appointment.id, targetStatus);
@@ -58,7 +77,20 @@ export function AppointmentDetailsModal({
           alert(res.error || "Failed to update appointment status.");
         }
       } catch (err) {
-        console.error("Status update error:", err);
+        // Fallback when offline
+        const activeShopId = typeof window !== "undefined" ? localStorage.getItem("om_active_shop_id") || "active_shop" : "active_shop";
+        try {
+          await offlineDB.cached_appointments.update(appointment.id, {
+            status: targetStatus,
+            updatedAt: new Date().toISOString(),
+          });
+          await enqueueOfflineMutation(activeShopId, "APPOINTMENT_STATUS", {
+            appointmentId: appointment.id,
+            status: targetStatus,
+          });
+        } catch {}
+        onStatusUpdated?.(appointment.id, targetStatus);
+        onClose();
       } finally {
         setActionType(null);
       }

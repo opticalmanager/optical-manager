@@ -8,12 +8,15 @@ import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteI
 import { SPH_OPTIONS, CYL_OPTIONS, AXIS_OPTIONS, DISTANCE_VN_OPTIONS, NEAR_VN_OPTIONS, ADD_OPTIONS, formatDiopterValue, formatAxisValue } from "@/utils/optometry";
 import { X, Eye, FileText, Stethoscope, Calendar, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 
 interface AddPrescriptionModalProps {
   isOpen: boolean;
   onClose: () => void;
   customerId: string;
   customerName: string;
+  onPrescriptionAdded?: (newRx: any) => void;
 }
 
 export function AddPrescriptionModal({
@@ -21,6 +24,7 @@ export function AddPrescriptionModal({
   onClose,
   customerId,
   customerName,
+  onPrescriptionAdded,
 }: AddPrescriptionModalProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,45 +92,92 @@ export function AddPrescriptionModal({
     setIsSubmitting(true);
     const loadingToast = toast.loading("Saving new optical prescription...");
 
+    const rxPayload = {
+      customerId,
+      doctorName: doctorName.trim() || undefined,
+      prescribedAt: prescribedAt || undefined,
+      prescriptionNotes: prescriptionNotes.trim() || undefined,
+      partyName: partyName.trim() || undefined,
+      frameName: frameName.trim() || undefined,
+      distanceEnabled,
+      nearEnabled,
+      distancePrescription: distanceEnabled
+        ? {
+            rightSphere: formatDiopterValue(distODSph) || undefined,
+            rightCylinder: formatDiopterValue(distODCyl) || undefined,
+            rightAxis: formatAxisValue(distODAxis) || undefined,
+            rightAdd: formatDiopterValue(distODAdd) || undefined,
+            rightNv: distODNv.trim() || undefined,
+            leftSphere: formatDiopterValue(distOSSph) || undefined,
+            leftCylinder: formatDiopterValue(distOSCyl) || undefined,
+            leftAxis: formatAxisValue(distOSAxis) || undefined,
+            leftAdd: formatDiopterValue(distOSAdd) || undefined,
+            leftNv: distOSNv.trim() || undefined,
+            pd: distPd.trim() || undefined,
+          }
+        : undefined,
+      nearPrescription: nearEnabled
+        ? {
+            rightSphere: formatDiopterValue(nearODSph) || undefined,
+            rightCylinder: formatDiopterValue(nearODCyl) || undefined,
+            rightAxis: formatAxisValue(nearODAxis) || undefined,
+            rightNv: nearODNv.trim() || undefined,
+            leftSphere: formatDiopterValue(nearOSSph) || undefined,
+            leftCylinder: formatDiopterValue(nearOSCyl) || undefined,
+            leftAxis: formatAxisValue(nearOSAxis) || undefined,
+            leftNv: nearOSNv.trim() || undefined,
+            pd: distPd.trim() || undefined,
+          }
+        : undefined,
+    };
+
+    const saveOfflinePrescription = async () => {
+      try {
+        const shopId = (await offlineDB.getCurrentShopId()) || "";
+        await enqueueOfflineMutation(shopId, "PRESCRIPTION_CREATE", rxPayload);
+
+        const localRx = {
+          id: "rx-offline-" + Date.now(),
+          prescriptionType: distanceEnabled ? ("DISTANCE" as const) : ("NEAR" as const),
+          rightSphere: rxPayload.distancePrescription?.rightSphere || rxPayload.nearPrescription?.rightSphere || null,
+          rightCylinder: rxPayload.distancePrescription?.rightCylinder || rxPayload.nearPrescription?.rightCylinder || null,
+          rightAxis: rxPayload.distancePrescription?.rightAxis || rxPayload.nearPrescription?.rightAxis || null,
+          rightAdd: rxPayload.distancePrescription?.rightAdd || null,
+          rightNv: rxPayload.distancePrescription?.rightNv || rxPayload.nearPrescription?.rightNv || null,
+          leftSphere: rxPayload.distancePrescription?.leftSphere || rxPayload.nearPrescription?.leftSphere || null,
+          leftCylinder: rxPayload.distancePrescription?.leftCylinder || rxPayload.nearPrescription?.leftCylinder || null,
+          leftAxis: rxPayload.distancePrescription?.leftAxis || rxPayload.nearPrescription?.leftAxis || null,
+          leftAdd: rxPayload.distancePrescription?.leftAdd || null,
+          leftNv: rxPayload.distancePrescription?.leftNv || rxPayload.nearPrescription?.leftNv || null,
+          pd: rxPayload.distancePrescription?.pd || rxPayload.nearPrescription?.pd || null,
+          doctorName: doctorName.trim() || "Optometrist",
+          partyName: partyName.trim() || null,
+          frameName: frameName.trim() || null,
+          notes: prescriptionNotes.trim() || null,
+          prescribedAt: prescribedAt || new Date().toISOString().split("T")[0],
+          createdAt: new Date().toISOString(),
+        };
+
+        if (onPrescriptionAdded) {
+          onPrescriptionAdded(localRx);
+        }
+
+        window.dispatchEvent(new CustomEvent("offline-databank-updated"));
+        toast.success("Prescription saved locally! Will sync automatically when back online.", { id: loadingToast });
+        onClose();
+      } catch (err: any) {
+        toast.error(err.message || "Failed to save prescription locally.", { id: loadingToast });
+      }
+    };
+
+    if (!navigator.onLine) {
+      await saveOfflinePrescription();
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      const res = await savePatientPrescriptionAction({
-        customerId,
-        doctorName: doctorName.trim() || undefined,
-        prescribedAt: prescribedAt || undefined,
-        prescriptionNotes: prescriptionNotes.trim() || undefined,
-        partyName: partyName.trim() || undefined,
-        frameName: frameName.trim() || undefined,
-        distanceEnabled,
-        nearEnabled,
-        distancePrescription: distanceEnabled
-          ? {
-              rightSphere: formatDiopterValue(distODSph) || undefined,
-              rightCylinder: formatDiopterValue(distODCyl) || undefined,
-              rightAxis: formatAxisValue(distODAxis) || undefined,
-              rightAdd: formatDiopterValue(distODAdd) || undefined,
-              rightNv: distODNv.trim() || undefined,
-              leftSphere: formatDiopterValue(distOSSph) || undefined,
-              leftCylinder: formatDiopterValue(distOSCyl) || undefined,
-              leftAxis: formatAxisValue(distOSAxis) || undefined,
-              leftAdd: formatDiopterValue(distOSAdd) || undefined,
-              leftNv: distOSNv.trim() || undefined,
-              pd: distPd.trim() || undefined,
-            }
-          : undefined,
-        nearPrescription: nearEnabled
-          ? {
-              rightSphere: formatDiopterValue(nearODSph) || undefined,
-              rightCylinder: formatDiopterValue(nearODCyl) || undefined,
-              rightAxis: formatAxisValue(nearODAxis) || undefined,
-              rightNv: nearODNv.trim() || undefined,
-              leftSphere: formatDiopterValue(nearOSSph) || undefined,
-              leftCylinder: formatDiopterValue(nearOSCyl) || undefined,
-              leftAxis: formatAxisValue(nearOSAxis) || undefined,
-              leftNv: nearOSNv.trim() || undefined,
-              pd: distPd.trim() || undefined,
-            }
-          : undefined,
-      });
+      const res = await savePatientPrescriptionAction(rxPayload);
 
       if (res.success) {
         toast.success(res.message || "Prescription recorded successfully!", { id: loadingToast });
@@ -136,7 +187,8 @@ export function AddPrescriptionModal({
         toast.error(res.message || "Failed to record prescription.", { id: loadingToast });
       }
     } catch (err: any) {
-      toast.error(err.message || "An error occurred while saving prescription.", { id: loadingToast });
+      console.warn("[AddPrescriptionModal] Online save failed or timed out, fallback to offline:", err);
+      await saveOfflinePrescription();
     } finally {
       setIsSubmitting(false);
     }

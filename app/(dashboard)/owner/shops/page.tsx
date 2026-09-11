@@ -11,9 +11,19 @@ export default async function OwnerShopsPage() {
   }
 
   let dbShops: any[] = [];
-  const shopsRes = await getShopsWithManagers();
-  if (shopsRes.success) {
-    dbShops = shopsRes.data || [];
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Shops fetch timeout")), 1200)
+    );
+    const shopsRes = await Promise.race([
+      getShopsWithManagers(),
+      timeoutPromise,
+    ]);
+    if (shopsRes.success) {
+      dbShops = shopsRes.data || [];
+    }
+  } catch (err) {
+    dbShops = [];
   }
 
   return <OwnerShopsClient initialShops={dbShops} />;

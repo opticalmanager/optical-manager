@@ -39,9 +39,21 @@ export default async function ReturnDetailPage({
     redirect("/login");
   }
 
-  const data = await getReturnById(id, user.organizationId);
+  let data = null;
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Return query timeout")), 1000)
+    );
+    data = await Promise.race([
+      getReturnById(id, user.organizationId),
+      timeoutPromise,
+    ]);
+  } catch {
+    data = null;
+  }
+
   if (!data) {
-    notFound();
+    redirect("/shop/returns?error=offline_return_unavailable");
   }
 
   return (

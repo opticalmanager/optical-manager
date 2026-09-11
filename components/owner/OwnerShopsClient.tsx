@@ -12,12 +12,15 @@ import {
   User,
   Loader2,
   Edit2,
+  Phone,
+  Users,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { accessShopConsoleAction } from "@/actions/auth.actions";
 import { OutletConfigurePanel } from "./OutletConfigurePanel";
 import type { ShopWithStaffData } from "@/services/shop-manager.service";
-import { Phone, Users, ShieldCheck } from "lucide-react";
+import { offlineDB } from "@/lib/offline/db";
 
 interface OwnerShopsClientProps {
   initialShops: ShopWithStaffData[];
@@ -27,6 +30,32 @@ export function OwnerShopsClient({ initialShops }: OwnerShopsClientProps) {
   const [shopsList, setShopsList] = useState<ShopWithStaffData[]>(initialShops);
   const [selectedShop, setSelectedShop] = useState<ShopWithStaffData | null>(null);
   const [isViewOutletLoading, setIsViewOutletLoading] = useState<string | null>(null);
+
+  // Offline hydration fallback from IndexedDB if server returned empty due to offline mode
+  React.useEffect(() => {
+    if (shopsList.length === 0) {
+      offlineDB.cached_organization
+        .toCollection()
+        .first()
+        .then((cachedOrg) => {
+          if (cachedOrg?.shops && cachedOrg.shops.length > 0) {
+            const mappedShops: ShopWithStaffData[] = cachedOrg.shops.map((s) => ({
+              id: s.id,
+              name: s.name,
+              address: s.address || null,
+              phone: s.phone || null,
+              email: s.email || null,
+              isActive: s.isActive ?? true,
+              staffCount: 1,
+              manager: null,
+              staffList: [],
+            }));
+            setShopsList(mappedShops);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [shopsList.length]);
 
   // KPI Calculations
   const totalOutlets = shopsList.length;

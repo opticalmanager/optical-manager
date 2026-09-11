@@ -44,3 +44,13 @@ Optical Manager is built with cutting-edge web technologies designed for zero-la
 | **Supabase Auth** | `^2.106.0` | JWT-based auth service with cookie session handling (`@supabase/ssr`). |
 | **Nodemailer** | `^6.10.0` | SMTP client for Gmail transactional email dispatches & verification. |
 | **Vercel Speed Insights**| `^2.0.0` | Real-time Core Web Vitals and performance monitoring. |
+
+---
+
+## PWA & Offline Storage
+
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| **Dexie.js** | `^4.0.11` | High-performance IndexedDB wrapper providing type-safe client-side databases. |
+| **Service Worker** | Native Browser API | Client-side asset precaching, offline navigation fallback, and background sync. |
+| **Web App Manifest** | Next.js 16 Native | Standalone desktop/mobile installation support across Windows, macOS, Android, and iOS. |

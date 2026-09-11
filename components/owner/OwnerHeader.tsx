@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Bell, Menu, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { SyncStatusControls } from "@/components/layout/SyncStatusControls";
 
 interface OwnerHeaderProps {
   organizationName: string;
@@ -95,9 +96,11 @@ export function OwnerHeader({
         </span>
       </div>
 
-      {/* Actions: Notifications & Avatar Dropdown */}
-      <div className="flex items-center gap-4">
-        
+      {/* Actions: Sync controls, Notifications & Avatar Dropdown */}
+      <div className="flex items-center gap-3 sm:gap-4">
+        {/* Sync & Connectivity Controls (Online/Offline, Syncing/Synced) */}
+        <SyncStatusControls />
+
         {/* Notification Bell */}
         <button className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-950 transition-colors relative cursor-pointer">
           <Bell className="w-5 h-5" />

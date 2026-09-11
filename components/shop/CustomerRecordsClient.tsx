@@ -17,6 +17,7 @@ import {
   User,
   AlertCircle
 } from "lucide-react";
+import { offlineDB } from "@/lib/offline/db";
 
 interface CustomerDashboardItem {
   id: string;
@@ -67,6 +68,7 @@ const getAvatarColors = (name: string) => {
 
 export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClientProps) {
   const router = useRouter();
+  const [customers, setCustomers] = useState<CustomerDashboardItem[]>(initialCustomers);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [referredFilter, setReferredFilter] = useState<string>("ALL");
@@ -75,22 +77,75 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
 
+  // 1. When online, prioritize server prop data
+  useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      if (initialCustomers && initialCustomers.length > 0) {
+        setCustomers(initialCustomers);
+      }
+    }
+  }, [initialCustomers]);
+
+  // 2. Offline fallback to IndexedDB: only when offline or if server returned empty
+  useEffect(() => {
+    async function loadOfflineCustomers() {
+      if (typeof navigator === "undefined") return;
+      if (!navigator.onLine || !initialCustomers || initialCustomers.length === 0) {
+        try {
+          const cached = await offlineDB.cached_customers.toArray();
+          if (cached && cached.length > 0) {
+            const mapped: CustomerDashboardItem[] = cached.map((c) => ({
+              id: c.id,
+              fullName: c.fullName || "Patient",
+              registrationId: c.registrationId || "",
+              phone: c.phone || "N/A",
+              email: c.email || null,
+              referredBy: c.referredBy || null,
+              doctorName: null,
+              lastVisitDate: c.updatedAt || new Date().toISOString(),
+              orderStatus: "READY",
+              pendingDues: 0,
+            }));
+            setCustomers(mapped);
+          }
+        } catch (err) {
+          console.warn("[CustomerRecordsClient] Failed to load offline customers:", err);
+        }
+      }
+    }
+
+    loadOfflineCustomers();
+
+    const handleDataUpdated = () => {
+      if (!navigator.onLine) {
+        loadOfflineCustomers();
+      }
+    };
+
+    window.addEventListener("offline-databank-updated", handleDataUpdated);
+    window.addEventListener("offline", loadOfflineCustomers);
+    return () => {
+      window.removeEventListener("offline-databank-updated", handleDataUpdated);
+      window.removeEventListener("offline", loadOfflineCustomers);
+    };
+  }, [initialCustomers]);
+
   // Extract distinct referredBy and doctorName values for filter dropdowns
   const uniqueReferredByList = useMemo(() => {
     const set = new Set<string>();
-    initialCustomers.forEach((c) => {
+    customers.forEach((c) => {
       if (c.referredBy?.trim()) set.add(c.referredBy.trim());
     });
     return Array.from(set).sort();
-  }, [initialCustomers]);
+  }, [customers]);
 
   const uniqueDoctorList = useMemo(() => {
     const set = new Set<string>();
-    initialCustomers.forEach((c) => {
+    customers.forEach((c) => {
       if (c.doctorName?.trim()) set.add(c.doctorName.trim());
     });
     return Array.from(set).sort();
-  }, [initialCustomers]);
+  }, [customers]);
 
   // Reset page on filter changes
   useEffect(() => {
@@ -106,16 +161,16 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
 
   // Filter & Search Logic
   const filteredCustomers = useMemo(() => {
-    let result = [...initialCustomers];
+    let result = [...customers];
 
     // Search query (fullName, regId, phone, email, referredBy, doctorName)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
         (c) => 
-          c.fullName.toLowerCase().includes(q) ||
+          (c.fullName || "").toLowerCase().includes(q) ||
           (c.registrationId || "").toLowerCase().includes(q) ||
-          c.phone.includes(q) ||
+          (c.phone || "").includes(q) ||
           (c.email || "").toLowerCase().includes(q) ||
           (c.referredBy || "").toLowerCase().includes(q) ||
           (c.doctorName || "").toLowerCase().includes(q)
@@ -139,11 +194,11 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
 
     // Dues filter
     if (duesFilter) {
-      result = result.filter((c) => c.pendingDues > 0);
+      result = result.filter((c) => (c.pendingDues || 0) > 0);
     }
 
     return result;
-  }, [initialCustomers, searchQuery, statusFilter, referredFilter, doctorFilter, duesFilter]);
+  }, [customers, searchQuery, statusFilter, referredFilter, doctorFilter, duesFilter]);
 
   // Pagination calculations
   const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE));
