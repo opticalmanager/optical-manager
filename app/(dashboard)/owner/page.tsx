@@ -35,20 +35,41 @@ export default async function OwnerDashboardPage() {
 
   const orgId = user.organizationId;
 
-  // 1. Fetch data in parallel
-  const [
-    dbShops,
-    dbCustomers,
-    dbInventory,
-    dbSubscription,
-    dbInvoices
-  ] = await Promise.all([
-    db.select().from(shops).where(eq(shops.organizationId, orgId)),
-    db.select().from(customers).where(eq(customers.organizationId, orgId)),
-    db.select().from(inventory).where(eq(inventory.organizationId, orgId)),
-    db.select().from(subscriptions).where(eq(subscriptions.organizationId, orgId)).limit(1),
-    db.select().from(invoices).where(eq(invoices.organizationId, orgId))
-  ]);
+  // 1. Fetch data in parallel with offline timeout resilience
+  let dbShops: any[] = [];
+  let dbCustomers: any[] = [];
+  let dbInventory: any[] = [];
+  let dbSubscription: any[] = [];
+  let dbInvoices: any[] = [];
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Owner dashboard DB query timeout")), 1200)
+    );
+
+    [
+      dbShops,
+      dbCustomers,
+      dbInventory,
+      dbSubscription,
+      dbInvoices
+    ] = await Promise.race([
+      Promise.all([
+        db.select().from(shops).where(eq(shops.organizationId, orgId)),
+        db.select().from(customers).where(eq(customers.organizationId, orgId)),
+        db.select().from(inventory).where(eq(inventory.organizationId, orgId)),
+        db.select().from(subscriptions).where(eq(subscriptions.organizationId, orgId)).limit(1),
+        db.select().from(invoices).where(eq(invoices.organizationId, orgId))
+      ]),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    dbShops = [];
+    dbCustomers = [];
+    dbInventory = [];
+    dbSubscription = [];
+    dbInvoices = [];
+  }
 
   // 2. Determine if database is empty to fallback to mock data
   const totalCustomersCount = dbCustomers.length;

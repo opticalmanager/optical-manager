@@ -13,6 +13,7 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 | **Deployment / Hosting**| **AWS Amplify / EC2**| CI/CD build pipelines, SSR edge deployment (`amplify.yml`), domain SSL certificates. | Pay-as-you-go | **~$5.00 – $20.00 / mo** |
 | **Deployment (Alt)** | **Vercel** | Edge network hosting for Next.js App Router. | Pro / Hobby | **$0.00 – $20.00 / mo** |
 | **Performance RUM** | **Vercel Speed Insights** | Real-time Core Web Vitals and user performance tracking. | Included | **$0.00 / mo** |
+| **Offline Databank**| **Dexie.js / IndexedDB** | Local in-browser client database for offline POS checkout & cache. | Browser API (MIT) | **$0.00 / mo** |
 | **Typography & Icons** | **Google Fonts / Lucide**| Custom fonts (Inter, Outfit) and UI vector iconography. | Open Source (MIT) | **$0.00** |
 
 ---

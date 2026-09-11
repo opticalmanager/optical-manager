@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   ClipboardList, 
@@ -15,8 +15,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, cn } from "@/lib/utils";
-import { DashboardData, AppointmentItem } from "@/services/dashboard.service";
+import { DashboardData, AppointmentItem, RecentOrder, StockAlert } from "@/services/dashboard.service";
 import { AppointmentDetailsModal } from "./AppointmentDetailsModal";
+import { offlineDB } from "@/lib/offline/db";
 
 interface StoreOverviewClientProps {
   data: DashboardData;
@@ -27,9 +28,182 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
   const [activeTab, setActiveTab] = useState<"appointments" | "pending" | "pickup" | "delayed">("appointments");
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentItem | null>(null);
 
-  const initialList = data.appointments || [];
+  const [appointmentsList, setAppointmentsList] = useState<AppointmentItem[]>(data?.appointments || []);
+  const [kpis, setKpis] = useState(data?.kpis || {
+    revenue: 0,
+    collections: 0,
+    pendingOrders: 0,
+    readyForPickupOrders: 0,
+    delayedOrders: 0,
+    appointmentsToday: 0,
+    lowStockAlerts: 0,
+    pendingPayments: 0,
+    totalOrdersCount: 0,
+    avgOrderValue: 0,
+    paidInvoicesCount: 0,
+    patientVisitsCount: 0,
+  });
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>(data?.recentOrders || []);
+  const [stockAlerts, setStockAlerts] = useState<StockAlert[]>(data?.stockAlerts || []);
 
-  const [appointmentsList, setAppointmentsList] = useState<AppointmentItem[]>(initialList);
+  // Sync server props when online
+  useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      if (data?.kpis) setKpis(data.kpis);
+      if (data?.appointments) setAppointmentsList(data.appointments);
+      if (data?.recentOrders) setRecentOrders(data.recentOrders);
+      if (data?.stockAlerts) setStockAlerts(data.stockAlerts);
+    }
+  }, [data]);
+
+  // Resilient IndexedDB hydration for offline mode
+  useEffect(() => {
+    async function loadOfflineStoreData() {
+      if (typeof navigator === "undefined") return;
+      if (!navigator.onLine || !data?.kpis || (data?.recentOrders && data.recentOrders.length === 0)) {
+        try {
+          const [cachedApps, cachedOrders, cachedInv, offlineQueue] = await Promise.all([
+            offlineDB.cached_appointments.toArray(),
+            offlineDB.cached_orders.toArray(),
+            offlineDB.cached_inventory.toArray(),
+            offlineDB.offline_invoices_queue.toArray(),
+          ]);
+
+          const todayStr = new Date().toISOString().split("T")[0];
+
+          // 1. Appointments
+          if (cachedApps.length > 0) {
+            const mappedApps: AppointmentItem[] = cachedApps
+              .filter((a) => a.appointmentDate === todayStr || !a.appointmentDate)
+              .map((a) => ({
+                id: a.id,
+                customerName: a.patientName,
+                customerPhone: a.patientPhone,
+                visitTime: a.appointmentTime || "10:00 AM",
+                purposeOfVisit: a.type || "Routine Eye Exam",
+                status: (a.status as any) || "CONFIRMED",
+                notes: a.notes,
+              }));
+            if (mappedApps.length > 0) {
+              setAppointmentsList(mappedApps);
+            }
+          }
+
+          // 2. Orders & KPIs
+          let pendingCount = 0;
+          let pickupCount = 0;
+          let delayedCount = 0;
+          const mappedRecentOrders: RecentOrder[] = [];
+
+          // Queue items first
+          const seenOrderIds = new Set<string>();
+          for (const q of offlineQueue) {
+            const p = q.payload;
+            const items = p?.invoiceItems || p?.items || [];
+            let subtotal = 0;
+            let calculatedDiscount = 0;
+            let totalTax = 0;
+            for (const it of items) {
+              subtotal += (Number(it.unitPrice) || 0) * (Number(it.quantity) || 1);
+              calculatedDiscount += Number(it.discountAmount) || 0;
+              totalTax += (Number(it.cgstAmount) || 0) + (Number(it.sgstAmount) || 0) + (Number(it.igstAmount) || 0);
+            }
+            const grandTotal = Math.max(0, subtotal - calculatedDiscount) + totalTax;
+            const amount = p?.total !== undefined ? parseFloat(p.total) : (grandTotal || subtotal);
+
+            const orderKey = q.offlineInvoiceNumber || q.id;
+            seenOrderIds.add(orderKey);
+
+            mappedRecentOrders.push({
+              id: q.id,
+              customerName: p?.customer?.fullName || "Walk-in Patient",
+              customerPhone: p?.customer?.phone || undefined,
+              amount,
+              status: q.syncStatus === "SYNCED" ? "PAID" : "PENDING",
+              fulfillmentStatus: "UNDER_PROCESSING",
+              dateStr: new Date(q.createdAt).toLocaleDateString(),
+            });
+            pendingCount++;
+          }
+
+          // Cached orders (avoid duplicate counts)
+          for (const o of cachedOrders) {
+            const orderKey = o.invoiceNumber || o.id;
+            if (seenOrderIds.has(orderKey)) {
+              continue;
+            }
+            seenOrderIds.add(orderKey);
+
+            if (mappedRecentOrders.length < 8) {
+              mappedRecentOrders.push({
+                id: o.id,
+                customerName: o.customerName,
+                customerPhone: o.customerPhone || undefined,
+                amount: parseFloat(o.totalAmount) || 0,
+                status: parseFloat(o.dueAmount) === 0 ? "PAID" : parseFloat(o.paidAmount) > 0 ? "PARTIALLY_PAID" : "PENDING",
+                fulfillmentStatus: o.status,
+                dateStr: new Date(o.createdAt).toLocaleDateString(),
+              });
+            }
+            if (o.status !== "DELIVERED") {
+              pendingCount++;
+              if (o.status === "READY" || o.status === "PROCESSING") {
+                pickupCount++;
+              }
+              if (o.deliveryDate && o.deliveryDate < todayStr) {
+                delayedCount++;
+              }
+            }
+          }
+
+          if (mappedRecentOrders.length > 0) {
+            setRecentOrders(mappedRecentOrders);
+          }
+
+          // 3. Stock Alerts
+          const lowStock = cachedInv
+            .filter((i) => i.quantity <= 5)
+            .slice(0, 8)
+            .map((i) => ({
+              id: i.id,
+              name: i.name,
+              units: i.quantity,
+              sku: i.sku || undefined,
+              status: (i.quantity <= 0 ? "OUT_OF_STOCK" : "LOW_STOCK") as any,
+            }));
+
+          if (lowStock.length > 0) {
+            setStockAlerts(lowStock);
+          }
+
+          setKpis((prev) => ({
+            ...prev,
+            pendingOrders: pendingCount,
+            readyForPickupOrders: pickupCount,
+            delayedOrders: delayedCount,
+            appointmentsToday: cachedApps.filter((a) => a.appointmentDate === todayStr).length,
+          }));
+        } catch (err) {
+          console.warn("[StoreOverviewClient] Failed to load offline dashboard data:", err);
+        }
+      }
+    }
+
+    loadOfflineStoreData();
+
+    const handleDataUpdated = () => {
+      if (!navigator.onLine) {
+        loadOfflineStoreData();
+      }
+    };
+
+    window.addEventListener("offline-databank-updated", handleDataUpdated);
+    window.addEventListener("offline", loadOfflineStoreData);
+    return () => {
+      window.removeEventListener("offline-databank-updated", handleDataUpdated);
+      window.removeEventListener("offline", loadOfflineStoreData);
+    };
+  }, [data]);
 
   const handleStatusUpdated = (appointmentId: string, newStatus: "COMPLETED" | "CANCELLED" | "CONFIRMED") => {
     setAppointmentsList((prev) =>
@@ -79,7 +253,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               PENDING ORDERS
             </span>
             <div className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-              {data.kpis.pendingOrders}
+              {kpis.pendingOrders}
             </div>
           </div>
         </div>
@@ -107,7 +281,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               READY FOR PICKUP
             </span>
             <div className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-              {data.kpis.readyForPickupOrders}
+              {kpis.readyForPickupOrders}
             </div>
           </div>
         </div>
@@ -135,7 +309,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               DELAYED ORDERS
             </span>
             <div className="text-2xl font-extrabold text-rose-600 tracking-tight mt-0.5">
-              {data.kpis.delayedOrders}
+              {kpis.delayedOrders}
             </div>
           </div>
         </div>
@@ -160,7 +334,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               APPOINTMENTS TODAY
             </span>
             <div className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-              {data.kpis.appointmentsToday}
+              {kpis.appointmentsToday}
             </div>
           </div>
         </div>
@@ -273,7 +447,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.recentOrders.map((order) => (
+                {recentOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group cursor-pointer">
                     <td className="py-3 px-5">
                       <span className="text-xs font-bold text-slate-900 block">
@@ -353,14 +527,14 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.recentOrders.length === 0 ? (
+                {recentOrders.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="text-center py-6 text-xs text-slate-400 font-semibold">
                       No recent orders recorded
                     </td>
                   </tr>
                 ) : (
-                  data.recentOrders.map((order, idx) => (
+                  recentOrders.map((order, idx) => (
                     <tr key={order.id || idx} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-3 py-2.5">
                         <span className="text-xs font-bold text-slate-800 block">
@@ -417,14 +591,14 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.stockAlerts.length === 0 ? (
+                {stockAlerts.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="text-center py-6 text-xs text-slate-400 font-semibold">
                       All inventory items healthy
                     </td>
                   </tr>
                 ) : (
-                  data.stockAlerts.map((alert, idx) => (
+                  stockAlerts.map((alert, idx) => (
                     <tr key={alert.id || idx} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-3 py-2.5">
                         <span className="text-xs font-bold text-slate-800 block">

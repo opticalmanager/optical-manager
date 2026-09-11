@@ -57,38 +57,74 @@ export default async function OwnerReportsPage({ searchParams }: PageProps) {
     to = end.toISOString().split("T")[0];
   }
 
-  // Fetch list of active organization shops
-  const orgShops = await db
-    .select({
-      id: shops.id,
-      name: shops.name,
-      isActive: shops.isActive,
-    })
-    .from(shops)
-    .where(and(eq(shops.organizationId, user.organizationId), eq(shops.isActive, true)));
+  // Fetch list of active organization shops and reports with offline timeout resilience
+  let orgShops: any[] = [];
+  let salesData: any = { metrics: { totalRevenue: 0, orderCount: 0, averageOrderValue: 0, totalDue: 0 }, rows: [] };
+  let itemData: any = [];
+  let gstData: any = { summary: { totalTaxable: 0, totalCGST: 0, totalSGST: 0, totalIGST: 0, grandTotalTax: 0 }, rows: [] };
+  let inventoryData: any = { summary: { totalProducts: 0, totalStockQty: 0, totalCostValue: 0, totalRetailValue: 0 }, rows: [] };
+  let paymentData: any = { breakdown: [], totalCollected: 0 };
+  let appointmentData: any = { summary: { totalAppointments: 0, confirmed: 0, completed: 0, cancelled: 0 }, rows: [] };
+  let dayWiseData: any = [];
+  let duesData: any = { totalDues: 0, rows: [] };
+  let deadStockData: any = { totalDeadStockQty: 0, totalDeadStockValue: 0, rows: [] };
 
-  // Fetch all report data in parallel across all outlets or selected outlet
-  const [
-    salesData, 
-    itemData, 
-    gstData, 
-    inventoryData, 
-    paymentData, 
-    appointmentData,
-    dayWiseData,
-    duesData,
-    deadStockData
-  ] = await Promise.all([
-    getSalesSummaryReport(currentShopId, from, to, user.organizationId),
-    getItemWiseReport(currentShopId, from, to, user.organizationId),
-    getGSTReport(currentShopId, from, to, user.organizationId),
-    getInventoryReport(currentShopId, user.organizationId),
-    getPaymentCollectionReport(currentShopId, from, to, user.organizationId),
-    getAppointmentReport(currentShopId, from, to, user.organizationId),
-    getDayWiseCollectionReport(currentShopId, from, to, user.organizationId),
-    getOutstandingDuesReport(currentShopId, user.organizationId),
-    getDeadStockReport(currentShopId, user.organizationId),
-  ]);
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Reports fetch timeout")), 1500)
+    );
+
+    const [
+      shopsData,
+      [
+        sData,
+        iData,
+        gData,
+        invData,
+        pData,
+        aData,
+        dData,
+        dueData,
+        deadData,
+      ],
+    ] = await Promise.race([
+      Promise.all([
+        db
+          .select({
+            id: shops.id,
+            name: shops.name,
+            isActive: shops.isActive,
+          })
+          .from(shops)
+          .where(and(eq(shops.organizationId, user.organizationId), eq(shops.isActive, true))),
+        Promise.all([
+          getSalesSummaryReport(currentShopId, from, to, user.organizationId),
+          getItemWiseReport(currentShopId, from, to, user.organizationId),
+          getGSTReport(currentShopId, from, to, user.organizationId),
+          getInventoryReport(currentShopId, user.organizationId),
+          getPaymentCollectionReport(currentShopId, from, to, user.organizationId),
+          getAppointmentReport(currentShopId, from, to, user.organizationId),
+          getDayWiseCollectionReport(currentShopId, from, to, user.organizationId),
+          getOutstandingDuesReport(currentShopId, user.organizationId),
+          getDeadStockReport(currentShopId, user.organizationId),
+        ]),
+      ]),
+      timeoutPromise,
+    ]);
+
+    orgShops = shopsData || [];
+    salesData = sData || salesData;
+    itemData = iData || [];
+    gstData = gData || gstData;
+    inventoryData = invData || inventoryData;
+    paymentData = pData || paymentData;
+    appointmentData = aData || appointmentData;
+    dayWiseData = dData || [];
+    duesData = dueData || duesData;
+    deadStockData = deadData || deadStockData;
+  } catch (err) {
+    // Graceful offline fallback
+  }
 
   return (
     <OwnerReportsClient

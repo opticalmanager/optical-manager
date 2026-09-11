@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/drizzle";
 import { orders, invoices, customers, invoiceItems, inventory, shops, receipts, orderEditHistory, profiles } from "@/db/schema";
-import { eq, ne, and, or, ilike, sql, desc, inArray, lte, gt, gte, isNull } from "drizzle-orm";
+import { eq, ne, and, or, ilike, sql, desc, inArray, lte, lt, gt, gte, isNull } from "drizzle-orm";
 
 export interface OrderDashboardKPIs {
   totalOrders: number;
@@ -147,10 +147,12 @@ export async function buildOrderFilters(params: {
   ];
 
   if (currentStart > 0) {
-    filters.push(gte(invoices.createdAt, new Date(currentStart)));
+    const startIso = new Date(currentStart).toISOString();
+    filters.push(sql`${invoices.createdAt} >= ${startIso}::timestamptz`);
   }
   if (currentEnd < nowTime) {
-    filters.push(lte(invoices.createdAt, new Date(currentEnd)));
+    const endIso = new Date(currentEnd).toISOString();
+    filters.push(sql`${invoices.createdAt} <= ${endIso}::timestamptz`);
   }
 
   if (tab === "PAID") {
@@ -212,23 +214,6 @@ export async function getOrdersDashboardData(params: {
   const { shopId, tab, search, page, limit, timeframe = "30d", filter = "ALL" } = params;
   const offset = (page - 1) * limit;
 
-  // 1. Fetch all Invoices for aggregate KPI metrics
-  const allInvoices = await db
-    .select({
-      id: invoices.id,
-      status: invoices.status,
-      fulfillmentStatus: invoices.fulfillmentStatus,
-      estimatedDelivery: invoices.estimatedDelivery,
-      createdAt: invoices.createdAt,
-      amountPaid: invoices.amountPaid,
-      balanceDue: invoices.balanceDue,
-      customerId: invoices.customerId,
-      invoiceNumber: invoices.invoiceNumber,
-      total: invoices.total,
-    })
-    .from(invoices)
-    .where(and(eq(invoices.shopId, shopId), isNull(invoices.deletedAt)));
-
   // Get active filters and date boundaries
   const {
     filters,
@@ -245,6 +230,145 @@ export async function getOrdersDashboardData(params: {
     filter,
   });
 
+  const currentStartIso = currentStart > 0 ? new Date(currentStart).toISOString() : null;
+  const currentEndIso = currentEnd < nowTime ? new Date(currentEnd).toISOString() : null;
+  const prevStartIso = previousStart > 0 ? new Date(previousStart).toISOString() : null;
+  const prevEndIso = previousEnd > 0 ? new Date(previousEnd).toISOString() : null;
+
+  // 1. Run KPI aggregates, pagination counts, order rows, and priority reminders in parallel for zero latency
+  const [kpiRes, prevKpiRes, countRes, ordersListRaw, overduePartialsRaw, delayedDeliveriesRaw] = await Promise.all([
+    db
+      .select({
+        totalOrders: sql<number>`count(*)::int`,
+        deliveredOrders: sql<number>`count(*) filter (where ${invoices.fulfillmentStatus} = 'DELIVERED')::int`,
+        pendingOrders: sql<number>`count(*) filter (where ${invoices.fulfillmentStatus} != 'DELIVERED')::int`,
+        criticalPending: sql<number>`count(*) filter (where ${invoices.fulfillmentStatus} != 'DELIVERED' and ${invoices.createdAt} < NOW() - INTERVAL '7 days')::int`,
+        delayedOrders: sql<number>`count(*) filter (where ${invoices.fulfillmentStatus} != 'DELIVERED' and ${invoices.estimatedDelivery} is not null and ${invoices.estimatedDelivery} < CURRENT_DATE)::int`,
+        criticalDelayed: sql<number>`count(*) filter (where ${invoices.fulfillmentStatus} != 'DELIVERED' and ${invoices.estimatedDelivery} is not null and ${invoices.estimatedDelivery} < CURRENT_DATE - INTERVAL '3 days')::int`,
+      })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.shopId, shopId),
+          isNull(invoices.deletedAt),
+          currentStartIso ? sql`${invoices.createdAt} >= ${currentStartIso}::timestamptz` : sql`true`,
+          currentEndIso ? sql`${invoices.createdAt} <= ${currentEndIso}::timestamptz` : sql`true`
+        )
+      ),
+
+    prevStartIso && prevEndIso
+      ? db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.shopId, shopId),
+              isNull(invoices.deletedAt),
+              sql`${invoices.createdAt} >= ${prevStartIso}::timestamptz`,
+              sql`${invoices.createdAt} <= ${prevEndIso}::timestamptz`
+            )
+          )
+      : Promise.resolve([{ count: 0 }]),
+
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(invoices)
+      .innerJoin(customers, eq(invoices.customerId, customers.id))
+      .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+      .where(and(...filters)),
+
+    db
+      .select({
+        id: invoices.id,
+        orderNumber: sql<string>`COALESCE(${orders.orderNumber}, ${invoices.invoiceNumber})`,
+        invoiceId: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        createdAt: invoices.createdAt,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        balanceDue: invoices.balanceDue,
+        paymentMethod: invoices.paymentMethod,
+        fulfillmentStatus: invoices.fulfillmentStatus,
+        estimatedDelivery: invoices.estimatedDelivery,
+        isRescheduled: invoices.isRescheduled,
+        customerId: customers.id,
+        customerName: customers.fullName,
+        customerPhone: customers.phone,
+        customerEmail: customers.email,
+        receiptId: orders.receiptId,
+      })
+      .from(invoices)
+      .innerJoin(customers, eq(invoices.customerId, customers.id))
+      .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+      .where(and(...filters))
+      .orderBy(desc(invoices.createdAt))
+      .limit(limit)
+      .offset(offset),
+
+    db
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        createdAt: invoices.createdAt,
+        customerName: customers.fullName,
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .where(
+        and(
+          eq(invoices.shopId, shopId),
+          isNull(invoices.deletedAt),
+          eq(invoices.status, "PENDING"),
+          gt(sql`${invoices.amountPaid}::numeric`, 0),
+          sql`${invoices.createdAt} < NOW() - INTERVAL '3 days'`
+        )
+      )
+      .orderBy(invoices.createdAt)
+      .limit(2)
+      .catch((err) => {
+        console.warn("[order.service] Failed to fetch overdue partials in parallel:", err);
+        return [];
+      }),
+
+    db
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        estimatedDelivery: invoices.estimatedDelivery,
+        customerName: customers.fullName,
+        orderNumber: orders.orderNumber,
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .leftJoin(orders, eq(invoices.id, orders.invoiceId))
+      .where(
+        and(
+          eq(invoices.shopId, shopId),
+          isNull(invoices.deletedAt),
+          ne(invoices.fulfillmentStatus, "DELIVERED"),
+          sql`${invoices.estimatedDelivery} IS NOT NULL`,
+          sql`${invoices.estimatedDelivery} < CURRENT_DATE`
+        )
+      )
+      .orderBy(invoices.estimatedDelivery)
+      .limit(2)
+      .catch((err) => {
+        console.warn("[order.service] Failed to fetch delayed deliveries in parallel:", err);
+        return [];
+      }),
+  ]);
+
+  const rawKpi = kpiRes[0] || {
+    totalOrders: 0,
+    deliveredOrders: 0,
+    pendingOrders: 0,
+    criticalPending: 0,
+    delayedOrders: 0,
+    criticalDelayed: 0,
+  };
+
   const calculatePercentChange = (current: number, previous: number): string => {
     if (previous === 0) {
       return current > 0 ? "+100%" : "0%";
@@ -254,115 +378,24 @@ export async function getOrdersDashboardData(params: {
     return `${sign}${pct.toFixed(0)}%`;
   };
 
-  // Filter subset of invoices that fall within selected timeframe
-  let timeframeInvoices = allInvoices;
-  if (currentStart > 0) {
-    timeframeInvoices = allInvoices.filter((inv) => {
-      const createdTime = new Date(inv.createdAt).getTime();
-      return createdTime >= currentStart && createdTime <= currentEnd;
-    });
-  }
-
-  let currentPeriodCount = 0;
-  let previousPeriodCount = 0;
-
-  allInvoices.forEach((inv) => {
-    const createdTime = new Date(inv.createdAt).getTime();
-    if (timeframe === "all") {
-      if (createdTime >= previousEnd) {
-        currentPeriodCount++;
-      } else if (createdTime >= previousStart && createdTime < previousEnd) {
-        previousPeriodCount++;
-      }
-    } else {
-      if (createdTime >= currentStart && createdTime <= currentEnd) {
-        currentPeriodCount++;
-      } else if (createdTime >= previousStart && createdTime <= previousEnd) {
-        previousPeriodCount++;
-      }
-    }
-  });
-
-  const totalOrdersMoM = calculatePercentChange(currentPeriodCount, previousPeriodCount);
-
-  const totalOrders = timeframeInvoices.length;
-  const deliveredOrders = timeframeInvoices.filter((i) => i.fulfillmentStatus === "DELIVERED").length;
+  const totalOrders = rawKpi.totalOrders || 0;
+  const deliveredOrders = rawKpi.deliveredOrders || 0;
   const completionRate = totalOrders > 0 ? Math.round((deliveredOrders / totalOrders) * 100) : 0;
-  
-  const pendingOrders = timeframeInvoices.filter(
-    (i) => i.fulfillmentStatus !== "DELIVERED"
-  ).length;
-
-  const criticalPending = timeframeInvoices.filter((i) => {
-    if (i.fulfillmentStatus === "DELIVERED") return false;
-    const ageInDays = (Date.now() - new Date(i.createdAt).getTime()) / (1000 * 3600 * 24);
-    return ageInDays > 7;
-  }).length;
-
-  const now = new Date().toISOString().split("T")[0];
-  const delayedOrders = timeframeInvoices.filter((i) => {
-    if (i.fulfillmentStatus === "DELIVERED") return false;
-    if (!i.estimatedDelivery) return false;
-    return i.estimatedDelivery < now;
-  }).length;
-
-  const criticalDelayed = timeframeInvoices.filter((i) => {
-    if (i.fulfillmentStatus === "DELIVERED") return false;
-    if (!i.estimatedDelivery) return false;
-    const delayInDays = (Date.now() - new Date(i.estimatedDelivery).getTime()) / (1000 * 3600 * 24);
-    return delayInDays > 3;
-  }).length;
+  const prevCount = prevKpiRes[0]?.count || 0;
+  const totalOrdersMoM = calculatePercentChange(totalOrders, prevCount);
 
   const kpis: OrderDashboardKPIs = {
     totalOrders,
     totalOrdersMoM,
     deliveredOrders,
     completionRate,
-    pendingOrders,
-    criticalPending,
-    delayedOrders,
-    criticalDelayed,
+    pendingOrders: rawKpi.pendingOrders || 0,
+    criticalPending: rawKpi.criticalPending || 0,
+    delayedOrders: rawKpi.delayedOrders || 0,
+    criticalDelayed: rawKpi.criticalDelayed || 0,
   };
 
-
-  // 3. Fetch count for pagination
-  const [countRes] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(invoices)
-    .innerJoin(customers, eq(invoices.customerId, customers.id))
-    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
-    .where(and(...filters));
-
-  const totalCount = countRes?.count || 0;
-
-  // 4. Fetch the paginated orders
-  const ordersListRaw = await db
-    .select({
-      id: invoices.id,
-      orderNumber: sql<string>`COALESCE(${orders.orderNumber}, ${invoices.invoiceNumber})`,
-      invoiceId: invoices.id,
-      invoiceNumber: invoices.invoiceNumber,
-      createdAt: invoices.createdAt,
-      total: invoices.total,
-      amountPaid: invoices.amountPaid,
-      balanceDue: invoices.balanceDue,
-      paymentMethod: invoices.paymentMethod,
-      fulfillmentStatus: invoices.fulfillmentStatus,
-      estimatedDelivery: invoices.estimatedDelivery,
-      isRescheduled: invoices.isRescheduled,
-      customerId: customers.id,
-      customerName: customers.fullName,
-      customerPhone: customers.phone,
-      customerEmail: customers.email,
-      receiptId: orders.receiptId,
-    })
-    .from(invoices)
-    .innerJoin(customers, eq(invoices.customerId, customers.id))
-    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
-    .where(and(...filters))
-    .orderBy(desc(invoices.createdAt))
-    .limit(limit)
-    .offset(offset);
+  const totalCount = countRes[0]?.count || 0;
 
   // 5. Gather line items for SKU details & receipts (resolving N+1 query issue)
   let ordersList: OrderItem[] = [];
@@ -443,72 +476,39 @@ export async function getOrdersDashboardData(params: {
   // 6. Generate Priority Reminders (limit to top 3 for dashboard space)
   const reminders: PriorityReminder[] = [];
 
-  // Filter 1: Overdue partial payments (status is PENDING, amountPaid > 0, older than 3 days)
-  const overduePartials = allInvoices
-    .filter((i) => {
-      if (i.status !== "PENDING") return false;
-      if (parseFloat(i.amountPaid) <= 0) return false;
-      const ageInDays = (Date.now() - new Date(i.createdAt).getTime()) / (1000 * 3600 * 24);
-      return ageInDays > 3;
-    })
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()); // oldest first
+  try {
+    for (const inv of overduePartialsRaw) {
+      const ageInDays = Math.floor((Date.now() - new Date(inv.createdAt).getTime()) / (1000 * 3600 * 24));
+      reminders.push({
+        id: inv.id,
+        type: "payment",
+        title: `Partial Payment: ${inv.customerName || "Patient"} (${inv.invoiceNumber})`,
+        subtext: `${ageInDays} days delay • Total amount: ${formatCurrency(parseFloat(inv.total))}`,
+        amount: inv.total,
+        customerName: inv.customerName || "Patient",
+        invoiceNumber: inv.invoiceNumber,
+      });
+    }
 
-  for (const inv of overduePartials.slice(0, 2)) {
-    // Fetch customer info
-    const [c] = await db
-      .select({ fullName: customers.fullName })
-      .from(customers)
-      .where(eq(customers.id, inv.customerId))
-      .limit(1);
+    for (const inv of delayedDeliveriesRaw) {
+      const formattedDeliveryDate = inv.estimatedDelivery
+        ? new Date(inv.estimatedDelivery).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })
+        : "Unknown";
 
-    const ageInDays = Math.floor((Date.now() - new Date(inv.createdAt).getTime()) / (1000 * 3600 * 24));
-
-    reminders.push({
-      id: inv.id,
-      type: "payment",
-      title: `Partial Payment: ${c?.fullName || "Patient"} (${inv.invoiceNumber})`,
-      subtext: `${ageInDays} days delay • Total amount: ${formatCurrency(inv.total)}`,
-      amount: inv.total,
-      customerName: c?.fullName || "Patient",
-      invoiceNumber: inv.invoiceNumber,
-    });
-  }
-
-  // Filter 2: Delayed deliveries (status not DELIVERED, estimatedDelivery in the past)
-  const delayedDeliveries = allInvoices
-    .filter((i) => {
-      if (i.fulfillmentStatus === "DELIVERED") return false;
-      if (!i.estimatedDelivery) return false;
-      return i.estimatedDelivery < now;
-    })
-    .sort((a, b) => new Date(a.estimatedDelivery!).getTime() - new Date(b.estimatedDelivery!).getTime());
-
-  for (const inv of delayedDeliveries.slice(0, 2)) {
-    const [c] = await db
-      .select({ fullName: customers.fullName })
-      .from(customers)
-      .where(eq(customers.id, inv.customerId))
-      .limit(1);
-
-    const [ord] = await db
-      .select({ orderNumber: orders.orderNumber })
-      .from(orders)
-      .where(eq(orders.invoiceId, inv.id))
-      .limit(1);
-
-    const formattedDeliveryDate = new Date(inv.estimatedDelivery!).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-
-    reminders.push({
-      id: inv.id,
-      type: "delivery",
-      title: `Delayed Delivery: ${c?.fullName || "Patient"} (Order ${ord?.orderNumber || "N/A"})`,
-      subtext: `Expected arrival was ${formattedDeliveryDate} • Supplier update requested`,
-      customerName: c?.fullName || "Patient",
-      orderNumber: ord?.orderNumber,
-    });
+      reminders.push({
+        id: inv.id,
+        type: "delivery",
+        title: `Delayed Delivery: ${inv.customerName || "Patient"} (Order ${inv.orderNumber || inv.invoiceNumber})`,
+        subtext: `Expected arrival was ${formattedDeliveryDate} • Supplier update requested`,
+        customerName: inv.customerName || "Patient",
+        orderNumber: inv.orderNumber || inv.invoiceNumber,
+      });
+    }
+  } catch (reminderErr) {
+    console.warn("[order.service] Failed to format priority reminders:", reminderErr);
   }
 
   return {

@@ -17,19 +17,47 @@ export default async function AppointmentSettingsPage() {
     redirect("/login");
   }
 
-  // Fetch organization info
-  const organization = await getOrganizationById(user.organizationId);
-  if (!organization) {
-    redirect("/login");
+  // Fetch organization, shops, and config with offline timeout resilience
+  let organization: any = null;
+  let shops: any[] = [];
+  let initialConfig: any = {};
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Appointment settings fetch timeout")), 1200)
+    );
+
+    const [orgData, shopsRes, configRes] = await Promise.race([
+      Promise.all([
+        getOrganizationById(user.organizationId),
+        getShopsWithManagers().catch(() => ({ success: false, data: [] })),
+        getAppointmentConfig(user.organizationId).catch(() => ({ success: false, data: null })),
+      ]),
+      timeoutPromise,
+    ]);
+
+    organization = orgData;
+    shops = shopsRes && (shopsRes as any).success ? (shopsRes as any).data || [] : [];
+    initialConfig = configRes && (configRes as any).success && (configRes as any).data ? (configRes as any).data : {};
+  } catch (err) {
+    organization = {
+      id: user.organizationId,
+      name: "Optical Store",
+      slug: "opticalstore",
+      phone: null,
+    };
+    shops = [];
+    initialConfig = {};
   }
 
-  // Fetch store branches
-  const shopsRes = await getShopsWithManagers();
-  const shops = shopsRes.success ? shopsRes.data || [] : [];
-
-  // Fetch existing appointment configuration
-  const configRes = await getAppointmentConfig(user.organizationId);
-  const initialConfig = configRes.success && configRes.data ? configRes.data : {};
+  if (!organization) {
+    organization = {
+      id: user.organizationId,
+      name: "Optical Store",
+      slug: "opticalstore",
+      phone: null,
+    };
+  }
 
   return (
     <AppointmentPageBuilder

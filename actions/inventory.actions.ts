@@ -1067,3 +1067,111 @@ export async function updateAccessoryItemAction(
     };
   }
 }
+
+export interface QuickUpdateInventoryPayload {
+  itemId: string;
+  name?: string;
+  brand?: string;
+  model?: string;
+  price?: string | number;
+  costPrice?: string | number;
+  minQuantity?: number;
+  quantityAdjustment?: number; // +/- delta to apply to stock
+  adjustmentReason?: string;
+}
+
+/**
+ * High-density zero-latency server action to quick-update pricing, models, and stock adjustments.
+ */
+export async function quickUpdateInventoryAction(payload: QuickUpdateInventoryPayload): Promise<{
+  success: boolean;
+  message: string;
+  updatedItem?: any;
+}> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized session." };
+    }
+
+    const { itemId, name, brand, model, price, costPrice, minQuantity, quantityAdjustment, adjustmentReason } = payload;
+    if (!itemId) {
+      return { success: false, message: "Item ID is required." };
+    }
+
+    const [existing] = await db
+      .select()
+      .from(inventory)
+      .where(
+        and(
+          eq(inventory.id, itemId),
+          eq(inventory.organizationId, user.organizationId)
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      return { success: false, message: "Inventory item not found or unauthorized access." };
+    }
+
+    const newQuantity = quantityAdjustment
+      ? Math.max(0, existing.quantity + quantityAdjustment)
+      : existing.quantity;
+
+    let updatedRecord: any = null;
+
+    await db.transaction(async (tx) => {
+      const updateData: any = {
+        updatedAt: new Date(),
+      };
+      if (name !== undefined) updateData.name = name.trim();
+      if (brand !== undefined) updateData.brand = brand.trim() || null;
+      if (model !== undefined) updateData.model = model.trim() || null;
+      if (price !== undefined) updateData.price = Number(price).toFixed(2);
+      if (costPrice !== undefined) updateData.costPrice = Number(costPrice).toFixed(2);
+      if (minQuantity !== undefined) updateData.minQuantity = Math.max(0, Math.floor(Number(minQuantity)));
+      if (quantityAdjustment !== undefined && quantityAdjustment !== 0) updateData.quantity = newQuantity;
+
+      const [updated] = await tx
+        .update(inventory)
+        .set(updateData)
+        .where(eq(inventory.id, itemId))
+        .returning();
+
+      updatedRecord = updated;
+
+      if (quantityAdjustment && quantityAdjustment !== 0) {
+        await recordStockMovement(
+          {
+            inventoryId: itemId,
+            shopId: existing.shopId,
+            organizationId: user.organizationId!,
+            movementType: quantityAdjustment > 0 ? "STOCK_IN" : "ADJUSTMENT",
+            quantityChange: Math.abs(quantityAdjustment),
+            balanceAfter: newQuantity,
+            referenceType: "STOCK_ADJUSTMENT",
+            referenceNumber: `ADJ-${Date.now()}`,
+            costPriceAtTime: updateData.costPrice || existing.costPrice || "0.00",
+            notes: adjustmentReason || "Quick stock adjustment",
+            performedBy: user.id,
+          },
+          tx
+        );
+      }
+    });
+
+    revalidatePath("/shop/inventory");
+    return {
+      success: true,
+      message: "Inventory item updated successfully.",
+      updatedItem: updatedRecord,
+    };
+  } catch (error: any) {
+    console.error("Error in quickUpdateInventoryAction:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to update inventory item.",
+    };
+  }
+}
+

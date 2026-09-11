@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { AppointmentsWorkspaceData, CalendarAppointmentItem } from "@/services/appointment.service";
 import { AppointmentDetailsModal } from "./AppointmentDetailsModal";
 import { NewAppointmentModal } from "./NewAppointmentModal";
+import { offlineDB } from "@/lib/offline/db";
 
 interface AppointmentsWorkspaceClientProps {
   data: AppointmentsWorkspaceData;
@@ -47,6 +48,56 @@ export default function AppointmentsWorkspaceClient({ data, shopName }: Appointm
 
   // Appointments source (100% database records)
   const [appointmentsList, setAppointmentsList] = useState<CalendarAppointmentItem[]>(data.appointments || []);
+
+  // Sync server prop updates to local state whenever online
+  React.useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      setAppointmentsList(data.appointments || []);
+    }
+  }, [data.appointments]);
+
+  // Resilient IndexedDB hydration: activates when offline or when initial appointments are empty
+  React.useEffect(() => {
+    async function loadOfflineAppointments() {
+      if (typeof navigator === "undefined") return;
+      if (!navigator.onLine || !data.appointments || data.appointments.length === 0) {
+        try {
+          const cached = await offlineDB.cached_appointments.toArray();
+          if (cached && cached.length > 0) {
+            const mapped: CalendarAppointmentItem[] = cached.map((c) => ({
+              id: c.id,
+              customerName: c.patientName,
+              customerPhone: c.patientPhone,
+              visitTime: c.appointmentTime || "10:00 AM",
+              dateKey: c.appointmentDate,
+              rawVisitTime: `${c.appointmentDate}T${c.appointmentTime || "10:00"}:00`,
+              purposeOfVisit: c.type || "Routine Eye Exam",
+              notes: c.notes || "",
+              status: c.status as any,
+            }));
+            setAppointmentsList(mapped);
+          }
+        } catch (err) {
+          console.warn("[AppointmentsWorkspaceClient] Failed to load offline appointments:", err);
+        }
+      }
+    }
+
+    loadOfflineAppointments();
+
+    const handleDataUpdated = () => {
+      if (!navigator.onLine) {
+        loadOfflineAppointments();
+      }
+    };
+
+    window.addEventListener("offline-databank-updated", handleDataUpdated);
+    window.addEventListener("offline", loadOfflineAppointments);
+    return () => {
+      window.removeEventListener("offline-databank-updated", handleDataUpdated);
+      window.removeEventListener("offline", loadOfflineAppointments);
+    };
+  }, [data.appointments]);
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { SKUDetailsDropdown } from "./SKUDetailsDropdown";
 import { QuickEditModal } from "./QuickEditModal";
 import { OrderItem } from "@/services/order.service";
+import { offlineDB } from "@/lib/offline/db";
 
 interface OrdersTableClientProps {
   orders: OrderItem[];
@@ -38,14 +39,18 @@ function ReceiptsDropdown({
 
   const latestReceipt = receiptsList[0] || null;
 
-  // Primary URL for single click
+  // Primary URL for single click with offline support
+  const invoiceTargetUrl = order.invoiceId.startsWith("off-")
+    ? `/shop/invoices/offline/${order.invoiceId}`
+    : `/shop/invoices/${order.invoiceId}`;
+
   const primaryUrl = isFullyPaid
-    ? `/shop/invoices/${order.invoiceId}`
+    ? invoiceTargetUrl
     : latestReceipt
     ? `/shop/receipts/${latestReceipt.id}`
     : order.receiptId
     ? `/shop/receipts/${order.receiptId}`
-    : `/shop/invoices/${order.invoiceId}`;
+    : invoiceTargetUrl;
 
   const hasDocuments = isFullyPaid || receiptsList.length > 0;
 
@@ -117,7 +122,7 @@ function ReceiptsDropdown({
                   {/* Tax Invoice Item (if Fully Paid) */}
                   {isFullyPaid && (
                     <Link
-                      href={`/shop/invoices/${order.invoiceId}`}
+                      href={invoiceTargetUrl}
                       className="block p-2 rounded-lg bg-emerald-50/60 hover:bg-emerald-100/60 border border-emerald-150 transition-all group/inv"
                     >
                       <div className="flex items-center justify-between">
@@ -191,8 +196,129 @@ export function OrdersTableClient({
   limit,
   canEditOrders = false,
 }: OrdersTableClientProps) {
+  const [ordersList, setOrdersList] = useState<OrderItem[]>(orders);
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Sync server prop updates to local state whenever online
+  useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      setOrdersList(orders || []);
+    }
+  }, [orders]);
+
+  // Resilient IndexedDB hydration: activates when offline or when initial orders are empty
+  useEffect(() => {
+    async function loadOfflineOrders() {
+      if (typeof navigator === "undefined") return;
+      if (!navigator.onLine || !orders || orders.length === 0) {
+        try {
+          const [cachedOrders, offlineInvoices] = await Promise.all([
+            offlineDB.cached_orders.toArray(),
+            offlineDB.offline_invoices_queue.toArray(),
+          ]);
+
+          const mappedCached: OrderItem[] = cachedOrders.map((o) => ({
+            id: o.id,
+            orderNumber: o.invoiceNumber,
+            invoiceId: o.invoiceId,
+            invoiceNumber: o.invoiceNumber,
+            createdAt: new Date(o.createdAt),
+            total: o.totalAmount,
+            amountPaid: o.paidAmount,
+            balanceDue: o.dueAmount,
+            paymentMethod: "CASH",
+            fulfillmentStatus: o.status,
+            estimatedDelivery: o.deliveryDate || null,
+            isRescheduled: false,
+            customerId: o.customerId || "",
+            customerName: o.customerName,
+            customerPhone: o.customerPhone || null,
+            customerEmail: null,
+            skus: [{ description: "Optical Lens & Frame", quantity: o.itemsCount || 1, category: "FRAME", sku: "OFF-ITEM" }],
+            categoryText: "Prescription Order",
+          }));
+
+          const mappedQueue: OrderItem[] = offlineInvoices.map((inv) => {
+            const p = inv.payload;
+            const items = p?.invoiceItems || p?.items || [];
+            let subtotal = 0;
+            let calculatedDiscount = 0;
+            let totalTax = 0;
+            for (const it of items) {
+              subtotal += (Number(it.unitPrice) || 0) * (Number(it.quantity) || 1);
+              calculatedDiscount += Number(it.discountAmount) || 0;
+              totalTax += (Number(it.cgstAmount) || 0) + (Number(it.sgstAmount) || 0) + (Number(it.igstAmount) || 0);
+            }
+            const grandTotal = Math.max(0, subtotal - calculatedDiscount) + totalTax;
+            const total = p?.total !== undefined ? String(p.total) : String(grandTotal.toFixed(2));
+            const amountPaid = p?.amountPaid !== undefined ? String(p.amountPaid) : (p?.paidAmount !== undefined ? String(p.paidAmount) : total);
+            const balanceDue = p?.balanceDue !== undefined ? String(p.balanceDue) : String(Math.max(0, Number(total) - Number(amountPaid)).toFixed(2));
+
+            return {
+              id: inv.id,
+              orderNumber: inv.offlineInvoiceNumber,
+              invoiceId: inv.id,
+              invoiceNumber: inv.offlineInvoiceNumber,
+              createdAt: new Date(inv.createdAt),
+              total,
+              amountPaid,
+              balanceDue,
+              paymentMethod: p?.paymentMethod || "CASH",
+              fulfillmentStatus: inv.syncStatus === "SYNCED" ? "DELIVERED" : "PROCESSING",
+              estimatedDelivery: p?.estimatedDelivery || null,
+              isRescheduled: false,
+              customerId: p?.customerId || p?.customer?.id || "",
+              customerName: p?.customer?.fullName || "Walk-in Patient",
+              customerPhone: p?.customer?.phone || null,
+              customerEmail: p?.customer?.email || null,
+              skus: items.map((it: any) => ({
+                description: it.description || it.inventoryItemName || it.name || "Optical Item",
+                quantity: it.quantity || 1,
+                category: it.category || "FRAME",
+                sku: it.sku || "OFF-SKU",
+              })),
+              categoryText: "Offline Stored Invoice",
+            };
+          });
+
+          // Deduplicate queued and cached orders so no order appears twice
+          const orderMap = new Map<string, OrderItem>();
+          for (const ord of mappedQueue) {
+            orderMap.set(ord.invoiceNumber || ord.id, ord);
+          }
+          for (const ord of mappedCached) {
+            const key = ord.invoiceNumber || ord.id;
+            if (!orderMap.has(key)) {
+              orderMap.set(key, ord);
+            }
+          }
+
+          const combined = Array.from(orderMap.values());
+          if (combined.length > 0) {
+            setOrdersList(combined);
+          }
+        } catch (err) {
+          console.warn("[OrdersTableClient] Failed to load offline orders:", err);
+        }
+      }
+    }
+
+    loadOfflineOrders();
+
+    const handleDataUpdated = () => {
+      if (!navigator.onLine) {
+        loadOfflineOrders();
+      }
+    };
+
+    window.addEventListener("offline-databank-updated", handleDataUpdated);
+    window.addEventListener("offline", loadOfflineOrders);
+    return () => {
+      window.removeEventListener("offline-databank-updated", handleDataUpdated);
+      window.removeEventListener("offline", loadOfflineOrders);
+    };
+  }, [orders]);
 
   const offset = (page - 1) * limit;
 
@@ -219,8 +345,8 @@ export function OrdersTableClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {orders.length > 0 ? (
-              orders.map((order) => {
+            {ordersList.length > 0 ? (
+              ordersList.map((order) => {
                 const itemsCount = order.skus.reduce((sum, s) => sum + s.quantity, 0);
                 const isDelayed =
                   order.fulfillmentStatus !== "DELIVERED" &&
@@ -358,12 +484,12 @@ export function OrdersTableClient({
       </div>
 
       {/* Table Pagination controls */}
-      {totalCount > 0 && (
+      {(totalCount > 0 || ordersList.length > 0) && (
         <div className="py-4 px-6 border-t border-slate-200/80 flex flex-col sm:flex-row gap-3 items-center justify-between bg-white text-center sm:text-left">
           <p className="text-xs font-semibold text-slate-500">
             Showing <span className="font-extrabold text-slate-900">{offset + 1}</span> to{" "}
-            <span className="font-extrabold text-slate-900">{Math.min(offset + limit, totalCount)}</span> of{" "}
-            <span className="font-extrabold text-slate-900">{totalCount.toLocaleString()}</span> orders
+            <span className="font-extrabold text-slate-900">{Math.min(offset + limit, Math.max(totalCount, ordersList.length))}</span> of{" "}
+            <span className="font-extrabold text-slate-900">{Math.max(totalCount, ordersList.length).toLocaleString()}</span> orders
           </p>
           <div className="flex items-center gap-1">
             {page > 1 ? (

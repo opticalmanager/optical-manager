@@ -227,5 +227,41 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Deducts credit from net payable amount and updates the live order summary ledger.
    - Upon invoice creation, atomically decrements `customers.storeCredit`, records a `CREDIT_REDEEMED` entry in `customer_credit_ledger`, logs `creditApplied` on the invoice, and reflects the credit deduction on printable tax invoices and payment receipts.
 
+---
 
+## 10. PWA Offline Billing & Device Synchronization Workflow
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Network Drops /  │───>│ Search Cached    │───>│ Save to Local    │───>│ Reconnect & Sync│
+│ Go Offline       │    │ Patients & Stock │    │ Device Queue     │    │ to Cloud Engine  │
+└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+1. **Automatic Offline Detection & Session Retention**:
+   - When the store device loses internet connectivity, the user remains fully authenticated. Local session cookies and IndexedDB profile metadata ensure the application never kicks the user out to `/login` or triggers infinite redirect loops.
+   - The Service Worker features an **Instant Offline Circuit Breaker** that detects `!navigator.onLine` and serves cached application shells in 0ms without waiting for slow, failing cloud network connections, eliminating 59-second browser timeout hangs.
+    - The topbar (in both Shop Manager and Owner portals) features dedicated, real-time controls beside the primary action buttons:
+      - **Online / Offline Pill**: Displays green `Online` with a pulsing dot when connected; switches to amber `Offline` when disconnected.
+      - **Syncing... / Synced Indicator**: Displays green `Syncing...` with an animated spinner while data syncing is in progress; switches to green `Synced` with a checkmark when complete (allowing manual one-click re-sync).
+      - **Pending Bills Badge**: Displays count of uncommitted offline invoices with one-click cloud upload.
+2. **Full Offline Store Operations (Zero-Latency Navigation)**:
+   - **New Invoices (`/shop/invoices/new`)**: Patient search queries local `cached_customers`, line item search queries `cached_inventory`, auto-populating brand, model, SKU, price, and GST rates directly from local device cache.
+   - **Customer Records (`/shop/customers`)**: Automatically renders cached patient list from IndexedDB with fast search and status filters.
+   - **Inventory Catalog (`/shop/inventory`)**: Displays full stock matrix, SKU quantities, and category filters from local device memory with 0ms latency.
+   - **Appointments Calendar (`/shop/appointments`)**: Renders day, week, and month appointment views from local IndexedDB databank.
+   - **Orders Management (`/shop/orders`)**: Merges locally queued offline invoices and cached cloud orders into the main order tracking table.
+3. **Local Queueing & Immediate Printing**:
+   - Submitting an invoice offline assigns a temporary sequential number (`OFF-2026-XXXX`) and persists the payload into `offline_invoices_queue`.
+   - The line item quantities are deducted immediately from local stock cache so subsequent offline bills accurately reflect inventory counts.
+   - Staff is redirected to the offline invoice viewer (`/shop/invoices/offline/[id]`), where the bill can be printed immediately via `window.print()` using standard invoice formatting (with shop name, address, contact, and GSTIN, and without any watermarks).
+4. **Seamless Cloud Synchronization & Persistent Delta Sync**:
+   - When network connectivity is restored, the `OfflineProvider` automatically triggers batch synchronization with `POST /api/sync/offline-invoices`.
+   - Cloud backend validates the invoices, generates official sequential invoice numbers (`INV-2026-XXXX`), creates order/receipt records, and reconciles PostgreSQL stock.
+   - After synchronization, `GET /api/offline/sync-all?since=...` runs an incremental delta synchronization returning only records modified since the previous sync timestamp, saving bandwidth and merging updates seamlessly via `Dexie.bulkPut` without wiping existing records.
+   - All customer, product, appointment, and order data persists safely in local IndexedDB across browser reboots and restarts for the same shop account.
+   - Once synced, local queue items update to `SYNCED` and the topbar status displays green `Synced`.
+5. **Universal Desktop PWA Installation & Terminal Experience**:
+   - Users can install Optical Manager as a native desktop application on Windows, macOS, Chrome OS, Android, and iOS using the desktop installation button in the topbar or landing page.
+   - Launching the desktop application opens directly into the active store POS terminal, bypassing marketing pages and landing views.
 

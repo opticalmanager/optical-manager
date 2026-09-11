@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Play, ArrowRight, Sparkles } from "lucide-react";
 import DemoRequestModal from "./DemoRequestModal";
+import { InstallAppButton } from "./InstallAppButton";
 
 export default function HeroSection() {
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
@@ -35,7 +36,7 @@ export default function HeroSection() {
               The ultimate all-in-one operating system for modern opticians. Streamline billing, manage inventory with precision, and strengthen patient relationships.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mt-8 flex flex-wrap items-center gap-3.5">
               <Button 
                 size="lg" 
                 onClick={() => setIsDemoModalOpen(true)}
@@ -52,6 +53,7 @@ export default function HeroSection() {
                 <Play className="w-4 h-4 mr-2 group-hover:text-primary transition-colors" />
                 Book Live Demo
               </Button>
+              <InstallAppButton variant="hero" />
             </div>
 
             {/* Trusted by / Social proof */}

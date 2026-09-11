@@ -34,6 +34,9 @@ import {
   Banknote,
 } from "lucide-react";
 import { submitReturnAction } from "@/actions/return.actions";
+import { offlineDB, type CachedReturn } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
+import { useOffline } from "@/components/providers/OfflineProvider";
 
 interface InvoiceItemProduct {
   id: string;
@@ -189,6 +192,7 @@ export function NewReturnForm() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Return Flow States
+  const { isOnline } = useOffline();
   const [returnType, setReturnType] = useState<"SELECTED_PRODUCTS" | "ENTIRE_INVOICE">("SELECTED_PRODUCTS");
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
@@ -232,6 +236,39 @@ export function NewReturnForm() {
     }
   }, [searchParams]);
 
+  const searchInvoicesOffline = async (q: string) => {
+    try {
+      const term = q.trim().toLowerCase();
+      const allCached = await offlineDB.cached_invoices.toArray();
+      const matched = allCached
+        .filter((inv) => {
+          const numMatch = inv.invoiceNumber?.toLowerCase().includes(term);
+          const phoneMatch = inv.customerPhone?.includes(term);
+          const nameMatch = inv.customerName?.toLowerCase().includes(term);
+          return numMatch || phoneMatch || nameMatch;
+        })
+        .slice(0, 8);
+
+      return matched.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        total: inv.total,
+        amountPaid: inv.amountPaid,
+        balanceDue: inv.balanceDue,
+        status: inv.status,
+        fulfillmentStatus: inv.fulfillmentStatus,
+        paymentMethod: inv.paymentMethod || null,
+        createdAt: inv.createdAt,
+        customerId: inv.customerId,
+        customerName: inv.customerName,
+        customerPhone: inv.customerPhone || null,
+      }));
+    } catch (e) {
+      console.warn("[NewReturnForm] Error searching offline invoices:", e);
+      return [];
+    }
+  };
+
   // Debounced autocomplete search
   useEffect(() => {
     if (searchQuery.trim().length < 1) {
@@ -242,15 +279,31 @@ export function NewReturnForm() {
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const offlineData = await searchInvoicesOffline(searchQuery);
+        setAutocompleteResults(offlineData);
+        setShowDropdown(true);
+        setIsSearching(false);
+        return;
+      }
+
       try {
         const res = await fetch(`/api/returns/search-invoices?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
           const data = await res.json();
           setAutocompleteResults(data);
           setShowDropdown(true);
+        } else {
+          const offlineData = await searchInvoicesOffline(searchQuery);
+          setAutocompleteResults(offlineData);
+          setShowDropdown(true);
         }
       } catch (err) {
-        console.error("Autocomplete search error:", err);
+        console.warn("Autocomplete search failed, searching offline databank:", err);
+        const offlineData = await searchInvoicesOffline(searchQuery);
+        setAutocompleteResults(offlineData);
+        setShowDropdown(true);
       } finally {
         setIsSearching(false);
       }
@@ -274,6 +327,18 @@ export function NewReturnForm() {
 
     setInvoiceLoading(true);
     setShowDropdown(false);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const offlineMatches = await searchInvoicesOffline(q);
+      setInvoiceLoading(false);
+      if (offlineMatches.length > 0) {
+        await fetchInvoiceById(offlineMatches[0].id);
+      } else {
+        toast.error("No matching invoice found in local databank.");
+      }
+      return;
+    }
+
     try {
       const res = await fetch(`/api/returns/search-invoices?q=${encodeURIComponent(q.trim())}`);
       if (res.ok) {
@@ -281,14 +346,29 @@ export function NewReturnForm() {
         if (data.length > 0) {
           await fetchInvoiceById(data[0].id);
         } else {
-          toast.error("No matching invoice found for this shop.");
+          const offlineMatches = await searchInvoicesOffline(q);
+          if (offlineMatches.length > 0) {
+            await fetchInvoiceById(offlineMatches[0].id);
+          } else {
+            toast.error("No matching invoice found for this shop.");
+          }
         }
       } else {
-        toast.error("Failed to lookup invoice.");
+        const offlineMatches = await searchInvoicesOffline(q);
+        if (offlineMatches.length > 0) {
+          await fetchInvoiceById(offlineMatches[0].id);
+        } else {
+          toast.error("Failed to lookup invoice.");
+        }
       }
     } catch (err) {
-      console.error("Invoice search error:", err);
-      toast.error("Network error while searching invoice.");
+      console.warn("Invoice search failed, falling back to local databank:", err);
+      const offlineMatches = await searchInvoicesOffline(q);
+      if (offlineMatches.length > 0) {
+        await fetchInvoiceById(offlineMatches[0].id);
+      } else {
+        toast.error("Network error while searching invoice.");
+      }
     } finally {
       setInvoiceLoading(false);
     }
@@ -296,24 +376,101 @@ export function NewReturnForm() {
 
   const fetchInvoiceById = async (id: string) => {
     setInvoiceLoading(true);
+
+    const loadInvoiceOffline = async () => {
+      try {
+        const cachedInv = await offlineDB.cached_invoices.get(id);
+        if (!cachedInv) {
+          toast.error("Invoice not found in local offline storage.");
+          return;
+        }
+
+        const prevReturns = await offlineDB.cached_returns
+          .where("invoiceId")
+          .equals(id)
+          .toArray();
+
+        const offlineDetail: InvoiceDetail = {
+          id: cachedInv.id,
+          shopId: cachedInv.shopId,
+          invoiceNumber: cachedInv.invoiceNumber,
+          subtotal: cachedInv.total,
+          discount: "0.00",
+          tax: "0.00",
+          total: cachedInv.total,
+          status: cachedInv.status,
+          paymentMethod: cachedInv.paymentMethod || "CASH",
+          fulfillmentStatus: cachedInv.fulfillmentStatus,
+          amountPaid: cachedInv.amountPaid,
+          balanceDue: cachedInv.balanceDue,
+          createdAt: new Date(cachedInv.createdAt),
+          customerId: cachedInv.customerId,
+          customerName: cachedInv.customerName,
+          customerPhone: cachedInv.customerPhone || null,
+          customerEmail: null,
+          shopName: "Optical Store",
+          shopAddress: null,
+          items: (cachedInv.items || []).map((it) => {
+            const returnedQty = prevReturns.reduce((sum, r) => {
+              const matchingItem = r.items?.find((x: any) => x.invoiceItemId === it.id);
+              return sum + (matchingItem ? Number(matchingItem.quantityReturned || 0) : 0);
+            }, 0);
+            return {
+              id: it.id,
+              invoiceId: cachedInv.id,
+              inventoryId: (it as any).inventoryId || null,
+              description: it.description,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              subtotal: it.subtotal,
+              category: it.category || null,
+              brand: it.brand || null,
+              model: it.model || null,
+              sku: it.sku || null,
+              imageUrl: null,
+              alreadyReturned: returnedQty,
+              remainingReturnable: Math.max(0, it.quantity - returnedQty),
+              isFullyReturned: it.quantity <= returnedQty,
+            };
+          }),
+        };
+
+        setInvoice(offlineDetail);
+        const firstReturnable = offlineDetail.items?.find(
+          (i: InvoiceItemProduct) => i.remainingReturnable > 0
+        );
+        if (firstReturnable) {
+          initiateItemSelection(firstReturnable, offlineDetail);
+        }
+        toast.success(`Loaded offline invoice ${cachedInv.invoiceNumber}`);
+      } catch (err: any) {
+        console.error("Error fetching offline invoice:", err);
+        toast.error("Error loading offline invoice items.");
+      }
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await loadInvoiceOffline();
+      setInvoiceLoading(false);
+      return;
+    }
+
     try {
-      // Dynamic import / server call emulation
       const res = await fetch(`/api/returns/get-invoice?id=${encodeURIComponent(id)}`);
       if (res.ok) {
         const data = await res.json();
         setInvoice(data);
-        // Automatically select the first returnable item
         const firstReturnable = data.items?.find((i: InvoiceItemProduct) => i.remainingReturnable > 0);
         if (firstReturnable) {
           initiateItemSelection(firstReturnable, data);
         }
         toast.success(`Loaded invoice ${data.invoiceNumber}`);
       } else {
-        toast.error("Could not load invoice details.");
+        await loadInvoiceOffline();
       }
     } catch (err) {
-      console.error("Error fetching invoice details:", err);
-      toast.error("Error loading invoice items.");
+      console.warn("Online invoice detail fetch failed, falling back to local:", err);
+      await loadInvoiceOffline();
     } finally {
       setInvoiceLoading(false);
     }
@@ -429,23 +586,104 @@ export function NewReturnForm() {
       return;
     }
 
-    startTransition(async () => {
-      try {
-        const finalResolvedAmount =
-          customRefundAmount !== "" && !isNaN(parseFloat(customRefundAmount))
-            ? parseFloat(customRefundAmount)
-            : totalReturnRefundSum;
+    const finalResolvedAmount =
+      customRefundAmount !== "" && !isNaN(parseFloat(customRefundAmount))
+        ? parseFloat(customRefundAmount)
+        : totalReturnRefundSum;
 
-        const payload = {
+    const payload = {
+      invoiceId: invoice.id,
+      returnType,
+      refundMethod,
+      customRefundAmount: finalResolvedAmount,
+      items: itemsToSubmit,
+      notes: staffNotes.trim() || undefined,
+      isDraft,
+    };
+
+    const processOfflineReturn = async () => {
+      try {
+        const shopId = invoice.shopId || (await offlineDB.getCurrentShopId()) || "";
+        const orgId = (await offlineDB.getCurrentOrgId()) || "";
+        const returnNumber = `RET-OFF-${Date.now().toString().slice(-6)}`;
+        const returnId = `ret-off-${Date.now()}`;
+
+        // 1. Record return in offlineDB.cached_returns
+        const newCachedReturn: CachedReturn = {
+          id: returnId,
+          shopId,
+          organizationId: orgId,
+          returnNumber,
           invoiceId: invoice.id,
-          returnType,
+          invoiceNumber: invoice.invoiceNumber,
+          customerId: invoice.customerId,
+          customerName: invoice.customerName,
+          customerPhone: invoice.customerPhone,
+          totalRefundAmount: finalResolvedAmount.toFixed(2),
           refundMethod,
-          customRefundAmount: finalResolvedAmount,
+          returnType,
+          status: isDraft ? "DRAFT" : "COMPLETED",
+          itemCount: itemsToSubmit.reduce((sum, it) => sum + it.quantityReturned, 0),
           items: itemsToSubmit,
-          notes: staffNotes.trim() || undefined,
-          isDraft,
+          notes: staffNotes.trim() || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
 
+        await offlineDB.cached_returns.put(newCachedReturn);
+
+        // 2. If STORE_CREDIT, credit customer's offline account
+        if (refundMethod === "STORE_CREDIT") {
+          const cust = await offlineDB.cached_customers.get(invoice.customerId);
+          if (cust) {
+            const currentCredit = parseFloat(cust.storeCredit || "0");
+            await offlineDB.cached_customers.update(invoice.customerId, {
+              storeCredit: (currentCredit + finalResolvedAmount).toFixed(2),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
+
+        // 3. If restocked, adjust cached inventory
+        for (const item of itemsToSubmit) {
+          if (item.inventoryId && item.finalAction === "RESTOCK_INVENTORY") {
+            const inv = await offlineDB.cached_inventory.get(item.inventoryId);
+            if (inv) {
+              await offlineDB.cached_inventory.update(item.inventoryId, {
+                quantity: inv.quantity + item.quantityReturned,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+
+        // 4. Enqueue mutation for background sync
+        await enqueueOfflineMutation(shopId, "RETURN_CREATE", {
+          offlineReturnId: returnId,
+          ...payload,
+          returnNumber,
+        });
+
+        window.dispatchEvent(new CustomEvent("offline-databank-updated"));
+        toast.success(
+          isDraft
+            ? `Return draft saved locally: ${returnNumber}`
+            : `Return processed offline: ${returnNumber}. Will sync when online.`
+        );
+        router.push("/shop/returns");
+      } catch (err: any) {
+        console.error("Error processing offline return:", err);
+        toast.error("Failed to save return locally.");
+      }
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      processOfflineReturn();
+      return;
+    }
+
+    startTransition(async () => {
+      try {
         const res = await submitReturnAction(payload);
         if (res.success && "returnNumber" in res) {
           toast.success(
@@ -461,10 +699,9 @@ export function NewReturnForm() {
         } else if (!res.success && "error" in res) {
           toast.error(res.error || "Failed to process return.");
         }
-
       } catch (err: any) {
-        console.error("Submission error:", err);
-        toast.error(err.message || "An unexpected error occurred.");
+        console.warn("Online return submission failed, processing offline return fallback:", err);
+        await processOfflineReturn();
       }
     });
   };
@@ -491,6 +728,13 @@ export function NewReturnForm() {
           Product Returns
         </h1>
       </div>
+
+      {!isOnline && (
+        <div className="p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl flex items-center gap-3 text-blue-900 text-xs font-semibold animate-in fade-in duration-200">
+          <AlertCircle className="h-4 w-4 text-[#2563eb] shrink-0" />
+          <span>Offline Mode Active: Local databank invoices and returns are available. Returns processed offline will be saved locally and synced automatically when reconnected to the internet.</span>
+        </div>
+      )}
 
       {/* 1. Step 1: Find Invoice & Return Type Header Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">

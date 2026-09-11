@@ -4,6 +4,9 @@ import React, { useState, useEffect, useTransition } from "react";
 import { X, User, Phone, Calendar, Clock, Stethoscope, FileText, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createShopAppointmentAction } from "@/actions/appointment.actions";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
+import { useOffline } from "@/components/providers/OfflineProvider";
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
@@ -22,6 +25,7 @@ const defaultPurposes = [
 
 export function NewAppointmentModal({ isOpen, initialDate, onClose, onSuccess }: NewAppointmentModalProps) {
   const [isPending, startTransition] = useTransition();
+  const { isOnline, shopId: contextShopId } = useOffline();
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -57,32 +61,159 @@ export function NewAppointmentModal({ isOpen, initialDate, onClose, onSuccess }:
       return;
     }
 
+    if (customerPhone.trim().length < 10) {
+      setErrorMsg("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
     if (!visitDate) {
       setErrorMsg("Please select a visit date.");
       return;
     }
 
+    // Format 12-hour time for UI display
+    const [hours, minutes] = visitTime.split(":").map(Number);
+    const dateObj = new Date(visitDate);
+    dateObj.setHours(hours || 10, minutes || 0, 0, 0);
+    const formattedTime = dateObj.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
     const fullDateTimeStr = `${visitDate}T${visitTime}:00`;
 
     startTransition(async () => {
+      const activeShopId =
+        contextShopId ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("om_active_shop_id") || "active_shop"
+          : "active_shop");
+      const isOffline = !isOnline || (typeof navigator !== "undefined" && !navigator.onLine);
+
+      if (isOffline) {
+        const offlineAppId = `off-app-${Date.now()}`;
+
+        const offlineApp = {
+          id: offlineAppId,
+          shopId: activeShopId,
+          organizationId: "offline_org",
+          customerId: null,
+          patientName: customerName.trim(),
+          patientPhone: customerPhone.trim(),
+          appointmentDate: visitDate,
+          appointmentTime: formattedTime,
+          status: "CONFIRMED" as const,
+          type: purposeOfVisit,
+          notes: additionalNotes.trim(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        try {
+          await offlineDB.cached_appointments.put(offlineApp);
+          await enqueueOfflineMutation(activeShopId, "APPOINTMENT_CREATE", {
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+            visitTime: fullDateTimeStr,
+            purposeOfVisit,
+            additionalNotes: additionalNotes.trim(),
+          });
+
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("offline-databank-updated", {
+                detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+              })
+            );
+          }
+
+          onSuccess?.({
+            id: offlineAppId,
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+            visitTime: formattedTime,
+            rawVisitTime: fullDateTimeStr,
+            dateKey: visitDate,
+            purposeOfVisit,
+            status: "CONFIRMED",
+            notes: additionalNotes.trim(),
+          });
+          onClose();
+        } catch (err: any) {
+          console.error("Failed to save offline appointment:", err);
+          setErrorMsg("Failed to save appointment locally.");
+        }
+        return;
+      }
+
       try {
         const res = await createShopAppointmentAction({
-          customerName,
-          customerPhone,
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim(),
           visitTime: fullDateTimeStr,
           purposeOfVisit,
-          additionalNotes,
+          additionalNotes: additionalNotes.trim(),
         });
 
-        if (res.success) {
+        if (res.success && res.data) {
           onSuccess?.(res.data);
           onClose();
         } else {
           setErrorMsg(res.error || "Failed to schedule appointment.");
         }
       } catch (err) {
-        console.error("New appointment submission error:", err);
-        setErrorMsg("An unexpected error occurred.");
+        // Fallback: If network dropped during submission, save offline
+        try {
+          const offlineAppId = `off-app-${Date.now()}`;
+
+          const offlineApp = {
+            id: offlineAppId,
+            shopId: activeShopId,
+            organizationId: "offline_org",
+            customerId: null,
+            patientName: customerName.trim(),
+            patientPhone: customerPhone.trim(),
+            appointmentDate: visitDate,
+            appointmentTime: formattedTime,
+            status: "CONFIRMED" as const,
+            type: purposeOfVisit,
+            notes: additionalNotes.trim(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          await offlineDB.cached_appointments.put(offlineApp);
+          await enqueueOfflineMutation(activeShopId, "APPOINTMENT_CREATE", {
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+            visitTime: fullDateTimeStr,
+            purposeOfVisit,
+            additionalNotes: additionalNotes.trim(),
+          });
+
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("offline-databank-updated", {
+                detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+              })
+            );
+          }
+
+          onSuccess?.({
+            id: offlineAppId,
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+            visitTime: formattedTime,
+            rawVisitTime: fullDateTimeStr,
+            dateKey: visitDate,
+            purposeOfVisit,
+            status: "CONFIRMED",
+            notes: additionalNotes.trim(),
+          });
+          onClose();
+          return;
+        } catch (localErr) {
+          console.error("New appointment submission error:", err);
+          setErrorMsg("An unexpected error occurred.");
+        }
       }
     });
   };
@@ -150,10 +281,15 @@ export function NewAppointmentModal({ isOpen, initialDate, onClose, onSuccess }:
               <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
                 type="tel"
+                inputMode="numeric"
                 required
-                placeholder="e.g. +91 98765 43210"
+                maxLength={10}
+                placeholder="e.g. 9876543210"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setCustomerPhone(val);
+                }}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
               />
             </div>

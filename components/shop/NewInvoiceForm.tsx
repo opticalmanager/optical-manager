@@ -24,6 +24,14 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteInput";
+import { useOffline } from "@/components/providers/OfflineProvider";
+import {
+  searchCustomersOffline,
+  searchInventoryOffline,
+  getCustomerByIdOffline,
+} from "@/lib/offline/search";
+import { enqueueOfflineInvoice } from "@/lib/offline/invoice-queue";
+import { offlineDB } from "@/lib/offline/db";
 import {
   ArrowLeft,
   ChevronDown,
@@ -121,6 +129,7 @@ function formatDateTimeLocal(d: Date = new Date()): string {
 
 export function NewInvoiceForm() {
   const router = useRouter();
+  const { isOnline, shopId } = useOffline();
   const [isPending, setIsPending] = useState(false);
   const [regId, setRegId] = useState("OP-2026-XXXX");
 
@@ -286,19 +295,26 @@ export function NewInvoiceForm() {
   // Load Next Registration ID on Load
   useEffect(() => {
     async function loadNextId() {
+      if (!navigator.onLine || !isOnline) {
+        setRegId(`REG-OFF-${Date.now().toString().slice(-6)}`);
+        return;
+      }
       try {
         const res = await getNextRegistrationIdAction();
         if (res.success && res.data) {
           setRegId(res.data);
+        } else {
+          setRegId(`REG-OFF-${Date.now().toString().slice(-6)}`);
         }
       } catch (err) {
-        console.error("Failed to load registration ID sequence:", err);
+        console.warn("Failed to load registration ID sequence (using offline fallback):", err);
+        setRegId(`REG-OFF-${Date.now().toString().slice(-6)}`);
       }
     }
     if (!selectedCustomerId) {
       loadNextId();
     }
-  }, [selectedCustomerId]);
+  }, [selectedCustomerId, isOnline]);
 
   const [referredBySuggestions, setReferredBySuggestions] = useState<string[]>([]);
   const [doctorSuggestions, setDoctorSuggestions] = useState<string[]>([]);
@@ -312,18 +328,28 @@ export function NewInvoiceForm() {
     }
 
     async function loadSuggestions() {
+      if (!navigator.onLine || !isOnline) {
+        setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
+        setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
+        return;
+      }
       try {
         const res = await getClinicalSuggestionsAction();
         if (res.success) {
           setReferredBySuggestions(res.referredByList);
           setDoctorSuggestions(res.doctorNameList);
+        } else {
+          setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
+          setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
         }
       } catch (err) {
-        console.error("Failed to load clinical suggestions:", err);
+        console.warn("Using offline clinical suggestions fallback:", err);
+        setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
+        setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
       }
     }
     loadSuggestions();
-  }, []);
+  }, [isOnline]);
 
   // Debounced Patient Search Trigger
   useEffect(() => {
@@ -333,58 +359,129 @@ export function NewInvoiceForm() {
     }
     const delayDebounce = setTimeout(async () => {
       setIsSearchingPatient(true);
+
+      // Offline search fallback
+      if (!navigator.onLine || !isOnline) {
+        try {
+          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
+          setPatientResults(offlineMatches);
+        } catch (err) {
+          console.error("Offline patient search failed:", err);
+        } finally {
+          setIsSearchingPatient(false);
+        }
+        return;
+      }
+
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(patientQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setPatientResults(data.customers || []);
+        } else {
+          // If server responded with error, fall back to offline search
+          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
+          setPatientResults(offlineMatches);
         }
       } catch (err) {
-        console.error("Patient search failed:", err);
+        console.warn("Patient search network failure, falling back to offline:", err);
+        try {
+          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
+          setPatientResults(offlineMatches);
+        } catch (offlineErr) {
+          console.error("Offline patient fallback also failed:", offlineErr);
+        }
       } finally {
         setIsSearchingPatient(false);
       }
     }, 300);
 
     return () => clearTimeout(delayDebounce);
-  }, [patientQuery]);
+  }, [patientQuery, isOnline, shopId]);
 
   // Load Existing Patient Profiles & Prescriptions
   const handleSelectPatient = async (customerId: string) => {
     setShowPatientSearch(false);
     setSelectedCustomerId(customerId);
-    const loadingToast = toast.loading("Loading clinical databanks for patient...");
+
+    // 1. Instant 0ms Hydration: Immediately populate basic patient info from search results or local IndexedDB
+    let matchedPatient: any = patientResults.find((p) => p.id === customerId);
+    let offlineCust: any = null;
 
     try {
-      const res = await getPatientDetailsAction(customerId);
+      offlineCust = await getCustomerByIdOffline(customerId);
+    } catch {}
+
+    const targetPatient = offlineCust || matchedPatient;
+
+    if (targetPatient) {
+      setFullName(targetPatient.fullName || targetPatient.name || "");
+      setEmail(targetPatient.email || "");
+      setPhone(targetPatient.phone || "");
+      setDob(targetPatient.dateOfBirth || "");
+      setGender(targetPatient.gender || "");
+      setBloodGroup(targetPatient.bloodGroup || "");
+      setReferredBy(targetPatient.referredBy || "");
+      setAddress(targetPatient.address || "");
+      setCity(targetPatient.city || "");
+      setState(targetPatient.state || "");
+      setPincode(targetPatient.pincode || "");
+      setRegId(targetPatient.registrationId || "OP-2026-XXXX");
+      if (targetPatient.chiefComplaint) setChiefComplaint(targetPatient.chiefComplaint);
+      if (targetPatient.familyHistory) setFamilyHistory(targetPatient.familyHistory);
+      if (targetPatient.systemicIllness) setSystemicIllness(targetPatient.systemicIllness);
+      if (targetPatient.allergies) setAllergies(targetPatient.allergies);
+
+      const creditVal = parseFloat(targetPatient.storeCredit || "0") || 0;
+      setCustomerStoreCredit(creditVal);
+      setUseStoreCredit(false);
+      setCreditToApply(creditVal > 0 ? creditVal.toString() : "");
+    }
+
+    // If completely offline, we're done immediately!
+    if (!navigator.onLine || !isOnline) {
+      toast.success("Loaded patient from local databank!");
+      return;
+    }
+
+    // 2. Non-blocking background fetch for clinical prescriptions (with 2500ms timeout)
+    const loadingToast = toast.loading("Checking past prescriptions...");
+    try {
+      const timeoutPromise = new Promise<{ success: boolean; data?: any; message?: string }>((_, reject) =>
+        setTimeout(() => reject(new Error("Prescription lookup timeout")), 2500)
+      );
+      const res = await Promise.race([
+        getPatientDetailsAction(customerId),
+        timeoutPromise,
+      ]);
+
       if (res.success && res.data) {
         const { customer, distancePrescription, nearPrescription } = res.data;
 
         // Auto-fill Store Credit
         const creditVal = parseFloat(customer.storeCredit || "0") || 0;
         setCustomerStoreCredit(creditVal);
-        setUseStoreCredit(false);
         setCreditToApply(creditVal > 0 ? creditVal.toString() : "");
 
-        // Auto-fill Section 01
-        setFullName(customer.fullName || "");
-        setEmail(customer.email || "");
-        setPhone(customer.phone || "");
-        setDob(customer.dateOfBirth || "");
-        setGender(customer.gender || "");
-        setBloodGroup(customer.bloodGroup || "");
-        setReferredBy(customer.referredBy || "");
-        setAddress(customer.address || "");
-        setCity(customer.city || "");
-        setState(customer.state || "");
-        setPincode(customer.pincode || "");
-        setRegId(customer.registrationId || "OP-2026-XXXX");
+        // Auto-fill Section 01 (enriching with complete server data if needed)
+        if (customer.fullName) setFullName(customer.fullName);
+        if (customer.email) setEmail(customer.email);
+        if (customer.phone) setPhone(customer.phone);
+        if (customer.dateOfBirth) setDob(customer.dateOfBirth);
+        if (customer.gender) setGender(customer.gender);
+        if (customer.bloodGroup) setBloodGroup(customer.bloodGroup);
+        if (customer.referredBy) setReferredBy(customer.referredBy);
+        if (customer.address) setAddress(customer.address);
+        if (customer.city) setCity(customer.city);
+        if (customer.state) setState(customer.state);
+        if (customer.pincode) setPincode(customer.pincode);
+        if (customer.registrationId) setRegId(customer.registrationId);
 
         // Auto-fill Section 02
-        setChiefComplaint(customer.chiefComplaint || "");
-        setFamilyHistory(customer.familyHistory || "");
-        setSystemicIllness(customer.systemicIllness || "");
-        setAllergies(customer.allergies || "");
+        if (customer.chiefComplaint) setChiefComplaint(customer.chiefComplaint);
+        if (customer.familyHistory) setFamilyHistory(customer.familyHistory);
+        if (customer.systemicIllness) setSystemicIllness(customer.systemicIllness);
+        if (customer.allergies) setAllergies(customer.allergies);
 
         // Auto-fill Section 03 Distance Prescription
         if (distancePrescription) {
@@ -404,8 +501,6 @@ export function NewInvoiceForm() {
           setDoctorName(distancePrescription.doctorName || "");
           setPartyName(distancePrescription.partyName || "");
           setFrameName(distancePrescription.frameName || "");
-        } else {
-          setDistanceEnabled(false);
         }
 
         // Auto-fill Section 03 Near Prescription
@@ -420,45 +515,55 @@ export function NewInvoiceForm() {
           setNearOSCylinder(nearPrescription.leftCylinder || "");
           setNearOSAxis(nearPrescription.leftAxis || "");
           setNearOSNv(nearPrescription.leftNv || "");
-        } else {
-          setNearEnabled(false);
         }
 
         if (distancePrescription?.notes || nearPrescription?.notes) {
           setLensType(distancePrescription?.notes || nearPrescription?.notes || "");
         }
 
-        toast.success("Patient clinical ledger loaded successfully!", { id: loadingToast });
+        toast.success("Patient details & clinical history loaded!", { id: loadingToast });
       } else {
-        toast.error(res.message || "Failed to load patient profile details.", { id: loadingToast });
+        toast.success("Patient loaded from databank", { id: loadingToast });
       }
-    } catch (err) {
-      toast.error("Failed to fetch patient details.", { id: loadingToast });
+    } catch {
+      toast.success("Patient loaded from databank", { id: loadingToast });
     }
   };
 
   // Row Search Change Handler (Independent per row debouncing)
   const handleRowSearchChange = (index: number, query: string) => {
     // 1. Immediately update local row searchQuery state
-    const updated = lineItems.map((item, idx) => {
-      if (idx === index) {
-        return {
-          ...item,
-          searchQuery: query,
-          description: query, // Synced to description until selected
-          showDropdown: query.trim().length >= 1,
-        };
-      }
-      return item;
-    });
-    setLineItems(updated);
+    setLineItems((prev) =>
+      prev.map((item, idx) =>
+        idx === index
+          ? {
+              ...item,
+              searchQuery: query,
+              showSuggestions: query.trim().length > 0,
+            }
+          : item
+      )
+    );
 
-    // 2. Clear previous debounced timeouts
+    // Clear previous timeout for this specific line item row
     if (searchTimeouts.current[index]) {
       clearTimeout(searchTimeouts.current[index]);
     }
 
-    if (query.trim().length < 1) {
+    // Don't search if query is empty
+    if (!query.trim()) {
+      setLineItems((prev) =>
+        prev.map((item, idx) =>
+          idx === index
+            ? {
+                ...item,
+                suggestions: [],
+                showSuggestions: false,
+                isSearching: false,
+              }
+            : item
+        )
+      );
       return;
     }
 
@@ -468,6 +573,30 @@ export function NewInvoiceForm() {
       setLineItems((prev) =>
         prev.map((item, idx) => (idx === index ? { ...item, isSearching: true } : item))
       );
+
+      // Offline inventory search fallback
+      if (!navigator.onLine || !isOnline) {
+        try {
+          const offlineProducts = await searchInventoryOffline(shopId || "", query);
+          setLineItems((prev) =>
+            prev.map((item, idx) =>
+              idx === index
+                ? {
+                    ...item,
+                    suggestions: offlineProducts || [],
+                    isSearching: false,
+                  }
+                : item
+            )
+          );
+        } catch (offlineErr) {
+          console.error(`Offline product lookup row ${index} failed:`, offlineErr);
+          setLineItems((prev) =>
+            prev.map((item, idx) => (idx === index ? { ...item, isSearching: false } : item))
+          );
+        }
+        return;
+      }
 
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
@@ -484,12 +613,41 @@ export function NewInvoiceForm() {
                 : item
             )
           );
+        } else {
+          const offlineProducts = await searchInventoryOffline(shopId || "", query);
+          setLineItems((prev) =>
+            prev.map((item, idx) =>
+              idx === index
+                ? {
+                    ...item,
+                    suggestions: offlineProducts || [],
+                    isSearching: false,
+                  }
+                : item
+            )
+          );
         }
       } catch (err) {
-        console.error(`Row ${index} product lookup failed:`, err);
-        setLineItems((prev) =>
-          prev.map((item, idx) => (idx === index ? { ...item, isSearching: false } : item))
-        );
+        console.warn(`Row ${index} product lookup network failure, falling back to offline:`, err);
+        try {
+          const offlineProducts = await searchInventoryOffline(shopId || "", query);
+          setLineItems((prev) =>
+            prev.map((item, idx) =>
+              idx === index
+                ? {
+                    ...item,
+                    suggestions: offlineProducts || [],
+                    isSearching: false,
+                  }
+                : item
+            )
+          );
+        } catch (offlineErr) {
+          console.error("Offline product fallback error:", offlineErr);
+          setLineItems((prev) =>
+            prev.map((item, idx) => (idx === index ? { ...item, isSearching: false } : item))
+          );
+        }
       }
     }, 300);
   };
@@ -980,24 +1138,70 @@ export function NewInvoiceForm() {
         invoiceDate: invoiceDateTime || undefined,
       };
 
-      const res = await registerPatientAndInvoiceAction(payload);
-      const targetInvoiceId = res.data?.invoiceId || res.data?.invoice?.id;
-      const targetReceiptId = res.data?.receiptId || res.data?.receipt?.id;
-
-      if (res.success && (targetInvoiceId || targetReceiptId)) {
-        toast.success(res.message || "Transaction success! Invoice compiled.", { id: savingToast });
-        if (paymentType === "PARTIAL" && targetReceiptId) {
-          router.push(`/shop/receipts/${targetReceiptId}`);
-        } else if (targetInvoiceId) {
-          router.push(`/shop/invoices/${targetInvoiceId}`);
-        } else {
-          router.push(`/shop/invoices`);
+      // Offline mode submission: if device is offline, write directly to offline queue
+      if (!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        try {
+          const targetShop = shopId || (await offlineDB.getCurrentShopId()) || "";
+          const targetOrg = (await offlineDB.getCurrentOrgId()) || "";
+          const queuedInvoice = await enqueueOfflineInvoice(
+            targetShop,
+            targetOrg,
+            payload
+          );
+          toast.success(
+            `Offline invoice #${queuedInvoice.offlineInvoiceNumber} created! Ready for printing and will sync automatically when reconnected.`,
+            { id: savingToast }
+          );
+          router.push(`/shop/invoices/offline/${queuedInvoice.id}`);
+          return;
+        } catch (offlineSaveErr: any) {
+          console.error("Failed to save offline invoice:", offlineSaveErr);
+          toast.error("Failed to save offline invoice to local device memory.", { id: savingToast });
+          setIsPending(false);
+          return;
         }
-      } else {
-        toast.error(res.message || "Failed to process patient invoice transaction.", {
-          id: savingToast,
-        });
-        setIsPending(false);
+      }
+
+      // Online submission: attempt cloud server action first
+      try {
+        const res = await registerPatientAndInvoiceAction(payload);
+        const targetInvoiceId = res.data?.invoiceId || res.data?.invoice?.id;
+        const targetReceiptId = res.data?.receiptId || res.data?.receipt?.id;
+
+        if (res.success && (targetInvoiceId || targetReceiptId)) {
+          toast.success(res.message || "Transaction success! Invoice compiled.", { id: savingToast });
+          if (paymentType === "PARTIAL" && targetReceiptId) {
+            router.push(`/shop/receipts/${targetReceiptId}`);
+          } else if (targetInvoiceId) {
+            router.push(`/shop/invoices/${targetInvoiceId}`);
+          } else {
+            router.push(`/shop/invoices`);
+          }
+        } else {
+          toast.error(res.message || "Failed to process patient invoice transaction.", {
+            id: savingToast,
+          });
+          setIsPending(false);
+        }
+      } catch (actionOrNetworkErr: any) {
+        console.warn("[NewInvoiceForm] Cloud invoice transaction failed, attempting offline queue fallback:", actionOrNetworkErr);
+        try {
+          const targetShop = shopId || (await offlineDB.getCurrentShopId()) || "";
+          const targetOrg = (await offlineDB.getCurrentOrgId()) || "";
+          const queuedInvoice = await enqueueOfflineInvoice(
+            targetShop,
+            targetOrg,
+            payload
+          );
+          toast.success(
+            `Network unreachable. Saved offline as #${queuedInvoice.offlineInvoiceNumber}! Will sync when reconnected.`,
+            { id: savingToast }
+          );
+          router.push(`/shop/invoices/offline/${queuedInvoice.id}`);
+        } catch (offlineErr: any) {
+          toast.error(actionOrNetworkErr.message || "Unexpected transaction error occurred.", { id: savingToast });
+          setIsPending(false);
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Unexpected transaction error occurred.", { id: savingToast });
@@ -1018,34 +1222,29 @@ export function NewInvoiceForm() {
             onClick={() => router.back()}
             className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 bg-slate-100/70 hover:bg-slate-200/80 px-3 py-1.5 rounded-lg transition-all mb-3 cursor-pointer"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Invoices</span>
           </button>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            Checkout Billing Invoice
-          </h1>
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">
-            <span>Dashboard</span>
-            <span>/</span>
-            <span>Invoicing</span>
-            <span>/</span>
-            <span className="text-[#0a52c3]">New Checkout</span>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <span>New Patient Invoice</span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#0a52c3]/10 text-[#0a52c3] font-bold uppercase tracking-wider">
+                Billing POS
+              </span>
+            </h1>
           </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Create clinical eye exam records, generate tax invoices, or accept partial payment advances.
+          </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors cursor-pointer mr-3"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Clear Form
-          </button>
-
+        <div className="flex items-center gap-3 self-end sm:self-auto">
           <button
             type="button"
-            onClick={() => toast.success("Draft saved successfully!")}
-            className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-500 transition-colors cursor-pointer"
+            onClick={() => router.back()}
+            className="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-xs transition-colors cursor-pointer"
           >
-            Save Draft
+            Cancel
           </button>
           <button
             type="submit"
@@ -1056,6 +1255,24 @@ export function NewInvoiceForm() {
           </button>
         </div>
       </div>
+
+      {/* OFFLINE STATUS NOTICE BANNER */}
+      {typeof navigator !== "undefined" && !navigator.onLine && (
+        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 flex items-center justify-between gap-3 text-amber-900 text-xs shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <div>
+              <span className="font-extrabold block sm:inline mr-1">Offline Billing Active:</span>
+              <span className="text-amber-800 font-medium">
+                Searching cached databank. Invoices are stored securely in local memory and can be printed immediately.
+              </span>
+            </div>
+          </div>
+          <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 text-[10px] font-extrabold uppercase shrink-0">
+            Auto-Sync on Reconnect
+          </span>
+        </div>
+      )}
 
       {/* SECTION 1: BASIC DETAILS & LOAD CUSTOMER */}
       <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md/5">
@@ -2202,21 +2419,30 @@ export function NewInvoiceForm() {
           {/* Store Credit Redemption */}
           {availableCredit > 0 && (
             <div className={`p-4 rounded-xl border transition-all ${
-              useStoreCredit ? "bg-emerald-50/50 border-emerald-300 shadow-sm" : "bg-slate-50/70 border-slate-200"
+              !isOnline
+                ? "bg-slate-50 border-slate-200 opacity-80"
+                : useStoreCredit
+                ? "bg-emerald-50/50 border-emerald-300 shadow-sm"
+                : "bg-slate-50/70 border-slate-200"
             }`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
+                <label className={`flex items-center gap-3 select-none ${!isOnline ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}>
                   <input
                     type="checkbox"
-                    checked={useStoreCredit}
+                    disabled={!isOnline}
+                    checked={isOnline && useStoreCredit}
                     onChange={(e) => {
+                      if (!isOnline) {
+                        toast.warning("Store credit redemption requires an internet connection.");
+                        return;
+                      }
                       const checked = e.target.checked;
                       setUseStoreCredit(checked);
                       if (checked && (!creditToApply || parseFloat(creditToApply) <= 0)) {
                         setCreditToApply(maxAllowedCredit > 0 ? maxAllowedCredit.toFixed(2) : availableCredit.toFixed(2));
                       }
                     }}
-                    className="h-4 w-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                    className="h-4 w-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer disabled:cursor-not-allowed"
                   />
                   <div>
                     <div className="flex items-center gap-2">
@@ -2227,12 +2453,14 @@ export function NewInvoiceForm() {
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Deduct balance from customer store credit against this order total
+                      {!isOnline
+                        ? "Store credit redemption requires an internet connection to securely verify cloud ledger."
+                        : "Deduct balance from customer store credit against this order total"}
                     </p>
                   </div>
                 </label>
 
-                {useStoreCredit && (
+                {isOnline && useStoreCredit && (
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Credit to Use:</span>
                     <div className="relative w-36">

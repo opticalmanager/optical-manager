@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/services/auth.service";
 import { getInventoryByShop } from "@/services/inventory.service";
+import { getShopsByOrganization } from "@/services/shop.service";
 import { AlertCircle } from "lucide-react";
 import { InventoryDashboardClient } from "@/components/shop/InventoryDashboardClient";
 
@@ -13,7 +14,16 @@ interface PageProps {
 
 export default async function InventoryPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
-  const shopId = user?.shopId;
+  let shopId = user?.shopId;
+
+  if (!shopId && user?.role === "OWNER" && user?.organizationId) {
+    try {
+      const orgShops = await getShopsByOrganization(user.organizationId);
+      if (orgShops.length > 0) {
+        shopId = orgShops[0].id;
+      }
+    } catch {}
+  }
 
   if (!shopId) {
     return (
@@ -33,8 +43,20 @@ export default async function InventoryPage({ searchParams }: PageProps) {
   const initialSort = params.sort || "SKU";
   const initialFilter = params.filter || "";
 
-  // Fetch real items from database (highly optimized with DB indexing)
-  const allInventory = await getInventoryByShop(shopId);
+  // Fetch real items from database (fast-fail timeout for offline resilience)
+  let allInventory: any[] = [];
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Inventory DB query timeout")), 1200)
+    );
+    allInventory = await Promise.race([
+      getInventoryByShop(shopId),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    console.warn("[InventoryPage] Failed to fetch inventory from database (offline/timeout fallback):", err);
+    allInventory = [];
+  }
 
   return (
     <InventoryDashboardClient

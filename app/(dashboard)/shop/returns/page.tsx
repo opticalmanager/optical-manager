@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/services/auth.service";
 import { getReturnsDashboardData } from "@/services/return.service";
+import { getShopsByOrganization } from "@/services/shop.service";
 import { Card } from "@/components/ui/card";
 import { ReturnsTableClient } from "./ReturnsTableClient";
 import {
@@ -35,20 +36,52 @@ export default async function ReturnsDashboardPage({
   const limit = 8;
 
   const user = await getCurrentUser();
-  const shopId = user?.shopId;
+  let shopId = user?.shopId;
+
+  if (!shopId && user?.role === "OWNER" && user?.organizationId) {
+    try {
+      const orgShops = await getShopsByOrganization(user.organizationId);
+      if (orgShops.length > 0) {
+        shopId = orgShops[0].id;
+      }
+    } catch {}
+  }
 
   if (!shopId) {
     redirect("/login");
   }
 
-  const { kpis, returns, totalCount } = await getReturnsDashboardData({
-    shopId,
-    tab,
-    search,
-    page,
-    limit,
-  });
+  let dashboardData = {
+    kpis: {
+      totalReturns: 0,
+      totalReturnsMoM: "+0%",
+      completedReturns: 0,
+      draftReturns: 0,
+      totalRefundAmount: "₹0.00",
+    },
+    returns: [] as any[],
+    totalCount: 0,
+  };
 
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Returns DB query timeout")), 1200)
+    );
+    dashboardData = await Promise.race([
+      getReturnsDashboardData({
+        shopId,
+        tab,
+        search,
+        page,
+        limit,
+      }),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    console.warn("[ReturnsDashboardPage] Failed to fetch returns from database (offline/timeout fallback):", err);
+  }
+
+  const { kpis, returns, totalCount } = dashboardData;
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
   return (

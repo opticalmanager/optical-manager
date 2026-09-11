@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteInput";
+import { offlineDB, type CachedCustomer } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import {
   ArrowLeft,
   ChevronDown,
@@ -302,6 +304,44 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
     loadClinicalSuggestions();
   }, [patientId, initialPatientData]);
 
+  // Resilient offline customer hydration when editing without server connectivity
+  useEffect(() => {
+    if (patientId && !initialPatientData) {
+      async function loadOfflineCustomer() {
+        try {
+          const cust = await offlineDB.cached_customers.get(patientId as string);
+          if (cust) {
+            reset({
+              customer: {
+                fullName: cust.fullName,
+                phone: cust.phone,
+                email: cust.email || "",
+                dateOfBirth: cust.dateOfBirth || "",
+                age: cust.dateOfBirth ? calculateAgeFromDOB(cust.dateOfBirth) : "",
+                gender: (cust.gender as any) || "OTHER",
+                bloodGroup: cust.bloodGroup || "",
+                referredBy: cust.referredBy || "",
+                address: cust.address || "",
+                city: cust.city || "",
+                state: cust.state || "",
+                pincode: cust.pincode || "",
+                chiefComplaint: "",
+                familyHistory: "",
+                systemicIllness: "",
+                allergies: "",
+                notes: "",
+              },
+            });
+            setRegId(cust.registrationId || "OP-OFF-XXXX");
+          }
+        } catch (e) {
+          console.error("Failed to load offline customer for edit:", e);
+        }
+      }
+      loadOfflineCustomer();
+    }
+  }, [patientId, initialPatientData, reset]);
+
   // Close state suggestions dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -323,6 +363,91 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
   const onSubmit = async (data: any) => {
     setIsPending(true);
     try {
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
+      if (isOffline && !patientId) {
+        const activeShopId = typeof window !== "undefined" ? localStorage.getItem("om_active_shop_id") || "active_shop" : "active_shop";
+        const offlinePatId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `pat_off_${Date.now()}`;
+        const tempRegId = regId || `OP-OFF-${Date.now().toString().slice(-4)}`;
+
+        const cachedPat: CachedCustomer = {
+          id: offlinePatId,
+          shopId: activeShopId,
+          organizationId: "offline_org",
+          registrationId: tempRegId,
+          fullName: data.customer.fullName,
+          email: data.customer.email || null,
+          phone: data.customer.phone,
+          dateOfBirth: data.customer.dateOfBirth || null,
+          gender: data.customer.gender || null,
+          bloodGroup: data.customer.bloodGroup || null,
+          referredBy: data.customer.referredBy || null,
+          address: data.customer.address || null,
+          city: data.customer.city || null,
+          state: data.customer.state || null,
+          pincode: data.customer.pincode || null,
+          storeCredit: "0.00",
+          updatedAt: new Date().toISOString(),
+        };
+
+        await offlineDB.cached_customers.put(cachedPat);
+        await enqueueOfflineMutation(activeShopId, "PATIENT_CREATE", data);
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("offline-databank-updated", {
+              detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+            })
+          );
+        }
+
+        toast.success("Patient registered offline! Will synchronize when online.");
+        router.push("/shop/customers");
+        return;
+      }
+
+      if (isOffline && patientId) {
+        const activeShopId = typeof window !== "undefined" ? localStorage.getItem("om_active_shop_id") || "active_shop" : "active_shop";
+        const existingCust = await offlineDB.cached_customers.get(patientId);
+        const updatedCust: CachedCustomer = {
+          id: patientId,
+          shopId: activeShopId,
+          organizationId: existingCust?.organizationId || "offline_org",
+          registrationId: existingCust?.registrationId || regId || "OP-OFF-XXXX",
+          fullName: data.customer.fullName,
+          email: data.customer.email || null,
+          phone: data.customer.phone,
+          dateOfBirth: data.customer.dateOfBirth || null,
+          gender: data.customer.gender || null,
+          bloodGroup: data.customer.bloodGroup || null,
+          referredBy: data.customer.referredBy || null,
+          address: data.customer.address || null,
+          city: data.customer.city || null,
+          state: data.customer.state || null,
+          pincode: data.customer.pincode || null,
+          storeCredit: existingCust?.storeCredit || "0.00",
+          updatedAt: new Date().toISOString(),
+        };
+
+        await offlineDB.cached_customers.put(updatedCust);
+        await enqueueOfflineMutation(activeShopId, "PATIENT_UPDATE", {
+          patientId,
+          data,
+        });
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("offline-databank-updated", {
+              detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+            })
+          );
+        }
+
+        toast.success("Patient details updated offline! Will synchronize when online.");
+        router.push(`/shop/customers/${patientId}`);
+        return;
+      }
+
       if (patientId) {
         const res = await updatePatientAction(patientId, data);
         if (res.success) {
@@ -348,6 +473,92 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
         }
       }
     } catch (err: any) {
+      // Fallback: If network dropped during submission, save offline
+      if (patientId) {
+        try {
+          const activeShopId = typeof window !== "undefined" ? localStorage.getItem("om_active_shop_id") || "active_shop" : "active_shop";
+          const existingCust = await offlineDB.cached_customers.get(patientId);
+          const updatedCust: CachedCustomer = {
+            id: patientId,
+            shopId: activeShopId,
+            organizationId: existingCust?.organizationId || "offline_org",
+            registrationId: existingCust?.registrationId || regId || "OP-OFF-XXXX",
+            fullName: data.customer.fullName,
+            email: data.customer.email || null,
+            phone: data.customer.phone,
+            dateOfBirth: data.customer.dateOfBirth || null,
+            gender: data.customer.gender || null,
+            bloodGroup: data.customer.bloodGroup || null,
+            referredBy: data.customer.referredBy || null,
+            address: data.customer.address || null,
+            city: data.customer.city || null,
+            state: data.customer.state || null,
+            pincode: data.customer.pincode || null,
+            storeCredit: existingCust?.storeCredit || "0.00",
+            updatedAt: new Date().toISOString(),
+          };
+
+          await offlineDB.cached_customers.put(updatedCust);
+          await enqueueOfflineMutation(activeShopId, "PATIENT_UPDATE", {
+            patientId,
+            data,
+          });
+
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("offline-databank-updated", {
+                detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+              })
+            );
+          }
+
+          toast.success("Network dropped: Patient details updated offline! Will synchronize when online.");
+          router.push(`/shop/customers/${patientId}`);
+          return;
+        } catch {}
+      } else {
+        try {
+          const activeShopId = typeof window !== "undefined" ? localStorage.getItem("om_active_shop_id") || "active_shop" : "active_shop";
+          const offlinePatId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `pat_off_${Date.now()}`;
+          const tempRegId = regId || `OP-OFF-${Date.now().toString().slice(-4)}`;
+
+          const cachedPat: CachedCustomer = {
+            id: offlinePatId,
+            shopId: activeShopId,
+            organizationId: "offline_org",
+            registrationId: tempRegId,
+            fullName: data.customer.fullName,
+            email: data.customer.email || null,
+            phone: data.customer.phone,
+            dateOfBirth: data.customer.dateOfBirth || null,
+            gender: data.customer.gender || null,
+            bloodGroup: data.customer.bloodGroup || null,
+            referredBy: data.customer.referredBy || null,
+            address: data.customer.address || null,
+            city: data.customer.city || null,
+            state: data.customer.state || null,
+            pincode: data.customer.pincode || null,
+            storeCredit: "0.00",
+            updatedAt: new Date().toISOString(),
+          };
+
+          await offlineDB.cached_customers.put(cachedPat);
+          await enqueueOfflineMutation(activeShopId, "PATIENT_CREATE", data);
+
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("offline-databank-updated", {
+                detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+              })
+            );
+          }
+
+          toast.success("Network dropped: Patient saved locally in offline mode! Will synchronize when online.");
+          router.push("/shop/customers");
+          return;
+        } catch {}
+      }
+
       toast.error(err.message || "An unexpected error occurred.");
     } finally {
       setIsPending(false);

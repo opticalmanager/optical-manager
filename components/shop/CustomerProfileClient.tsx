@@ -34,6 +34,7 @@ import {
   Wallet
 } from "lucide-react";
 import { AddPrescriptionModal } from "@/components/shop/AddPrescriptionModal";
+import { offlineDB } from "@/lib/offline/db";
 
 interface CustomerData {
   id: string;
@@ -119,17 +120,108 @@ interface ProfileData {
 }
 
 interface CustomerProfileClientProps {
-  profile: ProfileData;
+  initialProfile?: ProfileData | null;
+  profile?: ProfileData | null;
+  customerId?: string;
 }
 
-export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
+export function CustomerProfileClient({ initialProfile, profile: legacyProfile, customerId }: CustomerProfileClientProps) {
   const router = useRouter();
+  const [profile, setProfile] = useState<ProfileData | null>(initialProfile || legacyProfile || null);
+  const [isLoadingOffline, setIsLoadingOffline] = useState(!initialProfile && !legacyProfile);
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [prescriptionsExpanded, setPrescriptionsExpanded] = useState(true);
   const [isAddRxModalOpen, setIsAddRxModalOpen] = useState(false);
   const [selectedRxIndex, setSelectedRxIndex] = useState(0);
 
-  const { customer, prescriptions, invoices, pendingDues, lastVisitDate, latestInvoice } = profile;
+  useEffect(() => {
+    if (initialProfile) {
+      setProfile(initialProfile);
+      setIsLoadingOffline(false);
+      return;
+    }
+    if (!profile && customerId) {
+      async function loadOfflineCustomer() {
+        try {
+          let cust = await offlineDB.cached_customers.get(customerId!);
+          if (!cust) {
+            cust = await offlineDB.cached_customers.where("phone").equals(customerId!).first();
+          }
+          if (!cust) {
+            cust = await offlineDB.cached_customers.where("registrationId").equals(customerId!).first();
+          }
+          if (cust) {
+            const custInvoices = await offlineDB.cached_invoices
+              .where("customerId")
+              .equals(customerId!)
+              .reverse()
+              .sortBy("createdAt");
+
+            const mappedInvoices: InvoiceData[] = custInvoices.map((inv) => ({
+              id: inv.id,
+              invoiceNumber: inv.invoiceNumber,
+              total: inv.total,
+              balanceDue: inv.balanceDue,
+              status: inv.status as any,
+              fulfillmentStatus: inv.fulfillmentStatus as any,
+              createdAt: inv.createdAt,
+              notes: inv.notes || null,
+            }));
+
+            const pendingDues = mappedInvoices.reduce(
+              (sum, inv) => sum + parseFloat(inv.balanceDue || "0"),
+              0
+            );
+
+            setProfile({
+              customer: {
+                id: cust.id,
+                fullName: cust.fullName || "Patient",
+                registrationId: cust.registrationId || null,
+                phone: cust.phone || "N/A",
+                email: cust.email || null,
+                dateOfBirth: cust.dateOfBirth || null,
+                address: cust.address || null,
+                city: cust.city || null,
+                state: cust.state || null,
+                pincode: cust.pincode || null,
+                gender: cust.gender as any,
+                bloodGroup: cust.bloodGroup || null,
+                referredBy: cust.referredBy || null,
+                chiefComplaint: null,
+                familyHistory: null,
+                systemicIllness: null,
+                allergies: null,
+                notes: "Local Offline Databank Record",
+                storeCredit: cust.storeCredit || "0.00",
+                isActive: true,
+              },
+              prescriptions: [],
+              invoices: mappedInvoices,
+              creditLedger: [],
+              pendingDues,
+              totalOrdersCount: mappedInvoices.length,
+              lastVisitDate: cust.updatedAt || new Date().toISOString(),
+              latestPrescription: null,
+              latestInvoice: mappedInvoices[0] || null,
+            });
+          }
+        } catch (err) {
+          console.warn("[CustomerProfileClient] Error reading offline patient data:", err);
+        } finally {
+          setIsLoadingOffline(false);
+        }
+      }
+      loadOfflineCustomer();
+    }
+  }, [profile, customerId, initialProfile]);
+
+  const customer = profile?.customer;
+  const prescriptions = profile?.prescriptions || [];
+  const invoices = profile?.invoices || [];
+  const pendingDues = profile?.pendingDues || 0;
+  const lastVisitDate = profile?.lastVisitDate || new Date();
+  const latestInvoice = profile?.latestInvoice || null;
 
   // Compute Automated Customer Tags based on habits & purchase history
   const autoTags = useMemo(() => {
@@ -247,6 +339,32 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
   const activeDistRx = activeGroup?.distRx;
   const activeNearRx = activeGroup?.nearRx;
   const activeRxMeta = activeDistRx || activeNearRx;
+
+  if (isLoadingOffline) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 space-y-3">
+        <Loader2 className="w-8 h-8 text-[#0a52c3] animate-spin" />
+        <p className="text-xs font-semibold text-slate-500">Loading patient profile from offline databank...</p>
+      </div>
+    );
+  }
+
+  if (!profile || !customer) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xl">
+          ⚠️
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Patient Record Unavailable Offline</h3>
+        <p className="text-xs text-slate-500 max-w-md">
+          This patient record has not been synchronized to your local offline databank yet. Reconnect to internet or return to the customers directory.
+        </p>
+        <Button onClick={() => router.push("/shop/customers")} variant="outline" size="sm">
+          Return to Customers
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 text-slate-800 pb-16 select-none max-w-7xl mx-auto">
@@ -907,6 +1025,11 @@ export function CustomerProfileClient({ profile }: CustomerProfileClientProps) {
         onClose={() => setIsAddRxModalOpen(false)}
         customerId={customer.id}
         customerName={customer.fullName}
+        onPrescriptionAdded={(newRx) => {
+          setProfile((prev) =>
+            prev ? { ...prev, prescriptions: [newRx, ...(prev.prescriptions || [])] } : prev
+          );
+        }}
       />
 
     </div>

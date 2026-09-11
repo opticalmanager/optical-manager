@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { OfflineProvider } from "@/components/providers/OfflineProvider";
+import { offlineDB } from "@/lib/offline/db";
 
 interface ShopLayoutClientProps {
   children: React.ReactNode;
@@ -24,6 +26,38 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
     }
   }, []);
 
+  // Persist user and active shop context into local offline databanks
+  useEffect(() => {
+    if (user) {
+      const activeShopId = shop?.id || user?.shopId || null;
+      offlineDB.saveUserSession({
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        shopId: activeShopId,
+        organizationId: user.organizationId,
+        shopName: shop?.name || "Corporate Outlet",
+      });
+      if (typeof window !== "undefined") {
+        if (activeShopId) {
+          localStorage.setItem("om_active_shop_id", activeShopId);
+        }
+        localStorage.setItem(
+          "om_cached_user",
+          JSON.stringify({
+            id: user.id,
+            fullName: user.fullName,
+            email: user.email,
+            role: user.role,
+            shopId: activeShopId,
+            shopName: shop?.name || "Corporate Outlet",
+          })
+        );
+      }
+    }
+  }, [user, shop]);
+
   const handleToggleCollapse = () => {
     setIsCollapsed((prev) => {
       const next = !prev;
@@ -38,54 +72,55 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
   }, [pathname]);
 
   return (
-    <div className="flex flex-1 overflow-hidden relative">
-      {/* Desktop Sidebar (visible on desktop monitors) */}
-      <div className="hidden lg:flex shrink-0 transition-all duration-300 h-full">
-        <Sidebar 
-          shopName={shop?.name || undefined} 
-          shopAddress={shop?.address || undefined} 
-          isCollapsed={isCollapsed}
-          onToggleCollapse={handleToggleCollapse}
-          permissions={user?.permissions}
-          role={user?.role}
-        />
-      </div>
-
-      {/* Mobile Sidebar overlay drawer */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
-          {/* Blur Glassmorphic Backdrop overlay */}
-          <div
-            onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
+    <OfflineProvider shopId={shop?.id || user?.shopId}>
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Desktop Sidebar (visible on desktop monitors) */}
+        <div className="hidden lg:flex shrink-0 transition-all duration-300 h-full">
+          <Sidebar 
+            shopName={shop?.name || undefined} 
+            shopAddress={shop?.address || undefined} 
+            isCollapsed={isCollapsed}
+            onToggleCollapse={handleToggleCollapse}
+            permissions={user?.permissions}
+            role={user?.role}
           />
-
-          {/* Drawer Menu Container */}
-          <div className="relative flex w-64 max-w-xs flex-1 flex-col bg-slate-50 border-r border-slate-200 animate-in slide-in-from-left duration-300 shadow-2xl h-full">
-            <Sidebar
-              shopName={shop?.name || undefined}
-              shopAddress={shop?.address || undefined}
-              showCloseButton
-              onClose={() => setIsSidebarOpen(false)}
-              permissions={user?.permissions}
-              role={user?.role}
-            />
-          </div>
         </div>
-      )}
 
+        {/* Mobile Sidebar overlay drawer */}
+        {isSidebarOpen && (
+          <div className="fixed inset-0 z-50 flex lg:hidden">
+            {/* Blur Glassmorphic Backdrop overlay */}
+            <div
+              onClick={() => setIsSidebarOpen(false)}
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
+            />
 
-      {/* Main content display column */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar
-          user={user}
-          shopName={shop?.name || "Corporate Outlet"}
-          onMenuClick={() => setIsSidebarOpen(true)}
-        />
-        <main className="flex-1 overflow-y-auto bg-slate-50/50 p-4 md:p-8">
-          {children}
-        </main>
+            {/* Drawer Menu Container */}
+            <div className="relative flex w-64 max-w-xs flex-1 flex-col bg-slate-50 border-r border-slate-200 animate-in slide-in-from-left duration-300 shadow-2xl h-full">
+              <Sidebar
+                shopName={shop?.name || undefined}
+                shopAddress={shop?.address || undefined}
+                showCloseButton
+                onClose={() => setIsSidebarOpen(false)}
+                permissions={user?.permissions}
+                role={user?.role}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Main content display column */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar
+            user={user}
+            shopName={shop?.name || "Corporate Outlet"}
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
+          <main className="flex-1 overflow-y-auto bg-slate-50/50 p-4 md:p-8">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </OfflineProvider>
   );
 }

@@ -19,6 +19,8 @@ import {
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate, openWhatsAppChat } from "@/utils/whatsapp-parser";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 
 interface QuickEditModalProps {
   order: OrderItem;
@@ -33,10 +35,23 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
   const [isEmailPending, startEmailTransition] = useTransition();
   const [isInvoicePending, startInvoiceTransition] = useTransition();
 
+  // Helper to resolve active shopId
+  const getActiveShopId = async (): Promise<string> => {
+    try {
+      const saved = localStorage.getItem("om_active_shop_id");
+      if (saved) return saved;
+      const meta = await offlineDB.sync_metadata.get("active_shop_id");
+      if (meta?.value) return meta.value;
+      const profiles = await offlineDB.cached_shop_profile.toArray();
+      if (profiles.length > 0) return profiles[0].id;
+    } catch {}
+    return "";
+  };
+
   // Get current date string in local YYYY-MM-DD
   const todayStr = new Date().toISOString().split("T")[0];
 
-// Component local states
+  // Component local states
   const isPaidInitially = parseFloat(order.balanceDue) === 0;
   const [paymentStatus, setPaymentStatus] = useState<
     "PAID" | "PARTIALLY_PAID" | "RECORD_PARTIAL_PAYMENT" | "SETTLE_WITH_DISCOUNT"
@@ -44,52 +59,50 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
 
   const [paymentMethod, setPaymentMethod] = useState<
     "CASH" | "CARD" | "UPI" | "BANK_TRANSFER"
-  >((order.paymentMethod as any) || "CASH");
-  const [paymentReference, setPaymentReference] = useState("");
-
-  // New Partial & Settlement local states
-  const balanceDueNum = parseFloat(order.balanceDue || "0");
-  const [partialAmount, setPartialAmount] = useState<string>("");
-  const [settleAmountReceived, setSettleAmountReceived] = useState<string>("");
-  const [settleDiscount, setSettleDiscount] = useState<string>("");
+  >(
+    (order.paymentMethod as "CASH" | "CARD" | "UPI" | "BANK_TRANSFER") || "CASH"
+  );
 
   const [fulfillmentStatus, setFulfillmentStatus] = useState<
     "PROCESSING" | "READY" | "DELIVERED" | "ON_HOLD"
-  >(order.fulfillmentStatus as any);
-  const [estimatedDelivery, setEstimatedDelivery] = useState<string>(
-    order.estimatedDelivery || ""
+  >(
+    (order.fulfillmentStatus as
+      | "PROCESSING"
+      | "READY"
+      | "DELIVERED"
+      | "ON_HOLD") || "PROCESSING"
   );
 
-  // WhatsApp prompt local states (declared at top level to respect Rules of Hooks)
+  const [estimatedDelivery, setEstimatedDelivery] = useState<string>(
+    order.estimatedDelivery ? order.estimatedDelivery.split("T")[0] : ""
+  );
+
+  const [partialAmount, setPartialAmount] = useState<string>("");
+  const [settleAmountReceived, setSettleAmountReceived] = useState<string>("");
+  const [settleDiscount, setSettleDiscount] = useState<string>("0");
+  const [paymentReference, setPaymentReference] = useState<string>("");
+
+  // Phone input modal state for orders missing a phone number
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
   const [inputPhone, setInputPhone] = useState("");
-  const [whatsappTemplateKey, setWhatsappTemplateKey] = useState<"invoice_sent" | "order_complete" | "delivery_sent" | "delivery_delay" | null>(null);
+  const [whatsappTemplateKey, setWhatsappTemplateKey] = useState<
+    "invoice_sent" | "order_complete" | "delivery_sent" | "delivery_delay" | null
+  >(null);
 
-  // Sync state with order changes when modal opens/changes
-  useEffect(() => {
-    setPaymentStatus(isPaidInitially ? "PAID" : "PARTIALLY_PAID");
-    setPaymentMethod((order.paymentMethod as any) || "CASH");
-    setPaymentReference("");
-    setPartialAmount("");
-    setSettleAmountReceived(balanceDueNum > 0 ? balanceDueNum.toFixed(2) : "0.00");
-    setSettleDiscount("0.00");
-    setFulfillmentStatus(order.fulfillmentStatus as any);
-    setEstimatedDelivery(order.estimatedDelivery || "");
-  }, [order, isPaidInitially, balanceDueNum]);
+  const balanceDueNum = parseFloat(order.balanceDue) || 0;
 
   useEffect(() => {
     setMounted(true);
-    return () => setMounted(false);
   }, []);
 
-  if (!isOpen) return null;
-  if (!mounted) return null;
+  if (!isOpen || !mounted) return null;
 
-  // Inferred Delayed status
-  const isDelayed =
+  // Delayed Check
+  const isCurrentlyDelayed =
     fulfillmentStatus !== "DELIVERED" &&
     estimatedDelivery &&
     estimatedDelivery < todayStr;
+  const isDelayed = isCurrentlyDelayed;
 
   // Date changed check
   const isDateChanged = estimatedDelivery !== (order.estimatedDelivery || "");
@@ -110,14 +123,27 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     targetPhone: string
   ) => {
     try {
-      const settingsRes = await getShopSettingsAction();
-      if (!settingsRes.success || !settingsRes.data) {
-        toast.error("Failed to load shop notification templates.");
-        return;
+      // 1. Try to read shop profile and templates from offlineDB first
+      let shopData: any = null;
+      try {
+        const cachedProfiles = await offlineDB.cached_shop_profile.toArray();
+        if (cachedProfiles.length > 0) {
+          shopData = cachedProfiles[0];
+        }
+      } catch {}
+
+      // 2. If online and not found, try server action
+      if (!shopData && typeof navigator !== "undefined" && navigator.onLine) {
+        try {
+          const settingsRes = await getShopSettingsAction();
+          if (settingsRes.success && settingsRes.data) {
+            shopData = settingsRes.data;
+          }
+        } catch {}
       }
 
-      const shopData = settingsRes.data;
-      const templateConfig = shopData.settings?.whatsappTemplates?.[key];
+      const templateConfig =
+        shopData?.settings?.whatsappTemplates?.[key] || shopData?.whatsappTemplates?.[key];
       const isEnabled = templateConfig?.enabled ?? true;
 
       if (!isEnabled) {
@@ -136,8 +162,8 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
 
       const parsedText = parseWhatsAppTemplate(templateText, {
         customer_name: order.customerName || "Valued Customer",
-        shop_name: shopData.name || "Clarity Eyecare",
-        phone: shopData.phone || "+91 74161 06064",
+        shop_name: shopData?.name || "Clarity Eyecare",
+        phone: shopData?.phone || "+91 74161 06064",
         order_number: order.orderNumber || "",
         invoice_number: order.invoiceNumber || "",
         amount: `Rs. ${order.total}`,
@@ -175,6 +201,21 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     }
 
     startTransition(async () => {
+      const isOnline = typeof navigator !== "undefined" && navigator.onLine;
+      if (!isOnline) {
+        try {
+          if (order.customerId) {
+            await offlineDB.cached_customers.update(order.customerId, { phone: inputPhone.trim() });
+          }
+          toast.success("Patient phone number updated locally (Offline mode).");
+          setShowPhonePrompt(false);
+          if (whatsappTemplateKey) {
+            triggerWhatsAppRedirect(whatsappTemplateKey, inputPhone.trim());
+          }
+          return;
+        } catch {}
+      }
+
       const res = await updateCustomerPhoneAction(order.customerId, inputPhone.trim());
       if (res.success) {
         toast.success(res.message);
@@ -189,9 +230,39 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     });
   };
 
-  // Handle Save (Delivery Status & Date)
+  // Handle Save (Delivery Status & Date) with offline fallback
   const handleSaveDeliveryDetails = () => {
     startTransition(async () => {
+      const isOnline = typeof navigator !== "undefined" && navigator.onLine;
+      if (!isOnline) {
+        try {
+          const shopId = await getActiveShopId();
+          try {
+            await offlineDB.cached_orders.update(order.id, {
+              status: fulfillmentStatus as any,
+              deliveryDate: estimatedDelivery || null,
+            });
+            await offlineDB.cached_invoices.update(order.invoiceId, {
+              fulfillmentStatus,
+              estimatedDelivery: estimatedDelivery || null,
+            });
+          } catch {}
+
+          await enqueueOfflineMutation(shopId, "ORDER_STATUS_UPDATE", {
+            invoiceId: order.invoiceId,
+            fulfillmentStatus,
+            estimatedDelivery: estimatedDelivery || null,
+          });
+
+          toast.success("Delivery details saved locally (Offline mode). Changes will sync to cloud when online.");
+          onClose();
+          return;
+        } catch (localErr: any) {
+          toast.error("Failed to save changes locally: " + (localErr.message || "Unknown error"));
+          return;
+        }
+      }
+
       try {
         const res = await updateOrderStatusAction(order.invoiceId, {
           fulfillmentStatus,
@@ -206,7 +277,22 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
           toast.error(res.message);
         }
       } catch (err: any) {
-        toast.error(err.message || "An error occurred while saving changes.");
+        try {
+          const shopId = await getActiveShopId();
+          await offlineDB.cached_orders.update(order.id, {
+            status: fulfillmentStatus as any,
+            deliveryDate: estimatedDelivery || null,
+          });
+          await enqueueOfflineMutation(shopId, "ORDER_STATUS_UPDATE", {
+            invoiceId: order.invoiceId,
+            fulfillmentStatus,
+            estimatedDelivery: estimatedDelivery || null,
+          });
+          toast.success("Network dropped: Delivery details saved locally and queued for sync.");
+          onClose();
+        } catch {
+          toast.error(err.message || "An error occurred while saving changes.");
+        }
       }
     });
   };
@@ -270,6 +356,43 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     }
 
     startInvoiceTransition(async () => {
+      const isOnline = typeof navigator !== "undefined" && navigator.onLine;
+      const currentPaid = parseFloat(order.amountPaid || "0");
+      const newAmountPaid = (currentPaid + amount).toFixed(2);
+      const newBalanceDue = Math.max(0, balanceDueNum - amount).toFixed(2);
+
+      if (!isOnline) {
+        try {
+          const shopId = await getActiveShopId();
+          try {
+            await offlineDB.cached_orders.update(order.id, {
+              paidAmount: newAmountPaid,
+              dueAmount: newBalanceDue,
+              paymentStatus: parseFloat(newBalanceDue) <= 0 ? "PAID" : "PARTIALLY_PAID",
+            });
+            await offlineDB.cached_invoices.update(order.invoiceId, {
+              amountPaid: newAmountPaid,
+              balanceDue: newBalanceDue,
+              status: parseFloat(newBalanceDue) <= 0 ? "PAID" : "PENDING",
+            });
+          } catch {}
+
+          await enqueueOfflineMutation(shopId, "ORDER_PAYMENT_RECORD", {
+            invoiceId: order.invoiceId,
+            amountPaid: amount,
+            paymentMethod,
+            transactionId: paymentReference || undefined,
+          });
+
+          toast.success(`Partial payment of ₹${amount.toFixed(2)} recorded locally. Will sync to cloud when online.`);
+          onClose();
+          return;
+        } catch (localErr: any) {
+          toast.error("Failed to record offline payment: " + (localErr.message || "Unknown error"));
+          return;
+        }
+      }
+
       try {
         const res = await recordPartialPaymentAction(order.invoiceId, {
           amountPaid: amount,
@@ -288,7 +411,24 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
           toast.error(res.message);
         }
       } catch (err: any) {
-        toast.error(err.message || "Failed to record partial payment.");
+        try {
+          const shopId = await getActiveShopId();
+          await offlineDB.cached_orders.update(order.id, {
+            paidAmount: newAmountPaid,
+            dueAmount: newBalanceDue,
+            paymentStatus: parseFloat(newBalanceDue) <= 0 ? "PAID" : "PARTIALLY_PAID",
+          });
+          await enqueueOfflineMutation(shopId, "ORDER_PAYMENT_RECORD", {
+            invoiceId: order.invoiceId,
+            amountPaid: amount,
+            paymentMethod,
+            transactionId: paymentReference || undefined,
+          });
+          toast.success("Network dropped: Payment recorded locally and queued for sync.");
+          onClose();
+        } catch {
+          toast.error(err.message || "Failed to record partial payment.");
+        }
       }
     });
   };
@@ -327,6 +467,43 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
     }
 
     startInvoiceTransition(async () => {
+      const isOnline = typeof navigator !== "undefined" && navigator.onLine;
+      const currentPaid = parseFloat(order.amountPaid || "0");
+      const newAmountPaid = (currentPaid + amtRec).toFixed(2);
+
+      if (!isOnline) {
+        try {
+          const shopId = await getActiveShopId();
+          try {
+            await offlineDB.cached_orders.update(order.id, {
+              paidAmount: newAmountPaid,
+              dueAmount: "0.00",
+              paymentStatus: "PAID",
+            });
+            await offlineDB.cached_invoices.update(order.invoiceId, {
+              amountPaid: newAmountPaid,
+              balanceDue: "0.00",
+              status: "PAID",
+            });
+          } catch {}
+
+          await enqueueOfflineMutation(shopId, "ORDER_SETTLE_DUES", {
+            invoiceId: order.invoiceId,
+            amountReceived: amtRec,
+            discountAmount: disc,
+            paymentMethod,
+            transactionId: paymentReference || undefined,
+          });
+
+          toast.success(`Invoice settled locally (₹${amtRec.toFixed(2)} paid, ₹${disc.toFixed(2)} discount). Will sync when online.`);
+          onClose();
+          return;
+        } catch (localErr: any) {
+          toast.error("Failed to settle dues locally: " + (localErr.message || "Unknown error"));
+          return;
+        }
+      }
+
       try {
         const res = await settleDuesWithDiscountAction(order.invoiceId, {
           amountReceived: amtRec,
@@ -346,7 +523,25 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
           toast.error(res.message);
         }
       } catch (err: any) {
-        toast.error(err.message || "Failed to settle dues with discount.");
+        try {
+          const shopId = await getActiveShopId();
+          await offlineDB.cached_orders.update(order.id, {
+            paidAmount: newAmountPaid,
+            dueAmount: "0.00",
+            paymentStatus: "PAID",
+          });
+          await enqueueOfflineMutation(shopId, "ORDER_SETTLE_DUES", {
+            invoiceId: order.invoiceId,
+            amountReceived: amtRec,
+            discountAmount: disc,
+            paymentMethod,
+            transactionId: paymentReference || undefined,
+          });
+          toast.success("Network dropped: Dues settled locally and queued for sync.");
+          onClose();
+        } catch {
+          toast.error(err.message || "Failed to settle dues with discount.");
+        }
       }
     });
   };

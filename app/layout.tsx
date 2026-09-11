@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
+import { ServiceWorkerRegistrar } from "@/components/providers/ServiceWorkerRegistrar";
+
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
@@ -13,6 +15,13 @@ export const metadata: Metadata = {
     "Manage your optical store with ease. Handle shops, customers, prescriptions, inventory, and invoices — all in one platform.",
   icons: {
     icon: "/optical-manager%20logo.svg",
+    apple: "/optical-manager%20logo.svg",
+  },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Optical Manager",
   },
 };
 
@@ -24,6 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth" className={cn("font-sans", inter.variable)}>
       <body>
+        <ServiceWorkerRegistrar />
         {children}
         <Toaster position="top-right" richColors />
         <SpeedInsights />

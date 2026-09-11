@@ -38,6 +38,7 @@ import {
 import { updateShopInvoiceSettingsAction } from "@/actions/shop.actions";
 import { toast } from "sonner";
 import { updateOrganizationAction } from "@/actions/organization.actions";
+import { offlineDB } from "@/lib/offline/db";
 
 interface OrganizationData {
   id: string;
@@ -77,6 +78,7 @@ interface SettingCategory {
 export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClientProps) {
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [shopsList, setShopsList] = useState<ShopData[]>(shops);
 
   // Search filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,6 +109,43 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
   const [orgAddress, setOrgAddress] = useState(organization?.address || "");
   const [isSavingOrg, setIsSavingOrg] = useState(false);
 
+  // Offline hydration fallback from IndexedDB if offline or server returned empty
+  useEffect(() => {
+    if (shopsList.length === 0 || !orgName) {
+      offlineDB.cached_organization
+        .toCollection()
+        .first()
+        .then((cachedOrg) => {
+          if (cachedOrg) {
+            if (!orgName && cachedOrg.name) setOrgName(cachedOrg.name);
+            if (!orgEmail && cachedOrg.email) setOrgEmail(cachedOrg.email);
+            if (!orgPhone && cachedOrg.phone) setOrgPhone(cachedOrg.phone);
+            if (!orgAddress && cachedOrg.address) setOrgAddress(cachedOrg.address);
+
+            if (cachedOrg.shops && cachedOrg.shops.length > 0 && shopsList.length === 0) {
+              const mappedShops: ShopData[] = cachedOrg.shops.map((s) => ({
+                id: s.id,
+                name: s.name,
+                gstin: s.gstin || null,
+                cin: s.cin || null,
+                msmeUdyam: s.msmeUdyam || null,
+                bankName: s.bankName || null,
+                bankBranch: s.bankBranch || null,
+                bankAccountNumber: s.bankAccountNumber || null,
+                bankIfsc: s.bankIfsc || null,
+                settings: s.settings || null,
+              }));
+              setShopsList(mappedShops);
+              if (!selectedShopId && mappedShops[0]) {
+                setSelectedShopId(mappedShops[0].id);
+              }
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [shopsList.length, orgName, orgEmail, orgPhone, orgAddress]);
+
   // Form states for Tax & GST Modal
   const [cgstRate, setCgstRate] = useState("9");
   const [sgstRate, setSgstRate] = useState("9");
@@ -131,7 +170,9 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
   const [isSavingAppointments, setIsSavingAppointments] = useState(false);
 
   // Invoice & Billing Settings state
-  const [selectedShopId, setSelectedShopId] = useState(shops.length > 0 ? shops[0].id : "");
+  const [selectedShopId, setSelectedShopId] = useState(
+    shops.length > 0 ? shops[0].id : ""
+  );
   const [invGstin, setInvGstin] = useState("");
   const [invCin, setInvCin] = useState("");
   const [invMsme, setInvMsme] = useState("");
@@ -146,7 +187,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
 
   // Populate invoice form from selected shop's existing data
   const populateInvoiceFormFromShop = useCallback((shopId: string) => {
-    const shop = shops.find((s) => s.id === shopId);
+    const shop = shopsList.find((s) => s.id === shopId);
     if (!shop) return;
     setInvGstin(shop.gstin || "");
     setInvCin(shop.cin || "");
@@ -159,7 +200,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
     setInvEnableBankDetails(settings.enableBankDetails ?? false);
     setInvEnableTerms(settings.enableTerms ?? true);
     setInvTermsNotes(settings.invoiceTermsNotes ?? "");
-  }, [shops]);
+  }, [shopsList]);
 
   // When invoice modal opens, populate form
   useEffect(() => {
@@ -949,7 +990,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
             {/* Scrollable Content */}
             <form onSubmit={handleSaveInvoiceSettings} className="flex-1 overflow-y-auto p-6 space-y-5">
               {/* Shop Selector (for multi-shop orgs) */}
-              {shops.length > 1 && (
+              {shopsList.length > 1 && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
                     Select Store / Branch
@@ -964,7 +1005,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       }}
                       className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 appearance-none bg-white"
                     >
-                      {shops.map((shop) => (
+                      {shopsList.map((shop) => (
                         <option key={shop.id} value={shop.id}>
                           {shop.name}
                         </option>

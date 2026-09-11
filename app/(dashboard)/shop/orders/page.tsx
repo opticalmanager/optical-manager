@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/services/auth.service";
 import { getOrdersDashboardData, getDeletedOrders, TimeframeType } from "@/services/order.service";
+import { getShopsByOrganization } from "@/services/shop.service";
 import { canUserEditOrders, canUserDeleteOrders } from "@/utils/permissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReminderCardAction } from "./ReminderCardAction";
@@ -42,7 +43,16 @@ export default async function OrdersDashboardPage({
   const limit = 8; // Display 8 rows per page for high-density SaaS viewing
  
   const user = await getCurrentUser();
-  const shopId = user?.shopId;
+  let shopId = user?.shopId;
+
+  if (!shopId && user?.role === "OWNER" && user?.organizationId) {
+    try {
+      const orgShops = await getShopsByOrganization(user.organizationId);
+      if (orgShops.length > 0) {
+        shopId = orgShops[0].id;
+      }
+    } catch {}
+  }
  
   if (!shopId) {
     return (
@@ -52,23 +62,54 @@ export default async function OrdersDashboardPage({
     );
   }
  
-  // Fetch KPI aggregates and paginated order list
-  const { kpis, orders, reminders, totalCount } = await getOrdersDashboardData({
-    shopId,
-    tab,
-    search,
-    page,
-    limit,
-    timeframe: timeframe as TimeframeType,
-    filter,
-  });
- 
-  // Check permissions for viewing deleted records
+  // Fetch KPI aggregates and paginated order list with fast-fail timeout for offline resilience
   const canDelete = user ? canUserDeleteOrders(user) : false;
-  const deletedOrders = canDelete && user?.organizationId
-    ? await getDeletedOrders(shopId, user.organizationId)
-    : [];
+  let dashboardData = {
+    kpis: {
+      totalOrders: 0,
+      totalOrdersMoM: "+0%",
+      deliveredOrders: 0,
+      completionRate: 0,
+      pendingOrders: 0,
+      criticalPending: 0,
+      delayedOrders: 0,
+      criticalDelayed: 0,
+    },
+    orders: [] as any[],
+    reminders: [] as any[],
+    totalCount: 0,
+  };
+  let deletedOrders: any[] = [];
 
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Orders DB query timeout")), 1200)
+    );
+
+    const results = await Promise.race([
+      Promise.all([
+        getOrdersDashboardData({
+          shopId,
+          tab,
+          search,
+          page,
+          limit,
+          timeframe: timeframe as TimeframeType,
+          filter,
+        }),
+        canDelete && user?.organizationId
+          ? getDeletedOrders(shopId, user.organizationId)
+          : Promise.resolve([]),
+      ]),
+      timeoutPromise,
+    ]);
+    dashboardData = results[0];
+    deletedOrders = results[1];
+  } catch (err) {
+    console.warn("[OrdersDashboardPage] Failed to fetch orders from database (offline/timeout fallback):", err);
+  }
+
+  const { kpis, orders, reminders, totalCount } = dashboardData;
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
  
   return (

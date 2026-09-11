@@ -38,15 +38,29 @@ export default async function OwnerAnalyticsPage({ searchParams }: PageProps) {
   const timeframe = (params.timeframe || "7d") as TimeframeType | "custom";
   const compareMode = (params.compare || "none") as any;
 
-  // Fetch list of active organization shops
-  const orgShops = await db
-    .select({
-      id: shops.id,
-      name: shops.name,
-      isActive: shops.isActive,
-    })
-    .from(shops)
-    .where(and(eq(shops.organizationId, user.organizationId), eq(shops.isActive, true)));
+  // Fetch list of active organization shops and analytics with offline timeout resilience
+  let orgShops: any[] = [];
+  let data: any = {
+    kpis: {
+      revenue: 0,
+      collections: 0,
+      pendingOrders: 0,
+      readyForPickupOrders: 0,
+      delayedOrders: 0,
+      appointmentsToday: 0,
+      lowStockAlerts: 0,
+      pendingPayments: 0,
+      totalOrdersCount: 0,
+      avgOrderValue: 0,
+      paidInvoicesCount: 0,
+      patientVisitsCount: 0,
+    },
+    revenueChart: [],
+    priorityActions: [],
+    deliveryPerformance: { onTime: 0, delayed: 0, cancelled: 0 },
+    categoryDistribution: [],
+    recentOrders: [],
+  };
 
   const opts: DashboardOptions = {
     timeframe,
@@ -60,7 +74,31 @@ export default async function OwnerAnalyticsPage({ searchParams }: PageProps) {
     periodB: params.periodB,
   };
 
-  const data = await getDashboardData(currentShopId, opts, user.organizationId);
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Analytics fetch timeout")), 1500)
+    );
+
+    const [shopsData, dashboardData] = await Promise.race([
+      Promise.all([
+        db
+          .select({
+            id: shops.id,
+            name: shops.name,
+            isActive: shops.isActive,
+          })
+          .from(shops)
+          .where(and(eq(shops.organizationId, user.organizationId), eq(shops.isActive, true))),
+        getDashboardData(currentShopId, opts, user.organizationId),
+      ]),
+      timeoutPromise,
+    ]);
+
+    orgShops = shopsData || [];
+    data = dashboardData || data;
+  } catch (err) {
+    // Offline fallback
+  }
 
   return (
     <OwnerAnalyticsClient

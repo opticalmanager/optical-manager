@@ -11,10 +11,29 @@ export default async function OwnerSettingsPage() {
     redirect("/login");
   }
 
-  const [organization, shops] = await Promise.all([
-    getOrganizationById(user.organizationId),
-    getShopsByOrganization(user.organizationId),
-  ]);
+  let organization: any = null;
+  let shops: any[] = [];
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Owner settings fetch timeout")), 1200)
+    );
+
+    [organization, shops] = await Promise.race([
+      Promise.all([
+        getOrganizationById(user.organizationId),
+        getShopsByOrganization(user.organizationId),
+      ]),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    organization = {
+      id: user.organizationId,
+      name: "Optical Store",
+      onboardingCompleted: true,
+    };
+    shops = [];
+  }
 
   return (
     <OwnerSettingsClient organization={organization} shops={shops} />

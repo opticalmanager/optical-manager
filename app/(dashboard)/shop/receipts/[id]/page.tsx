@@ -21,10 +21,21 @@ export default async function ReceiptDetailPage({
     redirect("/login");
   }
 
-  const data = await getReceiptDocumentData(id, user.organizationId);
+  let data = null;
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Receipt query timeout")), 1000)
+    );
+    data = await Promise.race([
+      getReceiptDocumentData(id, user.organizationId),
+      timeoutPromise,
+    ]);
+  } catch {
+    data = null;
+  }
 
   if (!data) {
-    notFound();
+    redirect("/shop/orders?error=offline_receipt_unavailable");
   }
 
   return (

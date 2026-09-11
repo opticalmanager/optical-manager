@@ -3,11 +3,13 @@
 import React, { useState } from "react";
 import { OwnerSidebar } from "./OwnerSidebar";
 import { OwnerHeader } from "./OwnerHeader";
+import { OfflineProvider } from "@/components/providers/OfflineProvider";
 import { X } from "lucide-react";
 
 interface OwnerShellProps {
   children: React.ReactNode;
   organizationName: string;
+  shopId?: string | null;
   user: {
     fullName: string;
     email: string;
@@ -19,13 +21,15 @@ interface OwnerShellProps {
 export function OwnerShell({ 
   children, 
   organizationName, 
+  shopId,
   user, 
   hasLowStockAlerts = false 
 }: OwnerShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
+    <OfflineProvider shopId={shopId}>
+      <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
       
       {/* 1. Desktop Sidebar (Left Panel) - Hidden on Mobile */}
       <div className="hidden lg:block h-screen sticky top-0 shrink-0">
@@ -76,5 +80,6 @@ export function OwnerShell({
         </main>
       </div>
     </div>
+    </OfflineProvider>
   );
 }

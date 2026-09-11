@@ -6,6 +6,7 @@ import { Glasses, Menu, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import DemoRequestModal from "./DemoRequestModal";
+import { InstallAppButton } from "./InstallAppButton";
 
 const navLinks = [
   { label: "Features", href: "/#features" },
@@ -72,6 +73,7 @@ export default function Navbar() {
 
         {/* Desktop Auth Buttons */}
         <div className="hidden items-center gap-2 md:flex">
+          <InstallAppButton variant="navbar" />
           <Link
             href="/login"
             className={cn(buttonVariants({ variant: "ghost", size: "default" }))}
@@ -147,6 +149,7 @@ export default function Navbar() {
 
         {/* Mobile Auth Buttons */}
         <div className="mt-auto flex flex-col gap-2 border-t border-border px-4 py-4">
+          <InstallAppButton variant="navbar" className="w-full justify-center py-2.5" />
           <Link
             href="/login"
             onClick={() => setMobileOpen(false)}

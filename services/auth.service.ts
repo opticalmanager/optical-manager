@@ -17,47 +17,152 @@ import { cache } from "react";
  */
 export const getCurrentUser = cache(async function getCurrentUser(): Promise<SessionUser | null> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    let cachedSessionProfile: any = null;
+    let activeShopContextId: string | undefined = undefined;
 
-    if (!user) return null;
+    try {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const optRaw = cookieStore.get("opt_session_profile")?.value;
+      if (optRaw) {
+        cachedSessionProfile = JSON.parse(optRaw.startsWith("%") ? decodeURIComponent(optRaw) : optRaw);
+      }
+      activeShopContextId = cookieStore.get("active_shop_context_id")?.value;
+    } catch {}
 
-    const [profile] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
+    let authUser: any = null;
+    try {
+      const supabase = await createClient();
+      const authPromise = supabase.auth.getUser();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Supabase auth timeout")), 500)
+      );
+      const { data: { user } } = (await Promise.race([authPromise, timeoutPromise])) as any;
+      authUser = user;
+    } catch (authErr) {
+      // Offline mode or network timeout
+    }
+
+    // Fallback: extract user from session cookie if Supabase API was unreachable
+    if (!authUser) {
+      if (cachedSessionProfile?.id) {
+        authUser = {
+          id: cachedSessionProfile.id,
+          email: cachedSessionProfile.email || "",
+          user_metadata: {
+            full_name: cachedSessionProfile.fullName,
+            role: cachedSessionProfile.role,
+            organization_id: cachedSessionProfile.organizationId,
+            shop_id: cachedSessionProfile.shopId,
+          },
+        };
+      } else {
+        try {
+          const { cookies } = await import("next/headers");
+          const cookieStore = await cookies();
+          const allCookies = cookieStore.getAll();
+          const authCookies = allCookies
+            .filter((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+          if (authCookies.length > 0) {
+            let combined = authCookies.map((c) => c.value).join("");
+            let parsed: any = null;
+            if (combined.startsWith("base64-")) {
+              parsed = JSON.parse(Buffer.from(combined.slice(7), "base64").toString("utf-8"));
+            } else {
+              try {
+                parsed = JSON.parse(combined);
+              } catch {
+                try {
+                  parsed = JSON.parse(decodeURIComponent(combined));
+                } catch {
+                  parsed = { access_token: combined };
+                }
+              }
+            }
+
+            if (parsed?.user) {
+              authUser = parsed.user;
+            } else {
+              const token = parsed?.access_token || (Array.isArray(parsed) ? parsed[0] : null);
+              if (token && typeof token === "string" && token.includes(".")) {
+                const parts = token.split(".");
+                if (parts.length >= 2) {
+                  const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
+                  authUser = {
+                    id: payload.sub,
+                    email: payload.email,
+                    user_metadata: payload.user_metadata || {},
+                  };
+                }
+              }
+            }
+          }
+        } catch (cookieErr: any) {
+          if (cookieErr?.digest !== "DYNAMIC_SERVER_USAGE") {
+            console.warn("[auth.service] Failed to extract offline user from cookies:", cookieErr);
+          }
+        }
+      }
+    }
+
+    if (!authUser && !cachedSessionProfile) return null;
+
+    let profile: any = null;
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Profile DB query timeout")), 500)
+      );
+      const queryPromise = db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, authUser?.id || cachedSessionProfile?.id))
+        .limit(1);
+      const results = (await Promise.race([queryPromise, timeoutPromise])) as any[];
+      profile = results[0] || null;
+    } catch {
+      // Offline fallback
+    }
 
     if (!profile) {
-      // If the database was reset/wiped in development but they have a valid Supabase session,
-      // auto-recreate their profile as an OWNER so they don't get stuck in a redirect loop.
-      const email = user.email || "";
-      const fullName = user.user_metadata?.full_name || email.split("@")[0] || "User";
-      try {
-        console.log(`[auth.service] Profile missing for ${email}. Auto-recreating owner profile...`);
-        const created = await createOwnerWithOrganization({
-          userId: user.id,
-          email,
-          fullName,
-          organizationName: `${fullName}'s Organization`,
-        });
-
+      // If offline or profile lookup failed, use high-fidelity cached session profile
+      if (cachedSessionProfile?.id) {
         return {
-          id: user.id,
-          email,
-          fullName,
-          role: "OWNER",
-          organizationId: created.organization.id,
-          shopId: null,
-          avatarUrl: user.user_metadata?.avatar_url || null,
+          id: cachedSessionProfile.id,
+          email: cachedSessionProfile.email || authUser?.email || "",
+          fullName: cachedSessionProfile.fullName || "User",
+          role: cachedSessionProfile.role || "SHOP_MANAGER",
+          customRoleName: null,
+          permissions: null,
+          organizationId: cachedSessionProfile.organizationId || "offline-org",
+          shopId: activeShopContextId || cachedSessionProfile.shopId || null,
+          avatarUrl: null,
           isActive: true,
+          isImpersonating: Boolean(activeShopContextId),
         };
-      } catch (err) {
-        console.error("[auth.service] Failed to auto-recreate profile in getCurrentUser:", err);
-        return null;
       }
+
+      // Fallback synthesis from authUser metadata
+      const email = authUser?.email || "";
+      const fullName = authUser?.user_metadata?.full_name || email.split("@")[0] || "User";
+      const metaRole = authUser?.user_metadata?.role || "SHOP_MANAGER";
+      const metaOrgId = authUser?.user_metadata?.organization_id || "offline-org";
+      const metaShopId = authUser?.user_metadata?.shop_id || null;
+
+      return {
+        id: authUser?.id,
+        email,
+        fullName,
+        role: metaRole,
+        customRoleName: null,
+        permissions: null,
+        organizationId: metaOrgId,
+        shopId: activeShopContextId || metaShopId,
+        avatarUrl: authUser?.user_metadata?.avatar_url || null,
+        isActive: true,
+        isImpersonating: Boolean(activeShopContextId),
+      };
     }
 
     // Check if owner is active inside a shop branch context
@@ -78,7 +183,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
             const { shops } = await import("@/db/schema");
             const { and } = await import("drizzle-orm");
             
-            const [shop] = await db
+            const dbShopPromise = db
               .select()
               .from(shops)
               .where(
@@ -88,6 +193,10 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
                 )
               )
               .limit(1);
+            const timeoutPromise = new Promise<any[]>((_, reject) =>
+              setTimeout(() => reject(new Error("Shop DB timeout")), 1500)
+            );
+            const [shop] = await Promise.race([dbShopPromise, timeoutPromise]);
 
             if (shop) {
               // Retain native OWNER role, but set active shop context ID

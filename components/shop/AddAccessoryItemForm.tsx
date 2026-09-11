@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { accessoryItemSchema } from "@/utils/validators";
 import { createAccessoryItemAction } from "@/actions/inventory.actions";
+import { offlineDB } from "@/lib/offline/db";
+import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -103,13 +105,79 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
 
   const onSubmit = async (data: any) => {
     startTransition(async () => {
-      try {
-        const payload = { ...data };
-        if (payload.type === "Other") {
-          payload.type = payload.customType || "Other";
-        }
-        delete payload.customType;
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const activeShopId =
+        shopId ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("om_active_shop_id") || "active_shop"
+          : "active_shop");
 
+      const payload = { ...data };
+      if (payload.type === "Other") {
+        payload.type = payload.customType || "Other";
+      }
+      delete payload.customType;
+
+      const saveLocally = async () => {
+        const b = (data.brand || "GEN")
+          .replace(/[^A-Za-z]/g, "")
+          .substring(0, 3)
+          .toUpperCase()
+          .padEnd(3, "X");
+        const generatedSku = `ACC-${b}000000-${Math.floor(100 + Math.random() * 900)}`;
+        const offlineItemId = `off-inv-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 6)}`;
+
+        const offlineRecord = {
+          id: offlineItemId,
+          shopId: activeShopId,
+          organizationId: "offline_org",
+          name: payload.name,
+          category: "ACCESSORY",
+          brand: payload.brand || null,
+          model: null,
+          sku: generatedSku,
+          price: (payload.price || 0).toFixed(2),
+          quantity: payload.quantity || 0,
+          isActive: true,
+          cgstPercent: (payload.cgstPercent || 6).toString(),
+          sgstPercent: (payload.sgstPercent || 6).toString(),
+          igstPercent: (payload.igstPercent || 12).toString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await offlineDB.cached_inventory.put(offlineRecord);
+        await enqueueOfflineMutation(activeShopId, "INVENTORY_CREATE", {
+          category: "ACCESSORY",
+          ...payload,
+          sku: generatedSku,
+          offlineItemId,
+        });
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("offline-databank-updated", {
+              detail: { shopId: activeShopId, timestamp: new Date().toISOString() },
+            })
+          );
+        }
+
+        toast.success("Accessory item saved locally (will sync automatically when online).");
+        router.push("/shop/inventory");
+      };
+
+      if (isOffline) {
+        try {
+          await saveLocally();
+        } catch (err: any) {
+          console.error("Local save error:", err);
+          toast.error("Failed to save accessory locally.");
+        }
+        return;
+      }
+
+      try {
         const result = await createAccessoryItemAction(undefined, payload);
         if (result?.success) {
           toast.success(result.message || "Accessory item saved successfully.");
@@ -118,8 +186,12 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
           toast.error(result?.message || "Failed to save accessory item.");
         }
       } catch (err: any) {
-        console.error("Save error:", err);
-        toast.error("An unexpected error occurred while saving.");
+        try {
+          await saveLocally();
+        } catch {
+          console.error("Save error:", err);
+          toast.error("An unexpected error occurred while saving.");
+        }
       }
     });
   };
