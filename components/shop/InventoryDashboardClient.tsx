@@ -24,8 +24,6 @@ import {
   Barcode
 } from "lucide-react";
 import { BarcodeDesignerModal } from "@/components/shop/BarcodeDesignerModal";
-import { QuickAddItemModal } from "@/components/shop/QuickAddItemModal";
-import { QuickEditStockModal } from "@/components/shop/QuickEditStockModal";
 import { offlineDB } from "@/lib/offline/db";
 
 interface InventoryItem {
@@ -81,8 +79,6 @@ export function InventoryDashboardClient({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [activeBarcodeItem, setActiveBarcodeItem] = useState<InventoryItem | null>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
   // Sync server prop changes to local state whenever online
   useEffect(() => {
@@ -402,13 +398,12 @@ export function InventoryDashboardClient({
           >
             <Download className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Export CSV
           </Button>
-          <button 
-            type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center justify-center px-3.5 h-9 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 transition-colors cursor-pointer"
+          <Link 
+            href="/shop/inventory/add" 
+            className="inline-flex items-center justify-center px-3.5 h-9 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 transition-colors"
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Item
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -748,14 +743,13 @@ export function InventoryDashboardClient({
                       >
                         <Barcode className="h-4 w-4" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingItem(item)}
-                        className="p-1.5 text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors inline-block cursor-pointer bg-transparent border-none"
-                        title="Quick Edit Stock & Details"
+                      <Link 
+                        href={`/shop/inventory/edit/${item.id}`}
+                        className="p-1.5 text-slate-400 hover:text-[#2563eb] hover:bg-blue-50 rounded-lg transition-colors inline-block"
+                        title="Edit Item details"
                       >
                         <Pencil className="h-4 w-4" />
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))
@@ -780,14 +774,13 @@ export function InventoryDashboardClient({
                             : "Get started by ingesting your first frames or optical stock items."}
                         </p>
                       </div>
-                      <button 
-                        type="button"
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="inline-flex items-center justify-center px-3.5 py-2 bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"
+                      <Link 
+                        href="/shop/inventory/add" 
+                        className="inline-flex items-center justify-center px-3.5 py-2 bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
                         Add Stock Item
-                      </button>
+                      </Link>
                     </div>
                   </td>
                 </tr>
@@ -838,24 +831,6 @@ export function InventoryDashboardClient({
         item={activeBarcodeItem}
       />
 
-      <QuickAddItemModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onCreated={(createdItem) => {
-          setItems((prev) => [createdItem, ...prev]);
-        }}
-      />
-
-      <QuickEditStockModal
-        isOpen={editingItem !== null}
-        onClose={() => setEditingItem(null)}
-        item={editingItem}
-        onUpdated={(updated) => {
-          setItems((prev) =>
-            prev.map((it) => (it.id === updated.id ? { ...it, ...updated } : it))
-          );
-        }}
-      />
     </div>
   );
 }
