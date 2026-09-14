@@ -100,27 +100,36 @@ The database is structured around a multi-tenant hierarchy:
   * `createdAt` & `updatedAt`: Record audit timestamps.
 
 #### `prescriptions` (Eye Testing & Clinical Refraction Records)
-* **Purpose:** Stores detailed optometrist vision refraction measurements for glasses or contact lenses. Linked directly to a customer.
+* **Purpose:** Stores detailed optometrist vision refraction measurements for spectacles or contact lenses. Linked directly to a customer profile.
 * **Key Attributes:**
   * `id`: Prescription record identifier.
   * `customerId`: Associated patient reference.
   * `shopId`: Store outlet where test was performed.
-  * `optometristName`: Name of testing practitioner or optometrist.
+  * `rxNumber`: Unique clinical prescription identifier (e.g. `PR-8821`).
+  * `rxCategory`: Clinical category tab (`SPECT_RX`, `CL_RX`, `DISTANCE`, `NEAR`).
   * `prescriptionType`: Vision correction type (`DISTANCE`, `NEAR`).
-  * **Right Eye (OD) Parameters:**
-    * `sphOd`: Sphere power (-20.00 to +20.00 diopters).
-    * `cylOd`: Cylinder power (-10.00 to +10.00 diopters).
+  * `lensType`: Prescribed optical lens design (`SINGLE_VISION`, `BIFOCAL`, `PROGRESSIVE`, `BLUE_CUT`, `ANTI_REFLECTIVE`, `PHOTOCHROMIC`, `HIGH_INDEX`, `POLARIZED`).
+  * `doctorName`: Prescribing doctor or consulting ophthalmologist.
+  * `optometristName`: Name of testing practitioner or optometrist.
+  * `prescribedDate`: Clinical examination / prescribing date (`YYYY-MM-DD`).
+  * **Right Eye (OD / RE) Parameters:**
+    * `sphOd`: Sphere power diopters (-20.00 to +20.00).
+    * `cylOd`: Cylinder power diopters (-10.00 to +10.00).
     * `axisOd`: Axis angle (1° to 180°).
-    * `addOd`: Near addition power.
-    * `vaOd`: Visual acuity measurement (e.g. 6/6, 20/20).
-  * **Left Eye (OS) Parameters:**
-    * `sphOs`: Sphere power.
-    * `cylOs`: Cylinder power.
-    * `axisOs`: Axis angle.
-    * `addOs`: Near addition power.
-    * `vaOs`: Visual acuity measurement.
-  * `pd`: Pupillary Distance measurement in millimeters.
-  * `notes`: Clinical testing observations.
+    * `addOd`: Near addition power diopters (+0.50 to +4.00).
+    * `vaOd`: Visual acuity measurement (e.g. 6/6, 20/20, N6).
+    * `pdOd`: Monocular pupillary distance in millimeters.
+    * `caddRight`: Contact lens addition / intermediate addition diopter.
+  * **Left Eye (OS / LE) Parameters:**
+    * `sphOs`: Sphere power diopters (-20.00 to +20.00).
+    * `cylOs`: Cylinder power diopters (-10.00 to +10.00).
+    * `axisOs`: Axis angle (1° to 180°).
+    * `addOs`: Near addition power diopters (+0.50 to +4.00).
+    * `vaOs`: Visual acuity measurement (e.g. 6/6, 20/20, N6).
+    * `pdOs`: Monocular pupillary distance in millimeters.
+    * `caddLeft`: Contact lens addition / intermediate addition diopter.
+  * `pd`: Total binocular Pupillary Distance measurement in millimeters.
+  * `notes`: Clinical testing observations and optometrist remarks.
 
 ---
 

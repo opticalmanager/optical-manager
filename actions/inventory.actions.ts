@@ -22,6 +22,22 @@ import { eq, and, sql } from "drizzle-orm";
 import { recordStockMovement } from "@/services/inventory.service";
 
 
+function formatInventoryValidationError(error: any): { success: false; message: string; errors: Record<string, string[]> } {
+  const fieldErrors: Record<string, string[]> = {};
+  const messages: string[] = [];
+  error.errors.forEach((err: any) => {
+    const path = err.path.join(".");
+    if (!fieldErrors[path]) fieldErrors[path] = [];
+    fieldErrors[path].push(err.message);
+    messages.push(`${path}: ${err.message}`);
+  });
+  return {
+    success: false,
+    message: messages.length > 0 ? `Validation failed: ${messages.slice(0, 3).join("; ")}` : "Validation failed. Please check the inputs.",
+    errors: fieldErrors,
+  };
+}
+
 /**
  * Creates a new Frame inventory item along with its specific frame details.
  * Performed within an atomic transaction.
@@ -44,17 +60,7 @@ export async function createFrameItemAction(
     // Validate request fields
     const validatedFields = frameItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;
@@ -63,9 +69,9 @@ export async function createFrameItemAction(
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
       category: "FRAME",
-      brand: data.brand,
-      modelNumber: data.modelNumber,
-      colorCode: data.colorCode,
+      brand: data.brand || undefined,
+      modelNumber: data.modelNumber || undefined,
+      colorCode: data.colorCode || undefined,
       sequentialNumber: seq,
     });
 
@@ -164,17 +170,7 @@ export async function updateFrameItemAction(
 
     const validatedFields = editFrameItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;
@@ -353,17 +349,7 @@ export async function createLensItemAction(
 
     const validatedFields = lensItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;
@@ -371,7 +357,7 @@ export async function createLensItemAction(
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
       category: "LENS",
-      brand: data.brand,
+      brand: data.brand || undefined,
       sequentialNumber: seq,
     });
 
@@ -486,17 +472,7 @@ export async function updateLensItemAction(
 
     const validatedFields = editLensItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;
@@ -615,17 +591,7 @@ export async function createContactLensItemAction(
 
     const validatedFields = contactLensItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;
@@ -633,7 +599,7 @@ export async function createContactLensItemAction(
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
       category: "CONTACT_LENS",
-      brand: data.brand,
+      brand: data.brand || undefined,
       sequentialNumber: seq,
     });
 
@@ -733,17 +699,7 @@ export async function updateContactLensItemAction(
 
     const validatedFields = editContactLensItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;
@@ -859,17 +815,7 @@ export async function createAccessoryItemAction(
 
     const validatedFields = accessoryItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;
@@ -877,7 +823,7 @@ export async function createAccessoryItemAction(
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
       category: "ACCESSORY",
-      brand: data.brand,
+      brand: data.brand || undefined,
       sequentialNumber: seq,
     });
 
@@ -971,17 +917,7 @@ export async function updateAccessoryItemAction(
 
     const validatedFields = editAccessoryItemSchema.safeParse(rawData);
     if (!validatedFields.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      validatedFields.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(err.message);
-      });
-      return {
-        success: false,
-        message: "Validation failed. Please check the inputs.",
-        errors: fieldErrors,
-      };
+      return formatInventoryValidationError(validatedFields.error);
     }
 
     const data = validatedFields.data;

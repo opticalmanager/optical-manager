@@ -196,7 +196,43 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 
 ---
 
-### 6. Sales Returns & Refund Resolutions (`db/schema/sales-returns.ts`)
+### 6. Clinical Prescriptions & Refraction (`db/schema/prescriptions.ts`)
+
+#### `prescriptions`
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Prescription unique identifier |
+| `customerId` | `uuid` | FK -> `customers.id` (CASCADE), INDEXED | Patient reference |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE), INDEXED | Outlet store location |
+| `rxNumber` | `varchar(50)` | NULLABLE, INDEXED | Clinical Rx identifier (e.g. `PR-8821`) |
+| `rxCategory` | `varchar(50)` | NOT NULL, DEFAULT 'SPECT_RX' | Refraction tab (`SPECT_RX`, `CL_RX`, `DISTANCE`, `NEAR`) |
+| `prescriptionType`| `prescription_type` | NOT NULL, DEFAULT 'DISTANCE' | Vision correction category (`DISTANCE`, `NEAR`) |
+| `sphOd` | `decimal(4,2)` | NULLABLE | Right Eye (OD/RE) sphere power diopter |
+| `cylOd` | `decimal(4,2)` | NULLABLE | Right Eye (OD/RE) cylinder power diopter |
+| `axisOd` | `integer` | NULLABLE | Right Eye (OD/RE) astigmatism axis (1° to 180°) |
+| `addOd` | `decimal(4,2)` | NULLABLE | Right Eye (OD/RE) presbyopia addition diopter |
+| `vaOd` | `varchar(20)` | NULLABLE | Right Eye (OD/RE) visual acuity (6/6, 20/20, N6) |
+| `pdOd` | `decimal(4,2)` | NULLABLE | Right Eye monocular pupillary distance (mm) |
+| `caddRight` | `varchar(20)` | NULLABLE | Right Eye contact lens addition / intermediate power |
+| `sphOs` | `decimal(4,2)` | NULLABLE | Left Eye (OS/LE) sphere power diopter |
+| `cylOs` | `decimal(4,2)` | NULLABLE | Left Eye (OS/LE) cylinder power diopter |
+| `axisOs` | `integer` | NULLABLE | Left Eye (OS/LE) astigmatism axis (1° to 180°) |
+| `addOs` | `decimal(4,2)` | NULLABLE | Left Eye (OS/LE) presbyopia addition diopter |
+| `vaOs` | `varchar(20)` | NULLABLE | Left Eye (OS/LE) visual acuity (6/6, 20/20, N6) |
+| `pdOs` | `decimal(4,2)` | NULLABLE | Left Eye monocular pupillary distance (mm) |
+| `caddLeft` | `varchar(20)` | NULLABLE | Left Eye contact lens addition / intermediate power |
+| `pd` | `decimal(4,2)` | NULLABLE | Total binocular pupillary distance (mm) |
+| `lensType` | `varchar(50)` | NULLABLE | Lens design (`SINGLE_VISION`, `BIFOCAL`, `PROGRESSIVE`, `BLUE_CUT`, `ANTI_REFLECTIVE`, `PHOTOCHROMIC`, `HIGH_INDEX`, `POLARIZED`) |
+| `optometristName` | `varchar(255)` | NULLABLE | Testing optometrist name |
+| `doctorName` | `varchar(255)` | NULLABLE | Prescribing doctor / ophthalmologist |
+| `prescribedDate` | `date` | NULLABLE | Clinical examination / prescription date |
+| `notes` | `text` | NULLABLE | Clinical remarks and dispensation notes |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Record creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Record update timestamp |
+
+---
+
+### 7. Sales Returns & Refund Resolutions (`db/schema/sales-returns.ts`)
 
 #### `sales_returns`
 | Column Name | Type | Constraints | Description |

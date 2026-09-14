@@ -34,6 +34,7 @@ import {
   Wallet
 } from "lucide-react";
 import { AddPrescriptionModal } from "@/components/shop/AddPrescriptionModal";
+import { ClinicalPrescriptionCard } from "@/components/shop/ClinicalPrescriptionCard";
 import { offlineDB } from "@/lib/offline/db";
 
 interface CustomerData {
@@ -62,6 +63,11 @@ interface CustomerData {
 interface PrescriptionData {
   id: string;
   prescriptionType: "DISTANCE" | "NEAR";
+  rxNumber?: string | null;
+  rxCategory?: string | null;
+  lensType?: string | null;
+  caddRight?: string | null;
+  caddLeft?: string | null;
   rightSphere: string | null;
   rightCylinder: string | null;
   rightAxis: string | null;
@@ -743,120 +749,31 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
                   </div>
                 )}
 
-                {/* Selected Prescription Reading Card */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-                  
-                  {/* Right Eye (OD) */}
-                  <div className="space-y-2 bg-slate-50/40 p-3.5 rounded-xl border border-slate-100">
-                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
-                      <Eye className="h-3.5 w-3.5 text-[#0a52c3]" />
-                      Right Eye (OD)
-                    </div>
-                    <table className="w-full text-xs font-bold text-slate-700 text-center border-collapse">
-                      <thead>
-                        <tr className="text-[9px] uppercase tracking-wider text-slate-400 border-b border-slate-200/60">
-                          <th className="py-1.5 text-left">Type</th>
-                          <th className="py-1.5">SPH</th>
-                          <th className="py-1.5">CYL</th>
-                          <th className="py-1.5">Axis</th>
-                          <th className="py-1.5">V/N</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        <tr>
-                          <td className="py-1.5 text-left text-[9px] uppercase tracking-wide text-slate-400">D.V.</td>
-                          <td className="py-1.5 text-[#0a52c3] font-extrabold">{formatPower(activeDistRx?.rightSphere)}</td>
-                          <td className="py-1.5">{formatPower(activeDistRx?.rightCylinder)}</td>
-                          <td className="py-1.5">{formatAxis(activeDistRx?.rightAxis)}</td>
-                          <td className="py-1.5 text-slate-500">{activeDistRx?.rightNv || "-"}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1.5 text-left text-[9px] uppercase tracking-wide text-slate-400">N.V.</td>
-                          <td className="py-1.5 text-[#0a52c3] font-extrabold">{formatPower(activeNearRx?.rightSphere)}</td>
-                          <td className="py-1.5">{formatPower(activeNearRx?.rightCylinder)}</td>
-                          <td className="py-1.5">{formatAxis(activeNearRx?.rightAxis)}</td>
-                          <td className="py-1.5 text-slate-500">{activeNearRx?.rightNv || "-"}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1.5 text-left text-[9px] uppercase tracking-wide text-slate-400">ADD</td>
-                          <td className="py-1.5">-</td>
-                          <td className="py-1.5 text-[#0a52c3] font-extrabold">{formatPower(activeDistRx?.rightAdd || activeNearRx?.rightAdd)}</td>
-                          <td className="py-1.5">-</td>
-                          <td className="py-1.5">-</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Left Eye (OS) */}
-                  <div className="space-y-2 bg-slate-50/40 p-3.5 rounded-xl border border-slate-100">
-                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
-                      <Eye className="h-3.5 w-3.5 text-[#0a52c3]" />
-                      Left Eye (OS)
-                    </div>
-                    <table className="w-full text-xs font-bold text-slate-700 text-center border-collapse">
-                      <thead>
-                        <tr className="text-[9px] uppercase tracking-wider text-slate-400 border-b border-slate-200/60">
-                          <th className="py-1.5 text-left">Type</th>
-                          <th className="py-1.5">SPH</th>
-                          <th className="py-1.5">CYL</th>
-                          <th className="py-1.5">Axis</th>
-                          <th className="py-1.5">V/N</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        <tr>
-                          <td className="py-1.5 text-left text-[9px] uppercase tracking-wide text-slate-400">D.V.</td>
-                          <td className="py-1.5 text-[#0a52c3] font-extrabold">{formatPower(activeDistRx?.leftSphere)}</td>
-                          <td className="py-1.5">{formatPower(activeDistRx?.leftCylinder)}</td>
-                          <td className="py-1.5">{formatAxis(activeDistRx?.leftAxis)}</td>
-                          <td className="py-1.5 text-slate-500">{activeDistRx?.leftNv || "-"}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1.5 text-left text-[9px] uppercase tracking-wide text-slate-400">N.V.</td>
-                          <td className="py-1.5 text-[#0a52c3] font-extrabold">{formatPower(activeNearRx?.leftSphere)}</td>
-                          <td className="py-1.5">{formatPower(activeNearRx?.leftCylinder)}</td>
-                          <td className="py-1.5">{formatAxis(activeNearRx?.leftAxis)}</td>
-                          <td className="py-1.5 text-slate-500">{activeNearRx?.leftNv || "-"}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1.5 text-left text-[9px] uppercase tracking-wide text-slate-400">ADD</td>
-                          <td className="py-1.5">-</td>
-                          <td className="py-1.5 text-[#0a52c3] font-extrabold">{formatPower(activeDistRx?.leftAdd || activeNearRx?.leftAdd)}</td>
-                          <td className="py-1.5">-</td>
-                          <td className="py-1.5">-</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Prescription Metadata */}
-                  <div className="space-y-3 bg-slate-50/40 p-3.5 rounded-xl border border-slate-100">
-                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
-                      <FileText className="h-3.5 w-3.5 text-[#0a52c3]" />
-                      Prescription Specs
-                    </div>
-                    <div className="space-y-2 text-xs font-semibold text-slate-700">
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Prescribed Date</span>
-                        <span className="text-slate-800 font-extrabold block mt-0.5">{formatDateStr(activeGroup?.date)}</span>
-                      </div>
-                      <div className="border-t border-slate-200/50 pt-1.5">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Prescribed By Doctor</span>
-                        <span className="text-[#0a52c3] font-extrabold block mt-0.5">{activeRxMeta?.prescribedBy || activeRxMeta?.doctorName || "N/A"}</span>
-                      </div>
-                      <div className="border-t border-slate-200/50 pt-1.5">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Pupil Distance (P.D.)</span>
-                        <span className="text-slate-800 font-extrabold block mt-0.5">{activeDistRx?.pd || activeNearRx?.pd ? `${activeDistRx?.pd || activeNearRx?.pd} mm` : "Standard"}</span>
-                      </div>
-                      <div className="border-t border-slate-200/50 pt-1.5">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Notes & Lens Type</span>
-                        <span className="text-slate-800 font-extrabold block mt-0.5">{activeRxMeta?.notes || "Standard Optical Prescription"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
+                {/* Modern Clinical Prescription Card Display */}
+                <ClinicalPrescriptionCard
+                  readOnly={true}
+                  values={{
+                    rxNumber: activeRxMeta?.rxNumber || `PR-${activeGroup?.date ? activeGroup.date.replace(/-/g, "").slice(-4) : "8821"}`,
+                    rxCategory: activeRxMeta?.rxCategory || "SPECTACLES",
+                    lensType: activeRxMeta?.lensType || activeRxMeta?.notes || "Single Vision",
+                    doctorName: activeRxMeta?.prescribedBy || activeRxMeta?.doctorName || "Dr. Optometrist",
+                    prescribedAt: formatDateStr(activeGroup?.date),
+                    rightSphere: formatPower(activeDistRx?.rightSphere),
+                    rightCylinder: formatPower(activeDistRx?.rightCylinder),
+                    rightAxis: activeDistRx?.rightAxis ? `${activeDistRx.rightAxis}` : "",
+                    rightAdd: formatPower(activeDistRx?.rightAdd || activeNearRx?.rightAdd),
+                    rightNv: activeDistRx?.rightNv || activeNearRx?.rightNv || "6/6",
+                    pdRight: activeDistRx?.pdRight || activeDistRx?.pd || "31.5",
+                    caddRight: (activeDistRx as any)?.caddRight || "-",
+                    leftSphere: formatPower(activeDistRx?.leftSphere),
+                    leftCylinder: formatPower(activeDistRx?.leftCylinder),
+                    leftAxis: activeDistRx?.leftAxis ? `${activeDistRx.leftAxis}` : "",
+                    leftAdd: formatPower(activeDistRx?.leftAdd || activeNearRx?.leftAdd),
+                    leftNv: activeDistRx?.leftNv || activeNearRx?.leftNv || "6/6",
+                    pdLeft: activeDistRx?.pdLeft || activeDistRx?.pd || "31.5",
+                    caddLeft: (activeDistRx as any)?.caddLeft || "-",
+                  }}
+                />
 
               </div>
             ) : (

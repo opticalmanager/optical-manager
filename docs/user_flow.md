@@ -36,15 +36,21 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Store Manager searches existing patients or registers a new patient in `/shop/invoices/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
    - **Editable Invoice Date & Time**: By default, populates with the store's current local date and time. Staff can freely select any past or future billing timestamp with live indicator badges (`Live Billing Time`, `Backdated Invoice`, or `Future Billing Date`) and a one-click `Reset` control.
    - Prescriptions, invoices, payment receipts, fulfillment orders, and inventory stock movements are atomically synchronized with the selected timestamp for accurate accounting and historical audit trails.
-2. **Prescription Recording**: Manager inputs SPH, CYL, Axis, V/N, and Addition diopter values for Right (OD) and Left (OS) eyes with smart optometry datalist suggestions, prescribing date tracking, and doctor attribution under `/shop/prescriptions`.
+2. **Prescription Recording**:
+   - Features the unified high-density **Clinical Prescription Card** (`SPECT(S) RX / CLINICAL PRESCRIPTION`) across `/shop/invoices/new`, `/shop/patients/new`, `/shop/customers/[id]`, and printable invoices.
+   - Refraction tabs (`Spect(s) Rx`, `CL Rx`, `Distance`, `Near`) and sequential Rx ID tracking (`Rx #PR-XXXX`).
+   - 8-column optometry grid (`EYE/TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`) for Right (`• RE (OD)`) and Left (`• LE (OS)`) eyes.
+   - Smart industrial logic: highlighted ADD column, bilateral ADD diopter auto-sync, monocular PD auto-split (`31.5mm / 31.5mm`), lens design selection (`Single Vision`, `Bifocal`, `Progressive`, `Blue-cut`, etc.), and doctor attribution.
+   - **Zero-Latency Reactive Syncing**: Removed manual "Apply to Job" button; all prescription data continuously updates form state and commits automatically when saving bills or patients.
 3. **Line Item Assembly & Pricing Controls**:
    - Manager adds optical inventory items (spectacle frame, anti-reflective lenses, cleaning kit) from `/shop/invoices/new` via live search autocomplete or barcode scanner.
    - **Dual Discount Synchronization**: Supports discount entry in percentage (`DISC %`) and in Rupees (`DISC ₹`) with real-time bi-directional recalculation.
    - **Editable GST Taxes**: CGST, SGST, and IGST percentages are fully editable per row with real-time rupee tax calculations displayed underneath, supporting intra-state and inter-state GST rates (0%, 5%, 12%, 18%, 28%).
-4. **Checkout, Attribution & Payment**:
+4. **Checkout, Delivery Date & Payment**:
    - **Salesperson Attribution ("Sold By")**: Staff can record the name of the sales representative who completed the order, stamped permanently into the invoice database and printed on tax invoices and payment receipts.
-   - Selects payment mode (`FULL_PAID` or `PARTIALLY_PAID` deposit) with configurable delivery schedule presets.
-   - Generates digital invoice link (`/share/invoice/[id]`) and dispatches email receipt.
+   - **Expected Delivery Scheduling**: Selects or enters estimated dispatch date with zero default assumptions. Supports interactive calendar picker (`showPicker()`), dynamic day interval readout (`X Days (DD MMM YYYY)`), and quick preset pills (`0D Today`, `3D`, `7D`, `✕ Clear`).
+   - **Payment Execution & Draft Saving**: Selects payment method (Cash, Card, UPI, Bank Transfer) and payment type (`Full Payment` or `Partial Payment` with auto-calculated balance due). Offers bottom actions `[ Save Draft ]` and `[ Create Invoice ]` / `[ Generate Receipt ]` side-by-side.
+   - Generates digital invoice link (`/share/invoice/[id]`) and dispatches email/print receipt.
 
 ---
 

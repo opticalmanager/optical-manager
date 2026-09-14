@@ -40,7 +40,7 @@ export async function createCustomerAction(
   }
 
   try {
-    const { gender, bloodGroup, ...customerData } = validatedFields.data;
+    const { id, gender, bloodGroup, ...customerData } = validatedFields.data;
     await createCustomer({
       ...customerData,
       gender: gender === "" ? null : gender,
@@ -94,7 +94,7 @@ export async function updateCustomerAction(
   }
 
   try {
-    const { gender, bloodGroup, ...customerData } = validatedFields.data;
+    const { id, gender, bloodGroup, ...customerData } = validatedFields.data;
     await updateCustomer(
       customerId,
       user.organizationId,

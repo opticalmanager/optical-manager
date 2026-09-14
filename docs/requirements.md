@@ -15,9 +15,11 @@ This document details the functional, non-functional, and compliance requirement
 - Automated GST calculation (12% / 18%) and HSN mapping (`9004` / `9001`).
 - Support for advance partial deposits (`PARTIALLY_PAID`) and tracking remaining balance in 'Pending Receivables'.
 
-### FR-3: Patient Prescriptions
-- Record optical prescriptions containing SPH, CYL, Axis, and ADD for both OD (Right) and OS (Left) eyes along with Pupil Distance (PD).
-- Link eye prescriptions directly to customer profiles and customer invoices.
+### FR-3: Patient Prescriptions & Clinical Refraction
+- 8-column high-density Clinical Prescription format (`EYE/TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`) for OD (Right Eye) and OS (Left Eye).
+- Refraction tabs (`Spect(s) Rx`, `CL Rx`, `Distance`, `Near`), unique sequential Rx tracking (`Rx #PR-XXXX`), and lens design classification (`Single Vision`, `Bifocal`, `Progressive`, etc.).
+- Smart clinical optometry logic: highlighted ADD column, auto-bilateral ADD inheritance, monocular PD auto-split, datalists for ±0.25 diopters, and doctor attribution.
+- Zero-latency auto-syncing across New Invoice (`/shop/invoices/new`), Patient Registration & Edit (`/shop/patients/new`), Customer Profile & Add Modal (`/shop/customers/[id]`), and Generated / Printable Invoices.
 
 ### FR-4: Inventory & Low Stock Alerts
 - Real-time stock decrementing on invoice generation.

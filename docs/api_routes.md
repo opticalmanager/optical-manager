@@ -111,7 +111,7 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
   - `INVENTORY_CREATE`: Ingests frame, lens, contact lens, or accessory stock items cataloged offline; assigns official sequential SKU; records initial stock movement.
   - `INVENTORY_UPDATE`: Updates item pricing, brand, model, and minimum alert thresholds offline without full-page reloads.
   - `STOCK_ADJUST`: Reconciles manual stock quantity adjustments (+/-) and writes audit stock movements.
-  - `PRESCRIPTION_CREATE`: Saves comprehensive optometry refraction values (Distance & Near OD/OS SPH, CYL, AXIS, ADD, V/N, PD, doctor & frame notes) offline and syncs atomically.
+  - `PRESCRIPTION_CREATE`: Saves comprehensive clinical refraction values (Distance & Near OD/OS SPH, CYL, AXIS, ADD, V/N, monocular PD, CADD, Rx number, Rx category, lens type, doctor attribution, and notes) offline and syncs atomically.
   - `RETURN_CREATE`: Processes product returns, restocks inventory, adjusts customer store credit ledgers, and logs non-restock audit movements.
 - **Response**: `200 OK` JSON containing `{ results: [{ id, type, success, serverResultId, sku, registrationId, returnNumber, error }] }`.
 

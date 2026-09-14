@@ -214,21 +214,20 @@ optical-manager/
 Optical Manager features an offline-first architecture designed for uninterrupted clinical POS billing, inventory lookups, and customer search during internet outages.
 
 ### Core Components:
-1. **Dual-Role Service Worker (`public/sw.js` - v15)**:
+1. **Dual-Role Service Worker (`public/sw.js` - v16 - Fail-Safe Zero-Latency Engine)**:
    - **Static Shell Precaching**: On install, the Service Worker strictly precaches only immutable static shell assets (`/`, `/manifest.webmanifest`, app icons, SVG logo). Heavy SSR routes are never precached on install, completely preventing 35+ concurrent server compilation storms, CPU lockup, and database connection pool starvation on server startup.
-   - **Dynamic Runtime Caching**: As the user navigates through the application, visited page documents and RSC flight streams are cached dynamically and transparently in the background for offline readiness.
-   - **Online Network Ceiling**: Navigation and RSC flight requests are passed directly to the live server with a 15-second safety ceiling (preventing premature network aborts during serverless cold starts).
+   - **Dynamic Runtime Caching & Fail-Safe Navigation Passthrough**: When online, page navigations and RSC requests pass through directly to the live server for all HTTP status codes (200, 301, 302, 304, 307, 308, 401, 404), ensuring auth redirects (`proxy.ts`) and headers function unimpeded. Caching is guarded with `.catch()` to prevent `TypeError: Redirected response cannot be stored`, and all `event.respondWith` execution is protected by top-level fallback handlers that guarantee the fetch promise NEVER rejects (completely preventing `ERR_FAILED` crashes).
    - **Offline Navigation & Zero-Crash RSC Handling**: Serves precached desktop shell when disconnected. When Next.js App Router client navigation requests dynamic React Server Component (`RSC: 1` / `?_rsc=...`) chunks while offline:
      - First attempts direct match and match with `ignoreSearch: true` to match cached flight streams regardless of build hashes.
      - If uncached in offline mode, returns a clean `503 Service Unavailable (Offline)` response instead of a `307` redirect with Location, preventing the client router from dumping raw RSC flight JSON payloads (`0:{"f":...}`) on a blank screen.
      - Navigating to un-cached subroutes falls back cleanly to their respective section listings rather than hijacking the user to `/shop/dashboard`.
      - Offline HTML fallback explicitly provides `charset=utf-8` header to guarantee correct unicode symbol rendering (`⚡`).
-   - **Cache Busting**: Versioned registration (`/sw.js?v=20260911_v15`) with automatic older cache bucket purging (`optical-manager-cache-v1` through `v14`) ensures instant client upgrades without stale worker persistence.
+   - **Cache Busting**: Versioned registration (`/sw.js?v=20260914_v16`) with automatic older cache bucket purging (`optical-manager-cache-v1` through `v15`) ensures instant client upgrades without stale worker persistence.
 
-2. **Resilient Server Component Timeouts (`services/*`, `app/(dashboard)/*`)**:
+2. **Resilient Server Component & Session Timeouts (`services/*`, `app/(dashboard)/*`)**:
    - All shop and owner dashboard pages wrap database queries in a `Promise.race` with generous 8,000ms timeout guards.
-   - Ensures serverless Neon Postgres database connections have sufficient headroom for cold query compilation and pooled connection acquisitions, preventing false offline redirects and empty KPI states during transient latency spikes.
-   - Client views automatically detect offline state or empty initial data and seamlessly hydrate from IndexedDB with zero latency.
+   - `services/auth.service.ts` uses 8,000ms timeout guards for Supabase `getUser()` and profile lookups, ensuring session profiles and active shop context (`shopId`) are never prematurely stripped after inactivity or cold starts.
+   - Zod validators (`utils/validators.ts`) and server actions (`actions/patient.actions.ts`, `actions/inventory.actions.ts`, `app/api/sync/offline-invoices/route.ts`) accept nullable DB columns and sanitize client non-UUID IDs (`pat_off_...`, `off-inv-...`, `""`), ensuring zero validation crashes.
 
 3. **Development-Safe Sequential Route Warming (`lib/offline/cache-warmer.ts`)**:
    - In development mode (`NODE_ENV === "development"`), background route pre-fetching is completely bypassed to prevent Turbopack from triggering simultaneous on-demand route compilations.

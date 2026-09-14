@@ -17,6 +17,11 @@ import { generateInvoiceNumber } from "@/services/invoice.service";
 import { generateReceiptNumber, generateOrderNumber } from "@/services/receipt.service";
 import { decrementInventoryStock } from "@/services/inventory.service";
 
+function isUuid(val: string | null | undefined): boolean {
+  if (!val || typeof val !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
@@ -89,10 +94,14 @@ export async function POST(request: Request) {
         // 2. Validate payload using patientVisitSchema
         const validation = patientVisitSchema.safeParse(payload);
         if (!validation.success) {
+          const errList = validation.error.errors
+            .map((e) => `${e.path.join(".")}: ${e.message}`)
+            .join(", ");
+          console.warn("[SyncOfflineInvoices] Validation failed on payload:", errList);
           results.push({
             offlineQueueId,
             success: false,
-            error: "Validation failed on payload",
+            error: `Validation failed: ${errList}`,
           });
           continue;
         }
@@ -101,7 +110,7 @@ export async function POST(request: Request) {
 
         // 3. Process inside database transaction
         const syncResult = await db.transaction(async (tx) => {
-          let customerId = data.customer.id;
+          let customerId = data.customer.id && isUuid(data.customer.id) ? data.customer.id : undefined;
 
           // Resolve customer
           if (customerId) {
@@ -276,9 +285,10 @@ export async function POST(request: Request) {
           // Insert invoice items & decrement inventory
           if (data.invoiceItems && data.invoiceItems.length > 0) {
             for (const item of data.invoiceItems) {
+              const validInventoryId = item.inventoryId && isUuid(item.inventoryId) ? item.inventoryId : null;
               await tx.insert(invoiceItems).values({
                 invoiceId: invoice.id,
-                inventoryId: item.inventoryId || null,
+                inventoryId: validInventoryId,
                 shopId: effectiveShopId,
                 organizationId,
                 description: item.description,
@@ -295,9 +305,9 @@ export async function POST(request: Request) {
                 igstAmount: String((item.igstAmount || 0).toFixed(2)),
               });
 
-              if (item.inventoryId && item.quantity > 0) {
+              if (validInventoryId && item.quantity > 0) {
                 await decrementInventoryStock(
-                  item.inventoryId,
+                  validInventoryId,
                   organizationId,
                   item.quantity,
                   tx,

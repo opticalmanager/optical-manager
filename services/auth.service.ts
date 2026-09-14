@@ -35,7 +35,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
       const supabase = await createClient();
       const authPromise = supabase.auth.getUser();
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Supabase auth timeout")), 500)
+        setTimeout(() => reject(new Error("Supabase auth timeout")), 8000)
       );
       const { data: { user } } = (await Promise.race([authPromise, timeoutPromise])) as any;
       authUser = user;
@@ -112,7 +112,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
     let profile: any = null;
     try {
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Profile DB query timeout")), 500)
+        setTimeout(() => reject(new Error("Profile DB query timeout")), 8000)
       );
       const queryPromise = db
         .select()

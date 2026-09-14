@@ -19,6 +19,26 @@ export type ActionResponse = {
   errors?: Record<string, string[]>;
 };
 
+function isUuid(val: string | null | undefined): boolean {
+  if (!val || typeof val !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
+function formatValidationError(error: any): { message: string; errors: Record<string, string[]> } {
+  const fieldErrors = error.flatten().fieldErrors;
+  const messages: string[] = [];
+  for (const [key, val] of Object.entries(fieldErrors)) {
+    if (Array.isArray(val) && val.length > 0) {
+      messages.push(`${key}: ${val.join(", ")}`);
+    }
+  }
+  const summary = messages.length > 0 ? messages.slice(0, 3).join("; ") : "Invalid form input.";
+  return {
+    message: `Validation failed: ${summary}`,
+    errors: fieldErrors,
+  };
+}
+
 /**
  * Server Action to register a patient (includes basic info + medical history + prescriptions).
  */
@@ -39,10 +59,11 @@ export async function registerPatientAction(
     // Parse data
     const validation = patientVisitSchema.safeParse(rawData);
     if (!validation.success) {
+      const formatted = formatValidationError(validation.error);
       return {
         success: false,
-        message: "Validation failed.",
-        errors: validation.error.flatten().fieldErrors,
+        message: formatted.message,
+        errors: formatted.errors,
       };
     }
 
@@ -94,11 +115,16 @@ export async function registerPatientAction(
             rightAxis: dp.rightAxis || null,
             rightAdd: dp.rightAdd || null,
             rightNv: dp.rightNv || null,
+            caddRight: dp.caddRight || null,
             leftSphere: dp.leftSphere || null,
             leftCylinder: dp.leftCylinder || null,
             leftAxis: dp.leftAxis || null,
             leftAdd: dp.leftAdd || null,
             leftNv: dp.leftNv || null,
+            caddLeft: dp.caddLeft || null,
+            rxNumber: data.rxNumber || null,
+            rxCategory: data.rxCategory || "SPECTACLES",
+            lensType: data.lensType || null,
             pdRight: dp.pdRight || null,
             pdLeft: dp.pdLeft || null,
             pd: dp.pd || null,
@@ -126,11 +152,16 @@ export async function registerPatientAction(
             rightAxis: np.rightAxis || null,
             rightAdd: np.rightAdd || null,
             rightNv: np.rightNv || null,
+            caddRight: np.caddRight || null,
             leftSphere: np.leftSphere || null,
             leftCylinder: np.leftCylinder || null,
             leftAxis: np.leftAxis || null,
             leftAdd: np.leftAdd || null,
             leftNv: np.leftNv || null,
+            caddLeft: np.caddLeft || null,
+            rxNumber: data.rxNumber || null,
+            rxCategory: data.rxCategory || "SPECTACLES",
+            lensType: data.lensType || null,
             pdRight: np.pdRight || null,
             pdLeft: np.pdLeft || null,
             pd: np.pd || null,
@@ -187,10 +218,11 @@ export async function registerPatientAndInvoiceAction(
     // Parse data
     const validation = patientVisitSchema.safeParse(rawData);
     if (!validation.success) {
+      const formatted = formatValidationError(validation.error);
       return {
         success: false,
-        message: "Validation failed.",
-        errors: validation.error.flatten().fieldErrors,
+        message: formatted.message,
+        errors: formatted.errors,
       };
     }
 
@@ -204,8 +236,25 @@ export async function registerPatientAndInvoiceAction(
 
     // Start transaction
     const result = await db.transaction(async (tx) => {
-      let customerId = data.customer.id;
+      let customerId = data.customer.id && isUuid(data.customer.id) ? data.customer.id : undefined;
       let customerRecord: any;
+
+      if (!customerId && data.customer.phone) {
+        const [existingPhoneCust] = await tx
+          .select()
+          .from(customers)
+          .where(
+            and(
+              eq(customers.shopId, shopId),
+              eq(customers.phone, data.customer.phone)
+            )
+          )
+          .limit(1);
+
+        if (existingPhoneCust) {
+          customerId = existingPhoneCust.id;
+        }
+      }
 
       if (customerId) {
         // Upsert: Update existing Customer details
@@ -290,11 +339,16 @@ export async function registerPatientAndInvoiceAction(
             rightAxis: dp.rightAxis || null,
             rightAdd: dp.rightAdd || null,
             rightNv: dp.rightNv || null,
+            caddRight: dp.caddRight || null,
             leftSphere: dp.leftSphere || null,
             leftCylinder: dp.leftCylinder || null,
             leftAxis: dp.leftAxis || null,
             leftAdd: dp.leftAdd || null,
             leftNv: dp.leftNv || null,
+            caddLeft: dp.caddLeft || null,
+            rxNumber: data.rxNumber || null,
+            rxCategory: data.rxCategory || "SPECTACLES",
+            lensType: data.lensType || null,
             pdRight: dp.pdRight || null,
             pdLeft: dp.pdLeft || null,
             pd: dp.pd || null,
@@ -323,11 +377,16 @@ export async function registerPatientAndInvoiceAction(
             rightAxis: np.rightAxis || null,
             rightAdd: np.rightAdd || null,
             rightNv: np.rightNv || null,
+            caddRight: np.caddRight || null,
             leftSphere: np.leftSphere || null,
             leftCylinder: np.leftCylinder || null,
             leftAxis: np.leftAxis || null,
             leftAdd: np.leftAdd || null,
             leftNv: np.leftNv || null,
+            caddLeft: np.caddLeft || null,
+            rxNumber: data.rxNumber || null,
+            rxCategory: data.rxCategory || "SPECTACLES",
+            lensType: data.lensType || null,
             pdRight: np.pdRight || null,
             pdLeft: np.pdLeft || null,
             pd: np.pd || null,
@@ -489,9 +548,10 @@ export async function registerPatientAndInvoiceAction(
       // 6. Create Invoice Line Items and Decrement Inventory Stock
       for (const item of data.invoiceItems!) {
         const itemSubtotal = item.quantity * item.unitPrice;
+        const validInventoryId = item.inventoryId && isUuid(item.inventoryId) ? item.inventoryId : null;
         await tx.insert(invoiceItems).values({
           invoiceId: invoice.id,
-          inventoryId: item.inventoryId || null,
+          inventoryId: validInventoryId,
           shopId,
           organizationId: user.organizationId!,
           description: item.description,
@@ -509,10 +569,10 @@ export async function registerPatientAndInvoiceAction(
           createdAt: invoiceTimestamp,
         });
 
-        // Decrement stock atomically if it corresponds to an inventory product
-        if (item.inventoryId) {
+        // Decrement stock atomically if it corresponds to a valid inventory product UUID
+        if (validInventoryId) {
           await decrementInventoryStock(
-            item.inventoryId,
+            validInventoryId,
             user.organizationId!,
             item.quantity,
             tx,
@@ -687,13 +747,18 @@ export async function updatePatientAction(
       return { success: false, message: "No active shop associated with your session." };
     }
 
+    if (!isUuid(customerId)) {
+      return { success: false, message: "Invalid customer ID format." };
+    }
+
     // Parse data
     const validation = patientVisitSchema.safeParse(rawData);
     if (!validation.success) {
+      const formatted = formatValidationError(validation.error);
       return {
         success: false,
-        message: "Validation failed.",
-        errors: validation.error.flatten().fieldErrors,
+        message: formatted.message,
+        errors: formatted.errors,
       };
     }
 
@@ -757,11 +822,16 @@ export async function updatePatientAction(
                 rightAxis: dp.rightAxis || null,
                 rightAdd: dp.rightAdd || null,
                 rightNv: dp.rightNv || null,
+                caddRight: dp.caddRight || null,
                 leftSphere: dp.leftSphere || null,
                 leftCylinder: dp.leftCylinder || null,
                 leftAxis: dp.leftAxis || null,
                 leftAdd: dp.leftAdd || null,
                 leftNv: dp.leftNv || null,
+                caddLeft: dp.caddLeft || null,
+                rxNumber: data.rxNumber || null,
+                rxCategory: data.rxCategory || "SPECTACLES",
+                lensType: data.lensType || null,
                 pdRight: dp.pdRight || null,
                 pdLeft: dp.pdLeft || null,
                 pd: dp.pd || null,
@@ -784,11 +854,16 @@ export async function updatePatientAction(
               rightAxis: dp.rightAxis || null,
               rightAdd: dp.rightAdd || null,
               rightNv: dp.rightNv || null,
+              caddRight: dp.caddRight || null,
               leftSphere: dp.leftSphere || null,
               leftCylinder: dp.leftCylinder || null,
               leftAxis: dp.leftAxis || null,
               leftAdd: dp.leftAdd || null,
               leftNv: dp.leftNv || null,
+              caddLeft: dp.caddLeft || null,
+              rxNumber: data.rxNumber || null,
+              rxCategory: data.rxCategory || "SPECTACLES",
+              lensType: data.lensType || null,
               pdRight: dp.pdRight || null,
               pdLeft: dp.pdLeft || null,
               pd: dp.pd || null,
@@ -827,11 +902,16 @@ export async function updatePatientAction(
                 rightAxis: np.rightAxis || null,
                 rightAdd: np.rightAdd || null,
                 rightNv: np.rightNv || null,
+                caddRight: np.caddRight || null,
                 leftSphere: np.leftSphere || null,
                 leftCylinder: np.leftCylinder || null,
                 leftAxis: np.leftAxis || null,
                 leftAdd: np.leftAdd || null,
                 leftNv: np.leftNv || null,
+                caddLeft: np.caddLeft || null,
+                rxNumber: data.rxNumber || null,
+                rxCategory: data.rxCategory || "SPECTACLES",
+                lensType: data.lensType || null,
                 pdRight: np.pdRight || null,
                 pdLeft: np.pdLeft || null,
                 pd: np.pd || null,
@@ -854,11 +934,16 @@ export async function updatePatientAction(
               rightAxis: np.rightAxis || null,
               rightAdd: np.rightAdd || null,
               rightNv: np.rightNv || null,
+              caddRight: np.caddRight || null,
               leftSphere: np.leftSphere || null,
               leftCylinder: np.leftCylinder || null,
               leftAxis: np.leftAxis || null,
               leftAdd: np.leftAdd || null,
               leftNv: np.leftNv || null,
+              caddLeft: np.caddLeft || null,
+              rxNumber: data.rxNumber || null,
+              rxCategory: data.rxCategory || "SPECTACLES",
+              lensType: data.lensType || null,
               pdRight: np.pdRight || null,
               pdLeft: np.pdLeft || null,
               pd: np.pd || null,
@@ -929,6 +1014,9 @@ export async function savePatientPrescriptionAction(payload: {
   prescriptionNotes?: string;
   partyName?: string;
   frameName?: string;
+  lensType?: string;
+  rxNumber?: string;
+  rxCategory?: string;
   distanceEnabled: boolean;
   nearEnabled: boolean;
   distancePrescription?: {
@@ -937,11 +1025,15 @@ export async function savePatientPrescriptionAction(payload: {
     rightAxis?: string;
     rightAdd?: string;
     rightNv?: string;
+    caddRight?: string;
     leftSphere?: string;
     leftCylinder?: string;
     leftAxis?: string;
     leftAdd?: string;
     leftNv?: string;
+    caddLeft?: string;
+    pdRight?: string;
+    pdLeft?: string;
     pd?: string;
   };
   nearPrescription?: {
@@ -950,11 +1042,15 @@ export async function savePatientPrescriptionAction(payload: {
     rightAxis?: string;
     rightAdd?: string;
     rightNv?: string;
+    caddRight?: string;
     leftSphere?: string;
     leftCylinder?: string;
     leftAxis?: string;
     leftAdd?: string;
     leftNv?: string;
+    caddLeft?: string;
+    pdRight?: string;
+    pdLeft?: string;
     pd?: string;
   };
 }): Promise<ActionResponse> {
@@ -969,7 +1065,21 @@ export async function savePatientPrescriptionAction(payload: {
       return { success: false, message: "No shop associated with your session." };
     }
 
-    const { customerId, distanceEnabled, nearEnabled, distancePrescription, nearPrescription, doctorName, prescribedAt, prescriptionNotes, partyName, frameName } = payload;
+    const {
+      customerId,
+      distanceEnabled,
+      nearEnabled,
+      distancePrescription,
+      nearPrescription,
+      doctorName,
+      prescribedAt,
+      prescriptionNotes,
+      partyName,
+      frameName,
+      lensType,
+      rxNumber,
+      rxCategory,
+    } = payload;
 
     if (!customerId) {
       return { success: false, message: "Invalid customer ID." };
@@ -994,16 +1104,23 @@ export async function savePatientPrescriptionAction(payload: {
           rightAxis: dp.rightAxis || null,
           rightAdd: dp.rightAdd || null,
           rightNv: dp.rightNv || null,
+          caddRight: dp.caddRight || null,
           leftSphere: dp.leftSphere || null,
           leftCylinder: dp.leftCylinder || null,
           leftAxis: dp.leftAxis || null,
           leftAdd: dp.leftAdd || null,
           leftNv: dp.leftNv || null,
+          caddLeft: dp.caddLeft || null,
+          pdRight: dp.pdRight || null,
+          pdLeft: dp.pdLeft || null,
           pd: dp.pd || null,
           doctorName: doctorName || null,
           partyName: partyName || null,
           frameName: frameName || null,
           notes: prescriptionNotes || null,
+          lensType: lensType || prescriptionNotes || null,
+          rxNumber: rxNumber || null,
+          rxCategory: rxCategory || "SPECTACLES",
           prescribedBy: doctorName || null,
           prescribedAt: pDate,
         });
@@ -1021,16 +1138,23 @@ export async function savePatientPrescriptionAction(payload: {
           rightAxis: np.rightAxis || null,
           rightAdd: np.rightAdd || null,
           rightNv: np.rightNv || null,
+          caddRight: np.caddRight || null,
           leftSphere: np.leftSphere || null,
           leftCylinder: np.leftCylinder || null,
           leftAxis: np.leftAxis || null,
           leftAdd: np.leftAdd || null,
           leftNv: np.leftNv || null,
+          caddLeft: np.caddLeft || null,
+          pdRight: np.pdRight || null,
+          pdLeft: np.pdLeft || null,
           pd: np.pd || null,
           doctorName: doctorName || null,
           partyName: partyName || null,
           frameName: frameName || null,
           notes: prescriptionNotes || null,
+          lensType: lensType || prescriptionNotes || null,
+          rxNumber: rxNumber || null,
+          rxCategory: rxCategory || "SPECTACLES",
           prescribedBy: doctorName || null,
           prescribedAt: pDate,
         });
