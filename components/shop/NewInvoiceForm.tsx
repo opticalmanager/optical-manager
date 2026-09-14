@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteInput";
+import { ClinicalPrescriptionCard } from "./ClinicalPrescriptionCard";
 import { useOffline } from "@/components/providers/OfflineProvider";
 import {
   searchCustomersOffline,
@@ -33,25 +34,33 @@ import {
 import { enqueueOfflineInvoice } from "@/lib/offline/invoice-queue";
 import { offlineDB } from "@/lib/offline/db";
 import {
-  ArrowLeft,
   ChevronDown,
-  ChevronUp,
   ReceiptText,
   RotateCcw,
   Search,
-  Eye,
-  Check,
   Plus,
   Trash2,
-  Loader2,
   DollarSign,
-  Briefcase,
   Smartphone,
   CreditCard,
-  CheckCircle,
   Barcode,
   UserCheck,
-  Wallet
+  Wallet,
+  Calendar,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  Building,
+  Copy,
+  ShoppingCart,
+  FileText,
+  Save,
+  X,
+  Loader2,
+  Check,
+  Briefcase,
+  Landmark,
 } from "lucide-react";
 
 const INDIAN_STATES = [
@@ -241,10 +250,16 @@ export function NewInvoiceForm() {
   const [nearOSNv, setNearOSNv] = useState("");
 
   // Clinical Options
-  const [lensType, setLensType] = useState("");
+  const [lensType, setLensType] = useState("Single Vision");
   const [doctorName, setDoctorName] = useState("");
   const [partyName, setPartyName] = useState("");
   const [frameName, setFrameName] = useState("");
+  const [pdRight, setPdRight] = useState("31.5");
+  const [pdLeft, setPdLeft] = useState("31.5");
+  const [caddRight, setCaddRight] = useState("");
+  const [caddLeft, setCaddLeft] = useState("");
+  const [rxNumber, setRxNumber] = useState("PR-8821");
+  const [rxCategory, setRxCategory] = useState("SPECTACLES");
 
   // Section 04: Product Selection (Order Line Items)
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -285,7 +300,65 @@ export function NewInvoiceForm() {
   const [amountPaidOverride, setAmountPaidOverride] = useState<string>("");
   const [invoiceNotes, setInvoiceNotes] = useState("");
   const [soldBy, setSoldBy] = useState("");
-  const [deliveryDays, setDeliveryDays] = useState<number | "">(0);
+  const [deliveryDays, setDeliveryDays] = useState<number | "">("");
+  const [deliveryDate, setDeliveryDate] = useState<string>("");
+
+  const handleDeliveryDateChange = (dateStr: string) => {
+    setDeliveryDate(dateStr);
+    if (!dateStr) {
+      setDeliveryDays("");
+      return;
+    }
+    const baseDateStr = invoiceDateTime ? invoiceDateTime.split("T")[0] : new Date().toISOString().split("T")[0];
+    const base = new Date(baseDateStr + "T00:00:00");
+    const target = new Date(dateStr + "T00:00:00");
+    const diffMs = target.getTime() - base.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    setDeliveryDays(diffDays >= 0 ? diffDays : 0);
+  };
+
+  const handleDeliveryDaysPreset = (days: number) => {
+    setDeliveryDays(days);
+    const baseDateStr = invoiceDateTime ? invoiceDateTime.split("T")[0] : new Date().toISOString().split("T")[0];
+    const base = new Date(baseDateStr + "T00:00:00");
+    const target = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    const yyyy = target.getFullYear();
+    const mm = String(target.getMonth() + 1).padStart(2, "0");
+    const dd = String(target.getDate()).padStart(2, "0");
+    setDeliveryDate(`${yyyy}-${mm}-${dd}`);
+  };
+
+  const handleClearDelivery = () => {
+    setDeliveryDays("");
+    setDeliveryDate("");
+  };
+
+  const deliveryDateInputRef = useRef<HTMLInputElement>(null);
+
+  const formatDeliveryDisplay = () => {
+    if (!deliveryDate) return "";
+    try {
+      const parts = deliveryDate.split("-");
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const dateObj = new Date(year, month, day);
+        const formattedDate = dateObj.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+        if (deliveryDays === 0) {
+          return `0 Days / Today (${formattedDate})`;
+        } else if (typeof deliveryDays === "number") {
+          return `${deliveryDays} ${deliveryDays === 1 ? "Day" : "Days"} (${formattedDate})`;
+        }
+        return formattedDate;
+      }
+    } catch {}
+    return deliveryDate;
+  };
 
   // Store Credit Management
   const [customerStoreCredit, setCustomerStoreCredit] = useState<number>(0);
@@ -318,86 +391,12 @@ export function NewInvoiceForm() {
 
   const [referredBySuggestions, setReferredBySuggestions] = useState<string[]>([]);
   const [doctorSuggestions, setDoctorSuggestions] = useState<string[]>([]);
-
-  // Pre-load patient details if redirected from customer profile page & clinical suggestions
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const customerId = params.get("customerId");
-    if (customerId) {
-      handleSelectPatient(customerId);
-    }
-
-    async function loadSuggestions() {
-      if (!navigator.onLine || !isOnline) {
-        setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
-        setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
-        return;
-      }
-      try {
-        const res = await getClinicalSuggestionsAction();
-        if (res.success) {
-          setReferredBySuggestions(res.referredByList);
-          setDoctorSuggestions(res.doctorNameList);
-        } else {
-          setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
-          setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
-        }
-      } catch (err) {
-        console.warn("Using offline clinical suggestions fallback:", err);
-        setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
-        setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
-      }
-    }
-    loadSuggestions();
-  }, [isOnline]);
-
-  // Debounced Patient Search Trigger
-  useEffect(() => {
-    if (patientQuery.trim().length < 2) {
-      setPatientResults([]);
-      return;
-    }
-    const delayDebounce = setTimeout(async () => {
-      setIsSearchingPatient(true);
-
-      // Offline search fallback
-      if (!navigator.onLine || !isOnline) {
-        try {
-          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
-          setPatientResults(offlineMatches);
-        } catch (err) {
-          console.error("Offline patient search failed:", err);
-        } finally {
-          setIsSearchingPatient(false);
-        }
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(patientQuery)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setPatientResults(data.customers || []);
-        } else {
-          // If server responded with error, fall back to offline search
-          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
-          setPatientResults(offlineMatches);
-        }
-      } catch (err) {
-        console.warn("Patient search network failure, falling back to offline:", err);
-        try {
-          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
-          setPatientResults(offlineMatches);
-        } catch (offlineErr) {
-          console.error("Offline patient fallback also failed:", offlineErr);
-        }
-      } finally {
-        setIsSearchingPatient(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(delayDebounce);
-  }, [patientQuery, isOnline, shopId]);
+  const [staffSuggestions, setStaffSuggestions] = useState<string[]>([
+    "Rahul Verma",
+    "Priya Singh",
+    "Amit Kumar",
+    "Dr. Amit Gupta",
+  ]);
 
   // Load Existing Patient Profiles & Prescriptions
   const handleSelectPatient = async (customerId: string) => {
@@ -491,12 +490,20 @@ export function NewInvoiceForm() {
           setDistODAxis(distancePrescription.rightAxis || "");
           setDistODNv(distancePrescription.rightNv || "");
           setDistODAdd(distancePrescription.rightAdd || "");
+          setCaddRight(distancePrescription.caddRight || "");
 
           setDistOSSphere(distancePrescription.leftSphere || "");
           setDistOSCylinder(distancePrescription.leftCylinder || "");
           setDistOSAxis(distancePrescription.leftAxis || "");
           setDistOSNv(distancePrescription.leftNv || "");
           setDistOSAdd(distancePrescription.leftAdd || "");
+          setCaddLeft(distancePrescription.caddLeft || "");
+
+          setPdRight(distancePrescription.pdRight || distancePrescription.pd || "31.5");
+          setPdLeft(distancePrescription.pdLeft || distancePrescription.pd || "31.5");
+          if (distancePrescription.rxNumber) setRxNumber(distancePrescription.rxNumber);
+          if (distancePrescription.rxCategory) setRxCategory(distancePrescription.rxCategory);
+          if (distancePrescription.lensType) setLensType(distancePrescription.lensType);
 
           setDoctorName(distancePrescription.doctorName || "");
           setPartyName(distancePrescription.partyName || "");
@@ -515,10 +522,20 @@ export function NewInvoiceForm() {
           setNearOSCylinder(nearPrescription.leftCylinder || "");
           setNearOSAxis(nearPrescription.leftAxis || "");
           setNearOSNv(nearPrescription.leftNv || "");
+
+          if (!distancePrescription) {
+            setPdRight(nearPrescription.pdRight || nearPrescription.pd || "31.5");
+            setPdLeft(nearPrescription.pdLeft || nearPrescription.pd || "31.5");
+            if (nearPrescription.caddRight) setCaddRight(nearPrescription.caddRight);
+            if (nearPrescription.caddLeft) setCaddLeft(nearPrescription.caddLeft);
+            if (nearPrescription.rxNumber) setRxNumber(nearPrescription.rxNumber);
+            if (nearPrescription.rxCategory) setRxCategory(nearPrescription.rxCategory);
+            if (nearPrescription.lensType) setLensType(nearPrescription.lensType);
+          }
         }
 
         if (distancePrescription?.notes || nearPrescription?.notes) {
-          setLensType(distancePrescription?.notes || nearPrescription?.notes || "");
+          setLensType((prev) => distancePrescription?.lensType || distancePrescription?.notes || nearPrescription?.lensType || nearPrescription?.notes || prev);
         }
 
         toast.success("Patient details & clinical history loaded!", { id: loadingToast });
@@ -529,6 +546,86 @@ export function NewInvoiceForm() {
       toast.success("Patient loaded from databank", { id: loadingToast });
     }
   };
+
+  // Pre-load patient details if redirected from customer profile page & clinical suggestions
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const customerId = params.get("customerId");
+    if (customerId) {
+      handleSelectPatient(customerId);
+    }
+
+    async function loadSuggestions() {
+      if (!navigator.onLine || !isOnline) {
+        setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
+        setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
+        return;
+      }
+      try {
+        const res = await getClinicalSuggestionsAction();
+        if (res.success) {
+          setReferredBySuggestions(res.referredByList);
+          setDoctorSuggestions(res.doctorNameList);
+        } else {
+          setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
+          setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
+        }
+      } catch (err) {
+        console.warn("Using offline clinical suggestions fallback:", err);
+        setReferredBySuggestions(["Self", "Walk-in", "Family", "Dr. Sharma", "Dr. Patel"]);
+        setDoctorSuggestions(["Dr. Sharma", "Dr. Patel", "Optometrist"]);
+      }
+    }
+    loadSuggestions();
+  }, [isOnline]);
+
+  // Debounced Patient Search Trigger
+  useEffect(() => {
+    if (patientQuery.trim().length < 2) {
+      setPatientResults([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setIsSearchingPatient(true);
+
+      // Offline search fallback
+      if (!navigator.onLine || !isOnline) {
+        try {
+          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
+          setPatientResults(offlineMatches);
+        } catch (err) {
+          console.error("Offline patient search failed:", err);
+        } finally {
+          setIsSearchingPatient(false);
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(patientQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPatientResults(data.customers || []);
+        } else {
+          // If server responded with error, fall back to offline search
+          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
+          setPatientResults(offlineMatches);
+        }
+      } catch (err) {
+        console.warn("Patient search network failure, falling back to offline:", err);
+        try {
+          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
+          setPatientResults(offlineMatches);
+        } catch (offlineErr) {
+          console.error("Offline patient fallback also failed:", offlineErr);
+        }
+      } finally {
+        setIsSearchingPatient(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [patientQuery, isOnline, shopId]);
 
   // Row Search Change Handler (Independent per row debouncing + 0ms local suggestion cache)
   const handleRowSearchChange = (index: number, query: string) => {
@@ -893,8 +990,8 @@ export function NewInvoiceForm() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleReset = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleReset = (e?: React.MouseEvent) => {
+    if (e?.preventDefault) e.preventDefault();
     setSelectedCustomerId(null);
     const nowStr = formatDateTimeLocal();
     setInvoiceDateTime(nowStr);
@@ -975,10 +1072,39 @@ export function NewInvoiceForm() {
     setPaymentType("FULL");
     setAmountPaidOverride("");
     setInvoiceNotes("");
+    setDeliveryDays("");
+    setDeliveryDate("");
     setCustomerStoreCredit(0);
     setUseStoreCredit(false);
     setCreditToApply("");
     toast.success("Form cleared successfully.");
+  };
+
+  const handleClearForm = handleReset;
+
+  const handleSaveDraft = () => {
+    try {
+      const draft = {
+        fullName,
+        phone,
+        email,
+        dob,
+        age,
+        gender,
+        address,
+        city,
+        state,
+        pincode,
+        referredBy,
+        lineItems,
+        paymentMethod,
+        invoiceNotes,
+      };
+      localStorage.setItem("OM_INVOICE_DRAFT", JSON.stringify(draft));
+      toast.success("Invoice draft saved locally.");
+    } catch {
+      toast.error("Failed to save draft.");
+    }
   };
 
   // Reactive Total Calculations
@@ -1086,27 +1212,38 @@ export function NewInvoiceForm() {
           rightAxis: distODAxis || undefined,
           rightNv: distODNv || undefined,
           rightAdd: distODAdd || undefined,
+          caddRight: caddRight || undefined,
           leftSphere: distOSSphere || undefined,
           leftCylinder: distOSCylinder || undefined,
           leftAxis: distOSAxis || undefined,
           leftNv: distOSNv || undefined,
           leftAdd: distOSAdd || undefined,
+          caddLeft: caddLeft || undefined,
+          pdRight: pdRight || undefined,
+          pdLeft: pdLeft || undefined,
         },
         nearPrescription: {
           rightSphere: nearODSphere || undefined,
           rightCylinder: nearODCylinder || undefined,
           rightAxis: nearODAxis || undefined,
           rightNv: nearODNv || undefined,
+          caddRight: caddRight || undefined,
           leftSphere: nearOSSphere || undefined,
           leftCylinder: nearOSCylinder || undefined,
           leftAxis: nearOSAxis || undefined,
           leftNv: nearOSNv || undefined,
+          caddLeft: caddLeft || undefined,
+          pdRight: pdRight || undefined,
+          pdLeft: pdLeft || undefined,
         },
         doctorName: doctorName || undefined,
         prescribedAt: prescribedAt || undefined,
-        estimatedDelivery: undefined,
+        estimatedDelivery: deliveryDate || undefined,
         specialInstructions: undefined,
         prescriptionNotes: lensType || undefined,
+        lensType: lensType || undefined,
+        rxNumber: rxNumber || undefined,
+        rxCategory: rxCategory || "SPECTACLES",
         invoiceEnabled: true,
         invoiceItems: lineItems.map((item) => {
           const qty = item.quantity === "" ? 0 : (item.quantity as number);
@@ -1218,59 +1355,34 @@ export function NewInvoiceForm() {
   return (
     <form
       onSubmit={handleSubmitInvoice}
-      className="max-w-7xl mx-auto space-y-8 pb-20 select-none animate-fade-in text-slate-800"
+      className="max-w-[1440px] mx-auto space-y-2 pb-6 select-none animate-fade-in text-slate-800"
     >
-      {/* Top Breadcrumbs & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 bg-slate-100/70 hover:bg-slate-200/80 px-3 py-1.5 rounded-lg transition-all mb-3 cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Invoices</span>
-          </button>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <span>New Patient Invoice</span>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#0a52c3]/10 text-[#0a52c3] font-bold uppercase tracking-wider">
-                Billing POS
-              </span>
-            </h1>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Create clinical eye exam records, generate tax invoices, or accept partial payment advances.
-          </p>
+      {/* Compact Top Header Row */}
+      <div className="flex items-center justify-between px-1 py-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-black text-slate-900 tracking-tight">New Invoice</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">/ Invoicing</span>
         </div>
-
-        <div className="flex items-center gap-3 self-end sm:self-auto">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-xs transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="h-10 px-4 rounded-xl bg-[#0a52c3] hover:bg-[#004bb5] text-xs font-bold text-white shadow-sm shadow-[#0a52c3]/10 transition-colors cursor-pointer"
-          >
-            {paymentType === "PARTIAL" ? "Generate Receipt" : "Create Invoice"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleClearForm}
+          className="h-7 px-2.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-600 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+          title="Reset all form fields"
+        >
+          <RotateCcw className="h-3 w-3 text-slate-400" />
+          <span>Clear Form</span>
+        </button>
       </div>
 
       {/* OFFLINE STATUS NOTICE BANNER */}
       {typeof navigator !== "undefined" && !navigator.onLine && (
-        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 flex items-center justify-between gap-3 text-amber-900 text-xs shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+        <div className="p-2.5 rounded-lg bg-amber-50/80 border border-amber-200 flex items-center justify-between gap-2.5 text-amber-900 text-xs shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <div>
               <span className="font-extrabold block sm:inline mr-1">Offline Billing Active:</span>
               <span className="text-amber-800 font-medium">
-                Searching cached databank. Invoices are stored securely in local memory and can be printed immediately.
+                Searching cached databank. Invoices are stored in local device memory and can be printed immediately.
               </span>
             </div>
           </div>
@@ -1280,921 +1392,483 @@ export function NewInvoiceForm() {
         </div>
       )}
 
-      {/* SECTION 1: BASIC DETAILS & LOAD CUSTOMER */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md/5">
-        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between rounded-t-2xl">
+      {/* SECTION 1: CUSTOMER & INVOICE DETAILS */}
+      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden">
+        <div className="py-1.5 px-3.5 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="h-4 w-1 bg-[#0a52c3] rounded" />
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#0a52c3]">
-              01. Basic Details
+            <UserCheck className="h-3.5 w-3.5 text-[#2563eb]" />
+            <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+              CUSTOMER & INVOICE DETAILS
             </h2>
           </div>
 
           <div className="flex items-center gap-2">
             {customerStoreCredit > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
-                <Wallet className="h-3.5 w-3.5" />
-                Store Credit: ₹{customerStoreCredit.toFixed(2)}
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Wallet className="h-3 w-3" />
+                Credit: ₹{customerStoreCredit.toFixed(2)}
               </span>
             )}
             <button
               type="button"
-              onClick={() => setShowPatientSearch(!showPatientSearch)}
-              className="px-3.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 text-[10px] font-extrabold uppercase text-[#0a52c3] tracking-wide transition-all cursor-pointer flex items-center gap-1"
+              onClick={() => setShowPatientSearch(true)}
+              className="h-6.5 px-2.5 rounded-md border border-blue-200 bg-blue-50/60 hover:bg-blue-100/60 text-[10.5px] font-bold text-[#2563eb] flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Search className="h-3.5 w-3.5" />
-              Load Existing Patient
+              <Search className="h-3 w-3" />
+              <span>Load Existing Patient</span>
             </button>
           </div>
         </div>
 
-        {showPatientSearch && (
-          <div className="p-5 bg-indigo-50/20 border-b border-slate-100 space-y-3 transition-all animate-fade-in">
-            <label className="block text-[10px] font-extrabold uppercase text-[#0a52c3] tracking-wider">
-              Search Patient Records
-            </label>
-            <div className="relative max-w-md">
-              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-                <Search className="h-4 w-4 text-slate-400" />
+        <div className="p-2.5 space-y-2">
+          {/* Row 1: REGISTRATION ID, INVOICE DATE & TIME, FULL NAME, MOBILE NUMBER */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {/* REGISTRATION ID */}
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                REGISTRATION ID
+              </label>
+              <div className="relative">
                 <input
                   type="text"
-                  placeholder="Type Name, Phone, or Registration ID (e.g. OP-2024-)..."
-                  value={patientQuery}
-                  onChange={(e) => setPatientQuery(e.target.value)}
-                  className="w-full bg-transparent text-xs outline-none text-slate-800 placeholder:text-slate-350"
-                  autoFocus
+                  value={regId}
+                  readOnly
+                  className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-slate-50/60 text-xs font-bold text-slate-700 focus:outline-none select-all"
                 />
-                {isSearchingPatient && (
-                  <Loader2 className="h-4 w-4 text-[#0a52c3] animate-spin" />
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(regId);
+                    toast.success("Registration ID copied!");
+                  }}
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Copy ID"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
               </div>
-
-              {patientResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                  {patientResults.map((pat) => (
-                    <button
-                      key={pat.id}
-                      type="button"
-                      onClick={() => handleSelectPatient(pat.id)}
-                      className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors text-xs flex justify-between items-center group cursor-pointer"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-700">{pat.name}</span>
-                          {parseFloat(pat.storeCredit || "0") > 0 && (
-                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              ₹{parseFloat(pat.storeCredit).toFixed(2)} Credit
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block mt-0.5">
-                          ID: {pat.registrationId || "N/A"} • Phone: {pat.phone}
-                        </span>
-                      </div>
-                      <CheckCircle className="h-4 w-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-all" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!isSearchingPatient && patientQuery.length >= 2 && patientResults.length === 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400 shadow-xl z-35">
-                  No patients matching "{patientQuery}" found in databanks.
-                </div>
-              )}
             </div>
-          </div>
-        )}
 
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
+            {/* INVOICE DATE & TIME */}
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Registration ID
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                INVOICE DATE & TIME
               </label>
-              <div className="text-xl font-extrabold tracking-wide text-[#0a52c3] h-10 flex items-center">
-                {regId}
+              <div className="relative">
+                <input
+                  type="datetime-local"
+                  value={invoiceDateTime}
+                  onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
+            {/* FULL NAME */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                  Invoice Date & Time
-                </label>
-                {isCustomDate && (
-                  <button
-                    type="button"
-                    onClick={handleResetDateTimeToNow}
-                    title="Reset to current live time"
-                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <RotateCcw className="h-2.5 w-2.5" /> Reset
-                  </button>
-                )}
-              </div>
-              <Input
-                type="datetime-local"
-                value={invoiceDateTime}
-                onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3] text-xs"
-              />
-              <div className="flex items-center gap-1.5 mt-1.5">
-                {isBackdated ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Backdated Invoice
-                  </span>
-                ) : isFutureDate ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    Future Billing Date
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Current Billing Time
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Full Name <span className="text-rose-500">*</span>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                FULL NAME <span className="text-rose-500">*</span>
               </label>
-              <Input
-                type="text"
-                placeholder="e.g. Julianne V. Sterling"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  placeholder="Rahul Sharma"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
 
+            {/* MOBILE NUMBER */}
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Mobile Number <span className="text-rose-500">*</span>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                MOBILE NUMBER <span className="text-rose-500">*</span>
               </label>
-              <Input
-                type="tel"
-                inputMode="numeric"
-                pattern="[0-9+]*"
-                maxLength={13}
-                placeholder="9876543210"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                onKeyPress={(e) => {
-                  if (!/[0-9+]/.test(e.key)) {
-                    e.preventDefault();
-                  }
-                }}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-              />
+              <div className="relative">
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  required
+                  placeholder="9876543210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <Phone className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Date of Birth & Age */}
-            <div className="grid grid-cols-5 gap-2">
-              <div className="col-span-3">
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Date of Birth
-                </label>
-                <Input
+          {/* Row 2: DATE OF BIRTH, AGE (YRS), GENDER, EMAIL */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {/* DATE OF BIRTH */}
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                DATE OF BIRTH
+              </label>
+              <div className="relative">
+                <input
                   type="date"
                   value={dob}
                   onChange={(e) => handleDobChange(e.target.value)}
-                  className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Age (Yrs)
-                </label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 28"
-                  min="0"
-                  max="120"
-                  value={age}
-                  onChange={(e) => handleAgeChange(e.target.value)}
-                  className="h-10 bg-white font-semibold border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-                />
+                <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
+            {/* AGE (YRS) */}
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Gender
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                AGE (YRS)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max="120"
+                  placeholder="28"
+                  value={age}
+                  onChange={(e) => handleAgeChange(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* GENDER */}
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                GENDER
               </label>
               <div className="relative">
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
-                  className="flex h-10 w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm text-slate-700 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 appearance-none cursor-pointer"
+                  className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs"
                 >
                   <option value="">Select Gender</option>
                   <option value="MALE">Male</option>
                   <option value="FEMALE">Female</option>
                   <option value="OTHER">Other</option>
                 </select>
-                <ChevronDown className="absolute right-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
+            {/* EMAIL */}
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Email
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                EMAIL
               </label>
-              <Input
-                type="email"
-                placeholder="example@mail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-              />
+              <div className="relative">
+                <input
+                  type="email"
+                  placeholder="rahul@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <Mail className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
           </div>
 
-          {/* Row 3: Referred By */}
-          <div className="grid grid-cols-1 gap-6">
+          {/* Row 3: REFERRED BY & ADDRESS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Referred By
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                REFERRED BY
               </label>
-              <ClinicalAutocompleteInput
-                options={referredBySuggestions}
-                iconType="referrer"
-                placeholder="Dr. Sarah Jenkins"
-                value={referredBy}
-                onChange={(e) => setReferredBy(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-              />
-            </div>
-          </div>
-
-          {/* Row 4: Full Address, City, State, Pin Code */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-            <div className="md:col-span-2">
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Full Address
-              </label>
-              <Input
-                type="text"
-                placeholder="742 Evergreen Terrace, Springfield, IL 62704"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                City
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g. Gurgaon"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-              />
-            </div>
-
-            <div className="relative state-autocomplete-wrapper">
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                State
-              </label>
-              <Input
-                type="text"
-                placeholder="Type or select State..."
-                value={state}
-                onChange={(e) => {
-                  setState(e.target.value);
-                  setShowStateSuggestions(true);
-                }}
-                onFocus={() => setShowStateSuggestions(true)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-              />
-              {showStateSuggestions && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                  {INDIAN_STATES.filter((st) =>
-                    st.toLowerCase().includes(state.toLowerCase())
-                  ).map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => {
-                        setState(st);
-                        setShowStateSuggestions(false);
-                      }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors text-xs font-bold text-slate-700 cursor-pointer"
-                    >
-                      {st}
-                    </button>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="referred-by-suggestions"
+                  placeholder="Dr. Amit Gupta"
+                  value={referredBy}
+                  onChange={(e) => setReferredBy(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <datalist id="referred-by-suggestions">
+                  {referredBySuggestions.map((ref, idx) => (
+                    <option key={idx} value={ref} />
                   ))}
-                  {INDIAN_STATES.filter((st) =>
-                    st.toLowerCase().includes(state.toLowerCase())
-                  ).length === 0 && (
-                    <div className="px-4 py-2.5 text-xs text-slate-400 text-center">
-                      No matching states
-                    </div>
-                  )}
-                </div>
-              )}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                FULL ADDRESS
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="742 Evergreen Terrace, Sector 14"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <MapPin className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Pin Code
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                CITY
               </label>
-              <Input
-                type="text"
-                placeholder="000-000"
-                value={pincode}
-                onChange={(e) => setPincode(e.target.value)}
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Gurgaon"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <Building className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                STATE
+              </label>
+              <div className="relative">
+                <select
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs"
+                >
+                  <option value="">Select State</option>
+                  {INDIAN_STATES.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                PIN CODE
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="122001"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <MapPin className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECTION 2: MEDICAL HISTORY */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md/5">
-        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center gap-2">
-          <span className="h-4 w-1 bg-[#0a52c3] rounded" />
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#0a52c3]">
-            02. Medical History & Symptoms
-          </h2>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Chief Complaint
-              </label>
-              <textarea
-                placeholder="Describe symptoms, duration, and severity..."
-                rows={3}
-                value={chiefComplaint}
-                onChange={(e) => setChiefComplaint(e.target.value)}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 transition-all"
-              />
-            </div>
+      {/* SECTION 2: SPECT(S) RX / CLINICAL PRESCRIPTION */}
+      <ClinicalPrescriptionCard
+        values={{
+          rxNumber,
+          rxCategory,
+          lensType,
+          doctorName,
+          prescribedAt,
+          rightSphere: distODSphere,
+          rightCylinder: distODCylinder,
+          rightAxis: distODAxis,
+          rightAdd: distODAdd,
+          rightNv: distODNv,
+          pdRight,
+          caddRight,
+          leftSphere: distOSSphere,
+          leftCylinder: distOSCylinder,
+          leftAxis: distOSAxis,
+          leftAdd: distOSAdd,
+          leftNv: distOSNv,
+          pdLeft,
+          caddLeft,
+        }}
+        doctorSuggestions={doctorSuggestions}
+        onChange={(updated) => {
+          if (updated.rxNumber !== undefined) setRxNumber(updated.rxNumber);
+          if (updated.rxCategory !== undefined) setRxCategory(updated.rxCategory);
+          if (updated.lensType !== undefined) setLensType(updated.lensType);
+          if (updated.doctorName !== undefined) setDoctorName(updated.doctorName);
+          if (updated.prescribedAt !== undefined) setPrescribedAt(updated.prescribedAt);
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Family History
-              </label>
-              <textarea
-                placeholder="Ocular conditions in blood relatives..."
-                rows={3}
-                value={familyHistory}
-                onChange={(e) => setFamilyHistory(e.target.value)}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 transition-all"
-              />
-            </div>
+          if (updated.rightSphere !== undefined) setDistODSphere(updated.rightSphere);
+          if (updated.rightCylinder !== undefined) {
+            setDistODCylinder(updated.rightCylinder);
+            setNearODCylinder(updated.rightCylinder);
+          }
+          if (updated.rightAxis !== undefined) {
+            setDistODAxis(updated.rightAxis);
+            setNearODAxis(updated.rightAxis);
+          }
+          if (updated.rightAdd !== undefined) {
+            setDistODAdd(updated.rightAdd);
+            if (updated.rightAdd && updated.rightSphere) {
+              const base = parseFloat(updated.rightSphere) || 0;
+              const add = parseFloat(updated.rightAdd) || 0;
+              setNearODSphere((base + add).toFixed(2));
+            }
+          }
+          if (updated.rightNv !== undefined) setDistODNv(updated.rightNv);
+          if (updated.pdRight !== undefined) setPdRight(updated.pdRight);
+          if (updated.caddRight !== undefined) setCaddRight(updated.caddRight);
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Systemic Illness
-              </label>
-              <textarea
-                placeholder="e.g. Diabetes, Hypertension..."
-                rows={3}
-                value={systemicIllness}
-                onChange={(e) => setSystemicIllness(e.target.value)}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 transition-all"
-              />
-            </div>
+          if (updated.leftSphere !== undefined) setDistOSSphere(updated.leftSphere);
+          if (updated.leftCylinder !== undefined) {
+            setDistOSCylinder(updated.leftCylinder);
+            setNearOSCylinder(updated.leftCylinder);
+          }
+          if (updated.leftAxis !== undefined) {
+            setDistOSAxis(updated.leftAxis);
+            setNearOSAxis(updated.leftAxis);
+          }
+          if (updated.leftAdd !== undefined) {
+            setDistOSAdd(updated.leftAdd);
+            if (updated.leftAdd && updated.leftSphere) {
+              const base = parseFloat(updated.leftSphere) || 0;
+              const add = parseFloat(updated.leftAdd) || 0;
+              setNearOSSphere((base + add).toFixed(2));
+            }
+          }
+          if (updated.leftNv !== undefined) setDistOSNv(updated.leftNv);
+          if (updated.pdLeft !== undefined) setPdLeft(updated.pdLeft);
+          if (updated.caddLeft !== undefined) setCaddLeft(updated.caddLeft);
+        }}
+      />
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Allergies
-              </label>
-              <textarea
-                placeholder="Medication or environmental allergies..."
-                rows={3}
-                value={allergies}
-                onChange={(e) => setAllergies(e.target.value)}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 transition-all"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 3: EYE EXAMINATION */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md/5">
-        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between">
+      {/* SECTION 3: PRODUCT SELECTION */}
+      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden">
+        <div className="py-1.5 px-3.5 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="h-4 w-1 bg-[#0a52c3] rounded" />
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#0a52c3]">
-              03. Eye Prescription Details
+            <ShoppingCart className="h-3.5 w-3.5 text-[#2563eb]" />
+            <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+              PRODUCT SELECTION
             </h2>
           </div>
-
-          <div className="flex items-center gap-1.5 bg-slate-100/70 p-1 rounded-xl border border-slate-200/50">
-            <button
-              type="button"
-              onClick={() => setDistanceEnabled(!distanceEnabled)}
-              className={`px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider rounded-lg transition-all duration-300 cursor-pointer ${
-                distanceEnabled
-                  ? "bg-[#0a52c3] text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-700 hover:bg-slate-200/50"
-              }`}
-            >
-              Distance
-            </button>
-            <button
-              type="button"
-              onClick={() => setNearEnabled(!nearEnabled)}
-              className={`px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider rounded-lg transition-all duration-300 cursor-pointer ${
-                nearEnabled
-                  ? "bg-[#0a52c3] text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-700 hover:bg-slate-200/50"
-              }`}
-            >
-              Near
-            </button>
-          </div>
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 text-[#2563eb] border border-blue-100">
+            {lineItems.length} {lineItems.length === 1 ? "Item" : "Items"}
+          </span>
         </div>
 
-        <div className="p-6 space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-6">
-              {/* RIGHT EYE GRID */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                  <Eye className="h-4 w-4 text-indigo-500" /> Right Eye (OD)
-                </div>
-                <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                  <table className="w-full text-center border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                        <th className="py-2.5 w-16 text-left px-4">PWR</th>
-                        <th className="py-2.5 px-1.5">SPH</th>
-                        <th className="py-2.5 px-1.5">CYL</th>
-                        <th className="py-2.5 px-1.5">AXIS</th>
-                        <th className="py-2.5 px-1.5">V/N</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      <tr className={distanceEnabled ? "" : "opacity-40"}>
-                        <td className="py-3 px-4 font-bold text-left text-slate-500">D.V.</td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="sph-options"
-                            placeholder="+0.00"
-                            value={distODSphere}
-                            onChange={(e) => setDistODSphere(e.target.value)}
-                            onBlur={(e) => setDistODSphere(formatDiopterValue(e.target.value))}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="cyl-options"
-                            placeholder="-0.25"
-                            value={distODCylinder}
-                            onChange={(e) => setDistODCylinder(e.target.value)}
-                            onBlur={(e) => setDistODCylinder(formatDiopterValue(e.target.value))}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="axis-options"
-                            placeholder="180"
-                            value={distODAxis}
-                            onChange={(e) => setDistODAxis(e.target.value)}
-                            onBlur={(e) => setDistODAxis(formatAxisValue(e.target.value))}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="dist-vn-options"
-                            placeholder="6/6"
-                            value={distODNv}
-                            onChange={(e) => setDistODNv(e.target.value)}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                      </tr>
-
-                      <tr className={nearEnabled ? "" : "opacity-40"}>
-                        <td className="py-3 px-4 font-bold text-left text-slate-500">N.V.</td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="sph-options"
-                            placeholder="+1.50"
-                            value={nearODSphere}
-                            onChange={(e) => setNearODSphere(e.target.value)}
-                            onBlur={(e) => setNearODSphere(formatDiopterValue(e.target.value))}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="cyl-options"
-                            placeholder="-0.25"
-                            value={nearODCylinder}
-                            onChange={(e) => setNearODCylinder(e.target.value)}
-                            onBlur={(e) => setNearODCylinder(formatDiopterValue(e.target.value))}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="axis-options"
-                            placeholder="180"
-                            value={nearODAxis}
-                            onChange={(e) => setNearODAxis(e.target.value)}
-                            onBlur={(e) => setNearODAxis(formatAxisValue(e.target.value))}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="near-vn-options"
-                            placeholder="N6"
-                            value={nearODNv}
-                            onChange={(e) => setNearODNv(e.target.value)}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td className="py-3 px-4 font-bold text-left text-slate-500">Add</td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="add-options"
-                            placeholder="+1.50"
-                            value={distODAdd}
-                            onBlur={(e) => {
-                              const formatted = formatDiopterValue(e.target.value);
-                              setDistODAdd(formatted);
-                              setDistOSAdd(formatted);
-                            }}
-                            onChange={(e) => {
-                              setDistODAdd(e.target.value);
-                              setDistOSAdd(e.target.value);
-                            }}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-[#0a52c3]"
-                          />
-                        </td>
-                        <td colSpan={3} className="bg-slate-50/10" />
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* LEFT EYE GRID */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                  <Eye className="h-4 w-4 text-emerald-500" /> Left Eye (OS)
-                </div>
-                <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                  <table className="w-full text-center border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                        <th className="py-2.5 w-16 text-left px-4">PWR</th>
-                        <th className="py-2.5 px-1.5">SPH</th>
-                        <th className="py-2.5 px-1.5">CYL</th>
-                        <th className="py-2.5 px-1.5">AXIS</th>
-                        <th className="py-2.5 px-1.5">V/N</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      <tr className={distanceEnabled ? "" : "opacity-40"}>
-                        <td className="py-3 px-4 font-bold text-left text-slate-500">D.V.</td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="sph-options"
-                            placeholder="+0.50"
-                            value={distOSSphere}
-                            onChange={(e) => setDistOSSphere(e.target.value)}
-                            onBlur={(e) => setDistOSSphere(formatDiopterValue(e.target.value))}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="cyl-options"
-                            placeholder="-0.50"
-                            value={distOSCylinder}
-                            onChange={(e) => setDistOSCylinder(e.target.value)}
-                            onBlur={(e) => setDistOSCylinder(formatDiopterValue(e.target.value))}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="axis-options"
-                            placeholder="175"
-                            value={distOSAxis}
-                            onChange={(e) => setDistOSAxis(e.target.value)}
-                            onBlur={(e) => setDistOSAxis(formatAxisValue(e.target.value))}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="dist-vn-options"
-                            placeholder="6/9"
-                            value={distOSNv}
-                            onChange={(e) => setDistOSNv(e.target.value)}
-                            disabled={!distanceEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                      </tr>
-
-                      <tr className={nearEnabled ? "" : "opacity-40"}>
-                        <td className="py-3 px-4 font-bold text-left text-slate-500">N.V.</td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="sph-options"
-                            placeholder="+2.00"
-                            value={nearOSSphere}
-                            onChange={(e) => setNearOSSphere(e.target.value)}
-                            onBlur={(e) => setNearOSSphere(formatDiopterValue(e.target.value))}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="cyl-options"
-                            placeholder="-0.50"
-                            value={nearOSCylinder}
-                            onChange={(e) => setNearOSCylinder(e.target.value)}
-                            onBlur={(e) => setNearOSCylinder(formatDiopterValue(e.target.value))}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="axis-options"
-                            placeholder="175"
-                            value={nearOSAxis}
-                            onChange={(e) => setNearOSAxis(e.target.value)}
-                            onBlur={(e) => setNearOSAxis(formatAxisValue(e.target.value))}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="near-vn-options"
-                            placeholder="N6"
-                            value={nearOSNv}
-                            onChange={(e) => setNearOSNv(e.target.value)}
-                            disabled={!nearEnabled}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                          />
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td className="py-3 px-4 font-bold text-left text-slate-500">Add</td>
-                        <td className="py-1 px-1">
-                          <input
-                            type="text"
-                            list="add-options"
-                            placeholder="+1.50"
-                            value={distOSAdd}
-                            onBlur={(e) => {
-                              const formatted = formatDiopterValue(e.target.value);
-                              setDistODAdd(formatted);
-                              setDistOSAdd(formatted);
-                            }}
-                            onChange={(e) => {
-                              setDistODAdd(e.target.value);
-                              setDistOSAdd(e.target.value);
-                            }}
-                            className="w-full text-center py-1.5 border border-slate-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-[#0a52c3]"
-                          />
-                        </td>
-                        <td colSpan={3} className="bg-slate-50/10" />
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-5 bg-slate-50/30 border border-slate-200/50 p-5 rounded-2xl">
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Lens Type
-                </label>
-                <div className="relative">
-                  <select
-                    value={lensType}
-                    onChange={(e) => setLensType(e.target.value)}
-                    className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 appearance-none cursor-pointer"
-                  >
-                    <option value="">Select Lens Type...</option>
-                    <option value="Single Vision">Single Vision</option>
-                    <option value="Bifocal">Bifocal</option>
-                    <option value="Kryptok Bifocal">Kryptok Bifocal</option>
-                    <option value="Progressive">Progressive</option>
-                    <option value="Polycarbonate HD">Polycarbonate HD</option>
-                  </select>
-                  <ChevronDown className="absolute right-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Prescribed By
-                </label>
-                <ClinicalAutocompleteInput
-                  options={doctorSuggestions}
-                  iconType="doctor"
-                  placeholder="Dr. Name"
-                  value={doctorName}
-                  onChange={(e) => setDoctorName(e.target.value)}
-                  className="h-10 bg-white font-semibold border-slate-200 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                  Prescribing Date
-                </label>
-                <Input
-                  type="date"
-                  value={prescribedAt}
-                  onChange={(e) => setPrescribedAt(e.target.value)}
-                  className="h-10 bg-white font-semibold border-slate-200 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 4: PRODUCT SELECTION */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md/5">
-        <div className="py-4 px-6 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between rounded-t-2xl">
-          <div className="flex items-center gap-2">
-            <span className="h-4 w-1 bg-[#0a52c3] rounded" />
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#0a52c3]">
-              04. Product Selection
-            </h2>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div className="overflow-x-auto rounded-2xl bg-white p-1 pb-36 transition-all">
-            <table className="w-full text-left border-collapse min-w-[940px]">
+        <div className="p-2.5 space-y-2">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                  <th className="py-3 px-3 w-[26%] min-w-[200px]">PRODUCT SEARCH (NAME/SKU/MODEL)</th>
-                  <th className="py-3 px-2 w-20">SKU</th>
-                  <th className="py-3 px-1.5 w-12 text-center">QTY</th>
-                  <th className="py-3 px-2 text-right w-20">PRICE</th>
-                  <th className="py-3 px-1.5 text-center w-16">DISC %</th>
-                  <th className="py-3 px-1.5 text-center w-20">DISC (₹)</th>
-                  <th className="py-3 px-1.5 text-center w-16">CGST</th>
-                  <th className="py-3 px-1.5 text-center w-16">SGST</th>
-                  <th className="py-3 px-1.5 text-center w-16">IGST</th>
-                  <th className="py-3 px-2.5 text-right w-24">ROW TOTAL</th>
-                  <th className="py-3 px-1 w-8 text-center"></th>
+                <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                  <th className="py-1.5 px-2 min-w-[200px]">Product Search</th>
+                  <th className="py-1.5 px-2 min-w-[85px]">SKU</th>
+                  <th className="py-1.5 px-1.5 text-center min-w-[45px]">Qty</th>
+                  <th className="py-1.5 px-2 text-right min-w-[80px]">Price (₹)</th>
+                  <th className="py-1.5 px-1.5 text-center min-w-[60px]">Disc %</th>
+                  <th className="py-1.5 px-1.5 text-center min-w-[70px]">Disc ₹</th>
+                  <th className="py-1.5 px-2 text-right min-w-[65px]">CGST (₹)</th>
+                  <th className="py-1.5 px-2 text-right min-w-[65px]">SGST (₹)</th>
+                  <th className="py-1.5 px-2 text-right min-w-[65px]">IGST (₹)</th>
+                  <th className="py-1.5 px-2 text-right min-w-[85px]">Total (₹)</th>
+                  <th className="py-1.5 px-1 text-center min-w-[36px]"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-slate-100">
                 {lineItems.map((item, index) => (
-                  <tr
-                    key={index}
-                    className={`group transition-colors ${
-                      item.showDropdown ? "relative z-40 bg-slate-50/60" : "relative z-1 hover:bg-slate-50/30"
-                    }`}
-                  >
-                    {/* Independent Product Search Autocomplete */}
-                    <td className="py-3 px-3 relative" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2 focus-within:ring-2 focus-within:ring-[#0a52c3]/20 focus-within:border-[#0a52c3] transition-all shadow-2xs">
-                        <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                  <tr key={index} className="hover:bg-slate-50/50 transition-colors">
+                    {/* Product Search & Description Autocomplete */}
+                    <td className="py-1.5 px-2 relative">
+                      <div className="relative">
                         <input
                           type="text"
-                          placeholder="Search Frame or SKU..."
-                          value={item.searchQuery}
+                          value={item.description || item.searchQuery}
                           onChange={(e) => handleRowSearchChange(index, e.target.value)}
                           onFocus={() => {
-                            if (item.searchQuery.trim().length >= 1) {
-                              updateLineItem(index, { showDropdown: true });
+                            if (item.suggestions.length > 0) {
+                              const updated = [...lineItems];
+                              updated[index].showDropdown = true;
+                              setLineItems(updated);
                             }
                           }}
-                          className="w-full bg-transparent text-xs font-bold outline-none text-slate-900 placeholder:text-slate-400"
+                          placeholder="Search product name or frame..."
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] shadow-2xs"
                         />
                         {item.isSearching && (
-                          <Loader2 className="h-4 w-4 text-[#0a52c3] animate-spin shrink-0" />
+                          <Loader2 className="absolute right-2 top-1.5 h-3.5 w-3.5 text-[#2563eb] animate-spin pointer-events-none" />
                         )}
                       </div>
 
-                      {/* Dropdown Suggestions Menu - Floating Overlay Card */}
+                      {/* Autocomplete Dropdown */}
                       {item.showDropdown && item.suggestions.length > 0 && (
-                        <div className="absolute top-full left-3 w-[380px] sm:w-[440px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto ring-1 ring-black/10">
-                          {item.suggestions.map((prod) => (
+                        <div className="absolute top-full left-2 w-[320px] mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100 ring-1 ring-black/5">
+                          {item.suggestions.map((sug) => (
                             <button
-                              key={prod.id}
+                              key={sug.id}
                               type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleSelectProduct(index, prod);
-                              }}
-                              className="w-full text-left px-4 py-3 hover:bg-indigo-50/70 transition-colors text-xs flex justify-between items-center group cursor-pointer font-bold"
+                              onClick={() => handleSelectProduct(index, sug)}
+                              className="w-full text-left p-2.5 hover:bg-blue-50/60 transition-colors flex items-center justify-between gap-2 group cursor-pointer"
                             >
-                              <div className="min-w-0 pr-3 space-y-0.5">
-                                <span className="text-slate-950 block truncate text-xs font-bold">{prod.name}</span>
-                                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2 flex-wrap">
-                                  <span>SKU: <strong className="font-mono text-slate-900 font-bold">{prod.sku || "N/A"}</strong></span>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 text-xs truncate group-hover:text-[#2563eb]">
+                                  {sug.name}
+                                </p>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-semibold mt-0.5">
+                                  <span>SKU: {sug.sku}</span>
                                   <span>•</span>
-                                  <span>Price: <strong className="text-slate-900">₹{prod.price}</strong></span>
-                                  <span>•</span>
-                                  <span>Stock: <strong className={prod.quantity <= 0 ? "text-rose-600 font-bold" : "text-emerald-700 font-extrabold"}>{prod.quantity}</strong></span>
+                                  <span>Stock: {sug.stockQuantity ?? sug.stock_quantity ?? 0}</span>
                                 </div>
                               </div>
-                              <div className="h-7 w-7 rounded-xl bg-blue-50 text-[#0a52c3] flex items-center justify-center shrink-0 group-hover:bg-[#0a52c3] group-hover:text-white transition-all shadow-2xs">
-                                <Plus className="h-4 w-4" />
+                              <div className="text-right shrink-0">
+                                <span className="font-extrabold text-xs text-slate-900 block">
+                                  ₹{Number(sug.sellingPrice ?? sug.selling_price ?? 0).toFixed(2)}
+                                </span>
                               </div>
                             </button>
                           ))}
                         </div>
                       )}
-
-                      {!item.isSearching && item.searchQuery.length >= 1 && item.suggestions.length === 0 && item.showDropdown && (
-                        <div className="absolute top-full left-3 w-[340px] mt-1.5 bg-white border border-slate-200/90 rounded-2xl p-4 text-center text-xs text-slate-500 font-medium shadow-2xl z-50 ring-1 ring-black/10">
-                          No matching stock items found. Custom item will be billed.
-                        </div>
-                      )}
                     </td>
 
-                    {/* Compact SKU Input */}
-                    <td className="py-3 px-2">
+                    {/* SKU */}
+                    <td className="py-1.5 px-2">
                       <input
                         type="text"
                         value={item.sku}
                         onChange={(e) => updateLineItem(index, { sku: e.target.value })}
                         placeholder="SKU"
-                        className="w-20 bg-white border border-slate-200 rounded-2xl px-2 py-2 font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs transition-all"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 font-mono text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] shadow-2xs"
                       />
                     </td>
 
-                    {/* Quantity Selector */}
-                    <td className="py-3 px-1.5 text-center">
+                    {/* Quantity */}
+                    <td className="py-1.5 px-1.5 text-center">
                       <input
                         type="number"
+                        min="1"
                         value={item.quantity === "" || isNaN(item.quantity as number) ? "" : item.quantity}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateLineItem(index, { quantity: val === "" ? "" : parseInt(val, 10) });
                         }}
                         placeholder="1"
-                        className="w-12 text-center py-2 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white shadow-2xs"
+                        className="w-11 text-center py-1 border border-slate-200 rounded-lg font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white shadow-2xs"
                       />
                     </td>
 
                     {/* Unit Price */}
-                    <td className="py-3 px-2">
+                    <td className="py-1.5 px-2">
                       <div className="relative">
-                        <span className="absolute left-2 top-2 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
+                        <span className="absolute left-1.5 top-1 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
                         <input
                           type="number"
                           step="0.01"
@@ -2203,149 +1877,83 @@ export function NewInvoiceForm() {
                             updateLineItem(index, { unitPrice: parseFloat(e.target.value) || 0 })
                           }
                           placeholder="0"
-                          className="w-20 text-right bg-white border border-slate-200 rounded-2xl pl-4 pr-2 py-2 font-bold text-xs text-slate-900 focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 shadow-2xs"
+                          className="w-full text-right bg-white border border-slate-200 rounded-lg pl-4 pr-1.5 py-1 font-bold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] shadow-2xs"
                         />
                       </div>
                     </td>
 
-                    {/* Discount % Input */}
-                    <td className="py-3 px-1.5 text-center">
-                      <div className="relative inline-block w-16">
+                    {/* Disc % */}
+                    <td className="py-1.5 px-1.5 text-center">
+                      <div className="relative inline-block w-full">
                         <input
                           type="number"
-                          min={0}
-                          max={100}
+                          min="0"
+                          max="100"
                           step="0.1"
                           placeholder="0"
                           value={item.discountPercent === 0 ? "" : Number(item.discountPercent.toFixed(2))}
                           onChange={(e) => {
                             const val = e.target.value;
                             updateLineItem(index, {
-                              discountPercent: val === "" ? 0 : Math.min(100, Math.max(0, parseFloat(val) || 0))
+                              discountPercent: val === "" ? 0 : Math.min(100, Math.max(0, parseFloat(val) || 0)),
                             });
                           }}
-                          className="w-full text-center py-2 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pr-4 shadow-2xs"
+                          className="w-full text-center py-1 border border-slate-200 rounded-lg font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pr-2.5 shadow-2xs"
                         />
-                        <span className="absolute right-1.5 top-2 text-slate-400 font-bold text-xs pointer-events-none">%</span>
+                        <span className="absolute right-1 top-1 text-slate-400 font-bold text-[9px] pointer-events-none">%</span>
                       </div>
                     </td>
 
-                    {/* Discount ₹ Input */}
-                    <td className="py-3 px-1.5 text-center">
-                      <div className="relative inline-block w-20">
-                        <span className="absolute left-2 top-2 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
+                    {/* Disc ₹ */}
+                    <td className="py-1.5 px-1.5 text-center">
+                      <div className="relative inline-block w-full">
+                        <span className="absolute left-1 top-1 text-slate-400 font-bold text-[9px] pointer-events-none">₹</span>
                         <input
                           type="number"
-                          min={0}
+                          min="0"
                           step="1"
                           placeholder="0"
                           value={item.discountAmount === 0 ? "" : Number(item.discountAmount.toFixed(2))}
                           onChange={(e) => {
                             const val = e.target.value;
                             updateLineItem(index, {
-                              discountAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
+                              discountAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
                             });
                           }}
-                          className="w-full text-right py-2 border border-slate-200 rounded-2xl font-bold text-slate-900 text-xs focus:outline-none focus:border-[#0a52c3] focus:ring-2 focus:ring-[#0a52c3]/20 bg-white pl-4 pr-2 shadow-2xs"
+                          className="w-full text-right py-1 border border-slate-200 rounded-lg font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pl-2.5 pr-1 shadow-2xs"
                         />
                       </div>
                     </td>
 
-                    {/* CGST Column (Editable Rate + Live ₹ Amount) */}
-                    <td className="py-3 px-1.5 text-center">
-                      <div className="inline-flex flex-col items-center gap-0.5">
-                        <div className="relative inline-block w-14">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.5"
-                            value={item.cgstPercent === 0 ? "" : item.cgstPercent}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateLineItem(index, {
-                                cgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
-                              });
-                            }}
-                            placeholder="0"
-                            className="w-full text-center py-1 px-0.5 bg-indigo-50/50 border border-indigo-200/80 rounded-xl font-extrabold text-indigo-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-400 transition-all pr-3.5 shadow-2xs"
-                          />
-                          <span className="absolute right-1 top-1 text-[10px] font-bold text-indigo-400 pointer-events-none">%</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-bold tracking-tight">
-                          ₹{item.cgstAmount.toFixed(2)}
-                        </span>
-                      </div>
+                    {/* CGST (₹) */}
+                    <td className="py-1.5 px-2 text-right font-semibold text-slate-600">
+                      ₹{item.cgstAmount.toFixed(2)}
                     </td>
 
-                    {/* SGST Column (Editable Rate + Live ₹ Amount) */}
-                    <td className="py-3 px-1.5 text-center">
-                      <div className="inline-flex flex-col items-center gap-0.5">
-                        <div className="relative inline-block w-14">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.5"
-                            value={item.sgstPercent === 0 ? "" : item.sgstPercent}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateLineItem(index, {
-                                sgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
-                              });
-                            }}
-                            placeholder="0"
-                            className="w-full text-center py-1 px-0.5 bg-emerald-50/50 border border-emerald-200/80 rounded-xl font-extrabold text-emerald-700 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white focus:border-emerald-400 transition-all pr-3.5 shadow-2xs"
-                          />
-                          <span className="absolute right-1 top-1 text-[10px] font-bold text-emerald-400 pointer-events-none">%</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-bold tracking-tight">
-                          ₹{item.sgstAmount.toFixed(2)}
-                        </span>
-                      </div>
+                    {/* SGST (₹) */}
+                    <td className="py-1.5 px-2 text-right font-semibold text-slate-600">
+                      ₹{item.sgstAmount.toFixed(2)}
                     </td>
 
-                    {/* IGST Column (Editable Rate + Live ₹ Amount) */}
-                    <td className="py-3 px-1.5 text-center">
-                      <div className="inline-flex flex-col items-center gap-0.5">
-                        <div className="relative inline-block w-14">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.5"
-                            value={item.igstPercent === 0 ? "" : item.igstPercent}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateLineItem(index, {
-                                igstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0)
-                              });
-                            }}
-                            placeholder="0"
-                            className="w-full text-center py-1 px-0.5 bg-purple-50/50 border border-purple-200/80 rounded-xl font-extrabold text-purple-700 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:bg-white focus:border-purple-400 transition-all pr-3.5 shadow-2xs"
-                          />
-                          <span className="absolute right-1 top-1 text-[10px] font-bold text-purple-400 pointer-events-none">%</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-bold tracking-tight">
-                          ₹{item.igstAmount.toFixed(2)}
-                        </span>
-                      </div>
+                    {/* IGST (₹) */}
+                    <td className="py-1.5 px-2 text-right font-semibold text-slate-600">
+                      ₹{item.igstAmount.toFixed(2)}
                     </td>
 
-                    {/* Row Total */}
-                    <td className="py-3 px-2.5 text-right font-black text-xs sm:text-sm text-slate-900 whitespace-nowrap">
+                    {/* Row Total (₹) */}
+                    <td className="py-1.5 px-2 text-right font-black text-slate-900">
                       ₹{item.rowTotal.toFixed(2)}
                     </td>
 
-                    {/* Subtle Trash Icon Delete Button */}
-                    <td className="py-3 px-1 text-center">
+                    {/* Action */}
+                    <td className="py-1.5 px-1 text-center">
                       <button
                         type="button"
                         onClick={() => handleRemoveRow(index)}
                         title="Delete item"
-                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
+                        className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>
                   </tr>
@@ -2354,18 +1962,20 @@ export function NewInvoiceForm() {
             </table>
           </div>
 
-          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Table Footer Actions */}
+          <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <button
               type="button"
               onClick={handleAddRow}
-              className="px-4 py-2 border border-dashed border-slate-350 hover:border-[#0a52c3]/50 hover:bg-indigo-50/20 text-xs font-bold text-slate-500 hover:text-[#0a52c3] rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 border border-dashed border-slate-300 hover:border-[#2563eb]/60 hover:bg-blue-50/40 text-xs font-bold text-slate-600 hover:text-[#2563eb] rounded-lg transition-all cursor-pointer flex items-center gap-1.5 self-start"
             >
-              <Plus className="h-4 w-4" /> Add another item...
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add another item</span>
             </button>
 
             {/* Quick Barcode Scanner Input */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-[#0a52c3] focus-within:bg-white transition-all w-full sm:w-80">
-              <Barcode className="h-4 w-4 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 focus-within:ring-2 focus-within:ring-[#2563eb]/20 focus-within:border-[#2563eb] focus-within:bg-white transition-all w-full sm:w-64">
+              <Barcode className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <input
                 type="text"
                 placeholder="Click here & scan barcode..."
@@ -2377,29 +1987,31 @@ export function NewInvoiceForm() {
                     triggerBarcodeSearch();
                   }
                 }}
-                className="w-full bg-transparent text-xs font-bold outline-none text-slate-900 placeholder:text-slate-400"
+                className="w-full bg-transparent text-xs font-bold outline-none text-slate-800 placeholder:text-slate-400"
               />
               {isBarcodeSearching && (
-                <Loader2 className="h-3.5 w-3.5 text-[#0a52c3] animate-spin shrink-0" />
+                <Loader2 className="h-3.5 w-3.5 text-[#2563eb] animate-spin shrink-0" />
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECTION 5: SUMMARY & PAYMENT */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl shadow-sm p-6 space-y-6">
+      {/* SECTION 4: PAYMENT & INVOICE SUMMARY */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
+        {/* Left: Payment Method, Payment Mode, Details & Remarks */}
+        <div className="lg:col-span-8 bg-white border border-slate-200/80 rounded-xl shadow-xs p-3 space-y-2.5">
+          {/* 1. Select Payment Method */}
           <div>
-            <h3 className="text-xs font-extrabold uppercase text-slate-400 tracking-wider mb-4">
+            <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
               1. Select Payment Method
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { id: "CASH", label: "Cash", icon: DollarSign },
                 { id: "CARD", label: "Card", icon: CreditCard },
                 { id: "UPI", label: "UPI", icon: Smartphone },
-                { id: "BANK_TRANSFER", label: "Bank", icon: Briefcase },
+                { id: "BANK_TRANSFER", label: "Bank", icon: Landmark },
               ].map((method) => {
                 const IconComponent = method.icon;
                 const active = paymentMethod === method.id;
@@ -2408,443 +2020,464 @@ export function NewInvoiceForm() {
                     key={method.id}
                     type="button"
                     onClick={() => setPaymentMethod(method.id as any)}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-300 cursor-pointer ${
+                    className={`p-2 rounded-lg border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                       active
-                        ? "border-[#0a52c3] bg-indigo-50/20 text-[#0a52c3] font-bold shadow-sm"
-                        : "border-slate-200 text-slate-400 hover:bg-slate-50/50 font-semibold"
+                        ? "border-[#2563eb] bg-blue-50/50 text-[#2563eb] font-bold shadow-xs ring-1 ring-[#2563eb]/20"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-semibold"
                     }`}
                   >
-                    <IconComponent className={`h-6 w-6 mb-2 ${active ? "text-[#0a52c3]" : "text-slate-400"}`} />
-                    <span className="text-xs">{method.label}</span>
+                    <IconComponent className={`h-3.5 w-3.5 ${active ? "text-[#2563eb]" : "text-slate-400"}`} />
+                    <span className="text-[11px]">{method.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Store Credit Redemption */}
-          {availableCredit > 0 && (
-            <div className={`p-4 rounded-xl border transition-all ${
-              !isOnline
-                ? "bg-slate-50 border-slate-200 opacity-80"
-                : useStoreCredit
-                ? "bg-emerald-50/50 border-emerald-300 shadow-sm"
-                : "bg-slate-50/70 border-slate-200"
-            }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <label className={`flex items-center gap-3 select-none ${!isOnline ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}>
-                  <input
-                    type="checkbox"
-                    disabled={!isOnline}
-                    checked={isOnline && useStoreCredit}
-                    onChange={(e) => {
-                      if (!isOnline) {
-                        toast.warning("Store credit redemption requires an internet connection.");
-                        return;
-                      }
-                      const checked = e.target.checked;
-                      setUseStoreCredit(checked);
-                      if (checked && (!creditToApply || parseFloat(creditToApply) <= 0)) {
-                        setCreditToApply(maxAllowedCredit > 0 ? maxAllowedCredit.toFixed(2) : availableCredit.toFixed(2));
-                      }
-                    }}
-                    className="h-4 w-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer disabled:cursor-not-allowed"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-emerald-600" />
-                      <span className="text-xs font-bold text-slate-800">Use Available Store Credit</span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        Available: ₹{availableCredit.toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {!isOnline
-                        ? "Store credit redemption requires an internet connection to securely verify cloud ledger."
-                        : "Deduct balance from customer store credit against this order total"}
-                    </p>
-                  </div>
-                </label>
-
-                {isOnline && useStoreCredit && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Credit to Use:</span>
-                    <div className="relative w-36">
-                      <span className="absolute left-2.5 top-2 text-slate-400 font-bold text-xs">₹</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max={maxAllowedCredit}
-                        value={creditToApply}
-                        onChange={(e) => setCreditToApply(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
-                        }}
-                        className="w-full h-8 pl-6 pr-2 bg-white border border-emerald-300 rounded-lg text-xs font-extrabold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setCreditToApply(maxAllowedCredit.toFixed(2))}
-                      className="px-2.5 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-100 rounded-md border border-emerald-300 transition cursor-pointer whitespace-nowrap"
-                    >
-                      Max
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {useStoreCredit && (
-                <div className="mt-3 pt-2.5 border-t border-emerald-200/60 flex items-center justify-between text-xs">
-                  <span className="text-emerald-700 font-medium">
-                    Credit Applied: <strong className="text-emerald-800">-₹{appliedCredit.toFixed(2)}</strong>
-                  </span>
-                  <span className="text-emerald-700 font-medium">
-                    Remaining Credit: <strong className="text-emerald-800">₹{Math.max(0, availableCredit - appliedCredit).toFixed(2)}</strong>
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* 2. Payment Mode */}
           <div>
-            <h3 className="text-xs font-extrabold uppercase text-slate-400 tracking-wider mb-4">
-              2. Payment Type
-            </h3>
-            <div className="flex items-center gap-6">
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+            <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
+              2. Payment Mode
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label
+                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                  paymentType === "FULL"
+                    ? "border-[#2563eb] bg-blue-50/40 text-[#2563eb] font-bold shadow-xs ring-1 ring-[#2563eb]/20"
+                    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                }`}
+              >
                 <input
                   type="radio"
                   name="paymentType"
+                  value="FULL"
                   checked={paymentType === "FULL"}
                   onChange={() => setPaymentType("FULL")}
-                  className="h-4 w-4 text-[#0a52c3]"
+                  className="text-[#2563eb] focus:ring-[#2563eb]"
                 />
-                Full Payment
+                <span className="text-xs font-bold">Full Payment</span>
               </label>
 
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+              <label
+                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                  paymentType === "PARTIAL"
+                    ? "border-[#2563eb] bg-blue-50/40 text-[#2563eb] font-bold shadow-xs ring-1 ring-[#2563eb]/20"
+                    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                }`}
+              >
                 <input
                   type="radio"
                   name="paymentType"
+                  value="PARTIAL"
                   checked={paymentType === "PARTIAL"}
                   onChange={() => setPaymentType("PARTIAL")}
-                  className="h-4 w-4 text-[#0a52c3]"
+                  className="text-[#2563eb] focus:ring-[#2563eb]"
                 />
-                Partial Payment
+                <span className="text-xs font-bold">Partial Payment</span>
               </label>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+          {/* 4-Field Row: Amount Paid, Balance Due, Sold By, Expected Delivery */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {/* Amount Paid */}
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Amount Paid
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                AMOUNT PAID
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-2.5 text-slate-400 font-bold text-xs">₹</span>
+                <span className="absolute left-2.5 top-2 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  max={netPayable}
                   value={paymentType === "FULL" ? netPayable.toFixed(2) : amountPaidOverride}
                   onChange={(e) => setAmountPaidOverride(e.target.value)}
                   disabled={paymentType === "FULL"}
-                  className="w-full h-10 pl-7 pr-3 bg-white border border-slate-200/80 rounded-lg text-sm font-extrabold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 disabled:bg-slate-50 disabled:text-slate-400"
+                  className={`w-full h-8 pl-6 pr-2.5 rounded-lg border text-xs font-bold transition-all shadow-2xs ${
+                    paymentType === "FULL"
+                      ? "bg-slate-50/70 border-slate-200 text-slate-700 font-extrabold"
+                      : "bg-white border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+                  }`}
                 />
               </div>
-              {appliedCredit > 0 && (
-                <p className="text-[10px] text-emerald-600 font-bold mt-1">
-                  (₹{appliedCredit.toFixed(2)} store credit deducted from ₹{grandTotal.toFixed(2)})
-                </p>
-              )}
             </div>
 
+            {/* Balance Due */}
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Balance Due
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                BALANCE DUE
               </label>
-              <div className="text-xl font-extrabold tracking-wide text-rose-500 h-10 flex items-center">
-                ₹{finalBalanceDue.toFixed(2)}
+              <div
+                className={`w-full h-8 px-2.5 rounded-lg border flex items-center justify-between text-xs font-black shadow-2xs ${
+                  finalBalanceDue > 0
+                    ? "bg-rose-50 border-rose-200 text-rose-600"
+                    : "bg-slate-50/70 border-slate-200 text-slate-700"
+                }`}
+              >
+                <span>₹</span>
+                <span>{finalBalanceDue.toFixed(2)}</span>
               </div>
             </div>
-          </div>
 
-          <div className="pt-2">
-            <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-              Expected Delivery (Days)
-            </label>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex items-center gap-3 bg-white border border-slate-200/80 rounded-lg px-3.5 h-10 flex-1 sm:max-w-md">
-                <span className="text-xs font-bold text-slate-500 whitespace-nowrap">
-                  Expected Delivery Date
-                </span>
-                <div className="h-4 w-px bg-slate-200" />
-                <div className="relative flex-1 flex items-center">
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={deliveryDays}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "") {
-                        setDeliveryDays("");
-                      } else {
-                        const parsed = parseInt(val, 10);
-                        setDeliveryDays(isNaN(parsed) ? 0 : parsed);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowUp") {
-                        e.preventDefault();
-                        setDeliveryDays(prev => (prev === "" ? 1 : prev + 1));
-                      } else if (e.key === "ArrowDown") {
-                        e.preventDefault();
-                        setDeliveryDays(prev => (prev === "" ? 0 : Math.max(0, prev - 1)));
-                      }
-                    }}
-                    className="w-full h-full bg-transparent text-sm font-extrabold text-slate-700 focus:outline-none pr-12 text-left"
-                  />
-                  <div className="absolute right-0 flex items-center gap-1.5">
-                    <button
-                      type="button"
-                    onClick={() => setDeliveryDays(prev => prev === "" ? 1 : prev + 1)}
-                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
+            {/* Sold By */}
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                SOLD BY (STAFF)
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="staff-suggestions"
+                  placeholder="Staff Name"
+                  value={soldBy}
+                  onChange={(e) => setSoldBy(e.target.value)}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <datalist id="staff-suggestions">
+                  {staffSuggestions.map((st, idx) => (
+                    <option key={idx} value={st} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            {/* Expected Delivery */}
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
+                  EXPECTED DELIVERY
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDeliveryDaysPreset(0)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold transition-colors cursor-pointer ${
+                      deliveryDays === 0
+                        ? "bg-[#2563eb] text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
                   >
-                    <ChevronUp className="h-4 w-4" />
+                    0D
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDeliveryDays(prev => prev === "" || prev <= 0 ? 0 : prev - 1)}
-                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                    onClick={() => handleDeliveryDaysPreset(3)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold transition-colors cursor-pointer ${
+                      deliveryDays === 3
+                        ? "bg-[#2563eb] text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
                   >
-                    <ChevronDown className="h-4 w-4" />
+                    3D
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeliveryDaysPreset(7)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold transition-colors cursor-pointer ${
+                      deliveryDays === 7
+                        ? "bg-[#2563eb] text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    7D
+                  </button>
+                  {deliveryDate && (
+                    <button
+                      type="button"
+                      onClick={handleClearDelivery}
+                      title="Clear Delivery Date"
+                      className="px-1 py-0.5 rounded text-[9px] font-extrabold text-rose-500 hover:bg-rose-50 cursor-pointer"
+                    >
+                      ✕
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
-
-              {/* Presets */}
-              <div className="flex gap-2">
+              <div className="relative">
+                <input
+                  type="text"
+                  readOnly
+                  placeholder="Select delivery date..."
+                  value={formatDeliveryDisplay()}
+                  onClick={() => {
+                    try {
+                      deliveryDateInputRef.current?.showPicker();
+                    } catch {
+                      deliveryDateInputRef.current?.focus();
+                    }
+                  }}
+                  className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs cursor-pointer"
+                />
                 <button
                   type="button"
-                  onClick={() => setDeliveryDays(0)}
-                  className={`px-4 h-10 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                    deliveryDays === 0
-                      ? "bg-[#0a52c3] text-white border-[#0a52c3] shadow-sm shadow-[#0a52c3]/15"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
+                  onClick={() => {
+                    try {
+                      deliveryDateInputRef.current?.showPicker();
+                    } catch {
+                      deliveryDateInputRef.current?.focus();
+                    }
+                  }}
+                  className="absolute left-2 top-2 text-slate-400 hover:text-[#2563eb] cursor-pointer"
+                  title="Open Calendar"
                 >
-                  0 (Delivered)
+                  <Calendar className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setDeliveryDays(3)}
-                  className={`px-4 h-10 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                    deliveryDays === 3
-                      ? "bg-[#0a52c3] text-white border-[#0a52c3] shadow-sm shadow-[#0a52c3]/15"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  3 Days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeliveryDays(7)}
-                  className={`px-4 h-10 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                    deliveryDays === 7
-                      ? "bg-[#0a52c3] text-white border-[#0a52c3] shadow-sm shadow-[#0a52c3]/15"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  7 Days
-                </button>
+                {/* Hidden native date picker triggered by click */}
+                <input
+                  ref={deliveryDateInputRef}
+                  type="date"
+                  value={deliveryDate}
+                  onChange={(e) => handleDeliveryDateChange(e.target.value)}
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
+                {deliveryDate ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClearDelivery();
+                    }}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-rose-500 cursor-pointer"
+                    title="Clear"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        deliveryDateInputRef.current?.showPicker();
+                      } catch {
+                        deliveryDateInputRef.current?.focus();
+                      }
+                    }}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-[#2563eb] cursor-pointer"
+                    title="Pick Date"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Sold By (Salesperson / Staff)
-              </label>
-              <div className="relative">
-                <UserCheck className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                <Input
-                  type="text"
-                  placeholder="e.g. Rahul Sharma / Staff Name"
-                  value={soldBy}
-                  onChange={(e) => setSoldBy(e.target.value)}
-                  className="h-10 pl-10 pr-3.5 bg-white border-slate-200/80 rounded-lg text-xs font-bold text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                Invoice Notes & Remarks
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g. Next eye testing due in 6 months..."
-                value={invoiceNotes}
-                onChange={(e) => setInvoiceNotes(e.target.value)}
-                className="h-10 px-3.5 bg-white border-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
-              />
-            </div>
+          {/* Invoice Notes & Remarks */}
+          <div>
+            <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+              INVOICE NOTES & REMARKS
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Anti-reflective coating requested. Call customer when frame arrives from lab."
+              value={invoiceNotes}
+              onChange={(e) => setInvoiceNotes(e.target.value)}
+              className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs resize-none"
+            />
           </div>
         </div>
 
-        {/* Calculations Sidebar Ledger (GST-Automated) */}
-        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 space-y-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <h3 className="text-xs font-extrabold uppercase text-slate-400 tracking-wider">
-              Line Items Summary
-            </h3>
-
-            {/* Billed items listing */}
-            <div className="space-y-2 max-h-36 overflow-y-auto divide-y divide-slate-100 pr-1">
-              {lineItems.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center text-xs font-semibold py-1.5">
-                  <span className="text-slate-650 truncate max-w-[150px]">
-                    {item.description || "Unspecified Product"} (x{item.quantity})
-                  </span>
-                  <span className="text-slate-700 font-bold">₹{item.rowTotal.toFixed(2)}</span>
-                </div>
-              ))}
+        {/* Right: Line Items Summary Card */}
+        <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-xl shadow-xs p-3 flex flex-col justify-between space-y-3">
+          <div>
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+              <ReceiptText className="h-3.5 w-3.5 text-[#2563eb]" />
+              <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                LINE ITEMS SUMMARY
+              </h3>
             </div>
 
-            <div className="h-px bg-slate-200" />
-
-            <div className="space-y-2.5 text-xs font-bold text-slate-650">
-              <div className="flex justify-between">
-                <span>Subtotal (Base)</span>
-                <span className="text-slate-800">₹{calculatedSubtotal.toFixed(2)}</span>
+            <div className="py-2.5 space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-600 font-semibold">
+                <span>Subtotal</span>
+                <span className="font-bold text-slate-800">₹{calculatedSubtotal.toFixed(2)}</span>
               </div>
 
-              {calculatedDiscount > 0 && (
-                <div className="flex justify-between text-rose-600 font-extrabold">
-                  <span>Total Discount</span>
-                  <span>-₹{calculatedDiscount.toFixed(2)}</span>
-                </div>
-              )}
-
-              {/* CGST Sum */}
-              {summedCGST > 0 && (
-                <div className="flex justify-between text-slate-500 font-semibold">
-                  <span>Total CGST</span>
-                  <span>+₹{summedCGST.toFixed(2)}</span>
-                </div>
-              )}
-
-              {/* SGST Sum */}
-              {summedSGST > 0 && (
-                <div className="flex justify-between text-slate-500 font-semibold">
-                  <span>Total SGST</span>
-                  <span>+₹{summedSGST.toFixed(2)}</span>
-                </div>
-              )}
-
-              {/* IGST Sum */}
-              {summedIGST > 0 && (
-                <div className="flex justify-between text-slate-500 font-semibold">
-                  <span>Total IGST</span>
-                  <span>+₹{summedIGST.toFixed(2)}</span>
-                </div>
-              )}
-
-              <div className="flex justify-between text-indigo-600 pt-1.5 border-t border-slate-100">
-                <span>Total GST Taxes</span>
-                <span>+₹{totalGSTTax.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-200 mt-4 space-y-2">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs font-extrabold uppercase text-slate-400">Grand Total</span>
-              <span className={`font-extrabold tracking-tight ${appliedCredit > 0 ? "text-base text-slate-700" : "text-3xl text-[#0a52c3]"}`}>
-                ₹{grandTotal.toFixed(2)}
-              </span>
-            </div>
-
-            {appliedCredit > 0 && (
-              <div className="flex justify-between items-baseline text-xs font-bold text-emerald-600">
+              <div className="flex justify-between text-slate-600 font-semibold">
                 <span className="flex items-center gap-1">
-                  <Wallet className="h-3.5 w-3.5" />
-                  Store Credit Applied
+                  Total GST Taxes <span className="text-slate-400 text-[10px]">ⓘ</span>
                 </span>
-                <span>-₹{appliedCredit.toFixed(2)}</span>
+                <span className="font-bold text-slate-800">₹{totalGSTTax.toFixed(2)}</span>
               </div>
-            )}
 
-            {appliedCredit > 0 && (
-              <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
-                <span className="text-xs font-extrabold uppercase text-slate-600">Net Payable</span>
-                <span className="text-3xl font-extrabold text-[#0a52c3] tracking-tight">
+              <div className="flex justify-between text-slate-600 font-semibold">
+                <span className="flex items-center gap-1">
+                  Discount <span className="text-slate-400 text-[10px]">ⓘ</span>
+                </span>
+                <span className="font-bold text-emerald-600">-₹{calculatedDiscount.toFixed(2)}</span>
+              </div>
+
+              {customerStoreCredit > 0 && (
+                <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Wallet className="h-3 w-3 text-emerald-600" />
+                    <span className="text-xs font-bold text-emerald-800">
+                      Store Credit (₹{customerStoreCredit.toFixed(2)})
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useStoreCredit}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setUseStoreCredit(checked);
+                        if (checked && (!creditToApply || parseFloat(creditToApply) <= 0)) {
+                          setCreditToApply(maxAllowedCredit > 0 ? maxAllowedCredit.toFixed(2) : availableCredit.toFixed(2));
+                        }
+                      }}
+                      className="rounded text-[#2563eb] focus:ring-[#2563eb]"
+                    />
+                    <span className="text-xs font-extrabold text-emerald-700">Apply</span>
+                  </label>
+                </div>
+              )}
+
+              {appliedCredit > 0 && (
+                <div className="flex justify-between text-emerald-700 font-semibold bg-emerald-50/60 px-2 py-0.5 rounded-md border border-emerald-100">
+                  <span>Store Credit Applied</span>
+                  <span className="font-bold">-₹{appliedCredit.toFixed(2)}</span>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-200/80 flex justify-between items-baseline">
+                <span className="text-[11px] font-black uppercase text-slate-700 tracking-wider">
+                  Grand Total
+                </span>
+                <span className="text-xl font-black text-[#2563eb] tracking-tight">
                   ₹{netPayable.toFixed(2)}
                 </span>
               </div>
-            )}
 
-            {paymentType === "PARTIAL" && (
-              <div className="pt-2 border-t border-slate-200/80 space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-600 font-semibold">
-                  <span>Paid Now:</span>
-                  <span className="font-bold text-slate-800">₹{finalAmountPaid.toFixed(2)}</span>
+              {paymentType === "PARTIAL" && (
+                <div className="pt-1.5 border-t border-slate-100 space-y-1 text-xs">
+                  <div className="flex justify-between text-slate-600 font-semibold">
+                    <span>Paid Now:</span>
+                    <span className="font-bold text-slate-800">₹{finalAmountPaid.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-600 font-extrabold">
+                    <span>Balance Due:</span>
+                    <span>₹{finalBalanceDue.toFixed(2)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-rose-600 font-extrabold">
-                  <span>Balance Due:</span>
-                  <span>₹{finalBalanceDue.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSaveDraft}
+              className="w-1/3 h-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer text-xs transition-all"
+            >
+              <Save className="h-3.5 w-3.5 text-slate-500" />
+              <span>Save Draft</span>
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="w-2/3 h-10 bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-[0.99] text-xs"
+            >
+              {paymentType === "PARTIAL" ? (
+                <>
+                  <ReceiptText className="h-4 w-4" />
+                  <span>{isPending ? "Generating..." : "Generate Receipt"}</span>
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  <span>{isPending ? "Creating..." : "Create Invoice"}</span>
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Control Buttons */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pt-8 border-t border-slate-200/80">
-        <div className="flex items-center gap-4 flex-wrap">
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm("Are you sure you want to discard this invoice builder session?")) {
-                router.push("/shop/invoices");
-              }
-            }}
-            className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-all cursor-pointer"
-          >
-            Discard Form
-          </button>
-          {soldBy.trim() && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#0a52c3] text-xs font-bold border border-blue-100/80">
-              <UserCheck className="h-3.5 w-3.5" />
-              <span>Sold By: <strong>{soldBy.trim()}</strong></span>
+      {/* LOAD EXISTING PATIENT MODAL OVERLAY */}
+      {showPatientSearch && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-up">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Search className="h-4 w-4 text-[#2563eb]" />
+                <h3 className="text-sm font-bold text-slate-900">Load Existing Patient</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPatientSearch(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          )}
-        </div>
 
-        <Button
-          type="submit"
-          disabled={isPending}
-          className="h-12 px-8 text-sm font-bold bg-[#0a52c3] hover:bg-[#004bb5] text-white rounded-xl shadow-lg shadow-[#0a52c3]/10 hover:shadow-[#0a52c3]/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-        >
-          {paymentType === "PARTIAL" ? (
-            <>
-              <ReceiptText className="h-4.5 w-4.5" />
-              {isPending ? "Generating Receipt..." : "Generate Receipt"}
-            </>
-          ) : (
-            <>
-              <Check className="h-4.5 w-4.5" />
-              {isPending ? "Creating Invoice..." : "Create Invoice"}
-            </>
-          )}
-        </Button>
-      </div>
+            <div className="p-4 space-y-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search by patient name, mobile, or ID..."
+                  value={patientQuery}
+                  onChange={(e) => setPatientQuery(e.target.value)}
+                  className="w-full h-10 pl-9 pr-4 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+                />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                {isSearchingPatient && (
+                  <Loader2 className="absolute right-3 top-3 h-4 w-4 text-[#2563eb] animate-spin pointer-events-none" />
+                )}
+              </div>
+
+              <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-lg">
+                {patientResults.length > 0 ? (
+                  patientResults.map((cust) => (
+                    <button
+                      key={cust.id}
+                      type="button"
+                      onClick={() => handleSelectPatient(cust.id)}
+                      className="w-full text-left p-3 hover:bg-blue-50/60 transition-colors flex items-center justify-between gap-3 group cursor-pointer"
+                    >
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 group-hover:text-[#2563eb]">
+                          {cust.name}
+                        </p>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {cust.phone} {cust.email ? `• ${cust.email}` : ""}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] font-mono font-bold text-slate-400 block">
+                          {cust.customerCode || cust.id.slice(0, 8)}
+                        </span>
+                        {Number(cust.storeCredit || 0) > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                            ₹{Number(cust.storeCredit).toFixed(2)} Cr
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                ) : patientQuery.trim().length > 0 && !isSearchingPatient ? (
+                  <div className="p-6 text-center text-xs text-slate-400 font-semibold">
+                    No existing patients found matching &quot;{patientQuery}&quot;
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs text-slate-400 font-semibold">
+                    Type a name or phone number to find patients
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* OPTOMETRY INDUSTRY DATALISTS FOR SMART PRESCRIPTION SELECTION */}
       <datalist id="sph-options">

@@ -38,6 +38,7 @@ export const prescriptions = pgTable("prescriptions", {
   rightAxis: decimal("right_axis", { precision: 5, scale: 1 }),
   rightAdd: decimal("right_add", { precision: 4, scale: 2 }),
   rightNv: varchar("right_nv", { length: 50 }),
+  caddRight: varchar("cadd_right", { length: 50 }),
 
   // Left eye (OS)
   leftSphere: decimal("left_sphere", { precision: 5, scale: 2 }),
@@ -45,8 +46,12 @@ export const prescriptions = pgTable("prescriptions", {
   leftAxis: decimal("left_axis", { precision: 5, scale: 1 }),
   leftAdd: decimal("left_add", { precision: 4, scale: 2 }),
   leftNv: varchar("left_nv", { length: 50 }),
+  caddLeft: varchar("cadd_left", { length: 50 }),
 
   // Additional
+  rxNumber: varchar("rx_number", { length: 50 }),
+  rxCategory: varchar("rx_category", { length: 50 }).notNull().default("SPECTACLES"),
+  lensType: varchar("lens_type", { length: 100 }),
   pd: decimal("pd", { precision: 4, scale: 1 }), // Pupillary distance (combined)
   pdRight: decimal("pd_right", { precision: 4, scale: 1 }),
   pdLeft: decimal("pd_left", { precision: 4, scale: 1 }),
@@ -70,5 +75,6 @@ export const prescriptions = pgTable("prescriptions", {
   shopIdIdx: index("prescriptions_shop_id_idx").on(table.shopId),
   orgIdIdx: index("prescriptions_org_id_idx").on(table.organizationId),
   customerIdIdx: index("prescriptions_customer_id_idx").on(table.customerId),
+  rxNumberIdx: index("prescriptions_rx_number_idx").on(table.rxNumber),
 }));
 

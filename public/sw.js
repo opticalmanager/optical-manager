@@ -1,5 +1,5 @@
-// Optical Manager PWA Service Worker (v15 - Resilient Zero-Latency Offline Engine)
-const CACHE_NAME = "optical-manager-cache-v15";
+// Optical Manager PWA Service Worker (v16 - Fail-Safe Zero-Latency Offline Engine)
+const CACHE_NAME = "optical-manager-cache-v16";
 
 // Core static assets to precache on install (static shell only — zero heavy SSR pages to avoid compilation storms)
 const PRECACHE_ASSETS = [
@@ -21,14 +21,17 @@ self.addEventListener("install", (event) => {
           PRECACHE_ASSETS.map(async (asset) => {
             try {
               const res = await fetch(asset, { cache: "no-store" });
-              if (res && res.status === 200) {
-                await cache.put(asset, res);
+              if (res && res.status === 200 && !res.redirected) {
+                await cache.put(asset, res).catch(() => {});
               }
             } catch (err) {
               console.warn("[SW] Asset precache skipped:", asset);
             }
           })
         );
+      })
+      .catch((err) => {
+        console.warn("[SW] Precache initialization error ignored:", err);
       })
   );
 });
@@ -49,10 +52,13 @@ self.addEventListener("activate", (event) => {
         );
       })
       .then(() => self.clients.claim())
+      .catch((err) => {
+        console.warn("[SW] Cache activate cleanup error:", err);
+      })
   );
 });
 
-// 3. Fetch event: Fast Network-Race for navigations/RSC, Cache-Fallback when offline
+// 3. Fetch event: Direct Network Passthrough for navigations/RSC, Cache-Fallback when offline
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -86,14 +92,14 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         try {
           const res = await fetch(request);
-          if (res && res.status === 200) {
-            cache.put(request, res.clone());
+          if (res && res.status === 200 && !res.redirected) {
+            cache.put(request, res.clone()).catch(() => {});
           }
           return res;
         } catch {
           return cached || new Response("", { status: 404 });
         }
-      })
+      }).catch(() => fetch(request).catch(() => new Response("", { status: 404 })))
     );
     return;
   }
@@ -107,44 +113,60 @@ self.addEventListener("fetch", (event) => {
   if (isNavigationOrRsc) {
     event.respondWith(
       (async () => {
-        const cache = await caches.open(CACHE_NAME);
-
-        // 1. When online, prioritize live network response with generous safety ceiling (15s)
-        // Never abort at 2.5s; serverless cold starts and SSR pages in production take 2.5s-4s.
+        // 1. When online, directly fetch from live server and pass through response immediately.
+        // Never discard non-200 responses (e.g. 307/302 redirects from proxy/auth, 304, 401).
         if (navigator.onLine) {
           try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 15000); // 15 seconds
-
-            const networkResponse = await fetch(request, { signal: controller.signal });
-            clearTimeout(timer);
-
-            if (networkResponse && networkResponse.status === 200) {
-              const clone = networkResponse.clone();
-              cache.put(request, clone);
-              if (request.mode === "navigate") {
-                cache.put(url.pathname, networkResponse.clone());
+            const networkResponse = await fetch(request);
+            if (networkResponse) {
+              // Cache clean 200 OK responses that are NOT redirected (redirected responses cannot be cached)
+              if (networkResponse.status === 200 && !networkResponse.redirected) {
+                try {
+                  const cache = await caches.open(CACHE_NAME);
+                  cache.put(request, networkResponse.clone()).catch(() => {});
+                  if (request.mode === "navigate") {
+                    cache.put(url.pathname, networkResponse.clone()).catch(() => {});
+                  }
+                } catch {
+                  // Ignore caching errors — network response delivery is paramount
+                }
               }
               return networkResponse;
             }
           } catch (netErr) {
-            // Network timed out or connection dropped - fall through to offline cache
-            console.warn("[SW] Online fetch failed or timed out, falling back to cache:", url.pathname);
+            // Live fetch failed (actual network loss, DNS failure, server unreachable)
+            console.warn("[SW] Live fetch failed, activating offline cache fallback:", url.pathname);
           }
         }
 
         // 2. Offline or network failed: check exact cached route or clean pathname
-        const exactCached =
-          (await cache.match(request)) ||
-          (await cache.match(url.pathname, { ignoreSearch: true }));
+        try {
+          const cache = await caches.open(CACHE_NAME);
+          const exactCached =
+            (await cache.match(request)) ||
+            (await cache.match(url.pathname, { ignoreSearch: true }));
 
-        if (exactCached) {
-          return exactCached;
+          if (exactCached) {
+            return exactCached;
+          }
+
+          // 3. Fallback safely from cache without crashing or hijacking
+          return await handleOfflineFallback(request, url, cache);
+        } catch (cacheErr) {
+          console.error("[SW] Offline cache lookup failed:", cacheErr);
+          if (request.mode === "navigate") {
+            return new Response(
+              `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Optical Manager - Connection Error</title></head><body style="font-family:system-ui,-apple-system,sans-serif;padding:48px 24px;text-align:center;"><div style="max-width:400px;margin:0 auto;"><h2>Connection Error</h2><p style="color:#64748b;">Unable to connect to the server. Please check your internet connection.</p><button onclick="window.location.reload()" style="padding:8px 16px;border-radius:8px;background:#0a52c3;color:#fff;border:none;cursor:pointer;font-weight:600;">Retry</button></div></body></html>`,
+              { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 200 }
+            );
+          }
+          return new Response(null, { status: 503, statusText: "Service Unavailable (Offline)" });
         }
-
-        // 3. Fallback safely from cache without crashing or hijacking
-        return handleOfflineFallback(request, url, cache);
-      })()
+      })().catch((fatalErr) => {
+        // Top-level catch guarantee: event.respondWith NEVER rejects!
+        console.error("[SW] Fatal navigation handler rejection prevented:", fatalErr);
+        return new Response("Service Unavailable", { status: 503 });
+      })
     );
     return;
   }
@@ -157,14 +179,14 @@ self.addEventListener("fetch", (event) => {
 
       try {
         const networkResponse = await fetch(request);
-        if (networkResponse && networkResponse.status === 200) {
-          cache.put(request, networkResponse.clone());
+        if (networkResponse && networkResponse.status === 200 && !networkResponse.redirected) {
+          cache.put(request, networkResponse.clone()).catch(() => {});
         }
         return networkResponse;
       } catch {
         return cached || new Response("Offline", { status: 503 });
       }
-    })
+    }).catch(() => fetch(request).catch(() => new Response("Offline", { status: 503 })))
   );
 });
 
@@ -277,11 +299,16 @@ async function handleOfflineFallback(request, url, cache) {
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-offline-invoices") {
     event.waitUntil(
-      self.clients.matchAll().then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({ type: "TRIGGER_BACKGROUND_SYNC" });
-        });
-      })
+      self.clients
+        .matchAll()
+        .then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: "TRIGGER_BACKGROUND_SYNC" });
+          });
+        })
+        .catch((err) => {
+          console.warn("[SW] Background sync dispatch skipped:", err);
+        })
     );
   }
 });

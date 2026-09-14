@@ -47,6 +47,7 @@ export async function createPrescriptionAction(
   try {
     await createPrescription({
       ...validatedFields.data,
+      rxCategory: validatedFields.data.rxCategory || "SPECT_RX",
       shopId,
       organizationId: user.organizationId,
     });

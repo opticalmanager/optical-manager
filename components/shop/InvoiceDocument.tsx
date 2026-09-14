@@ -451,13 +451,17 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                               <div className="text-[8px] font-bold text-slate-600 mt-1 leading-normal uppercase">
                                 <div>
                                   RE: {formatPrescriptionVal(rowPrescription.rightSphere)} {formatPrescriptionVal(rowPrescription.rightCylinder)}
-                                  {rowPrescription.rightAxis ? ` x ${rowPrescription.rightAxis}` : ""}
+                                  {rowPrescription.rightAxis ? ` x ${rowPrescription.rightAxis}°` : ""}
                                   {rowPrescription.rightAdd ? ` Add ${formatPrescriptionVal(rowPrescription.rightAdd)}` : ""}
+                                  {rowPrescription.rightNv ? ` (${rowPrescription.rightNv})` : ""}
+                                  {rowPrescription.pdRight ? ` PD: ${rowPrescription.pdRight}mm` : ""}
                                 </div>
                                 <div>
                                   LE: {formatPrescriptionVal(rowPrescription.leftSphere)} {formatPrescriptionVal(rowPrescription.leftCylinder)}
-                                  {rowPrescription.leftAxis ? ` x ${rowPrescription.leftAxis}` : ""}
+                                  {rowPrescription.leftAxis ? ` x ${rowPrescription.leftAxis}°` : ""}
                                   {rowPrescription.leftAdd ? ` Add ${formatPrescriptionVal(rowPrescription.leftAdd)}` : ""}
+                                  {rowPrescription.leftNv ? ` (${rowPrescription.leftNv})` : ""}
+                                  {rowPrescription.pdLeft ? ` PD: ${rowPrescription.pdLeft}mm` : ""}
                                 </div>
                               </div>
                             )}
@@ -1138,10 +1142,10 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                         {(item.category === "FRAME" || item.category === "LENS") && latestPrescription && (
                           <div className="text-[7.5px] text-slate-500 font-bold mt-1 space-y-0.5 border-t border-slate-100 pt-1">
                             <div className="flex justify-between">
-                              <span>RE: {latestPrescription.rightSphere ? `SPH ${latestPrescription.rightSphere}` : ""} {latestPrescription.rightCylinder ? `CYL ${latestPrescription.rightCylinder}` : ""} {latestPrescription.rightAxis ? `AX ${latestPrescription.rightAxis}` : ""}</span>
+                              <span>RE: {latestPrescription.rightSphere ? `SPH ${latestPrescription.rightSphere}` : ""} {latestPrescription.rightCylinder ? `CYL ${latestPrescription.rightCylinder}` : ""} {latestPrescription.rightAxis ? `AX ${latestPrescription.rightAxis}°` : ""}{latestPrescription.rightAdd ? ` ADD ${latestPrescription.rightAdd}` : ""}{latestPrescription.pdRight ? ` PD ${latestPrescription.pdRight}mm` : ""}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span>LE: {latestPrescription.leftSphere ? `SPH ${latestPrescription.leftSphere}` : ""} {latestPrescription.leftCylinder ? `CYL ${latestPrescription.leftCylinder}` : ""} {latestPrescription.leftAxis ? `AX ${latestPrescription.leftAxis}` : ""}</span>
+                              <span>LE: {latestPrescription.leftSphere ? `SPH ${latestPrescription.leftSphere}` : ""} {latestPrescription.leftCylinder ? `CYL ${latestPrescription.leftCylinder}` : ""} {latestPrescription.leftAxis ? `AX ${latestPrescription.leftAxis}°` : ""}{latestPrescription.leftAdd ? ` ADD ${latestPrescription.leftAdd}` : ""}{latestPrescription.pdLeft ? ` PD ${latestPrescription.pdLeft}mm` : ""}</span>
                             </div>
                           </div>
                         )}
