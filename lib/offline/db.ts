@@ -28,6 +28,8 @@ export interface CachedInventory {
   id: string; // inventory UUID
   shopId: string;
   organizationId: string;
+  productCode?: string | null;
+  productName?: string | null;
   name: string;
   category: string;
   brand: string | null;
@@ -224,6 +226,21 @@ export interface OfflineQueuedMutation {
   retryCount: number;
 }
 
+export interface CachedProductCategory {
+  id: string;
+  organizationId: string;
+  name: string;
+  code: string;
+  hsnCode: string | null;
+  cgstPercent: string;
+  sgstPercent: string;
+  igstPercent: string;
+  isSystem: boolean;
+  isActive: boolean;
+  displayOrder: number;
+  updatedAt: string;
+}
+
 export interface SyncMetadata {
   key: string; // e.g. "last_cache_warm_{shopId}", "offline_counter_{shopId}", "current_shop_id"
   value: string;
@@ -239,6 +256,7 @@ export class OpticalManagerOfflineDB extends Dexie {
   cached_returns!: Table<CachedReturn, string>;
   cached_shop_profile!: Table<CachedShopProfile, string>;
   cached_organization!: Table<CachedOrganization, string>;
+  cached_product_categories!: Table<CachedProductCategory, string>;
   offline_invoices_queue!: Table<OfflineQueuedInvoice, string>;
   offline_mutations_queue!: Table<OfflineQueuedMutation, string>;
   sync_metadata!: Table<SyncMetadata, string>;
@@ -299,6 +317,36 @@ export class OpticalManagerOfflineDB extends Dexie {
       cached_returns: "id, shopId, organizationId, returnNumber, invoiceNumber, status, createdAt",
       cached_shop_profile: "id, organizationId, updatedAt",
       cached_organization: "id, updatedAt",
+      offline_invoices_queue: "id, shopId, offlineInvoiceNumber, syncStatus, createdAt",
+      offline_mutations_queue: "id, shopId, type, syncStatus, createdAt",
+      sync_metadata: "key, updatedAt",
+    });
+
+    this.version(6).stores({
+      cached_customers: "id, shopId, organizationId, phone, fullName, registrationId, updatedAt",
+      cached_inventory: "id, shopId, organizationId, name, sku, brand, category, isActive, updatedAt",
+      cached_appointments: "id, shopId, organizationId, appointmentDate, status, updatedAt",
+      cached_orders: "id, shopId, organizationId, invoiceNumber, status, paymentStatus, createdAt",
+      cached_invoices: "id, shopId, organizationId, invoiceNumber, customerId, status, createdAt",
+      cached_returns: "id, shopId, organizationId, returnNumber, invoiceNumber, status, createdAt",
+      cached_shop_profile: "id, organizationId, updatedAt",
+      cached_organization: "id, updatedAt",
+      cached_product_categories: "id, organizationId, code, isActive, displayOrder",
+      offline_invoices_queue: "id, shopId, offlineInvoiceNumber, syncStatus, createdAt",
+      offline_mutations_queue: "id, shopId, type, syncStatus, createdAt",
+      sync_metadata: "key, updatedAt",
+    });
+
+    this.version(7).stores({
+      cached_customers: "id, shopId, organizationId, phone, fullName, registrationId, updatedAt",
+      cached_inventory: "id, shopId, organizationId, productCode, productName, name, sku, brand, category, isActive, updatedAt",
+      cached_appointments: "id, shopId, organizationId, appointmentDate, status, updatedAt",
+      cached_orders: "id, shopId, organizationId, invoiceNumber, status, paymentStatus, createdAt",
+      cached_invoices: "id, shopId, organizationId, invoiceNumber, customerId, status, createdAt",
+      cached_returns: "id, shopId, organizationId, returnNumber, invoiceNumber, status, createdAt",
+      cached_shop_profile: "id, organizationId, updatedAt",
+      cached_organization: "id, updatedAt",
+      cached_product_categories: "id, organizationId, code, isActive, displayOrder",
       offline_invoices_queue: "id, shopId, offlineInvoiceNumber, syncStatus, createdAt",
       offline_mutations_queue: "id, shopId, type, syncStatus, createdAt",
       sync_metadata: "key, updatedAt",

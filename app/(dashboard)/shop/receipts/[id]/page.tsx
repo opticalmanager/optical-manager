@@ -5,8 +5,8 @@ import { DocumentActionBar } from "@/components/shop/DocumentActionBar";
 import { notFound, redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Payment Receipt | Optical Manager",
-  description: "View and print clinical payment receipt details.",
+  title: "Booking Details & Receipt | Optical Manager",
+  description: "View and print optical booking details, clinical prescription, and payment receipt.",
 };
 
 export default async function ReceiptDetailPage({

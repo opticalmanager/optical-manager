@@ -10,7 +10,7 @@ import {
   stockMovements,
   profiles,
 } from "@/db/schema";
-import { eq, and, lte, or, ilike, sql, desc } from "drizzle-orm";
+import { eq, and, lte, or, ilike, sql, desc, ne } from "drizzle-orm";
 import type { InventoryItem, NewInventoryItem } from "@/types";
 
 
@@ -92,26 +92,84 @@ export async function getLowStockItems(
 }
 
 /**
- * Search inventory items for autocomplete based on name, brand, model or SKU.
+ * Check if a product code (or SKU) already exists within a shop or organization,
+ * optionally scoped to a specific vendor.
+ */
+export async function checkProductCodeExists(
+  scopeId: string,
+  productCode: string,
+  excludeItemId?: string,
+  isShopScope = true,
+  vendorName?: string
+): Promise<boolean> {
+  if (!scopeId || !productCode) return false;
+  const cleanCode = productCode.trim();
+  if (!cleanCode) return false;
+
+  const conditions = [
+    isShopScope ? eq(inventory.shopId, scopeId) : eq(inventory.organizationId, scopeId),
+    or(
+      ilike(inventory.productCode, cleanCode),
+      ilike(inventory.sku, cleanCode)
+    ),
+  ];
+
+  if (vendorName && vendorName.trim()) {
+    conditions.push(ilike(inventory.vendorName, vendorName.trim()));
+  }
+
+  if (excludeItemId) {
+    conditions.push(ne(inventory.id, excludeItemId));
+  }
+
+  const [existing] = await db
+    .select({ id: inventory.id })
+    .from(inventory)
+    .where(and(...conditions))
+    .limit(1);
+
+  return Boolean(existing);
+}
+
+/**
+ * Search inventory items for autocomplete based on code, name, brand, model or SKU,
+ * optionally prioritizing / filtering by vendorName.
  */
 export async function searchInventoryItems(
   shopId: string,
-  query: string
+  query: string,
+  vendorName?: string
 ): Promise<InventoryItem[]> {
+  const baseCondition = and(
+    eq(inventory.shopId, shopId),
+    or(
+      ilike(inventory.productCode, `%${query}%`),
+      ilike(inventory.productName, `%${query}%`),
+      ilike(inventory.name, `%${query}%`),
+      ilike(inventory.brand, `%${query}%`),
+      ilike(inventory.model, `%${query}%`),
+      ilike(inventory.sku, `%${query}%`)
+    )
+  );
+
+  if (vendorName && vendorName.trim()) {
+    const cleanVendor = vendorName.trim();
+    // Prioritize exact/matching vendor items at the top
+    return db
+      .select()
+      .from(inventory)
+      .where(baseCondition)
+      .orderBy(
+        sql`CASE WHEN LOWER(${inventory.vendorName}) = LOWER(${cleanVendor}) THEN 0 ELSE 1 END`,
+        inventory.name
+      )
+      .limit(15);
+  }
+
   return db
     .select()
     .from(inventory)
-    .where(
-      and(
-        eq(inventory.shopId, shopId),
-        or(
-          ilike(inventory.name, `%${query}%`),
-          ilike(inventory.brand, `%${query}%`),
-          ilike(inventory.model, `%${query}%`),
-          ilike(inventory.sku, `%${query}%`)
-        )
-      )
-    )
+    .where(baseCondition)
     .limit(15);
 }
 
@@ -180,6 +238,8 @@ export async function getFrameItemDetails(
     .select({
       id: inventory.id,
       name: inventory.name,
+      productName: inventory.productName,
+      productCode: inventory.productCode,
       category: inventory.category,
       brand: inventory.brand,
       model: inventory.model,
@@ -234,6 +294,8 @@ export async function getLensItemDetails(
     .select({
       id: inventory.id,
       name: inventory.name,
+      productName: inventory.productName,
+      productCode: inventory.productCode,
       category: inventory.category,
       brand: inventory.brand,
       model: inventory.model,
@@ -294,6 +356,8 @@ export async function getContactLensItemDetails(
     .select({
       id: inventory.id,
       name: inventory.name,
+      productName: inventory.productName,
+      productCode: inventory.productCode,
       category: inventory.category,
       brand: inventory.brand,
       model: inventory.model,
@@ -351,6 +415,8 @@ export async function getAccessoryItemDetails(
     .select({
       id: inventory.id,
       name: inventory.name,
+      productName: inventory.productName,
+      productCode: inventory.productCode,
       category: inventory.category,
       brand: inventory.brand,
       model: inventory.model,

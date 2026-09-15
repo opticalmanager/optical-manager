@@ -10,6 +10,7 @@ import {
   pgEnum,
   date,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { shops } from "./shops";
 import { organizations } from "./organizations";
@@ -31,7 +32,9 @@ export const inventory = pgTable("inventory", {
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
-  category: inventoryCategoryEnum("category").notNull(),
+  productName: varchar("product_name", { length: 255 }),
+  productCode: varchar("product_code", { length: 100 }),
+  category: varchar("category", { length: 50 }).notNull(),
   brand: varchar("brand", { length: 255 }),
   model: varchar("model", { length: 255 }),
   sku: varchar("sku", { length: 100 }),
@@ -68,5 +71,7 @@ export const inventory = pgTable("inventory", {
   orgIdIdx: index("inventory_org_id_idx").on(table.organizationId),
   categoryIdx: index("inventory_category_idx").on(table.category),
   skuIdx: index("inventory_sku_idx").on(table.sku),
+  productCodeShopIdx: uniqueIndex("inventory_shop_product_code_idx").on(table.shopId, table.productCode),
+  productCodeIdx: index("inventory_product_code_idx").on(table.productCode),
   shopActiveIdx: index("inventory_shop_active_idx").on(table.shopId, table.isActive),
 }));

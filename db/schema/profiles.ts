@@ -19,6 +19,7 @@ export interface ModulePermissions {
   inventory: boolean;
   sales: boolean;
   returns: boolean;
+  purchases?: boolean;
   customers: boolean;
   appointments: boolean;
   analytics: boolean;
@@ -34,6 +35,7 @@ export const defaultFullPermissions: ModulePermissions = {
   inventory: true,
   sales: true,
   returns: true,
+  purchases: true,
   customers: true,
   appointments: true,
   analytics: true,

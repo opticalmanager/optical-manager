@@ -798,17 +798,17 @@ export function NewInvoiceForm() {
         if (fields.discountAmount !== undefined) {
           const discAmt = Math.max(0, fields.discountAmount || 0);
           merged.discountAmount = discAmt;
-          merged.discountPercent = lineSubtotal > 0 ? Math.min(100, (discAmt / lineSubtotal) * 100) : 0;
+          merged.discountPercent = lineSubtotal > 0 ? Number(Math.min(100, (discAmt / lineSubtotal) * 100).toFixed(2)) : 0;
         } else if (fields.discountPercent !== undefined) {
           const discPct = Math.min(100, Math.max(0, fields.discountPercent || 0));
           merged.discountPercent = discPct;
-          merged.discountAmount = lineSubtotal * (discPct / 100);
+          merged.discountAmount = Number(((lineSubtotal * discPct) / 100).toFixed(2));
         } else {
           // If price or quantity changed, recompute discountAmount based on existing discountPercent
-          merged.discountAmount = lineSubtotal * ((merged.discountPercent || 0) / 100);
+          merged.discountAmount = Number((lineSubtotal * ((merged.discountPercent || 0) / 100)).toFixed(2));
         }
 
-        merged.taxableSubtotal = Math.max(0, lineSubtotal - merged.discountAmount);
+        merged.taxableSubtotal = Number(Math.max(0, lineSubtotal - merged.discountAmount).toFixed(2));
 
         // Editable GST computations:
         const cgstPct = Math.max(0, merged.cgstPercent ?? 0);
@@ -819,12 +819,13 @@ export function NewInvoiceForm() {
         merged.sgstPercent = sgstPct;
         merged.igstPercent = igstPct;
 
-        merged.cgstAmount = merged.taxableSubtotal * (cgstPct / 100);
-        merged.sgstAmount = merged.taxableSubtotal * (sgstPct / 100);
-        merged.igstAmount = merged.taxableSubtotal * (igstPct / 100);
+        merged.cgstAmount = Number((merged.taxableSubtotal * (cgstPct / 100)).toFixed(2));
+        merged.sgstAmount = Number((merged.taxableSubtotal * (sgstPct / 100)).toFixed(2));
+        merged.igstAmount = Number((merged.taxableSubtotal * (igstPct / 100)).toFixed(2));
 
-        merged.rowTotal =
-          merged.taxableSubtotal + merged.cgstAmount + merged.sgstAmount + merged.igstAmount;
+        merged.rowTotal = Number(
+          (merged.taxableSubtotal + merged.cgstAmount + merged.sgstAmount + merged.igstAmount).toFixed(2)
+        );
         return merged;
       }
       return item;
@@ -899,10 +900,10 @@ export function NewInvoiceForm() {
       const lineSubtotal = 1 * price;
       const discountAmount = 0;
       const taxableSubtotal = lineSubtotal - discountAmount;
-      const cgstAmount = taxableSubtotal * (cgst / 100);
-      const sgstAmount = taxableSubtotal * (sgst / 100);
-      const igstAmount = taxableSubtotal * (igst / 100);
-      const rowTotal = taxableSubtotal + cgstAmount + sgstAmount + igstAmount;
+      const cgstAmount = Number((taxableSubtotal * (cgst / 100)).toFixed(2));
+      const sgstAmount = Number((taxableSubtotal * (sgst / 100)).toFixed(2));
+      const igstAmount = Number((taxableSubtotal * (igst / 100)).toFixed(2));
+      const rowTotal = Number((taxableSubtotal + cgstAmount + sgstAmount + igstAmount).toFixed(2));
 
       const fullyMergedItem = {
         ...initialLineItem,
@@ -1266,8 +1267,8 @@ export function NewInvoiceForm() {
             igstAmount: item.igstAmount || 0,
           };
         }),
-        discountPercent: calculatedSubtotal > 0 ? (calculatedDiscount / calculatedSubtotal) * 100 : 0,
-        taxPercent: taxableValue > 0 ? (totalGSTTax / taxableValue) * 100 : 0,
+        discountPercent: calculatedSubtotal > 0 ? Number(((calculatedDiscount / calculatedSubtotal) * 100).toFixed(2)) : 0,
+        taxPercent: taxableValue > 0 ? Number(((totalGSTTax / taxableValue) * 100).toFixed(2)) : 0,
         paymentMethod,
         creditApplied: appliedCredit,
         amountPaid: finalAmountPaid,
@@ -1871,8 +1872,8 @@ export function NewInvoiceForm() {
                         <span className="absolute left-1.5 top-1 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
                         <input
                           type="number"
-                          step="0.01"
-                          value={item.unitPrice || ""}
+                          step="any"
+                          value={item.unitPrice === 0 ? "" : item.unitPrice}
                           onChange={(e) =>
                             updateLineItem(index, { unitPrice: parseFloat(e.target.value) || 0 })
                           }
@@ -1889,9 +1890,9 @@ export function NewInvoiceForm() {
                           type="number"
                           min="0"
                           max="100"
-                          step="0.1"
+                          step="any"
                           placeholder="0"
-                          value={item.discountPercent === 0 ? "" : Number(item.discountPercent.toFixed(2))}
+                          value={item.discountPercent === 0 ? "" : item.discountPercent}
                           onChange={(e) => {
                             const val = e.target.value;
                             updateLineItem(index, {
@@ -1911,9 +1912,9 @@ export function NewInvoiceForm() {
                         <input
                           type="number"
                           min="0"
-                          step="1"
+                          step="any"
                           placeholder="0"
-                          value={item.discountAmount === 0 ? "" : Number(item.discountAmount.toFixed(2))}
+                          value={item.discountAmount === 0 ? "" : item.discountAmount}
                           onChange={(e) => {
                             const val = e.target.value;
                             updateLineItem(index, {
@@ -2089,7 +2090,7 @@ export function NewInvoiceForm() {
                 <span className="absolute left-2.5 top-2 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
                   max={netPayable}
                   value={paymentType === "FULL" ? netPayable.toFixed(2) : amountPaidOverride}

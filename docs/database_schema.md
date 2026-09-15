@@ -265,3 +265,172 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 | `restock` | `boolean` | NOT NULL, DEFAULT true | Whether inventory counts were incremented |
 | `createdAt` | `timestamp` | NOT NULL, defaultNow() | Item return line creation timestamp |
 
+---
+
+### 8. Optical Inventory & Stock Management (`db/schema/inventory.ts`)
+
+#### `inventory`
+Base entity for all stock items across all categories (Frames, Lenses, Contact Lenses, Accessories).
+
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Inventory record unique identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE), INDEXED | Physical store outlet ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization ID |
+| `productCode` | `varchar(100)` | NULLABLE, INDEXED, UNIQUE(org, product_code) | Unique item code / identification within organization |
+| `productName` | `varchar(255)` | NULLABLE | Display product name across all product categories |
+| `name` | `varchar(255)` | NOT NULL, INDEXED | Synchronized item title (backwards compatible with billing & POS) |
+| `category` | `varchar(50)` | NOT NULL, DEFAULT 'FRAME', INDEXED | Category code (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SOLUTION`, or custom organization-defined categories) |
+| `brand` | `varchar(100)` | NULLABLE, INDEXED | Manufacturer or designer brand |
+| `model` | `varchar(100)` | NULLABLE | Model number or code |
+| `sku` | `varchar(100)` | NULLABLE, INDEXED | Barcode / SKU string (synchronized with productCode) |
+| `price` | `decimal(10,2)` | NOT NULL | Retail selling price |
+| `costPrice` | `decimal(10,2)` | NULLABLE | Purchase / acquisition cost price |
+| `quantity` | `integer` | NOT NULL, DEFAULT 0 | Current on-hand stock count |
+| `minQuantity` | `integer` | NOT NULL, DEFAULT 5 | Low-stock threshold trigger level |
+| `isActive` | `boolean` | NOT NULL, DEFAULT true | Active status toggle |
+| `imageUrl` | `text` | NULLABLE | Cloudinary / Supabase storage image URL |
+| `hsnCode` | `varchar(20)` | NULLABLE | Harmonized System of Nomenclature code for GST |
+| `cgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 6.00 | Intra-state Central GST rate |
+| `sgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 6.00 | Intra-state State GST rate |
+| `igstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 12.00 | Inter-state Integrated GST rate |
+| `vendorName` | `varchar(255)` | NULLABLE | Supplier / distributor business name |
+| `rackLocation` | `varchar(100)` | NULLABLE | Physical shelf or bin coordinates |
+| `requiresExpiryTracking` | `boolean` | NOT NULL, DEFAULT false | Whether batch/expiry tracking is enforced |
+| `batchNumber` | `varchar(100)` | NULLABLE | Lot/batch number |
+| `expiryDate` | `date` | NULLABLE | Product expiration date |
+| `purchaseInvoiceNo` | `varchar(100)` | NULLABLE | Vendor invoice reference |
+| `inwardDate` | `date` | NULLABLE | Stock arrival / purchase inward date |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Item entry creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
+
+**Indexes & Constraints**:
+- `uniqueIndex("inventory_shop_product_code_idx").on(table.shopId, table.productCode)`: Enforces store-scoped uniqueness for product codes.
+- `index("inventory_product_code_idx").on(table.productCode)`: Optimizes real-time product code lookups.
+
+#### Category Extension Tables
+- `frames`: Dimensions (`frameWidth`, `bridgeWidth`, `templeLength`, `lensHeight`), shape, material, color, rim type, gender.
+- `lenses`: Optical specifications (`lensType`, `lensMaterial`, `coating`, `index`, `tintColor`, `uvProtection`, `prescriptionRequirements`).
+- `contact_lenses`: Modality (`Daily Disposable`, `Weekly`, `Monthly`, `Yearly`), base curve, diameter, color, power grid (`sphere`, `cylinder`, `axis`, `addPower`), box quantity.
+- `accessories`: Accessory categorization (`type`, `sizeVolume`, `colorPattern`).
+- `inventory_movements`: Stock audit trail (`movementType`: `IN`, `OUT`, `ADJUSTMENT`, quantity changes, and staff references).
+
+---
+
+### 9. Product Categories & Dynamic Tax Master (`db/schema/product-categories.ts`)
+
+#### `product_categories`
+Stores default optical product categories and custom merchant-defined categories with their default HSN codes and GST taxation percentages (`CGST`, `SGST`, `IGST`).
+
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Category unique identifier |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization ID |
+| `name` | `varchar(100)` | NOT NULL | Human-readable category display name |
+| `code` | `varchar(50)` | NOT NULL, INDEXED | Uppercase code identifier (e.g. `FRAME`, `LENS`, `SUNGLASSES`) |
+| `hsnCode` | `varchar(20)` | NULLABLE | Default Harmonized System of Nomenclature code |
+| `cgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 6.00 | Default Intra-state CGST percentage |
+| `sgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 6.00 | Default Intra-state SGST percentage |
+| `igstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 12.00 | Default Inter-state IGST percentage |
+| `isSystem` | `boolean` | NOT NULL, DEFAULT false | Whether category is protected system default |
+| `isActive` | `boolean` | NOT NULL, DEFAULT true | Active status toggle |
+| `displayOrder` | `integer` | NOT NULL, DEFAULT 0 | Ordering sequence on Add Item and filter bars |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last rate modification timestamp |
+
+**Indexes & Constraints**:
+- `uniqueIndex("product_categories_org_code_idx").on(table.organizationId, table.code)`: Prevents duplicate category codes within an organization.
+- `index("product_categories_org_active_idx").on(table.organizationId, table.isActive)`: Rapid lookup of active categories.
+
+---
+
+### 10. Purchases, Inward Supply & Vendors (`db/schema/vendors.ts`, `db/schema/purchase-orders.ts`, `db/schema/purchase-order-items.ts`)
+
+#### `vendors`
+Stores supplier and vendor business profiles, contact persons, tax identification (GSTIN, PAN), and physical location addresses.
+
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Vendor unique identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE), INDEXED | Shop location reference |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization reference |
+| `name` | `varchar(255)` | NOT NULL | Vendor company / supplier name |
+| `contactPerson` | `varchar(255)` | NULLABLE | Primary representative or account manager |
+| `phone` | `varchar(20)` | NULLABLE | 10-digit primary phone contact |
+| `email` | `varchar(255)` | NULLABLE | Official supplier email address |
+| `gstin` | `varchar(20)` | NULLABLE, INDEXED | 15-character GST Identification Number |
+| `panNumber` | `varchar(20)` | NULLABLE | Permanent Account Number (PAN) |
+| `address` | `text` | NULLABLE | Street address / premises details |
+| `city` | `varchar(100)` | NULLABLE | City / Municipality |
+| `state` | `varchar(100)` | NULLABLE | State / Province |
+| `pincode` | `varchar(10)` | NULLABLE | 6-digit postal PIN code |
+| `isActive` | `boolean` | NOT NULL, DEFAULT true | Active status indicator |
+| `notes` | `text` | NULLABLE | Internal merchant notes |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last update timestamp |
+
+**Indexes & Constraints**:
+- `uniqueIndex("vendors_org_name_idx").on(table.organizationId, table.name)`: Prevents duplicate vendor names per organization.
+- `index("vendors_org_gstin_idx").on(table.organizationId, table.gstin)`: Fast lookups by GSTIN.
+
+#### `purchase_orders`
+Stores purchase order bills, supplier inward invoices, and calculated financial summaries.
+
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Purchase order unique identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE), INDEXED | Physical outlet store ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization ID |
+| `vendorId` | `uuid` | FK -> `vendors.id` (SET NULL), INDEXED | Linked supplier directory record |
+| `vendorName` | `varchar(255)` | NULLABLE | Denormalized supplier name snapshot |
+| `purchaseNumber` | `varchar(100)` | NOT NULL, INDEXED | Supplier bill / invoice number |
+| `purchaseDate` | `date` | NOT NULL, INDEXED | Inward bill transaction date |
+| `status` | `purchase_status` | NOT NULL, DEFAULT 'DRAFT' | `DRAFT`, `COMPLETED`, `CANCELLED` |
+| `taxRule` | `varchar(20)` | NOT NULL, DEFAULT 'EXCLUDE' | `EXCLUDE` or `INCLUDE` |
+| `taxType` | `varchar(50)` | NOT NULL, DEFAULT 'SGST_CGST' | `SGST_CGST` (Intra-state) or `IGST` (Inter-state) |
+| `totalQuantity` | `integer` | NOT NULL, DEFAULT 0 | Sum of all inward item quantities |
+| `totalUnitAmount`| `decimal(12,2)` | NOT NULL, DEFAULT 0.00 | Sum of item unit purchase prices |
+| `totalBasePrice` | `decimal(12,2)` | NOT NULL, DEFAULT 0.00 | Sum of line base amounts (`qty * unitPrice`) |
+| `totalGstAmount` | `decimal(12,2)` | NOT NULL, DEFAULT 0.00 | Sum of all CGST + SGST or IGST taxes |
+| `totalPurchase` | `decimal(12,2)` | NOT NULL, DEFAULT 0.00 | Grand purchase amount before round off |
+| `roundOff` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | User-entered rounding adjustment (+/-) |
+| `totalNetPurchase`| `decimal(12,2)` | NOT NULL, DEFAULT 0.00 | Final net invoice payable amount |
+| `notes` | `text` | NULLABLE | Supplier / inward order remarks |
+| `createdBy` | `uuid` | FK -> `profiles.id` (SET NULL) | Staff member who entered the bill |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Record creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last update timestamp |
+
+#### `purchase_order_items`
+Stores the individual line items received in a purchase invoice matching the SS2 table specification.
+
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Line item unique identifier |
+| `purchaseOrderId`| `uuid` | FK -> `purchase_orders.id` (CASCADE), INDEXED | Header bill reference |
+| `inventoryId` | `uuid` | FK -> `inventory.id` (SET NULL), INDEXED | Linked inventory product |
+| `shopId` | `uuid` | FK -> `shops.id` (CASCADE), INDEXED | Outlet store location |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization reference |
+| `serialNumber` | `integer` | NOT NULL | Sequential row number (1, 2, 3...) |
+| `productName` | `varchar(255)` | NOT NULL | Item name (Products column) |
+| `productCode` | `varchar(100)` | NULLABLE | Barcode / SKU code |
+| `category` | `varchar(50)` | NULLABLE | Product category code |
+| `details` | `text` | NULLABLE | Specifications / attributes summary |
+| `unitPrice` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Unit acquisition cost before tax |
+| `basePrice` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | `quantity * unitPrice` |
+| `hsnCode` | `varchar(20)` | NULLABLE | Harmonized System Code |
+| `gstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 0.00 | Overall GST percentage |
+| `cgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 0.00 | Central GST rate (half of GST) |
+| `cgstAmount` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Computed CGST value in INR |
+| `sgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 0.00 | State GST rate (half of GST) |
+| `sgstAmount` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Computed SGST value in INR |
+| `igstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 0.00 | Integrated GST rate |
+| `igstAmount` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Computed IGST value in INR |
+| `purchasePrice` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Unit price with GST included |
+| `quantity` | `integer` | NOT NULL, DEFAULT 0 | Inward unit count |
+| `totalPurchasePrice`| `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | `purchasePrice * quantity` |
+| `retailPrice` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00 | Customer selling price (MRP) |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Update timestamp |
+
+
+

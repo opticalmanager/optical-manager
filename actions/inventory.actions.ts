@@ -11,6 +11,7 @@ import {
   editContactLensItemSchema,
   accessoryItemSchema,
   editAccessoryItemSchema,
+  generalItemSchema,
   FormState
 } from "@/utils/validators";
 import { db } from "@/lib/drizzle";
@@ -19,7 +20,7 @@ import { getNextSkuSequence } from "@/services/sku.service";
 import { generateSKU } from "@/lib/utils";
 import { deleteProductImage } from "@/lib/supabase/storage";
 import { eq, and, sql } from "drizzle-orm";
-import { recordStockMovement } from "@/services/inventory.service";
+import { recordStockMovement, checkProductCodeExists } from "@/services/inventory.service";
 
 
 function formatInventoryValidationError(error: any): { success: false; message: string; errors: Record<string, string[]> } {
@@ -65,6 +66,18 @@ export async function createFrameItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     // Get sequential index and generate smart SKU
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
@@ -83,11 +96,13 @@ export async function createFrameItemAction(
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.name,
+          name: data.productName || data.name || data.productCode,
+          productName: data.productName,
+          productCode: data.productCode,
           category: "FRAME",
           brand: data.brand || null,
           model: data.modelNumber || null,
-          sku: skuCode,
+          sku: data.productCode || skuCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -175,6 +190,18 @@ export async function updateFrameItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization (excluding current item)
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode, itemId);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     // Check if item exists and belongs to the organization
     const [existing] = await db
       .select({ id: inventory.id })
@@ -197,7 +224,10 @@ export async function updateFrameItemAction(
       const [updatedInv] = await tx
         .update(inventory)
         .set({
-          name: data.name,
+          name: data.productName || data.name || "Item",
+          productName: data.productName,
+          productCode: data.productCode,
+          sku: data.productCode || undefined,
           brand: data.brand || null,
           model: data.modelNumber || null,
           price: data.price.toString(),
@@ -354,6 +384,18 @@ export async function createLensItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
       category: "LENS",
@@ -367,11 +409,13 @@ export async function createLensItemAction(
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.name,
+          name: data.productName || data.name || data.productCode,
+          productName: data.productName,
+          productCode: data.productCode,
           category: "LENS",
           brand: data.brand || null,
           model: null,
-          sku: skuCode,
+          sku: data.productCode || skuCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -477,6 +521,18 @@ export async function updateLensItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization (excluding current item)
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode, itemId);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     const [existing] = await db
       .select({ id: inventory.id })
       .from(inventory)
@@ -496,7 +552,10 @@ export async function updateLensItemAction(
       const [updatedInv] = await tx
         .update(inventory)
         .set({
-          name: data.name,
+          name: data.productName || data.name || "Item",
+          productName: data.productName,
+          productCode: data.productCode,
+          sku: data.productCode || undefined,
           brand: data.brand || null,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
@@ -596,6 +655,18 @@ export async function createContactLensItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
       category: "CONTACT_LENS",
@@ -609,11 +680,13 @@ export async function createContactLensItemAction(
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.name,
+          name: data.productName || data.name || data.productCode,
+          productName: data.productName,
+          productCode: data.productCode,
           category: "CONTACT_LENS",
           brand: data.brand || null,
           model: null,
-          sku: skuCode,
+          sku: data.productCode || skuCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -704,6 +777,18 @@ export async function updateContactLensItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization (excluding current item)
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode, itemId);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     const [existing] = await db
       .select({ id: inventory.id })
       .from(inventory)
@@ -723,7 +808,10 @@ export async function updateContactLensItemAction(
       const [updatedInv] = await tx
         .update(inventory)
         .set({
-          name: data.name,
+          name: data.productName || data.name || "Item",
+          productName: data.productName,
+          productCode: data.productCode,
+          sku: data.productCode || undefined,
           brand: data.brand || null,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
@@ -820,6 +908,18 @@ export async function createAccessoryItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     const seq = await getNextSkuSequence(user.shopId);
     const skuCode = generateSKU({
       category: "ACCESSORY",
@@ -833,11 +933,13 @@ export async function createAccessoryItemAction(
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.name,
+          name: data.productName || data.name || data.productCode,
+          productName: data.productName,
+          productCode: data.productCode,
           category: "ACCESSORY",
           brand: data.brand || null,
           model: null,
-          sku: skuCode,
+          sku: data.productCode || skuCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -922,6 +1024,18 @@ export async function updateAccessoryItemAction(
 
     const data = validatedFields.data;
 
+    // Verify productCode uniqueness within organization (excluding current item)
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode, itemId);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
     const [existing] = await db
       .select({ id: inventory.id })
       .from(inventory)
@@ -941,7 +1055,10 @@ export async function updateAccessoryItemAction(
       const [updatedInv] = await tx
         .update(inventory)
         .set({
-          name: data.name,
+          name: data.productName || data.name || "Item",
+          productName: data.productName,
+          productCode: data.productCode,
+          sku: data.productCode || undefined,
           brand: data.brand || null,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
@@ -1110,4 +1227,122 @@ export async function quickUpdateInventoryAction(payload: QuickUpdateInventoryPa
     };
   }
 }
+
+/**
+ * Creates a new Inventory item for any general or custom product category.
+ */
+export async function createGeneralItemAction(
+  prevState: FormState,
+  formData: FormData | any
+): Promise<FormState> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.shopId || !user.organizationId) {
+      return { success: false, message: "Unauthorized or missing session details." };
+    }
+
+    const rawData = formData instanceof FormData 
+      ? Object.fromEntries(formData.entries())
+      : formData;
+
+    if (typeof rawData.requiresExpiryTracking === "string") {
+      rawData.requiresExpiryTracking = rawData.requiresExpiryTracking === "true" || rawData.requiresExpiryTracking === "on";
+    }
+
+    const validatedFields = generalItemSchema.safeParse(rawData);
+    if (!validatedFields.success) {
+      return formatInventoryValidationError(validatedFields.error);
+    }
+
+    const data = validatedFields.data;
+
+    // Verify productCode uniqueness within organization
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
+    const seq = await getNextSkuSequence(user.shopId);
+    const skuCode = generateSKU({
+      category: data.category.toUpperCase() as any,
+      brand: data.brand || undefined,
+      sequentialNumber: seq,
+    });
+
+    let newInventoryItem: any = null;
+
+    await db.transaction(async (tx) => {
+      const [newInv] = await tx
+        .insert(inventory)
+        .values({
+          shopId: user.shopId!,
+          organizationId: user.organizationId!,
+          name: data.productName || data.name || data.productCode,
+          productName: data.productName,
+          productCode: data.productCode,
+          category: data.category.toUpperCase(),
+          brand: data.brand || null,
+          model: null,
+          sku: data.productCode || skuCode,
+          price: data.price.toString(),
+          costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
+          quantity: data.quantity,
+          minQuantity: data.minQuantity,
+          isActive: true,
+          imageUrl: data.imageUrl || null,
+          hsnCode: data.hsnCode || null,
+          cgstPercent: data.cgstPercent.toString(),
+          sgstPercent: data.sgstPercent.toString(),
+          igstPercent: data.igstPercent.toString(),
+          vendorName: data.vendorName || null,
+          rackLocation: data.rackLocation || null,
+          requiresExpiryTracking: data.requiresExpiryTracking,
+          batchNumber: data.requiresExpiryTracking ? (data.batchNumber || null) : null,
+          expiryDate: data.requiresExpiryTracking ? (data.expiryDate || null) : null,
+          purchaseInvoiceNo: data.purchaseInvoiceNo || null,
+          inwardDate: data.inwardDate || null,
+        })
+        .returning();
+
+      newInventoryItem = newInv;
+
+      // Log initial stock movement
+      if (data.quantity > 0) {
+        await recordStockMovement({
+          inventoryId: newInv.id,
+          shopId: user.shopId!,
+          organizationId: user.organizationId!,
+          movementType: "INITIAL",
+          quantityChange: data.quantity,
+          balanceAfter: data.quantity,
+          referenceType: "INITIAL_STOCK",
+          referenceNumber: data.purchaseInvoiceNo || "Initial stock",
+          vendorParty: data.vendorName || null,
+          costPriceAtTime: data.costPrice ? data.costPrice.toString() : "0.00",
+          notes: "Initial inventory onboarding for category " + data.category,
+          performedBy: user.id,
+        }, tx);
+      }
+    });
+
+    revalidatePath("/shop/inventory");
+    return {
+      success: true,
+      message: `${data.category} item created successfully.`,
+    };
+  } catch (error: any) {
+    console.error("Error creating general inventory item:", error);
+    return {
+      success: false,
+      message: error.message || "An unexpected error occurred while saving the item.",
+    };
+  }
+}
+
 

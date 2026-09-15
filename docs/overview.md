@@ -20,7 +20,8 @@
 - **Role-Based Access Control (RBAC)**: Enforces role-based permissions (`SUPER_ADMIN`, `OWNER`, `SHOP_MANAGER`).
 
 ### 3. Specialized Optical Inventory Taxonomy, Barcode Designer & Lens Power Matrix
-- **Category-Specific Taxonomies**: Built-in support for 5 distinct optical product categories: `FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SOLUTION`.
+- **Category-Specific Taxonomies & Dynamic Categories**: Built-in support for default categories (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SOLUTION`) and unlimited custom merchant-defined categories.
+- **Dynamic Category & GST Rates Master Matrix**: Organizations can configure custom product categories (e.g. Sunglasses, Reading Glasses, Solutions) alongside defaults, customize HSN codes and GST percentages (`CGST`, `SGST`, `IGST`) with smart 50/50 split calculation in Settings (`/shop/settings`, `/owner/settings`), and auto-fill these tax rates during product ingestion (`/shop/inventory/add`) and filtering (`/shop/inventory`).
 - **Optical Metadata Tracking**: Supports frame dimensions (`52-18-140`), lens refractive indices (1.56, 1.61, 1.67, 1.74), HSN codes (`9004` frames, `9001` optical lenses), batch numbers, and expiry dates.
 - **Interactive Lens Power SPH/CYL Stock Matrix**: High-density optical power chart with `(-) Minus Power Sphere Chart` and `(+) Plus Power Sphere Chart` toggle modes, standard/extended power ranges (0.00 to ±6.00 SPH, 0.00 to -3.00 CYL in 0.25 steps), per-cell unit count inputs with active cell highlighting, and real-time total stock quantity aggregation.
 - **Interactive Multi-Format Barcode Designer**: Client-side zero-latency Code 39 barcode engine supporting 4 production paper/label size presets:
@@ -38,7 +39,12 @@
 - **Public Shareable Invoices**: Generates secure public digital invoice view links (`/share/invoice/[id]`) with printable PDF support.
 - **Sales Returns & Store Credit Management**: Flexible merchandise returns supporting Cash Refunds (with real-time revenue deduction) and Store Credit issuance (added to customer profile and tracked in immutable credit ledgers), official printable Return Receipts / Credit Notes, and seamless store credit redemption on new invoices.
 
-### 5. PWA Offline-First Operating Architecture & Local Databank Synchronization
+### 5. Purchases & Inward Supply Architecture
+- **Inward Supply Navigation**: Positioned directly below "Sales" in the store manager left sidebar, featuring hover-triggered sub-menus for "Purchases Add" (`/shop/purchases/new`) and "Vendors" (`/shop/purchases/vendors`).
+- **Collapsible Floating Flyout**: When the sidebar is collapsed, hovering over the Purchases icon dynamically triggers a floating flyout menu displaying the module header and action links with zero latency.
+- **Granular RBAC Module Permission**: Backed by the `purchases` permission key in `ModulePermissions` and configurable within Owner Outlet Access Roles (`OutletConfigurePanel.tsx`).
+
+### 6. PWA Offline-First Operating Architecture & Local Databank Synchronization
 - **Zero-Downtime Offline POS & Dashboard Access**: If internet connectivity is lost, store managers, optometrists, and system owners can continue creating new bills, registering new patients, updating patient details, creating prescriptions, adding stock, adjusting inventory, booking appointments, changing appointment statuses, updating order delivery details, recording partial payments, settling dues, processing returns, looking up patient records, inspecting multi-branch inventory, reviewing returns, configuring outlet settings, and downloading/printing invoices with zero latency.
 - **Offline Session Preservation ("Remembered Login") & Resilient API Auth**: Client credentials, user profile, and active shop context are safely retained via `opt_session_profile` cookies, IndexedDB metadata, and localStorage. All offline and sync API endpoints (`/api/offline/sync-all`, `/api/offline/customers`, `/api/offline/inventory`, `/api/search`, `/api/sync/offline-invoices`, `/api/sync/offline-mutations`) utilize `getCurrentUser()` from `services/auth.service`, eliminating 401 Unauthorized errors caused by expired Supabase token handshakes and supporting both `OWNER` and `SHOP_MANAGER` roles.
 - **Owner & Manager Dual Precache Circuit Breaker (SW v16 - Fail-Safe Zero-Latency Engine)**: Service worker runs an origin-isolated network passthrough for page navigations and RSC flight streams, prioritizing live online responses for any HTTP status code (200, 301, 302, 304, 307, 308, 401, 404) and ensuring proxy/auth redirects seamlessly reach the browser. Pre-caches static shell assets (`/`, manifest, icons, logo) on install into `optical-manager-cache-v16` without heavy SSR routes, eliminating concurrent server compilation storms on startup while caching visited pages dynamically at runtime with `.catch()` guards against redirected cache storage errors (eliminating `ERR_FAILED` crashes). All `event.respondWith` promises are safeguarded with top-level error boundaries that never reject. Uncached dynamic RSC flight requests (`headers.get("RSC") === "1"` or `_rsc`) return clean `503` status responses instead of `307` Location redirects, completely preventing raw RSC flight JSON payloads from displaying on blank screens. The offline HTML fallback strictly includes `charset=utf-8` to ensure correct rendering of icons and symbols (`⚡`).
@@ -66,5 +72,17 @@
 | Lead CRM & WhatsApp Demo Calls | ✅ | ❌ | ❌ | ❌ |
 | Multi-Shop Organization Admin | ❌ | ✅ | ❌ | ❌ |
 | Shop POS Billing & Invoicing | ❌ | ✅ | ✅ | ❌ |
+| Purchases & Inward Supply Bills | ❌ | ✅ | ✅ | ❌ |
 | Eye Prescription Records | ❌ | ✅ | ✅ | ❌ |
 | Public Online Appointment Booking | ❌ | ❌ | ❌ | ✅ |
+
+---
+
+## 5. Purchases & Inward Supply System Architecture
+
+Optical Manager includes a complete, high-density Inward Supply & Purchases module (`/shop/purchases`) with:
+- **Dedicated Vendor Directory (`vendors` table)**: Structured vendor management tracking GSTIN compliance, company address, and contact points.
+- **Inward Purchase Orders (`purchase_orders` & `purchase_order_items` tables)**: Full tracking of vendor bills, tax rules (`EXCLUDE`/`INCLUDE`), tax types (`SGST/CGST` vs `IGST`), line-level unit pricing, base amounts, HSN codes, and GST rates.
+- **Vendor-Scoped Product Autocomplete & Ingestion**: Product code search autocomplete queries existing inventory with prioritization/scoping per selected vendor. Codes are unique per vendor rather than globally.
+- **Spacious Category-Rich Product Details Modal**: Unknown or edited codes open a `max-w-4xl` modal with dynamic category switcher tabs (`Frames`, `Lenses`, `Contact Lenses`, `Accessories`, `Solutions`), full category-specific spec panels (shapes, dimensions, lens design, index, coatings, contact lens BC/DIA, solution volumes, expiry tracking), and auto-filled HSN/GST rates from `product_categories`.
+- **Atomic Stock Increments & Ledger Auditing**: Completing a purchase order atomically increments inventory stock count (`+qty`), updates recent cost and retail prices, links vendor invoice references, and logs `STOCK_IN` movements in `stock_movements`.

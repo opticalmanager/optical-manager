@@ -38,6 +38,7 @@ import {
 import { updateShopInvoiceSettingsAction } from "@/actions/shop.actions";
 import { toast } from "sonner";
 import { updateOrganizationAction } from "@/actions/organization.actions";
+import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
 import { offlineDB } from "@/lib/offline/db";
 
 interface OrganizationData {
@@ -635,96 +636,74 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
       {/* MODAL 2: Tax & GST */}
       {activeModal === "tax" && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                   <Shield className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-slate-900 text-base">Tax & GST Settings</h3>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Category GST Rates &amp; Tax Settings</h3>
+                  <p className="text-xs text-slate-500">Configure product categories, tax percentages, and store GSTIN.</p>
+                </div>
               </div>
               <button
                 onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveTax} className="p-6 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
-                  GSTIN (Tax Identification Number)
-                </label>
-                <input
-                  type="text"
-                  value={gstinNumber}
-                  onChange={(e) => setGstinNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g. 07AAAAA0000A1Z5"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                />
-              </div>
+            <div className="p-6 space-y-6">
+              {/* Product Categories GST Master Matrix */}
+              <CategoryGstRatesSettings />
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 block">CGST (%)</label>
-                  <input
-                    type="number"
-                    value={cgstRate}
-                    onChange={(e) => setCgstRate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-center font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 block">SGST (%)</label>
-                  <input
-                    type="number"
-                    value={sgstRate}
-                    onChange={(e) => setSgstRate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-center font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 block">IGST (%)</label>
-                  <input
-                    type="number"
-                    value={igstRate}
-                    onChange={(e) => setIgstRate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-center font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-                </div>
-              </div>
+              {/* Outlet Level GSTIN & Prefix */}
+              <form onSubmit={handleSaveTax} className="p-5 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-4">
+                <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">
+                  Store Identifier &amp; Invoice Billing Prefix
+                </h4>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
-                  Invoice Number Prefix
-                </label>
-                <input
-                  type="text"
-                  value={invoicePrefix}
-                  onChange={(e) => setInvoicePrefix(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                />
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
+                      GSTIN (Tax Identification Number)
+                    </label>
+                    <input
+                      type="text"
+                      value={gstinNumber}
+                      onChange={(e) => setGstinNumber(e.target.value.toUpperCase())}
+                      placeholder="e.g. 07AAAAA0000A1Z5"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingTax}
-                  className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
-                >
-                  {isSavingTax ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>Save GST Rates</span>
-                </button>
-              </div>
-            </form>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
+                      Invoice Number Prefix
+                    </label>
+                    <input
+                      type="text"
+                      value={invoicePrefix}
+                      onChange={(e) => setInvoicePrefix(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                  <button
+                    type="submit"
+                    disabled={isSavingTax}
+                    className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  >
+                    {isSavingTax ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>Save Store GSTIN &amp; Prefix</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

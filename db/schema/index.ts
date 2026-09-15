@@ -22,6 +22,7 @@ export {
   prescriptionTypeEnum,
 } from "./prescriptions";
 export { inventory, inventoryCategoryEnum } from "./inventory";
+export { productCategories } from "./product-categories";
 export { frameDetails } from "./frame-details";
 export { lensDetails } from "./lens-details";
 export { contactLensDetails } from "./contact-lens-details";
@@ -50,5 +51,8 @@ export {
   finalActionEnum,
 } from "./sales-returns";
 export { customerCreditLedger } from "./customer-credit-ledger";
+export { vendors } from "./vendors";
+export { purchaseOrders, purchaseStatusEnum } from "./purchase-orders";
+export { purchaseOrderItems } from "./purchase-order-items";
 
 
