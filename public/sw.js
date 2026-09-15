@@ -1,5 +1,5 @@
-// Optical Manager PWA Service Worker (v16 - Fail-Safe Zero-Latency Offline Engine)
-const CACHE_NAME = "optical-manager-cache-v16";
+// Optical Manager PWA Service Worker (v17 - Fail-Safe Zero-Latency Offline Engine)
+const CACHE_NAME = "optical-manager-cache-v17";
 
 // Core static assets to precache on install (static shell only — zero heavy SSR pages to avoid compilation storms)
 const PRECACHE_ASSETS = [

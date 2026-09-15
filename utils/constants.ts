@@ -68,5 +68,6 @@ export const SHOP_NAV_ITEMS = [
   { label: "Customers", href: "/shop/customers", icon: "Users" },
   { label: "Prescriptions", href: "/shop/prescriptions", icon: "FileText" },
   { label: "Inventory", href: "/shop/inventory", icon: "Package" },
+  { label: "Purchases", href: "/shop/purchases", icon: "Truck" },
   { label: "Invoices", href: "/shop/invoices", icon: "Receipt" },
 ] as const;

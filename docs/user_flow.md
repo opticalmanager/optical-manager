@@ -271,3 +271,110 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Users can install Optical Manager as a native desktop application on Windows, macOS, Chrome OS, Android, and iOS using the desktop installation button in the topbar or landing page.
    - Launching the desktop application opens directly into the active store POS terminal, bypassing marketing pages and landing views.
 
+---
+
+## 11. Category GST Rates & Custom Product Categories Master Workflow
+
+```
+┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
+│ Settings: Category GST  │───>│ Add Custom Category /   │───>│ Auto-Filled Rates on    │
+│ Matrix & 50/50 Sync     │    │ Edit Existing Rates     │    │ Add Product & Ledger    │
+└─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
+```
+
+1. **High-Density Category GST Rates Matrix (`/shop/settings`, `/owner/settings`)**:
+   - Displays all organization product categories in a compact, structured matrix with editable fields for:
+     - **Product Category Name**: Displays default system label or editable text for custom categories.
+     - **Category Code**: Uppercase code tag (e.g. `FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SUNGLASSES`).
+     - **Default HSN Code**: Standard global or national tax classification (e.g., `90049000`, `90015000`, `90013000`).
+     - **CGST (%) & SGST (%)**: Intra-state tax percentages.
+     - **IGST (%)**: Inter-state tax percentage.
+     - **Smart GST Sync**: Modifying IGST (%) automatically divides 50/50 into CGST (%) and SGST (%) with live bidirectional synchronization.
+     - **Category Badges**: Distinguishes between protected `Default` system categories and merchant-created `Custom` categories.
+     - **Actions**: Provides a deletion trigger for custom categories with cascade validation.
+
+2. **Custom Product Category Creation**:
+   - Operators click **New Category** to open a compact creation dialog.
+   - Enter Category Name (e.g. "Sunglasses", "Reading Glasses", "Solutions").
+   - Category code is automatically generated in uppercase format.
+   - Specify Default HSN Code and IGST percentage (automatically calculating CGST and SGST).
+   - Saves immediately to the database via `createCategoryAction` and updates the IndexedDB cache `cached_product_categories`.
+
+3. **Dynamic Add Product Experience (`/shop/inventory/add`)**:
+   - The Add Product page dynamically loads all active organization categories and renders dynamic category switcher tabs.
+   - Selecting any category automatically pre-fills that category's configured HSN code, CGST, SGST, and IGST percentages.
+   - System categories render their dedicated specialization forms (`AddFrameItemForm`, `AddLensItemForm`, `AddContactLensItemForm`, `AddAccessoryItemForm`).
+   - Custom categories automatically render the flexible `AddGeneralItemForm`, allowing complete item metadata capture, stock inwarding, and live SKU generation.
+   - Operators can still override tax rates or HSN codes per item in the form when needed.
+
+4. **Dynamic Inventory Ledger & Filter Tabs (`/shop/inventory`)**:
+   - Category filter pills on the Inventory Ledger dynamically render all custom categories alongside system defaults.
+   - Selecting a custom category dynamically updates KPI cards (`Total SKU Count`, `Low Stock Alerts`, `Out of Stock`, `Total Inventory Value`) and filters the product table in 0ms.
+
+---
+
+## 12. Purchases & Inward Supply Navigation Workflow
+
+```
+┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
+│ Left Navigation:        │───>│ Hover on Purchases:     │───>│ Route Placeholder      │
+│ "Purchases" Below Sales │    │ "Purchases Add" / Vendor│    │ Ready for Page Logic    │
+└─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
+```
+
+1. **Sidebar Navigation Placement**:
+   - Positioned immediately below "Sales" in the store manager left sidebar.
+   - Accessible based on the `purchases` permission in `ModulePermissions` (with graceful fallback to `inventory` permission for existing accounts).
+
+2. **Interactive Hover & Collapsed Flyout Logic**:
+   - **Expanded Sidebar**: Hovering on the "Purchases" item automatically reveals sub-menu buttons:
+     - **Purchases Add** (links to `/shop/purchases/new` or `/shop/purchases/add`)
+     - **Vendors** (links to `/shop/purchases/vendors`)
+     - Supported with click-to-pin toggle and automatic expansion when navigating within purchases routes.
+   - **Collapsed Sidebar (`isCollapsed === true`)**: Hovering over the Purchases icon displays a floating flyout popover immediately adjacent to the collapsed sidebar with the module title and direct links to both sub-actions.
+
+3. **Purchases Add Interface Workflow (`/shop/purchases/new`)**:
+   - **Header Configuration**:
+     - Operator sets or reviews the inward **Date** (defaults to current date).
+     - Configures **# Tax Rule** (`Exclude` by default, or `Include`).
+     - Sets **Tax Type** (`SGST/CGST` for intra-state supplier invoices, or `IGST` for inter-state inward).
+     - Selects or creates **Vendor Name** via searchable combobox with live GSTIN preview and inline `+ Add New Vendor` registration modal.
+     - Enters supplier **Purchase Bill Number** (e.g. `122` or `INV-9901`).
+
+   - **High-Density Single-Screen Spreadsheet Table Grid**:
+     - Proportional column widths fitted to screen without horizontal scrolling: `# (3%) | Product Code (14%) | Category (11%) | Details (10%) | Base Price (8%) | HSN (7%) | GST % (5%) | Purchase Cost (9%) | Qty (6%) | Total Purchase Cost (11%) | Retail Price MRP (12%) | Action (4%)`.
+     - Zero-gap spreadsheet styling (`border-collapse`, `border-slate-200`) with keyboard navigation (`Enter` key moves cell-to-cell, and pressing `Enter` on the last cell of the last row automatically creates a new row).
+     - **Product Code vs. System SKU Separation**:
+       - `Product Code` represents the vendor/user catalog code (e.g., `RB-2132`, `GG0010S`), scoped and checked uniquely per vendor.
+       - `SKU` represents the internal system-generated unique stock-keeping unit (e.g. `FRM-RAY213-000-001`), automatically generated by `generateSKU()` and sequential counter upon catalog insertion.
+     - **Vendor-Scoped Product Code Autocomplete**:
+       - As operator types into `Product Code`, debounced search queries existing catalog items via `/api/inventory/search?q=...&vendor=...`, prioritizing items from the selected vendor.
+       - If product exists in database, an instant suggestion dropdown shows matching items. Selecting an item auto-populates `productName`, `category`, `details`, `basePrice`, `hsnCode`, `gstPercent`, `purchaseCost`, and `retailPrice`. The `Quantity` column is intentionally left blank so operator specifies newly inwarded quantity. All fields remain 100% editable.
+       - If product code is not found, the `Details` cell displays an amber `{+ Add Product}` action badge.
+     - **Enlarged & Category-Rich Product Details Modal**:
+       - Clicking `{+ Add Product}` or `Details` opens a spacious `w-[96vw] max-w-5xl h-[92vh] max-h-[780px]` modal dialog designed to comfortably fit laptop screens without border overflow.
+       - Top category switcher tabs (`Frames`, `Lenses`, `Contact Lenses`, `Accessories`, `Solutions`, etc.) dynamically switch the category context.
+       - Switching category immediately auto-fills configured HSN code and GST rates from the organization's dynamic category tax data (`product_categories`).
+       - Features complete category-specific attribute panels:
+         - **Frames**: Shape, Rim Type, Material, Color, Size, Gender.
+         - **Lenses**: Lens Design, Refractive Index (1.50 to 1.74), Lens Coating (ARC, Blue Cut, Photochromic, Hard Coat, Polarized, Tinted, Uncoated), Power Range, and **Lens Power SPH / CYL Stock Matrix** popup (`[ Open Power Matrix ]`) for entering multi-power stock breakdowns with automatic inward quantity synchronization.
+         - **Contact Lenses**: Modality (Daily, Monthly, etc.), Pack Size, Base Curve (BC), Diameter (DIA), Cosmetic Tint, Sphere.
+         - **Accessories & Solutions**: Item Type, Size/Volume/Specification.
+       - Universal financial summary shows `Basic Price`, `GST Amount Rs`, and `Total Purchase Cost` with live 50/50 tax split.
+       - Product code uniqueness is checked specifically for the selected vendor.
+       - On confirmation, the product is registered in the database catalog with initial quantity 0 and full category specifications, and the purchase row is immediately populated.
+
+   - **Real-Time Financial Calibrations & Summary**:
+     - Bi-directional price recalculation (`Base Price` $\leftrightarrow$ `Purchase Cost` $\times$ `Qty` = `Total Purchase Cost`).
+     - Bottom-right summary card calculates:
+       - `Total Quantity`: Sum of all inward quantities.
+       - `Total Unit Amount`: Sum of unit acquisition costs.
+       - `Total Base Price`: Sum of line base amounts.
+       - `Total GST Amount`: Sum of tax values.
+       - `Total Purchase`: Grand invoice total.
+       - `Round Off (+/-)`: Editable adjustment field.
+       - `Total Net Purchase`: Final net payable amount.
+
+   - **Order Finalization**:
+     - **Save As Draft**: Persists the purchase order with status `DRAFT` in `purchase_orders` and `purchase_order_items`. Does not alter live inventory stock levels.
+     - **Add Purchase**: Persists order with status `COMPLETED`, atomically increments inventory stock quantities (`quantity += row.quantity`), updates latest cost price and retail price, links purchase invoice number and inward date, and logs individual `STOCK_IN` movements in `stock_movements`.

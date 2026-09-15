@@ -34,6 +34,7 @@ import {
   HelpCircle,
   Shield,
   SlidersHorizontal,
+  Truck,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -191,6 +192,7 @@ const STORE_MODULES: {
   { key: "edit_orders", label: "Edit Orders & Invoices", desc: "Authorize staff to edit existing orders, products, taxes, and regenerate invoices", icon: Edit2, color: "text-amber-600" },
   { key: "delete_orders", label: "Delete Order Records", desc: "Authorize staff to soft-delete order records and retrieve deleted records", icon: Trash2, color: "text-rose-600" },
   { key: "returns", label: "Product Returns", desc: "Process item returns, inspection, restocking, and credit notes", icon: RotateCcw, color: "text-amber-600" },
+  { key: "purchases", label: "Purchases & Vendors", desc: "Inward supply purchase orders, vendor directory, and bills", icon: Truck, color: "text-blue-600" },
   { key: "customers", label: "Customers & Patients", desc: "Patient CRM, prescription records, and ophthalmic history", icon: Users, color: "text-blue-600" },
   { key: "appointments", label: "Appointments", desc: "Book and manage clinical eye test visits and testing queues", icon: CalendarDays, color: "text-purple-600" },
   { key: "analytics", label: "Business Analytics", desc: "Revenue analytics, sales trends, and category distribution", icon: BarChart2, color: "text-rose-600" },

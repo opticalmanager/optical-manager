@@ -198,8 +198,10 @@ export const prescriptionRowSchema = z.object({
 // --- Inventory Schemas ---
 
 export const inventorySchema = z.object({
-  name: z.string().min(2, "Product name is required.").max(255).trim(),
-  category: z.enum(["FRAME", "LENS", "CONTACT_LENS", "ACCESSORY", "SOLUTION"]),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
+  category: z.string().min(1, "Category is required.").max(50),
   brand: z.string().optional().nullable().or(z.literal("")),
   model: z.string().optional().nullable().or(z.literal("")),
   sku: z.string().optional().nullable().or(z.literal("")),
@@ -209,8 +211,39 @@ export const inventorySchema = z.object({
   minQuantity: z.coerce.number().int().min(0).default(5),
 });
 
+export const generalItemSchema = z.object({
+  category: z.string().min(1, "Category is required.").max(50),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
+  brand: z.string().optional().nullable().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().nullable().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().nullable().or(z.literal("")),
+  rackLocation: z.string().optional().nullable().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().nullable().or(z.literal("")),
+  inwardDate: z.string().optional().nullable().or(z.literal("")),
+  
+  quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().nullable().or(z.literal("")),
+  expiryDate: z.string().optional().nullable().or(z.literal("")),
+  
+  imageUrl: z.string().optional().nullable().or(z.literal("")),
+  description: z.string().optional().nullable().or(z.literal("")),
+});
+
 export const frameItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -242,7 +275,9 @@ export const frameItemSchema = z.object({
 });
 
 export const editFrameItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -277,7 +312,9 @@ export const editFrameItemSchema = z.object({
 });
 
 export const lensItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -318,7 +355,9 @@ export const lensItemSchema = z.object({
 });
 
 export const editLensItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -362,7 +401,9 @@ export const editLensItemSchema = z.object({
 });
 
 export const contactLensItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -398,7 +439,9 @@ export const contactLensItemSchema = z.object({
 });
 
 export const editContactLensItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -434,7 +477,9 @@ export const editContactLensItemSchema = z.object({
 });
 
 export const accessoryItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -463,7 +508,9 @@ export const accessoryItemSchema = z.object({
 });
 
 export const editAccessoryItemSchema = z.object({
-  name: z.string().min(2, "Item name is required.").max(255).trim(),
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
   brand: z.string().optional().nullable().or(z.literal("")),
   
   costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
@@ -568,4 +615,94 @@ export type FormState = {
   message?: string;
   errors?: Record<string, string[]>;
 } | undefined;
+
+// --- Vendor Schemas ---
+
+export const vendorSchema = z.object({
+  name: z.string().min(1, "Vendor name is required.").max(255).trim(),
+  contactPerson: z.string().max(255).optional().nullable().or(z.literal("")),
+  phone: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s-]/g, ""))
+    .pipe(
+      z
+        .string()
+        .regex(/^(\+91)?0?[6-9]\d{9}$|^[0-9]{10}$/, "Please enter a valid 10-digit mobile number.")
+        .or(z.literal(""))
+    )
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  email: z.string().email("Please enter a valid email address.").optional().nullable().or(z.literal("")),
+  gstin: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Invalid GSTIN format (e.g. 07AAAAA0000A1Z5)")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  panNumber: z
+    .string()
+    .trim()
+    .regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN format (e.g. ABCDE1234F)")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  address: z.string().optional().nullable().or(z.literal("")),
+  city: z.string().max(100).optional().nullable().or(z.literal("")),
+  state: z.string().max(100).optional().nullable().or(z.literal("")),
+  pincode: z
+    .string()
+    .trim()
+    .regex(/^[1-9][0-9]{5}$/, "Please enter a valid 6-digit PIN code.")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  notes: z.string().optional().nullable().or(z.literal("")),
+});
+
+export type VendorFormValues = z.infer<typeof vendorSchema>;
+
+// --- Purchase Order Schemas ---
+
+export const purchaseLineItemSchema = z.object({
+  inventoryId: z.string().nullable().optional(),
+  serialNumber: z.coerce.number().int().min(1),
+  productName: z.string().min(1, "Product name is required."),
+  productCode: z.string().optional().nullable().or(z.literal("")),
+  category: z.string().optional().nullable().or(z.literal("")),
+  details: z.string().optional().nullable().or(z.literal("")),
+  unitPrice: z.coerce.number().min(0, "Unit price must be positive."),
+  basePrice: z.coerce.number().min(0).default(0),
+  hsnCode: z.string().optional().nullable().or(z.literal("")),
+  gstPercent: z.coerce.number().min(0).max(100).default(0),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  cgstAmount: z.coerce.number().min(0).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstAmount: z.coerce.number().min(0).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstAmount: z.coerce.number().min(0).default(0),
+  purchasePrice: z.coerce.number().min(0).default(0),
+  quantity: z.coerce.number().int().min(1, "Quantity must be at least 1."),
+  totalPurchasePrice: z.coerce.number().min(0).default(0),
+  retailPrice: z.coerce.number().min(0).default(0),
+});
+
+export type PurchaseLineItemValues = z.infer<typeof purchaseLineItemSchema>;
+
+export const purchaseOrderSchema = z.object({
+  purchaseDate: z.string().min(1, "Purchase date is required."),
+  vendorId: z.string().optional().nullable().or(z.literal("")),
+  vendorName: z.string().min(1, "Supplier/vendor name is required.").max(255),
+  purchaseNumber: z.string().min(1, "Purchase bill number is required.").max(100),
+  taxRule: z.enum(["EXCLUDE", "INCLUDE"]).default("EXCLUDE"),
+  taxType: z.string().default("SGST_CGST"),
+  roundOff: z.coerce.number().default(0),
+  notes: z.string().optional().nullable().or(z.literal("")),
+  status: z.enum(["DRAFT", "COMPLETED", "CANCELLED"]).default("COMPLETED"),
+  items: z.array(purchaseLineItemSchema).min(1, "At least one product item is required."),
+});
+
+export type PurchaseOrderFormValues = z.infer<typeof purchaseOrderSchema>;
 

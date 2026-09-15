@@ -262,35 +262,35 @@ export function EditOrderForm({
 
       if (updates.discountPercent !== undefined) {
         discPct = Math.max(0, Math.min(100, typeof updates.discountPercent === "number" ? updates.discountPercent : 0));
-        discAmt = (lineSubtotal * discPct) / 100;
+        discAmt = Number(((lineSubtotal * discPct) / 100).toFixed(2));
       } else if (updates.discountAmount !== undefined) {
         discAmt = Math.max(0, Math.min(lineSubtotal, typeof updates.discountAmount === "number" ? updates.discountAmount : 0));
-        discPct = lineSubtotal > 0 ? (discAmt / lineSubtotal) * 100 : 0;
+        discPct = lineSubtotal > 0 ? Number(((discAmt / lineSubtotal) * 100).toFixed(2)) : 0;
       } else if (updates.quantity !== undefined || updates.unitPrice !== undefined) {
         // Price/Qty changed, maintain percentage if defined
         if (discPct > 0) {
-          discAmt = (lineSubtotal * discPct) / 100;
+          discAmt = Number(((lineSubtotal * discPct) / 100).toFixed(2));
         } else {
           discAmt = Math.min(discAmt, lineSubtotal);
         }
       }
 
-      cur.discountPercent = Number(discPct.toFixed(2));
-      cur.discountAmount = Number(discAmt.toFixed(2));
+      cur.discountPercent = discPct;
+      cur.discountAmount = discAmt;
 
       const taxable = Math.max(0, lineSubtotal - discAmt);
-      cur.taxableSubtotal = taxable;
+      cur.taxableSubtotal = Number(taxable.toFixed(2));
 
       // Calculate Taxes
       const cgstRate = typeof cur.cgstPercent === "number" ? Math.max(0, cur.cgstPercent) : 0;
       const sgstRate = typeof cur.sgstPercent === "number" ? Math.max(0, cur.sgstPercent) : 0;
       const igstRate = typeof cur.igstPercent === "number" ? Math.max(0, cur.igstPercent) : 0;
 
-      cur.cgstAmount = taxable * (cgstRate / 100);
-      cur.sgstAmount = taxable * (sgstRate / 100);
-      cur.igstAmount = taxable * (igstRate / 100);
+      cur.cgstAmount = Number((taxable * (cgstRate / 100)).toFixed(2));
+      cur.sgstAmount = Number((taxable * (sgstRate / 100)).toFixed(2));
+      cur.igstAmount = Number((taxable * (igstRate / 100)).toFixed(2));
 
-      cur.rowTotal = taxable + cur.cgstAmount + cur.sgstAmount + cur.igstAmount;
+      cur.rowTotal = Number((taxable + cur.cgstAmount + cur.sgstAmount + cur.igstAmount).toFixed(2));
 
       next[index] = cur;
       return next;
@@ -988,7 +988,7 @@ export function EditOrderForm({
                   <td className="px-3 py-2.5 text-right">
                     <Input
                       type="number"
-                      step="0.01"
+                      step="any"
                       min={0}
                       value={item.unitPrice}
                       onChange={(e) => {
@@ -1005,7 +1005,7 @@ export function EditOrderForm({
                     <div className="relative inline-block w-16">
                       <Input
                         type="number"
-                        step="0.1"
+                        step="any"
                         min={0}
                         max={100}
                         value={item.discountPercent}
@@ -1029,7 +1029,7 @@ export function EditOrderForm({
                       </span>
                       <Input
                         type="number"
-                        step="0.01"
+                        step="any"
                         min={0}
                         value={item.discountAmount}
                         onChange={(e) => {
@@ -1047,7 +1047,7 @@ export function EditOrderForm({
                       <div className="relative inline-block w-16">
                         <Input
                           type="number"
-                          step="0.5"
+                          step="any"
                           min={0}
                           max={50}
                           value={item.cgstPercent}
@@ -1070,7 +1070,7 @@ export function EditOrderForm({
                       <div className="relative inline-block w-16">
                         <Input
                           type="number"
-                          step="0.5"
+                          step="any"
                           min={0}
                           max={50}
                           value={item.sgstPercent}
@@ -1093,7 +1093,7 @@ export function EditOrderForm({
                       <div className="relative inline-block w-16">
                         <Input
                           type="number"
-                          step="0.5"
+                          step="any"
                           min={0}
                           max={50}
                           value={item.igstPercent}

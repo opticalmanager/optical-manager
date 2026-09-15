@@ -924,6 +924,36 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
 
     const latestPrescription = prescriptions.length > 0 ? prescriptions[0] : null;
 
+    const distRx = prescriptions.slice().reverse().find((p) => p.prescriptionType === "DISTANCE") || null;
+    const nearRx = prescriptions.slice().reverse().find((p) => p.prescriptionType === "NEAR") || null;
+
+    const hasDistanceRx = Boolean(
+      distRx && (
+        distRx.rightSphere || distRx.rightCylinder || distRx.rightAxis || distRx.rightAdd || distRx.rightNv ||
+        distRx.leftSphere || distRx.leftCylinder || distRx.leftAxis || distRx.leftAdd || distRx.leftNv
+      )
+    );
+
+    const hasNearRx = Boolean(
+      nearRx && (
+        nearRx.rightSphere || nearRx.rightCylinder || nearRx.rightAxis || nearRx.rightAdd || nearRx.rightNv ||
+        nearRx.leftSphere || nearRx.leftCylinder || nearRx.leftAxis || nearRx.leftAdd || nearRx.leftNv
+      )
+    );
+
+    const hasPrescription = hasDistanceRx || hasNearRx;
+    const rxCategory = distRx?.rxCategory || nearRx?.rxCategory || "";
+    const rxDoctorName = distRx?.doctorName || nearRx?.doctorName || "";
+    const rxNumber = distRx?.rxNumber || nearRx?.rxNumber || "";
+
+    const formatRxPower = (val: number | string | null | undefined): string => {
+      if (val === null || val === undefined || val === "") return "-";
+      const num = typeof val === "string" ? parseFloat(val) : val;
+      if (isNaN(num)) return typeof val === "string" && val.trim() ? val : "-";
+      if (num === 0) return "0.00";
+      return num > 0 ? `+${num.toFixed(2)}` : num.toFixed(2);
+    };
+
     return (
       <>
         {/* Strict Print CSS Overrides for Receipt */}
@@ -997,11 +1027,16 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
             {/* Receipt Identification */}
             <div className="text-right space-y-1">
               <h2 className="text-base font-black tracking-wide text-black uppercase">
-                PAYMENT RECEIPT
+                BOOKING DETAILS
               </h2>
               <p className="font-bold text-slate-800">
                 SLIP ID # - <span className="font-black text-black">{receipt.receiptNumber}</span>
               </p>
+              {invoice?.invoiceNumber && (
+                <p className="font-bold text-slate-600">
+                  INVOICE REF: <span className="font-extrabold text-slate-800">{invoice.invoiceNumber}</span>
+                </p>
+              )}
               <p className="font-bold text-slate-600">
                 DATE: <span className="font-extrabold text-slate-800">{formattedDate}</span>
               </p>
@@ -1080,8 +1115,191 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                   TXN ID: <span className="font-extrabold text-slate-800">{receipt.transactionId}</span>
                 </p>
               )}
+              {invoice?.estimatedDelivery && (
+                <p className="font-semibold text-slate-600">
+                  EST. DELIVERY: <span className="font-extrabold text-slate-800">{formatDateDMY(invoice.estimatedDelivery)}</span>
+                </p>
+              )}
             </div>
           </div>
+
+          {/* OPTICAL PRESCRIPTION BLOCK (If prescription details are recorded) */}
+          {hasPrescription && (
+            <div className="space-y-1.5 border border-slate-300 rounded-lg p-2.5 bg-slate-50/30">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-black uppercase tracking-wider text-[9.5px]">
+                    OPTICAL PRESCRIPTION (RX DETAILS)
+                  </h3>
+                  {rxCategory && (
+                    <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-blue-50 text-[#0a52c3] border border-blue-200">
+                      {rxCategory}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-[8.5px] font-bold text-slate-600">
+                  {rxDoctorName && (
+                    <span>DOCTOR/OPTOM: <span className="text-black font-extrabold">{rxDoctorName}</span></span>
+                  )}
+                  {rxNumber && (
+                    <span>RX NO: <span className="text-black font-extrabold">{rxNumber}</span></span>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-center border-collapse border border-slate-300 text-[8.5px] leading-tight bg-white">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-extrabold uppercase text-[8px]">
+                      <th className="border-r border-slate-300 py-1 px-1.5 w-[14%] text-left">TYPE / EYE</th>
+                      <th className="border-r border-slate-300 py-1 px-1 w-[12%]">SPH</th>
+                      <th className="border-r border-slate-300 py-1 px-1 w-[12%]">CYL</th>
+                      <th className="border-r border-slate-300 py-1 px-1 w-[10%]">AXIS</th>
+                      <th className="border-r border-slate-300 py-1 px-1 w-[12%]">ADD</th>
+                      <th className="border-r border-slate-300 py-1 px-1 w-[12%]">V/N</th>
+                      <th className="border-r border-slate-300 py-1 px-1 w-[12%]">CADD</th>
+                      <th className="py-1 px-1 w-[16%]">P.D. (MM)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-[8.5px] font-bold">
+                    {/* DISTANCE RX */}
+                    {hasDistanceRx && (
+                      <>
+                        <tr className="border-b border-slate-200">
+                          <td className="border-r border-slate-300 py-1 px-1.5 text-left font-black text-slate-900 bg-slate-50/50">
+                            DIST (RE / OD)
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(distRx?.rightSphere)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(distRx?.rightCylinder)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {distRx?.rightAxis ? `${distRx.rightAxis}°` : "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-[#0a52c3] font-black">
+                            {formatRxPower(distRx?.rightAdd)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {distRx?.rightNv || "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {distRx?.caddRight || "-"}
+                          </td>
+                          <td className="py-1 px-1 text-slate-700 font-semibold">
+                            {distRx?.pdRight ? `R: ${distRx.pdRight}mm` : (distRx?.pd ? `${distRx.pd}mm` : "-")}
+                          </td>
+                        </tr>
+                        <tr className="border-b border-slate-200">
+                          <td className="border-r border-slate-300 py-1 px-1.5 text-left font-black text-slate-900 bg-slate-50/50">
+                            DIST (LE / OS)
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(distRx?.leftSphere)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(distRx?.leftCylinder)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {distRx?.leftAxis ? `${distRx.leftAxis}°` : "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-[#0a52c3] font-black">
+                            {formatRxPower(distRx?.leftAdd)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {distRx?.leftNv || "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {distRx?.caddLeft || "-"}
+                          </td>
+                          <td className="py-1 px-1 text-slate-700 font-semibold">
+                            {distRx?.pdLeft ? `L: ${distRx.pdLeft}mm` : (distRx?.pd ? `${distRx.pd}mm` : "-")}
+                          </td>
+                        </tr>
+                      </>
+                    )}
+
+                    {/* NEAR RX */}
+                    {hasNearRx && (
+                      <>
+                        <tr className="border-b border-slate-200 bg-blue-50/20">
+                          <td className="border-r border-slate-300 py-1 px-1.5 text-left font-black text-slate-900 bg-slate-50/50">
+                            NEAR (RE / OD)
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(nearRx?.rightSphere)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(nearRx?.rightCylinder)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {nearRx?.rightAxis ? `${nearRx.rightAxis}°` : "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-[#0a52c3] font-black">
+                            {formatRxPower(nearRx?.rightAdd)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {nearRx?.rightNv || "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {nearRx?.caddRight || "-"}
+                          </td>
+                          <td className="py-1 px-1 text-slate-700 font-semibold">
+                            {nearRx?.pdRight ? `R: ${nearRx.pdRight}mm` : "-"}
+                          </td>
+                        </tr>
+                        <tr className="bg-blue-50/20">
+                          <td className="border-r border-slate-300 py-1 px-1.5 text-left font-black text-slate-900 bg-slate-50/50">
+                            NEAR (LE / OS)
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(nearRx?.leftSphere)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {formatRxPower(nearRx?.leftCylinder)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-800 font-extrabold">
+                            {nearRx?.leftAxis ? `${nearRx.leftAxis}°` : "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-[#0a52c3] font-black">
+                            {formatRxPower(nearRx?.leftAdd)}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {nearRx?.leftNv || "-"}
+                          </td>
+                          <td className="border-r border-slate-300 py-1 px-1 text-slate-700">
+                            {nearRx?.caddLeft || "-"}
+                          </td>
+                          <td className="py-1 px-1 text-slate-700 font-semibold">
+                            {nearRx?.pdLeft ? `L: ${nearRx.pdLeft}mm` : "-"}
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Optional Lens Type / Frame / Notes row if present */}
+              {(distRx?.lensType || distRx?.frameName || distRx?.notes || distRx?.specialInstructions) && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[8px] font-semibold text-slate-600 pt-0.5">
+                  {distRx.lensType && (
+                    <span>LENS TYPE: <span className="font-extrabold text-slate-800">{distRx.lensType}</span></span>
+                  )}
+                  {distRx.frameName && (
+                    <span>FRAME: <span className="font-extrabold text-slate-800">{distRx.frameName}</span></span>
+                  )}
+                  {distRx.notes && (
+                    <span>NOTES: <span className="font-extrabold text-slate-800">{distRx.notes}</span></span>
+                  )}
+                  {distRx.specialInstructions && (
+                    <span>INSTRUCTIONS: <span className="font-extrabold text-slate-800">{distRx.specialInstructions}</span></span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* LINE ITEMS TABLE */}
           <div className="overflow-x-auto">

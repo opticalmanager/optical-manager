@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTransition, useState, useEffect } from "react";
+import { useTransition, useState, useEffect, useRef } from "react";
 import { 
   LayoutGrid, 
   Store, 
@@ -19,7 +19,10 @@ import {
   PanelLeftOpen,
   ChevronDown,
   RotateCcw,
-  ShoppingBag
+  ShoppingBag,
+  Truck,
+  PlusCircle,
+  Building2
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -78,6 +81,23 @@ const mainNavItems: NavItem[] = [
         title: "Returns",
         href: "/shop/returns",
         icon: RotateCcw,
+      },
+    ],
+  },
+  {
+    title: "Purchases",
+    href: "/shop/purchases",
+    icon: Truck,
+    subItems: [
+      {
+        title: "Purchases Add",
+        href: "/shop/purchases/new",
+        icon: PlusCircle,
+      },
+      {
+        title: "Vendors",
+        href: "/shop/purchases/vendors",
+        icon: Building2,
       },
     ],
   },
@@ -145,6 +165,11 @@ export function Sidebar({
         return { ...item, subItems: allowedSubItems };
       }
 
+      if (item.title === "Purchases" && item.subItems) {
+        if (permissions && permissions.purchases === false) return null;
+        return item;
+      }
+
       if (item.permissionKey && !isModuleAllowed(item.permissionKey)) {
         return null;
       }
@@ -158,13 +183,69 @@ export function Sidebar({
     pathname.startsWith("/shop/invoices") ||
     pathname.startsWith("/shop/returns");
 
+  const isPurchasesRoute =
+    pathname.startsWith("/shop/purchases") ||
+    pathname.startsWith("/shop/vendors");
+
   const [salesDropdownOpen, setSalesDropdownOpen] = useState(isSalesRoute);
+  const [purchasesDropdownOpen, setPurchasesDropdownOpen] = useState(isPurchasesRoute);
+  const [isSalesHovered, setIsSalesHovered] = useState(false);
+  const [isPurchasesHovered, setIsPurchasesHovered] = useState(false);
+  const [collapsedSalesHovered, setCollapsedSalesHovered] = useState(false);
+  const [collapsedPurchasesHovered, setCollapsedPurchasesHovered] = useState(false);
+  
+  const salesHoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const purchasesHoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (isSalesRoute) {
       setSalesDropdownOpen(true);
     }
   }, [isSalesRoute]);
+
+  useEffect(() => {
+    if (isPurchasesRoute) {
+      setPurchasesDropdownOpen(true);
+    }
+  }, [isPurchasesRoute]);
+
+  const handleSalesMouseEnter = () => {
+    if (salesHoverTimerRef.current) {
+      clearTimeout(salesHoverTimerRef.current);
+      salesHoverTimerRef.current = null;
+    }
+    setIsSalesHovered(true);
+    setCollapsedSalesHovered(true);
+  };
+
+  const handleSalesMouseLeave = () => {
+    if (salesHoverTimerRef.current) {
+      clearTimeout(salesHoverTimerRef.current);
+    }
+    salesHoverTimerRef.current = setTimeout(() => {
+      setIsSalesHovered(false);
+      setCollapsedSalesHovered(false);
+    }, 200);
+  };
+
+  const handlePurchasesMouseEnter = () => {
+    if (purchasesHoverTimerRef.current) {
+      clearTimeout(purchasesHoverTimerRef.current);
+      purchasesHoverTimerRef.current = null;
+    }
+    setIsPurchasesHovered(true);
+    setCollapsedPurchasesHovered(true);
+  };
+
+  const handlePurchasesMouseLeave = () => {
+    if (purchasesHoverTimerRef.current) {
+      clearTimeout(purchasesHoverTimerRef.current);
+    }
+    purchasesHoverTimerRef.current = setTimeout(() => {
+      setIsPurchasesHovered(false);
+      setCollapsedPurchasesHovered(false);
+    }, 200);
+  };
 
   const formattedAddress = shopAddress
     ? shopAddress.split(",")[0].trim().toUpperCase()
@@ -242,38 +323,118 @@ export function Sidebar({
       )}>
         {visibleNavItems.map((item) => {
           if (item.subItems) {
+            const isPurchases = item.title === "Purchases";
+            const isSales = item.title === "Sales";
+
             const hasActiveChild = item.subItems.some((sub) =>
               sub.href === "/shop/orders"
                 ? pathname.startsWith("/shop/orders") || pathname.startsWith("/shop/invoices")
                 : pathname.startsWith(sub.href)
             );
 
+            const isItemRouteActive = isPurchases ? isPurchasesRoute : isSalesRoute;
+            const isHovered = isPurchases ? isPurchasesHovered : isSalesHovered;
+            const isCollapsedHovered = isPurchases ? collapsedPurchasesHovered : collapsedSalesHovered;
+            const handleMouseEnter = isPurchases ? handlePurchasesMouseEnter : handleSalesMouseEnter;
+            const handleMouseLeave = isPurchases ? handlePurchasesMouseLeave : handleSalesMouseLeave;
+
             if (isCollapsed) {
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.title}
-                  className={cn(
-                    "group flex items-center rounded-xl py-2.5 text-sm font-semibold transition-all duration-150 justify-center px-0",
-                    hasActiveChild
-                      ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/20 font-bold"
-                      : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-                  )}
+                <div
+                  key={item.title}
+                  className="relative"
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
                 >
-                  <item.icon className={cn("h-4.5 w-4.5 shrink-0 transition-colors", hasActiveChild ? "text-white" : "text-slate-400 group-hover:text-slate-700")} />
-                </Link>
+                  <Link
+                    href={item.href}
+                    title={item.title}
+                    className={cn(
+                      "group flex items-center rounded-xl py-2.5 text-sm font-semibold transition-all duration-150 justify-center px-0",
+                      hasActiveChild || isItemRouteActive
+                        ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/20 font-bold"
+                        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+                    )}
+                  >
+                    <item.icon
+                      className={cn(
+                        "h-4.5 w-4.5 shrink-0 transition-colors",
+                        hasActiveChild || isItemRouteActive
+                          ? "text-white"
+                          : "text-slate-400 group-hover:text-slate-700"
+                      )}
+                    />
+                  </Link>
+
+                  {/* Floating popover on hover in collapsed mode */}
+                  {isCollapsedHovered && (
+                    <div
+                      className="absolute left-full top-0 ml-2.5 z-50 w-48 rounded-xl bg-white p-1.5 shadow-xl border border-slate-200/80 animate-in fade-in-50 zoom-in-95 duration-150"
+                      onMouseEnter={handleMouseEnter}
+                      onMouseLeave={handleMouseLeave}
+                    >
+                      <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1 flex items-center justify-between">
+                        <span>{item.title}</span>
+                        <item.icon className="h-3.5 w-3.5 text-slate-400" />
+                      </div>
+                      <div className="space-y-1">
+                        {item.subItems.map((sub) => {
+                          const isSubActive =
+                            sub.href === "/shop/orders"
+                              ? pathname.startsWith("/shop/orders") || pathname.startsWith("/shop/invoices")
+                              : pathname.startsWith(sub.href);
+
+                          return (
+                            <Link
+                              key={sub.href}
+                              href={sub.href}
+                              className={cn(
+                                "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150",
+                                isSubActive
+                                  ? "bg-blue-50 text-[#2563eb] font-extrabold border border-blue-100 shadow-2xs"
+                                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                              )}
+                            >
+                              <sub.icon
+                                className={cn(
+                                  "h-3.5 w-3.5 shrink-0",
+                                  isSubActive ? "text-[#2563eb]" : "text-slate-400"
+                                )}
+                              />
+                              <span>{sub.title}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             }
 
+            const isSubMenuOpen = isPurchases
+              ? (purchasesDropdownOpen || isPurchasesHovered || isPurchasesRoute)
+              : (salesDropdownOpen || isSalesHovered || isSalesRoute);
+
             return (
-              <div key={item.title} className="space-y-1">
+              <div
+                key={item.title}
+                className="space-y-1"
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+              >
                 <button
                   type="button"
-                  onClick={() => setSalesDropdownOpen((prev) => !prev)}
+                  onClick={() => {
+                    if (isPurchases) {
+                      setPurchasesDropdownOpen((prev) => !prev);
+                    } else {
+                      setSalesDropdownOpen((prev) => !prev);
+                    }
+                  }}
                   className={cn(
                     "w-full group flex items-center justify-between rounded-xl py-2.5 px-3.5 text-sm font-semibold transition-all duration-150 cursor-pointer border-none bg-transparent",
-                    hasActiveChild && !salesDropdownOpen
+                    (hasActiveChild || isItemRouteActive) && !isSubMenuOpen
                       ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/20 font-bold"
                       : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
                   )}
@@ -282,7 +443,7 @@ export function Sidebar({
                     <item.icon
                       className={cn(
                         "h-4.5 w-4.5 shrink-0 transition-colors",
-                        hasActiveChild && !salesDropdownOpen
+                        (hasActiveChild || isItemRouteActive) && !isSubMenuOpen
                           ? "text-white"
                           : "text-slate-400 group-hover:text-slate-700"
                       )}
@@ -292,13 +453,13 @@ export function Sidebar({
                   <ChevronDown
                     className={cn(
                       "h-4 w-4 text-slate-400 transition-transform duration-200",
-                      salesDropdownOpen ? "rotate-180 text-slate-600" : ""
+                      isSubMenuOpen ? "rotate-180 text-slate-600" : ""
                     )}
                   />
                 </button>
 
                 {/* Sub-items dropdown */}
-                {salesDropdownOpen && (
+                {isSubMenuOpen && (
                   <div className="pl-4 pr-1 py-1 space-y-1 animate-in slide-in-from-top-1 duration-150">
                     {item.subItems.map((sub) => {
                       const isSubActive =

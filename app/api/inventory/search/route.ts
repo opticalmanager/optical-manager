@@ -34,9 +34,13 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") ?? "";
+    const vendorName =
+      searchParams.get("vendor")?.trim() ||
+      searchParams.get("vendorName")?.trim() ||
+      undefined;
 
     // Search inventory items
-    const items = await searchInventoryItems(profile.shopId, query);
+    const items = await searchInventoryItems(profile.shopId, query, vendorName);
 
     return NextResponse.json(items);
   } catch (error: any) {

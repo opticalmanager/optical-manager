@@ -15,7 +15,8 @@ import {
   Loader2, 
   Info,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Check
 } from "lucide-react";
 import { accessoryItemSchema } from "@/utils/validators";
 import { createAccessoryItemAction } from "@/actions/inventory.actions";
@@ -24,9 +25,13 @@ import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { CategoryItem } from "@/services/category.service";
+import { InventoryAddCategoryTabs } from "@/components/shop/InventoryAddCategoryTabs";
 
 interface AddAccessoryItemFormProps {
   shopId: string;
+  categoryDefaults?: CategoryItem | null;
+  categories?: CategoryItem[];
 }
 
 const STANDARD_ACCESSORY_TYPES = [
@@ -42,10 +47,16 @@ const STANDARD_ACCESSORY_TYPES = [
   "Contact Lens Case"
 ];
 
-export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
+export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: AddAccessoryItemFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isCustomType, setIsCustomType] = useState(false);
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
+  const [isCodeDuplicate, setIsCodeDuplicate] = useState(false);
+
+  const initialCgst = categoryDefaults?.cgstPercent !== undefined ? parseFloat(categoryDefaults.cgstPercent) : 6;
+  const initialSgst = categoryDefaults?.sgstPercent !== undefined ? parseFloat(categoryDefaults.sgstPercent) : 6;
+  const initialIgst = categoryDefaults?.igstPercent !== undefined ? parseFloat(categoryDefaults.igstPercent) : 12;
 
   const {
     register,
@@ -56,14 +67,16 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
   } = useForm({
     resolver: zodResolver(accessoryItemSchema),
     defaultValues: {
+      productCode: "",
+      productName: "",
       name: "",
       brand: "",
       costPrice: 0,
       price: 0,
-      hsnCode: "90049000",
-      cgstPercent: 6,
-      sgstPercent: 6,
-      igstPercent: 12,
+      hsnCode: categoryDefaults?.hsnCode || "90049000",
+      cgstPercent: initialCgst,
+      sgstPercent: initialSgst,
+      igstPercent: initialIgst,
       vendorName: "",
       rackLocation: "",
       purchaseInvoiceNo: "",
@@ -85,6 +98,33 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
   const requiresExpiry = watch("requiresExpiryTracking");
   const imageUrl = watch("imageUrl");
   const selectedType = watch("type");
+  const watchedProductCode = watch("productCode");
+
+  useEffect(() => {
+    const code = watchedProductCode?.trim();
+    if (!code) {
+      setIsCodeDuplicate(false);
+      setIsCheckingCode(false);
+      return;
+    }
+
+    setIsCheckingCode(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/inventory/check-code?code=${encodeURIComponent(code)}`);
+        if (res.ok) {
+          const json = await res.json();
+          setIsCodeDuplicate(Boolean(json.exists));
+        }
+      } catch (err) {
+        console.error("Failed to check product code:", err);
+      } finally {
+        setIsCheckingCode(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [watchedProductCode]);
 
   useEffect(() => {
     if (selectedType === "Other") {
@@ -95,6 +135,9 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
   }, [selectedType]);
 
   const getSkuPreview = () => {
+    if (watchedProductCode?.trim()) {
+      return watchedProductCode.trim().toUpperCase();
+    }
     const b = (brand || "GEN")
       .replace(/[^A-Za-z]/g, "")
       .substring(0, 3)
@@ -104,6 +147,11 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
   };
 
   const onSubmit = async (data: any) => {
+    if (isCodeDuplicate) {
+      toast.error("Code already exists. Please choose a unique product code.");
+      return;
+    }
+
     startTransition(async () => {
       const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
       const activeShopId =
@@ -124,7 +172,9 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
           .substring(0, 3)
           .toUpperCase()
           .padEnd(3, "X");
-        const generatedSku = `ACC-${b}000000-${Math.floor(100 + Math.random() * 900)}`;
+        const generatedSku = payload.productCode?.trim()
+          ? payload.productCode.trim().toUpperCase()
+          : `ACC-${b}000000-${Math.floor(100 + Math.random() * 900)}`;
         const offlineItemId = `off-inv-${Date.now()}-${Math.random()
           .toString(36)
           .substring(2, 6)}`;
@@ -133,7 +183,9 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
           id: offlineItemId,
           shopId: activeShopId,
           organizationId: "offline_org",
-          name: payload.name,
+          productCode: payload.productCode,
+          productName: payload.productName,
+          name: payload.productName || payload.name,
           category: "ACCESSORY",
           brand: payload.brand || null,
           model: null,
@@ -151,6 +203,7 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
         await enqueueOfflineMutation(activeShopId, "INVENTORY_CREATE", {
           category: "ACCESSORY",
           ...payload,
+          name: payload.productName || payload.name,
           sku: generatedSku,
           offlineItemId,
         });
@@ -224,36 +277,43 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
       </div>
 
       {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60 max-w-fit">
-        <button
-          type="button"
-          onClick={() => router.push("/shop/inventory/add?category=frame")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
-        >
-          Frames
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/shop/inventory/add?category=lens")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
-        >
-          Lenses
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/shop/inventory/add?category=contact_lens")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
-        >
-          Contact Lenses
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/shop/inventory/add?category=accessory")}
-          className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
-        >
-          Accessories
-        </button>
-      </div>
+      {categories && categories.length > 0 ? (
+        <InventoryAddCategoryTabs
+          categories={categories}
+          activeCategoryCode="ACCESSORY"
+        />
+      ) : (
+        <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60 max-w-fit">
+          <button
+            type="button"
+            onClick={() => router.push("/shop/inventory/add?category=frame")}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          >
+            Frames
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/shop/inventory/add?category=lens")}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          >
+            Lenses
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/shop/inventory/add?category=contact_lens")}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          >
+            Contact Lenses
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/shop/inventory/add?category=accessory")}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm"
+          >
+            Accessories
+          </button>
+        </div>
+      )}
 
       {/* Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -272,22 +332,65 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
             </div>
             
             <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
-                  Item Name <span className="text-rose-500">*</span>
-                </label>
-                <Input
-                  type="text"
-                  placeholder="e.g., Bausch & Lomb Renu Multi-purpose Solution"
-                  className="h-11 border-slate-200 bg-white"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.name.message as string}
-                  </p>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450">
+                      Product Code <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {isCheckingCode && (
+                        <span className="text-slate-400 flex items-center gap-1 text-[11px]">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Checking...
+                        </span>
+                      )}
+                      {!isCheckingCode && isCodeDuplicate && (
+                        <span className="text-rose-500 flex items-center gap-1 font-bold text-[11px]">
+                          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" /> Code already exists
+                        </span>
+                      )}
+                      {!isCheckingCode && !isCodeDuplicate && watchedProductCode && watchedProductCode.trim().length > 0 && (
+                        <span className="text-emerald-600 flex items-center gap-1 font-semibold text-[11px]">
+                          <Check className="h-3 w-3" /> Available
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Input
+                    type="text"
+                    placeholder="e.g., ACC-CASE-01"
+                    className={`h-11 font-mono font-medium uppercase ${
+                      isCodeDuplicate 
+                        ? "border-rose-500 focus-visible:ring-rose-200 bg-rose-50/20" 
+                        : "border-slate-200 bg-white"
+                    }`}
+                    {...register("productCode")}
+                  />
+                  {errors.productCode && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.productCode.message as string}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Product Name <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., Bausch & Lomb Renu Multi-purpose Solution"
+                    className="h-11 border-slate-200 bg-white"
+                    {...register("productName")}
+                  />
+                  {errors.productName && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.productName.message as string}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -463,14 +566,23 @@ export function AddAccessoryItemForm({ shopId }: AddAccessoryItemFormProps) {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 mb-1.5">
-                    IGST (%)
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">
+                    IGST (%) <span className="text-[9px] text-blue-500 font-normal">(Auto Split)</span>
                   </label>
                   <Input
                     type="number"
                     step="0.1"
-                    className="h-11 border-slate-200"
-                    {...register("igstPercent")}
+                    className="h-11 border-blue-300 bg-blue-50/20 text-blue-700 font-bold"
+                    {...register("igstPercent", {
+                      onChange: (e) => {
+                        const num = parseFloat(e.target.value);
+                        if (!isNaN(num)) {
+                          const half = Number((num / 2).toFixed(2));
+                          setValue("cgstPercent", half);
+                          setValue("sgstPercent", half);
+                        }
+                      },
+                    })}
                   />
                 </div>
               </div>

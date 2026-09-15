@@ -24,10 +24,20 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 
 ### 2. POS & Global Search APIs
 
-#### `GET /api/inventory/search`
-- **Description**: Fast dynamic search endpoint for POS checkout and invoice generation.
+#### `GET /api/inventory/check-code`
+- **Description**: Real-time uniqueness verification endpoint for product codes within the authenticated user's organization or scoped to a specific vendor.
 - **Query Parameters**:
-  - `q`: Search query string (sku, productName, brand, model).
+  - `code`: Product code string to check for uniqueness.
+  - `vendor` / `vendorName` (optional): Vendor name to scope code uniqueness per vendor.
+  - `excludeId` (optional): Inventory item ID to exclude from duplicate checks (used when editing existing items).
+- **Authentication**: Session authenticated via `getCurrentUser()`.
+- **Response**: `200 OK` JSON `{ exists: boolean }`.
+
+#### `GET /api/inventory/search`
+- **Description**: Fast dynamic search endpoint for POS checkout, invoice generation, and purchase bill ingestion.
+- **Query Parameters**:
+  - `q`: Search query string (`productCode`, `productName`, `name`, `brand`, `model`, `sku`).
+  - `vendor` (optional): Vendor name to prioritize/filter items associated with the selected vendor.
 - **Response**: `200 OK` JSON array of matching inventory items with stock levels and prices.
 
 #### `GET /api/search`
@@ -114,4 +124,57 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
   - `PRESCRIPTION_CREATE`: Saves comprehensive clinical refraction values (Distance & Near OD/OS SPH, CYL, AXIS, ADD, V/N, monocular PD, CADD, Rx number, Rx category, lens type, doctor attribution, and notes) offline and syncs atomically.
   - `RETURN_CREATE`: Processes product returns, restocks inventory, adjusts customer store credit ledgers, and logs non-restock audit movements.
 - **Response**: `200 OK` JSON containing `{ results: [{ id, type, success, serverResultId, sku, registrationId, returnNumber, error }] }`.
+
+---
+
+### Category & Dynamic GST Server Actions (`actions/category.actions.ts`)
+
+#### `getOrganizationCategoriesAction()`
+- **Description**: Retrieves all active product categories configured for the authenticated user's organization (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SOLUTION`, and any custom categories).
+- **Return Type**: `{ success: boolean, categories: CategoryItem[], error?: string }`.
+
+#### `saveCategoryGstRatesAction(categoriesData)`
+- **Description**: Updates HSN codes and GST taxation percentages (`CGST`, `SGST`, `IGST`) across all categories for the organization. Revalidates paths `/shop/settings`, `/owner/settings`, `/shop/inventory/add`, `/shop/inventory`.
+- **Payload**: `Array<{ id, name?, hsnCode?, cgstPercent, sgstPercent, igstPercent }>`.
+- **Return Type**: `{ success: boolean, message: string }`.
+
+#### `createCategoryAction(prevState, formData)`
+- **Description**: Creates a new custom product category with auto-generated uppercase code, custom name, optional default HSN code, and configured GST rates.
+- **Return Type**: `{ success: boolean, message: string, data?: CategoryItem }`.
+
+#### `deleteCategoryAction(categoryId)`
+- **Description**: Removes a merchant-created custom category from the organization (system default categories are protected and cannot be deleted).
+- **Return Type**: `{ success: boolean, message: string }`.
+
+---
+
+### Purchases & Vendors APIs and Server Actions
+
+#### `GET /api/vendors/search`
+- **Description**: Autocomplete search endpoint for supplier directory lookup.
+- **Query Parameters**:
+  - `q`: Search keyword matching vendor name, contact person, phone number, or GSTIN.
+- **Authentication**: Session authenticated via `createClient()` / `profiles.organizationId`.
+- **Response**: `200 OK` JSON array of matching `Vendor` records (limit 20).
+
+#### `createPurchaseAction(data)` (`actions/purchase.actions.ts`)
+- **Description**: Finalizes an inward purchase bill and marks status `COMPLETED`. Updates inventory quantities atomically (`+qty`), updates cost and retail prices, links supplier invoice number and inward date, and logs `STOCK_IN` movements in `stock_movements`.
+- **Payload**: `PurchaseOrderFormValues` (purchaseNumber, purchaseDate, vendorId, vendorName, taxRule, taxType, roundOff, items[]).
+- **Return Type**: `{ success: boolean, message: string, purchaseId?: string }`.
+
+#### `savePurchaseDraftAction(data)` (`actions/purchase.actions.ts`)
+- **Description**: Saves an inward purchase bill with status `DRAFT`. Does not mutate live inventory stock levels.
+- **Payload**: `PurchaseOrderFormValues`.
+- **Return Type**: `{ success: boolean, message: string, purchaseId?: string }`.
+
+#### `createVendorAction(data)` (`actions/purchase.actions.ts`)
+- **Description**: Registers a new supplier in the organization's vendor directory directly from the purchase form modal.
+- **Payload**: `VendorFormValues` (name, contactPerson, phone, email, gstin, panNumber, address, city, state, pincode).
+- **Return Type**: `{ success: boolean, message: string, vendor?: Vendor }`.
+
+#### `createPurchaseProductAction(data)` (`actions/purchase.actions.ts`)
+- **Description**: Ingests a new catalog product directly from the purchase inline modal (SS3 design) with category tabs, pre-calculated GST splits, and attributes. Creates an inventory record with initial stock 0 (stock is credited upon purchase completion).
+- **Payload**: `{ category, productCode, productName, brand?, gender?, color?, size?, type?, material?, hsnCode?, gstPercent, cgstPercent, sgstPercent, igstPercent, costPrice, retailPrice }`.
+- **Return Type**: `{ success: boolean, message: string, item?: InventoryItem }`.
+
 

@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
+import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
 
 interface SettingsPageClientProps {
   shop: any;
@@ -918,50 +919,8 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                   </p>
                 </div>
 
-                <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-slate-400" /> GST Tax Rates (%)
-                  </h4>
-
-                  <div className="flex flex-wrap gap-2">
-                    {gstRates.map((rate) => (
-                      <span key={rate} className="inline-flex items-center gap-1 bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs">
-                        {rate}%
-                        <button
-                          type="button"
-                          onClick={() => setGstRates(gstRates.filter((r) => r !== rate))}
-                          className="text-indigo-400 hover:text-indigo-700 cursor-pointer ml-1 p-0.5 rounded hover:bg-indigo-100/50"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-2 max-w-xs">
-                    <input 
-                      type="number" 
-                      placeholder="e.g. 18"
-                      value={newGstRate}
-                      onChange={(e) => setNewGstRate(e.target.value)}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const rate = parseFloat(newGstRate);
-                        if (!isNaN(rate) && rate >= 0 && rate <= 100) {
-                          if (gstRates.includes(rate)) return;
-                          setGstRates([...gstRates, rate].sort((a, b) => a - b));
-                          setNewGstRate("");
-                        }
-                      }}
-                      className="bg-indigo-600 hover:bg-indigo-755 text-white p-2.5 rounded-xl transition-all cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                {/* Product Categories GST Rates Master Matrix */}
+                <CategoryGstRatesSettings />
 
                 <div className="border-t border-slate-100 pt-6 space-y-3">
                   <div className="space-y-1">

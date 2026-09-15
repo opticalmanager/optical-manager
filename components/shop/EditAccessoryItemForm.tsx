@@ -15,7 +15,8 @@ import {
   Loader2, 
   Info,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Check
 } from "lucide-react";
 import { editAccessoryItemSchema } from "@/utils/validators";
 import { updateAccessoryItemAction } from "@/actions/inventory.actions";
@@ -51,6 +52,8 @@ export function EditAccessoryItemForm({
 }: EditAccessoryItemFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
+  const [isCodeDuplicate, setIsCodeDuplicate] = useState(false);
 
   const isInitialCustom = initialData.type && !STANDARD_ACCESSORY_TYPES.includes(initialData.type);
   const [isCustomType, setIsCustomType] = useState(isInitialCustom);
@@ -64,6 +67,8 @@ export function EditAccessoryItemForm({
   } = useForm({
     resolver: zodResolver(editAccessoryItemSchema),
     defaultValues: {
+      productCode: initialData.productCode || initialData.sku || "",
+      productName: initialData.productName || initialData.name || "",
       name: initialData.name || "",
       brand: initialData.brand || "",
       costPrice: parseFloat(initialData.costPrice) || 0,
@@ -93,6 +98,35 @@ export function EditAccessoryItemForm({
   const imageUrl = watch("imageUrl");
   const addStockQuantity = watch("addStockQuantity") || 0;
   const selectedType = watch("type");
+  const watchedProductCode = watch("productCode");
+
+  useEffect(() => {
+    const code = watchedProductCode?.trim();
+    const originalCode = (initialData.productCode || initialData.sku || "").trim();
+
+    if (!code || code.toLowerCase() === originalCode.toLowerCase()) {
+      setIsCodeDuplicate(false);
+      setIsCheckingCode(false);
+      return;
+    }
+
+    setIsCheckingCode(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/inventory/check-code?code=${encodeURIComponent(code)}&excludeId=${encodeURIComponent(itemId)}`);
+        if (res.ok) {
+          const json = await res.json();
+          setIsCodeDuplicate(Boolean(json.exists));
+        }
+      } catch (err) {
+        console.error("Failed to check product code:", err);
+      } finally {
+        setIsCheckingCode(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [watchedProductCode, initialData.productCode, initialData.sku, itemId]);
 
   const currentStock = initialData.quantity || 0;
   const resultingStock = Number(currentStock) + Number(addStockQuantity);
@@ -106,6 +140,11 @@ export function EditAccessoryItemForm({
   }, [selectedType]);
 
   const onSubmit = async (data: any) => {
+    if (isCodeDuplicate) {
+      toast.error("Code already exists. Please choose a unique product code.");
+      return;
+    }
+
     startTransition(async () => {
       const payload = { ...data };
       if (payload.type === "Other") {
@@ -126,7 +165,9 @@ export function EditAccessoryItemForm({
         const newQty = Number(initialData.quantity || 0) + addedQty;
 
         await offlineDB.cached_inventory.update(itemId, {
-          name: payload.name,
+          productCode: payload.productCode,
+          productName: payload.productName,
+          name: payload.productName || payload.name,
           brand: payload.brand || null,
           price: (payload.price || 0).toFixed(2),
           quantity: newQty,
@@ -147,7 +188,9 @@ export function EditAccessoryItemForm({
 
         await enqueueOfflineMutation(activeShopId, "INVENTORY_UPDATE", {
           itemId,
-          name: payload.name,
+          productCode: payload.productCode,
+          productName: payload.productName,
+          name: payload.productName || payload.name,
           brand: payload.brand,
           price: payload.price,
           costPrice: payload.costPrice,
@@ -251,22 +294,65 @@ export function EditAccessoryItemForm({
             </div>
             
             <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
-                  Item Name <span className="text-rose-500">*</span>
-                </label>
-                <Input
-                  type="text"
-                  placeholder="e.g., Bausch & Lomb Renu Multi-purpose Solution"
-                  className="h-11 border-slate-200 bg-white"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.name.message as string}
-                  </p>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450">
+                      Product Code <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {isCheckingCode && (
+                        <span className="text-slate-400 flex items-center gap-1 text-[11px]">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Checking...
+                        </span>
+                      )}
+                      {!isCheckingCode && isCodeDuplicate && (
+                        <span className="text-rose-500 flex items-center gap-1 font-bold text-[11px]">
+                          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" /> Code already exists
+                        </span>
+                      )}
+                      {!isCheckingCode && !isCodeDuplicate && watchedProductCode && watchedProductCode.trim().length > 0 && (
+                        <span className="text-emerald-600 flex items-center gap-1 font-semibold text-[11px]">
+                          <Check className="h-3 w-3" /> Available
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Input
+                    type="text"
+                    placeholder="e.g., ACC-CASE-01"
+                    className={`h-11 font-mono font-medium uppercase ${
+                      isCodeDuplicate 
+                        ? "border-rose-500 focus-visible:ring-rose-200 bg-rose-50/20" 
+                        : "border-slate-200 bg-white"
+                    }`}
+                    {...register("productCode")}
+                  />
+                  {errors.productCode && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.productCode.message as string}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1.5">
+                    Product Name <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., Bausch & Lomb Renu Multi-purpose Solution"
+                    className="h-11 border-slate-200 bg-white"
+                    {...register("productName")}
+                  />
+                  {errors.productName && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.productName.message as string}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

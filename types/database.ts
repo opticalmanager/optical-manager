@@ -23,6 +23,9 @@ import type {
   salesReturns,
   salesReturnItems,
   customerCreditLedger,
+  vendors,
+  purchaseOrders,
+  purchaseOrderItems,
 } from "@/db/schema";
 
 
@@ -43,6 +46,9 @@ export type Order = InferSelectModel<typeof orders>;
 export type SalesReturn = InferSelectModel<typeof salesReturns>;
 export type SalesReturnItem = InferSelectModel<typeof salesReturnItems>;
 export type CustomerCreditLedger = InferSelectModel<typeof customerCreditLedger>;
+export type Vendor = InferSelectModel<typeof vendors>;
+export type PurchaseOrder = InferSelectModel<typeof purchaseOrders>;
+export type PurchaseOrderItem = InferSelectModel<typeof purchaseOrderItems>;
 
 // --- Insert Types (writing to DB) ---
 export type NewOrganization = InferInsertModel<typeof organizations>;
@@ -61,6 +67,9 @@ export type NewOrder = InferInsertModel<typeof orders>;
 export type NewSalesReturn = InferInsertModel<typeof salesReturns>;
 export type NewSalesReturnItem = InferInsertModel<typeof salesReturnItems>;
 export type NewCustomerCreditLedger = InferInsertModel<typeof customerCreditLedger>;
+export type NewVendor = InferInsertModel<typeof vendors>;
+export type NewPurchaseOrder = InferInsertModel<typeof purchaseOrders>;
+export type NewPurchaseOrderItem = InferInsertModel<typeof purchaseOrderItems>;
 
 
 

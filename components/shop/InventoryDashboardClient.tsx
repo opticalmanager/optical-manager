@@ -25,23 +25,26 @@ import {
 } from "lucide-react";
 import { BarcodeDesignerModal } from "@/components/shop/BarcodeDesignerModal";
 import { offlineDB } from "@/lib/offline/db";
+import { CategoryItem } from "@/services/category.service";
 
 interface InventoryItem {
   id: string;
   shopId: string;
   organizationId: string;
+  productCode?: string | null;
+  productName?: string | null;
   name: string;
-  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION";
+  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION" | string;
   brand: string | null;
   model: string | null;
   sku: string | null;
   price: string; // decimal is returned as string from drizzle
-  costPrice: string | null;
+  costPrice?: string | null;
   quantity: number;
   minQuantity: number;
   isActive: boolean;
-  imageUrl: string | null;
-  hsnCode: string | null;
+  imageUrl?: string | null;
+  hsnCode?: string | null;
   cgstPercent: string;
   sgstPercent: string;
   igstPercent: string;
@@ -61,6 +64,7 @@ interface InventoryDashboardClientProps {
   initialCategory?: string;
   initialFilter?: string;
   initialSort?: string;
+  categories?: CategoryItem[];
 }
 
 const ITEMS_PER_PAGE = 15;
@@ -69,7 +73,8 @@ export function InventoryDashboardClient({
   initialItems,
   initialCategory = "",
   initialFilter = "",
-  initialSort = "SKU"
+  initialSort = "SKU",
+  categories = [],
 }: InventoryDashboardClientProps) {
   // Client states
   const [items, setItems] = useState<InventoryItem[]>(initialItems);
@@ -79,6 +84,45 @@ export function InventoryDashboardClient({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [activeBarcodeItem, setActiveBarcodeItem] = useState<InventoryItem | null>(null);
+
+  // Derive dynamic list of categories from props and items
+  const availableCategories = useMemo(() => {
+    const list: Array<{ code: string; name: string }> = [];
+    const seen = new Set<string>();
+
+    if (categories && categories.length > 0) {
+      for (const c of categories) {
+        const upper = c.code.toUpperCase();
+        if (!seen.has(upper)) {
+          seen.add(upper);
+          list.push({ code: upper, name: c.name });
+        }
+      }
+    } else {
+      const defaults = [
+        { code: "FRAME", name: "Frames" },
+        { code: "LENS", name: "Lenses" },
+        { code: "CONTACT_LENS", name: "Contacts" },
+        { code: "ACCESSORY", name: "Accessories" },
+      ];
+      for (const d of defaults) {
+        seen.add(d.code);
+        list.push(d);
+      }
+    }
+
+    for (const item of items) {
+      if (item.category) {
+        const upper = String(item.category).toUpperCase();
+        if (!seen.has(upper)) {
+          seen.add(upper);
+          list.push({ code: upper, name: upper.replace(/_/g, " ") });
+        }
+      }
+    }
+
+    return list;
+  }, [categories, items]);
 
   // Sync server prop changes to local state whenever online
   useEffect(() => {
@@ -99,7 +143,9 @@ export function InventoryDashboardClient({
               id: c.id,
               shopId: c.shopId,
               organizationId: c.organizationId,
-              name: c.name,
+              productCode: c.productCode || null,
+              productName: c.productName || null,
+              name: c.productName || c.name,
               category: c.category as any,
               brand: c.brand,
               model: c.model,
@@ -228,6 +274,8 @@ export function InventoryDashboardClient({
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
         (item) => 
+          (item.productCode || "").toLowerCase().includes(q) ||
+          (item.productName || "").toLowerCase().includes(q) ||
           (item.name || "").toLowerCase().includes(q) ||
           (item.brand || "").toLowerCase().includes(q) ||
           (item.model || "").toLowerCase().includes(q) ||
@@ -259,6 +307,8 @@ export function InventoryDashboardClient({
   // Export CSV Handler
   const handleExportCSV = () => {
     const headers = [
+      "Product Code",
+      "Product Name",
       "SKU",
       "Item Name",
       "Brand",
@@ -287,6 +337,8 @@ export function InventoryDashboardClient({
     };
 
     const formatCategory = (cat: string) => {
+      const found = availableCategories.find((c) => c.code === (cat || "").toUpperCase());
+      if (found) return found.name;
       switch (cat) {
         case "FRAME": return "Frame";
         case "LENS": return "Lens";
@@ -320,6 +372,8 @@ export function InventoryDashboardClient({
       const formattedPurchaseDate = formatDate(item.inwardDate);
 
       return [
+        item.productCode || item.sku || "",
+        item.productName || item.name || "",
         item.sku || "",
         item.name || "",
         item.brand || "",
@@ -410,6 +464,9 @@ export function InventoryDashboardClient({
       {/* Interactive KPIs Grid */}
       {(() => {
         const getCategoryPlural = (cat: string) => {
+          if (!cat) return "catalog items";
+          const found = availableCategories.find((c) => c.code === cat.toUpperCase());
+          if (found) return found.name.toLowerCase();
           switch (cat) {
             case "FRAME": return "frames";
             case "LENS": return "lenses";
@@ -421,6 +478,9 @@ export function InventoryDashboardClient({
         };
 
         const getCategorySingular = (cat: string) => {
+          if (!cat) return "Inventory";
+          const found = availableCategories.find((c) => c.code === cat.toUpperCase());
+          if (found) return found.name;
           switch (cat) {
             case "FRAME": return "Frame";
             case "LENS": return "Lens";
@@ -546,7 +606,7 @@ export function InventoryDashboardClient({
           <Button
             variant={!category ? "default" : "ghost"}
             onClick={() => setCategory("")}
-            className={`h-9 px-5 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer ${
+            className={`h-9 px-4 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap ${
               !category
                 ? "bg-indigo-600 text-white"
                 : "text-slate-550 hover:bg-white hover:text-slate-800"
@@ -554,50 +614,20 @@ export function InventoryDashboardClient({
           >
             All Items
           </Button>
-          <Button
-            variant={category === "FRAME" ? "default" : "ghost"}
-            onClick={() => setCategory("FRAME")}
-            className={`h-9 px-5 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer ${
-              category === "FRAME"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-550 hover:bg-white hover:text-slate-800"
-            }`}
-          >
-            Frames
-          </Button>
-          <Button
-            variant={category === "LENS" ? "default" : "ghost"}
-            onClick={() => setCategory("LENS")}
-            className={`h-9 px-5 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer ${
-              category === "LENS"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-550 hover:bg-white hover:text-slate-800"
-            }`}
-          >
-            Lenses
-          </Button>
-          <Button
-            variant={category === "CONTACT_LENS" ? "default" : "ghost"}
-            onClick={() => setCategory("CONTACT_LENS")}
-            className={`h-9 px-5 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer ${
-              category === "CONTACT_LENS"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-550 hover:bg-white hover:text-slate-800"
-            }`}
-          >
-            Contacts
-          </Button>
-          <Button
-            variant={category === "ACCESSORY" ? "default" : "ghost"}
-            onClick={() => setCategory("ACCESSORY")}
-            className={`h-9 px-5 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer ${
-              category === "ACCESSORY"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-550 hover:bg-white hover:text-slate-800"
-            }`}
-          >
-            Accessories
-          </Button>
+          {availableCategories.map((cat) => (
+            <Button
+              key={cat.code}
+              variant={category === cat.code ? "default" : "ghost"}
+              onClick={() => setCategory(cat.code)}
+              className={`h-9 px-4 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap ${
+                category === cat.code
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-550 hover:bg-white hover:text-slate-800"
+              }`}
+            >
+              {cat.name}
+            </Button>
+          ))}
         </div>
 
         {/* Live Search and Sorting */}
@@ -652,8 +682,8 @@ export function InventoryDashboardClient({
           <table className="w-full text-xs text-left border-collapse">
             <thead className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50 border-b border-slate-100 tracking-wider">
               <tr>
-                <th className="px-4 py-2.5">SKU</th>
-                <th className="px-4 py-2.5">Item Name</th>
+                <th className="px-4 py-2.5">Product Code</th>
+                <th className="px-4 py-2.5">Product Name</th>
                 <th className="px-4 py-2.5">Category</th>
                 <th className="px-4 py-2.5 text-center">Stock Level</th>
                 <th className="px-4 py-2.5 text-right">Unit Price</th>
@@ -668,7 +698,10 @@ export function InventoryDashboardClient({
                     className="hover:bg-slate-50/50 transition-colors group"
                   >
                     <td className="px-4 py-2.5 font-mono font-bold text-[#2563eb] text-xs">
-                      {item.sku}
+                      <div>{item.productCode || item.sku}</div>
+                      {item.productCode && item.sku && item.productCode !== item.sku && (
+                        <div className="text-[10px] text-slate-400 font-normal">{item.sku}</div>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -677,7 +710,7 @@ export function InventoryDashboardClient({
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={item.imageUrl}
-                              alt={item.name}
+                              alt={item.productName || item.name}
                               className="object-cover h-full w-full"
                             />
                           ) : (
@@ -686,7 +719,7 @@ export function InventoryDashboardClient({
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 text-xs leading-snug">
-                            {item.name}
+                            {item.productName || item.name}
                           </p>
                           <p className="text-[10px] text-slate-400 uppercase font-semibold">
                             {item.brand || "GENERIC"}

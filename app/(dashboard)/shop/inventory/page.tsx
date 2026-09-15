@@ -4,6 +4,8 @@ import { getShopsByOrganization } from "@/services/shop.service";
 import { AlertCircle } from "lucide-react";
 import { InventoryDashboardClient } from "@/components/shop/InventoryDashboardClient";
 
+import { getOrganizationCategories } from "@/services/category.service";
+
 interface PageProps {
   searchParams: Promise<{
     category?: string;
@@ -43,6 +45,14 @@ export default async function InventoryPage({ searchParams }: PageProps) {
   const initialSort = params.sort || "SKU";
   const initialFilter = params.filter || "";
 
+  // Fetch categories
+  let categories: any[] = [];
+  if (user?.organizationId) {
+    try {
+      categories = await getOrganizationCategories(user.organizationId);
+    } catch {}
+  }
+
   // Fetch real items from database (fast-fail timeout for offline resilience)
   let allInventory: any[] = [];
   try {
@@ -64,6 +74,7 @@ export default async function InventoryPage({ searchParams }: PageProps) {
       initialCategory={initialCategory}
       initialFilter={initialFilter}
       initialSort={initialSort}
+      categories={categories}
     />
   );
 }

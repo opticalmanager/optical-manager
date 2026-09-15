@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -16,7 +16,8 @@ import {
   Loader2, 
   Info,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Check
 } from "lucide-react";
 import { editFrameItemSchema } from "@/utils/validators";
 import { updateFrameItemAction } from "@/actions/inventory.actions";
@@ -49,6 +50,8 @@ export function EditFrameItemForm({
   } = useForm({
     resolver: zodResolver(editFrameItemSchema),
     defaultValues: {
+      productCode: initialData.productCode || initialData.sku || "",
+      productName: initialData.productName || initialData.name || "",
       name: initialData.name || "",
       brand: initialData.brand || "",
       costPrice: parseFloat(initialData.costPrice) || 0,
@@ -76,6 +79,44 @@ export function EditFrameItemForm({
     },
   });
 
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
+  const [isCodeDuplicate, setIsCodeDuplicate] = useState(false);
+  const productCode = watch("productCode");
+
+  useEffect(() => {
+    if (!productCode || productCode.trim().length === 0) {
+      setIsCodeDuplicate(false);
+      setIsCheckingCode(false);
+      return;
+    }
+
+    const originalCode = initialData.productCode || initialData.sku || "";
+    if (productCode.trim().toLowerCase() === originalCode.trim().toLowerCase()) {
+      setIsCodeDuplicate(false);
+      setIsCheckingCode(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsCheckingCode(true);
+        const res = await fetch(
+          `/api/inventory/check-code?code=${encodeURIComponent(productCode.trim())}&excludeId=${encodeURIComponent(itemId)}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          setIsCodeDuplicate(Boolean(result.exists));
+        }
+      } catch (err) {
+        console.error("Duplicate check error:", err);
+      } finally {
+        setIsCheckingCode(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [productCode, itemId, initialData]);
+
   const requiresExpiry = watch("requiresExpiryTracking");
   const imageUrl = watch("imageUrl");
   const addStockQuantity = watch("addStockQuantity") || 0;
@@ -85,6 +126,11 @@ export function EditFrameItemForm({
   const resultingStock = Number(currentStock) + Number(addStockQuantity);
 
   const onSubmit = async (data: any) => {
+    if (isCodeDuplicate) {
+      toast.error("Code already exists. Please choose a unique product code.");
+      return;
+    }
+
     startTransition(async () => {
       const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
       const activeShopId =
@@ -99,7 +145,10 @@ export function EditFrameItemForm({
         const newQty = Number(initialData.quantity || 0) + addedQty;
 
         await offlineDB.cached_inventory.update(itemId, {
-          name: data.name,
+          name: data.productName || data.name,
+          productName: data.productName,
+          productCode: data.productCode,
+          sku: data.productCode || initialData.sku,
           brand: data.brand || null,
           model: data.modelNumber || null,
           price: (data.price || 0).toFixed(2),
@@ -226,22 +275,62 @@ export function EditFrameItemForm({
             </div>
             
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Item Name <span className="text-rose-500">*</span>
-                </label>
-                <Input
-                  type="text"
-                  placeholder="e.g. Ray-Ban Wayfarer Classic"
-                  className="h-11 border-slate-200 bg-white"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.name.message as string}
-                  </p>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Product Code <span className="text-rose-500">*</span>
+                    </label>
+                    {isCheckingCode && (
+                      <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Checking...
+                      </span>
+                    )}
+                    {!isCheckingCode && productCode && productCode.trim().length > 0 && !isCodeDuplicate && (
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Available
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    type="text"
+                    placeholder="e.g. RB-5154-2000"
+                    className={`h-11 border-slate-200 bg-white font-mono font-semibold ${
+                      isCodeDuplicate ? "border-rose-500 focus-visible:ring-rose-200" : ""
+                    }`}
+                    {...register("productCode")}
+                  />
+                  {isCodeDuplicate && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                      Code already exists
+                    </p>
+                  )}
+                  {errors.productCode && !isCodeDuplicate && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.productCode.message as string}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Product Name <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Ray-Ban Wayfarer Classic"
+                    className="h-11 border-slate-200 bg-white"
+                    {...register("productName")}
+                  />
+                  {errors.productName && (
+                    <p className="text-xs text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.productName.message as string}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
