@@ -378,3 +378,43 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Order Finalization**:
      - **Save As Draft**: Persists the purchase order with status `DRAFT` in `purchase_orders` and `purchase_order_items`. Does not alter live inventory stock levels.
      - **Add Purchase**: Persists order with status `COMPLETED`, atomically increments inventory stock quantities (`quantity += row.quantity`), updates latest cost price and retail price, links purchase invoice number and inward date, and logs individual `STOCK_IN` movements in `stock_movements`.
+
+---
+
+## 13. Customer Onboarding & Bulk CSV Import Workflow
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Customer Records │───>│ Select Add Mode  │───>│ 4-Phase Wizard:  │───>│ Sequential Reg   │
+│ (/shop/customers)│    │ (Single vs Bulk) │    │ Upload/Map/Edit  │    │ IDs & Ingestion  │
+└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+1. **Customer Records Add Dropdown (`/shop/customers`)**:
+   - The top-right header features an interactive primary `+ Add Customer` button with a hover/click dropdown menu:
+     - **Add Single**: Navigates to `/shop/patients/new` for full clinical examination and prescription recording.
+     - **Add Bulk**: Navigates to `/shop/customers/import` for multi-patient spreadsheet ingestion.
+
+2. **4-Phase Bulk Import Wizard (`/shop/customers/import`)**:
+   - **Phase 1: CSV Upload & Template**:
+     - Drag-and-drop zone with instant file validation (supports `.csv` up to 5 MB / 5,000 rows).
+     - `Download Sample CSV` action generates a standardized template with formatted headers and realistic sample data.
+     - Detects total rows and column count.
+   - **Phase 2: Intelligent Field Mapping**:
+     - Automatically matches CSV headers to customer system fields (`Full Name`, `Phone`, `Email`, `Gender`, `Age`, `Date of Birth`, `Address`, `City`, `State`, `Pincode`, `Referred By`, `Notes`) via fuzzy alias dictionaries.
+     - Displays live sample preview chip of the 1st row data for each mapped column.
+     - Allows staff to review or change column mappings or set fields to `-- Do Not Import --`.
+   - **Phase 3: Interactive Review & In-line Cell Correction**:
+     - Displays all customer records in a high-density, editable spreadsheet table.
+     - Live error highlighting:
+       - Missing or short Name (< 2 chars) flagged with red border and warning text.
+       - Invalid Phone (< 10 digits or non-numeric) highlighted with amber/red border.
+       - Invalid Email format highlighted.
+     - Staff can click directly into any cell to correct data in real time with instant re-validation.
+     - KPI counters display `Total Rows`, `Valid Rows`, and `Needs Attention`.
+     - `Show Errors Only` toggle isolates problematic rows; individual row trash actions discard corrupt entries.
+   - **Phase 4: Summary & Batch Ingestion**:
+     - Reviews total valid rows ready for import.
+     - Executes `bulkImportCustomersAction` which generates sequential registration IDs (`OP-shopNum-YYYY-NNNN`) in a single query batch.
+     - Commits all valid records in a single transactional batch into PostgreSQL `customers` table.
+     - Displays celebratory success screen with assigned Registration ID ranges (`OP-1-2026-0001` to `OP-1-2026-0050`) and direct navigation to customer records.

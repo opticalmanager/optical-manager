@@ -361,3 +361,141 @@ export async function getCustomerProfileData(
     latestInvoice,
   };
 }
+
+/**
+ * Generate sequential registration IDs in batch for a shop.
+ */
+export async function generateBatchRegistrationIds(
+  shopId: string,
+  count: number,
+  dbInstance: any = db
+): Promise<string[]> {
+  if (count <= 0) return [];
+
+  // Fetch current shop organizationId
+  const [shop] = await dbInstance
+    .select({
+      organizationId: shops.organizationId,
+    })
+    .from(shops)
+    .where(eq(shops.id, shopId))
+    .limit(1);
+
+  if (!shop) {
+    throw new Error(`Shop with ID ${shopId} not found.`);
+  }
+
+  // Determine shop sequence number within the organization
+  const orgShops = await dbInstance
+    .select({ id: shops.id })
+    .from(shops)
+    .where(eq(shops.organizationId, shop.organizationId))
+    .orderBy(shops.createdAt);
+
+  const shopIndex = orgShops.findIndex((s: any) => s.id === shopId);
+  const shopNum = shopIndex !== -1 ? shopIndex + 1 : 1;
+
+  const currentYear = new Date().getFullYear().toString();
+  const pattern = `OP-${shopNum}-${currentYear}-%`;
+
+  const [lastCustomer] = await dbInstance
+    .select({
+      registrationId: customers.registrationId,
+    })
+    .from(customers)
+    .where(
+      and(
+        eq(customers.shopId, shopId),
+        ilike(customers.registrationId, pattern)
+      )
+    )
+    .orderBy(sql`registration_id DESC`)
+    .limit(1);
+
+  let nextSerial = 1;
+  if (lastCustomer?.registrationId) {
+    const parts = lastCustomer.registrationId.split("-");
+    if (parts.length === 4) {
+      const lastSerialStr = parts[3];
+      const lastSerial = parseInt(lastSerialStr, 10);
+      if (!isNaN(lastSerial)) {
+        nextSerial = lastSerial + 1;
+      }
+    } else {
+      const lastSerialStr = parts[2];
+      const lastSerial = parseInt(lastSerialStr, 10);
+      if (!isNaN(lastSerial)) {
+        nextSerial = lastSerial + 1;
+      }
+    }
+  }
+
+  const generatedIds: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const paddedSerial = (nextSerial + i).toString().padStart(4, "0");
+    generatedIds.push(`OP-${shopNum}-${currentYear}-${paddedSerial}`);
+  }
+
+  return generatedIds;
+}
+
+export interface BulkCustomerInput {
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  gender?: "MALE" | "FEMALE" | "OTHER" | null;
+  dateOfBirth?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  referredBy?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * High-performance batch insertion for bulk customers import.
+ */
+export async function bulkCreateCustomers(
+  shopId: string,
+  organizationId: string,
+  records: BulkCustomerInput[]
+): Promise<{ count: number; firstRegId: string; lastRegId: string }> {
+  if (!records || records.length === 0) {
+    return { count: 0, firstRegId: "", lastRegId: "" };
+  }
+
+  return await db.transaction(async (tx) => {
+    // 1. Generate sequential batch registration IDs
+    const regIds = await generateBatchRegistrationIds(shopId, records.length, tx);
+
+    // 2. Prepare customer insert rows
+    const insertData = records.map((rec, idx) => ({
+      shopId,
+      organizationId,
+      registrationId: regIds[idx],
+      fullName: rec.fullName.trim(),
+      phone: rec.phone.trim().replace(/[\s-]/g, ""),
+      email: rec.email?.trim() || null,
+      gender: rec.gender || null,
+      dateOfBirth: rec.dateOfBirth || null,
+      address: rec.address?.trim() || null,
+      city: rec.city?.trim() || null,
+      state: rec.state?.trim() || null,
+      pincode: rec.pincode?.trim() || null,
+      referredBy: rec.referredBy?.trim() || null,
+      notes: rec.notes?.trim() || null,
+      storeCredit: "0.00",
+    }));
+
+    // 3. Batch insert
+    await tx.insert(customers).values(insertData);
+
+    return {
+      count: records.length,
+      firstRegId: regIds[0] || "",
+      lastRegId: regIds[regIds.length - 1] || "",
+    };
+  });
+}
+

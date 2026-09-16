@@ -177,4 +177,16 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Payload**: `{ category, productCode, productName, brand?, gender?, color?, size?, type?, material?, hsnCode?, gstPercent, cgstPercent, sgstPercent, igstPercent, costPrice, retailPrice }`.
 - **Return Type**: `{ success: boolean, message: string, item?: InventoryItem }`.
 
+---
+
+### Customer & Bulk Ingestion Actions (`actions/customer.actions.ts`)
+
+#### `bulkImportCustomersAction(shopId, records)`
+- **Description**: High-performance transactional batch ingestion endpoint for customer directories imported via CSV. Generates sequential `registrationId` values (`OP-shopNum-YYYY-NNNN`) in a single query batch and commits all valid rows atomically.
+- **Route**: Accessible via `/shop/customers/import`.
+- **Payload**: `shopId: string`, `records: Array<{ fullName, phone, email?, gender?, dateOfBirth?, address?, city?, state?, pincode?, referredBy?, notes? }>`.
+- **Validation**: Enforces strict 10-digit numeric phone format, minimum name length, and email format.
+- **Return Type**: `{ success: boolean, message: string, count?: number, firstRegId?: string, lastRegId?: string, errors?: string[] }`.
+
+
 
