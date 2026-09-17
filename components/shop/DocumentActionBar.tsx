@@ -2,11 +2,12 @@
 
 import React, { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Printer, ArrowLeft, Send, X, PhoneCall } from "lucide-react";
+import { Printer, ArrowLeft, Send, X, PhoneCall, Loader2, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { parseWhatsAppTemplate, openWhatsAppChat } from "@/utils/whatsapp-parser";
+import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 
 interface DocumentActionBarProps {
   documentType: "Invoice" | "Receipt";
@@ -30,11 +31,13 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
   // Local state for missing phone number dialog
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [inputPhone, setInputPhone] = useState("");
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [justSentSuccess, setJustSentSuccess] = useState(false);
 
   const isInvoice = documentType === "Invoice";
 
   // Build & open WhatsApp redirection link
-  const triggerWhatsAppRedirect = (phoneNumber: string) => {
+  const triggerWhatsAppRedirect = async (phoneNumber: string) => {
     if (!data) return;
 
     // 1. Resolve template from shop settings (with robust default fallback)
@@ -55,6 +58,8 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
 
     const templateText = templateConfig?.template || (isInvoice ? defaultInvoiceTemplate : defaultReceiptTemplate);
 
+    const invoiceUrl = `${window.location.origin}/share/invoice/${data.invoice?.id}`;
+
     // 2. Parse template with variables
     const formattedMessage = parseWhatsAppTemplate(templateText, {
       customer_name: data.customer?.fullName || "Valued Customer",
@@ -68,12 +73,47 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       payment_method: data.receipt?.paymentMethod || data.invoice?.paymentMethod || "N/A",
       fulfillment_status: data.invoice?.fulfillmentStatus || "PROCESSING",
       estimated_delivery: data.invoice?.estimatedDelivery ? new Date(data.invoice.estimatedDelivery).toLocaleDateString() : "N/A",
-      invoice_url: `${window.location.origin}/share/invoice/${data.invoice?.id}`
+      invoice_url: invoiceUrl,
     });
 
-    // 3. Dispatch via universal multi-platform WhatsApp dispatcher (Desktop app + web fallback + mobile)
-    openWhatsAppChat(phoneNumber, formattedMessage);
-    toast.success("WhatsApp message launched!");
+    setIsSendingWhatsApp(true);
+    try {
+      // 3. Attempt 1-click background dispatch via local Desktop Assistant
+      const dispatchRes = await dispatchWhatsAppMessageAction({
+        phoneNumber,
+        messageText: formattedMessage,
+        mediaUrl: invoiceUrl,
+        mediaType: "DOCUMENT",
+        templateKey,
+        recipientName: data.customer?.fullName,
+        shopId: data.shop?.id,
+        metadata: {
+          documentType,
+          invoiceId: data.invoice?.id,
+          receiptId: data.receipt?.id,
+        },
+      });
+
+      if (dispatchRes.success && dispatchRes.isDesktopOnline) {
+        toast.success("Sent directly via Optical Manager Desktop Assistant! ✓");
+        setJustSentSuccess(true);
+        setTimeout(() => setJustSentSuccess(false), 4000);
+        return;
+      }
+
+      // If desktop assistant is offline, gracefully open WhatsApp Web / App
+      if (!dispatchRes.isDesktopOnline) {
+        toast.info("Desktop Assistant is offline. Launching WhatsApp Web fallback...");
+      }
+      openWhatsAppChat(phoneNumber, formattedMessage);
+      toast.success("WhatsApp message launched!");
+    } catch (err) {
+      console.warn("Direct dispatch fallback:", err);
+      openWhatsAppChat(phoneNumber, formattedMessage);
+      toast.success("WhatsApp message launched!");
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
   };
 
   const handleWhatsAppSendClick = () => {
@@ -135,9 +175,29 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       {data && (
         <Button
           onClick={handleWhatsAppSendClick}
-          className="h-11 px-5 font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/10 hover:shadow-emerald-600/20 rounded-xl active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer"
+          disabled={isSendingWhatsApp}
+          className={`h-11 px-5 font-bold text-white rounded-xl shadow-lg active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer ${
+            justSentSuccess
+              ? "bg-emerald-700 shadow-emerald-700/20"
+              : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/10 hover:shadow-emerald-600/20"
+          }`}
         >
-          <WhatsAppIcon /> Send on WhatsApp
+          {isSendingWhatsApp ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Sending...</span>
+            </>
+          ) : justSentSuccess ? (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+              <span>Sent ✓</span>
+            </>
+          ) : (
+            <>
+              <WhatsAppIcon />
+              <span>Send on WhatsApp</span>
+            </>
+          )}
         </Button>
       )}
 

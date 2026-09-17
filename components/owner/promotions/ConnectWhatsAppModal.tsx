@@ -10,11 +10,18 @@ import {
   Key, 
   CheckCircle2, 
   Loader2, 
-  ShieldCheck,
-  Zap,
-  Building
+  ShieldCheck, 
+  Zap, 
+  Building,
+  Copy,
+  Check,
+  Laptop,
+  Download,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { saveWhatsAppConfigAction } from "@/actions/promotion.actions";
+import { generateShopPairingKeyAction } from "@/actions/desktop-wa.actions";
 import { toast } from "sonner";
 
 interface ConnectWhatsAppModalProps {
@@ -30,6 +37,38 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
   const [apiKey, setApiKey] = useState("");
   const [accountSid, setAccountSid] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Desktop Assistant pairing state
+  const [pairingKey, setPairingKey] = useState("");
+  const [isLoadingPairing, setIsLoadingPairing] = useState(false);
+  const [hasCopiedKey, setHasCopiedKey] = useState(false);
+  const [isDesktopOnline, setIsDesktopOnline] = useState(false);
+
+  // Auto-fetch pairing key when switching to QR_GATEWAY
+  React.useEffect(() => {
+    if (provider === "QR_GATEWAY" && !pairingKey) {
+      setIsLoadingPairing(true);
+      generateShopPairingKeyAction()
+        .then((res) => {
+          if (res.success && res.data) {
+            setPairingKey(res.data.pairingKey);
+            setIsDesktopOnline(res.data.isOnline);
+            if (res.data.shopName) {
+              setBusinessName(res.data.shopName);
+            }
+          }
+        })
+        .finally(() => setIsLoadingPairing(false));
+    }
+  }, [provider, pairingKey]);
+
+  const handleCopyPairingKey = () => {
+    if (!pairingKey) return;
+    navigator.clipboard.writeText(pairingKey);
+    setHasCopiedKey(true);
+    toast.success("Shop Pairing Key copied to clipboard!");
+    setTimeout(() => setHasCopiedKey(false), 3000);
+  };
 
   if (!isOpen) return null;
 
@@ -198,13 +237,87 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
               </div>
             )}
 
-            {/* QR Gateway Preview */}
+            {/* QR Gateway / Desktop Assistant Panel */}
             {provider === "QR_GATEWAY" && (
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-2">
-                <div className="w-24 h-24 mx-auto bg-white p-2 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-center">
-                  <QrCode className="w-20 h-20 text-slate-800" />
+              <div className="space-y-3.5 p-4 bg-slate-50/90 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                  <div className="flex items-center gap-2">
+                    <Laptop className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                      Desktop Assistant (Recommended)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-white border border-slate-200">
+                    {isDesktopOnline ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-emerald-700">Online & Ready</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        <span className="text-slate-600">Waiting for PC App</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-slate-600 font-medium">Scan QR code using WhatsApp Link a Device menu.</p>
+
+                <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                  Run the lightweight WhatsApp tool on your billing PC. Invoices and receipts will send with <strong>1-click in the background</strong> without opening WhatsApp Web or paying for cloud servers!
+                </p>
+
+                {/* Shop Pairing Key Box */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                      Your Store Pairing Key
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-bold">Copy & paste into Desktop App</span>
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      readOnly
+                      value={isLoadingPairing ? "Generating pairing key..." : pairingKey}
+                      className="w-full pl-3 pr-24 py-2 bg-white border border-slate-200 text-slate-700 font-mono text-[11px] font-semibold rounded-xl select-all focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      disabled={isLoadingPairing || !pairingKey}
+                      onClick={handleCopyPairingKey}
+                      className="absolute right-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      {hasCopiedKey ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Key</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Steps */}
+                <div className="grid grid-cols-3 gap-2 pt-1 text-center text-[10px] text-slate-600 font-semibold">
+                  <div className="p-2 bg-white rounded-xl border border-slate-200/80 space-y-1">
+                    <span className="inline-block w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-black text-[9px] leading-4">1</span>
+                    <p>Install on PC</p>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-slate-200/80 space-y-1">
+                    <span className="inline-block w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-black text-[9px] leading-4">2</span>
+                    <p>Paste Pairing Key</p>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-slate-200/80 space-y-1">
+                    <span className="inline-block w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-black text-[9px] leading-4">3</span>
+                    <p>Scan WhatsApp QR</p>
+                  </div>
+                </div>
               </div>
             )}
 

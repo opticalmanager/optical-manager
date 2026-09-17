@@ -19,6 +19,7 @@ import {
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate, openWhatsAppChat } from "@/utils/whatsapp-parser";
+import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { offlineDB } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 
@@ -175,6 +176,29 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`
       });
 
+      // Attempt 1-click silent dispatch via local Desktop Assistant
+      const dispatchRes = await dispatchWhatsAppMessageAction({
+        phoneNumber: targetPhone,
+        messageText: parsedText,
+        mediaUrl: `${window.location.origin}/share/invoice/${order.invoiceId}`,
+        mediaType: "DOCUMENT",
+        templateKey: key,
+        recipientName: order.customerName,
+        metadata: {
+          orderId: order.id,
+          invoiceId: order.invoiceId,
+          templateKey: key,
+        },
+      });
+
+      if (dispatchRes.success && dispatchRes.isDesktopOnline) {
+        toast.success("Sent directly via Optical Manager Desktop Assistant! ✓");
+        return;
+      }
+
+      if (!dispatchRes.isDesktopOnline) {
+        toast.info("Desktop Assistant is offline. Launching WhatsApp Web fallback...");
+      }
       openWhatsAppChat(targetPhone, parsedText);
       toast.success("WhatsApp message launched!");
     } catch (error) {
