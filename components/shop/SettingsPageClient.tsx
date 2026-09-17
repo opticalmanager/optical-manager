@@ -765,8 +765,8 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             )}
                           </button>
                           <a
-                            href="/downloads/Optical-Manager-WhatsApp-Assistant.zip"
-                            download
+                            href="/downloads/Optical-Manager-WhatsApp-Assistant-Setup.exe"
+                            download="Optical-Manager-WhatsApp-Assistant-Setup.exe"
                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
                           >
                             <Download className="w-3.5 h-3.5" />
