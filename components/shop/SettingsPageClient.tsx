@@ -6,12 +6,14 @@ import {
   Building2, Store, MessageSquare, Percent, Users, 
   DollarSign, FileText, User, Search, ArrowLeft, Settings,
   Save, Landmark, ShieldCheck, Mail, Trash2, Plus, Clock, 
-  Award, X, Check, Star, ShieldAlert
+  Award, X, Check, Star, ShieldAlert,
+  Laptop, Download, Copy, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
 import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
+import { generateShopPairingKeyAction, checkDesktopAssistantStatusAction } from "@/actions/desktop-wa.actions";
 
 interface SettingsPageClientProps {
   shop: any;
@@ -127,6 +129,39 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   const [whatsappTemplates, setWhatsappTemplates] = useState<any>(shop?.settings?.whatsappTemplates || DEFAULT_WHATSAPP_TEMPLATES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("invoice_sent");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 5B. Shop Desktop Assistant Pairing state
+  const [shopPairingKey, setShopPairingKey] = useState("");
+  const [isShopDesktopOnline, setIsShopDesktopOnline] = useState(false);
+  const [isLoadingShopPairing, setIsLoadingShopPairing] = useState(false);
+  const [hasCopiedShopKey, setHasCopiedShopKey] = useState(false);
+
+  const fetchShopPairing = () => {
+    if (!shop?.id) return;
+    setIsLoadingShopPairing(true);
+    generateShopPairingKeyAction(shop.id)
+      .then((res) => {
+        if (res.success && res.data) {
+          setShopPairingKey(res.data.pairingKey);
+          setIsShopDesktopOnline(res.data.isOnline);
+        }
+      })
+      .finally(() => setIsLoadingShopPairing(false));
+  };
+
+  useEffect(() => {
+    if (activeSubTab === "whatsapp" && shop?.id && !shopPairingKey) {
+      fetchShopPairing();
+    }
+  }, [activeSubTab, shop?.id, shopPairingKey]);
+
+  const handleCopyShopPairingKey = () => {
+    if (!shopPairingKey) return;
+    navigator.clipboard.writeText(shopPairingKey);
+    setHasCopiedShopKey(true);
+    toast.success("Counter Pairing Key copied to clipboard!");
+    setTimeout(() => setHasCopiedShopKey(false), 3000);
+  };
 
   // 6. Email Customizer state
   const [emailTemplates, setEmailTemplates] = useState<any>(shop?.settings?.emailTemplates || {
@@ -643,10 +678,121 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                   ))}
                 </div>
 
-                {/* Sub-tab 2A: WhatsApp Templates Customizer */}
+                {/* Sub-tab 2A: WhatsApp Templates Customizer & Counter Assistant */}
                 {activeSubTab === "whatsapp" && (
                   <div className="space-y-6">
-                    <div className="space-y-1">
+                    {/* COUNTER DESKTOP ASSISTANT CONNECTION CARD */}
+                    <div className="p-5 bg-gradient-to-r from-blue-50/60 via-slate-50 to-emerald-50/40 border border-slate-200/90 rounded-2xl shadow-xs space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/60">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20 font-black">
+                            <Laptop className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-black text-slate-900 tracking-tight">
+                                Counter WhatsApp Assistant
+                              </h4>
+                              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-100 text-blue-800">
+                                {shop?.name || "This Branch"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-semibold">
+                              1-Click background invoice & receipt sending directly from this counter's PC.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-white border border-slate-200 shadow-2xs">
+                            {isShopDesktopOnline ? (
+                              <>
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-emerald-700">Online & Ready</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                                <span className="text-slate-600">Offline / Not Connected</span>
+                              </>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={fetchShopPairing}
+                            title="Refresh Status"
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all cursor-pointer"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingShopPairing ? "animate-spin" : ""}`} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Store Pairing Key Section */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                            Branch Store Pairing Key
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-bold">
+                            Unique to {shop?.name || "this branch"}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={isLoadingShopPairing ? "Generating pairing key..." : shopPairingKey}
+                            className="flex-1 px-3 py-2 bg-white border border-slate-200 text-slate-700 font-mono text-[11px] font-semibold rounded-xl select-all outline-none focus:border-blue-500"
+                          />
+                          <button
+                            type="button"
+                            disabled={isLoadingShopPairing || !shopPairingKey}
+                            onClick={handleCopyShopPairingKey}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                          >
+                            {hasCopiedShopKey ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy Branch Key</span>
+                              </>
+                            )}
+                          </button>
+                          <a
+                            href="/downloads/Optical-Manager-WhatsApp-Assistant-Setup.exe"
+                            download="Optical-Manager-WhatsApp-Assistant-Setup.exe"
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download App (.exe)</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* 3 Steps */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px] text-slate-600 font-semibold">
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2.5">
+                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-black text-[10px] flex items-center justify-center shrink-0">1</span>
+                          <span>Download & open app on this counter PC</span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2.5">
+                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-black text-[10px] flex items-center justify-center shrink-0">2</span>
+                          <span>Paste this Branch Pairing Key</span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2.5">
+                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-black text-[10px] flex items-center justify-center shrink-0">3</span>
+                          <span>Scan WhatsApp QR code once</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 pt-2">
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
                         <MessageSquare className="w-4 h-4 text-slate-400" /> WhatsApp Template Broadcasts
                       </h4>

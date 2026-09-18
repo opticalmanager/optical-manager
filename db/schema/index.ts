@@ -54,5 +54,6 @@ export { customerCreditLedger } from "./customer-credit-ledger";
 export { vendors } from "./vendors";
 export { purchaseOrders, purchaseStatusEnum } from "./purchase-orders";
 export { purchaseOrderItems } from "./purchase-order-items";
+export { whatsappDispatchQueue } from "./whatsapp-dispatch-queue";
 
 
