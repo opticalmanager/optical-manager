@@ -78,6 +78,15 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
 
     setIsSendingWhatsApp(true);
     try {
+      const dispatchMode = data.shop?.settings?.whatsappDispatchMode || "whatsapp_web";
+
+      // If mode is whatsapp_web, open browser directly without queuing
+      if (dispatchMode === "whatsapp_web") {
+        openWhatsAppChat(phoneNumber, formattedMessage);
+        toast.success("WhatsApp message opened in browser!");
+        return;
+      }
+
       // 3. Attempt 1-click background dispatch via local Desktop Assistant
       const dispatchRes = await dispatchWhatsAppMessageAction({
         phoneNumber,

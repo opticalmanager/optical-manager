@@ -176,6 +176,14 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`
       });
 
+      // Check shop WhatsApp dispatch mode
+      const dispatchMode = shopData?.settings?.whatsappDispatchMode || "whatsapp_web";
+      if (dispatchMode === "whatsapp_web") {
+        openWhatsAppChat(targetPhone, parsedText);
+        toast.success("WhatsApp message opened in browser!");
+        return;
+      }
+
       // Attempt 1-click silent dispatch via local Desktop Assistant
       const dispatchRes = await dispatchWhatsAppMessageAction({
         phoneNumber: targetPhone,
