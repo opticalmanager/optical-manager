@@ -16,10 +16,9 @@ export function OnboardingShell({ children }: OnboardingShellProps) {
 
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      toast.success("Logged out successfully");
-      router.push("/login");
+      toast.success("Logging out...");
+      const { performLogout } = await import("@/utils/auth-logout");
+      await performLogout("/");
     } catch (error: any) {
       console.error("Logout error:", error);
       toast.error(error.message || "Failed to log out");

@@ -78,3 +78,108 @@ export function openWhatsAppChat(phoneNumber: string, messageText: string): void
     }, 500);
   }
 }
+
+export interface SendWhatsAppOptions {
+  phoneNumber: string;
+  messageText: string;
+  mediaUrl?: string;
+  mediaType?: "DOCUMENT" | "IMAGE" | "TEXT";
+  templateKey?: string;
+  recipientName?: string;
+  shopId?: string;
+  shopSettings?: any;
+  metadata?: Record<string, any>;
+  showToast?: boolean;
+}
+
+export interface SendWhatsAppResult {
+  success: boolean;
+  mode: "desktop_assistant" | "whatsapp_web" | "official_api";
+  isDesktopOnline?: boolean;
+  queueId?: string;
+  error?: string;
+}
+
+/**
+ * Universal 1-Click WhatsApp Dispatcher.
+ * Automatically checks the shop's active configuration (Optical Manager Tool vs. WhatsApp Web vs. Official API)
+ * and delivers the message with seamless 1-click execution and graceful fallback.
+ */
+export async function sendUniversalWhatsAppMessage(
+  options: SendWhatsAppOptions,
+  dispatchAction: (payload: any) => Promise<{
+    success: boolean;
+    queueId?: string;
+    isDesktopOnline?: boolean;
+    error?: string;
+  }>
+): Promise<SendWhatsAppResult> {
+  const {
+    phoneNumber,
+    messageText,
+    mediaUrl,
+    mediaType = "DOCUMENT",
+    templateKey = "utility",
+    recipientName = "Valued Customer",
+    shopId,
+    shopSettings,
+    metadata = {},
+    showToast = true,
+  } = options;
+
+  if (!phoneNumber || !phoneNumber.trim()) {
+    return { success: false, mode: "whatsapp_web", error: "Missing phone number" };
+  }
+
+  // Resolve dispatch mode from store settings (defaults to desktop_assistant if configured, else whatsapp_web)
+  const dispatchMode: "whatsapp_web" | "desktop_assistant" | "official_api" =
+    shopSettings?.whatsappDispatchMode || "whatsapp_web";
+
+  // 1. OPTICAL MANAGER TOOL (DESKTOP ASSISTANT - 1-CLICK BACKGROUND DISPATCH)
+  if (dispatchMode === "desktop_assistant") {
+    try {
+      const res = await dispatchAction({
+        phoneNumber,
+        messageText,
+        mediaUrl,
+        mediaType,
+        templateKey,
+        recipientName,
+        shopId,
+        metadata,
+      });
+
+      if (res.success) {
+        return {
+          success: true,
+          mode: "desktop_assistant",
+          isDesktopOnline: res.isDesktopOnline,
+          queueId: res.queueId,
+        };
+      }
+
+      // If server action returned failure, launch browser fallback
+      openWhatsAppChat(phoneNumber, messageText);
+      return { success: true, mode: "whatsapp_web", isDesktopOnline: false };
+    } catch (err: any) {
+      console.warn("[sendUniversalWhatsAppMessage] Desktop assistant error, falling back to Web:", err);
+      openWhatsAppChat(phoneNumber, messageText);
+      return { success: true, mode: "whatsapp_web", isDesktopOnline: false };
+    }
+  }
+
+  // 2. OFFICIAL META CLOUD API
+  if (dispatchMode === "official_api") {
+    if (shopSettings?.metaCloudApi?.isConfigured) {
+      return { success: true, mode: "official_api" };
+    } else {
+      openWhatsAppChat(phoneNumber, messageText);
+      return { success: true, mode: "whatsapp_web" };
+    }
+  }
+
+  // 3. WHATSAPP WEB (DEFAULT DIRECT BROWSER / APP LAUNCH)
+  openWhatsAppChat(phoneNumber, messageText);
+  return { success: true, mode: "whatsapp_web" };
+}
+

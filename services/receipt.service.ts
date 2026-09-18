@@ -124,12 +124,16 @@ export async function generateOrderNumber(shopId: string, tx: any = db): Promise
  * Fetch a receipt by ID.
  */
 export async function getReceiptById(id: string, organizationId: string) {
+  if (!id || !organizationId) return null;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  const condition = isUuid ? eq(receipts.id, id) : eq(receipts.receiptNumber, id);
+
   const [receipt] = await db
     .select()
     .from(receipts)
     .where(
       and(
-        eq(receipts.id, id),
+        condition,
         eq(receipts.organizationId, organizationId)
       )
     )

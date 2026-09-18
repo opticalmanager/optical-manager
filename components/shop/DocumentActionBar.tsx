@@ -6,7 +6,7 @@ import { Printer, ArrowLeft, Send, X, PhoneCall, Loader2, CheckCircle2 } from "l
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
-import { parseWhatsAppTemplate, openWhatsAppChat } from "@/utils/whatsapp-parser";
+import { parseWhatsAppTemplate, openWhatsAppChat, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 
 interface DocumentActionBarProps {
@@ -78,48 +78,43 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
 
     setIsSendingWhatsApp(true);
     try {
-      const dispatchMode = data.shop?.settings?.whatsappDispatchMode || "whatsapp_web";
-
-      // If mode is whatsapp_web, open browser directly without queuing
-      if (dispatchMode === "whatsapp_web") {
-        openWhatsAppChat(phoneNumber, formattedMessage);
-        toast.success("WhatsApp message opened in browser!");
-        return;
-      }
-
-      // 3. Attempt 1-click background dispatch via local Desktop Assistant
-      const dispatchRes = await dispatchWhatsAppMessageAction({
-        phoneNumber,
-        messageText: formattedMessage,
-        mediaUrl: invoiceUrl,
-        mediaType: "DOCUMENT",
-        templateKey,
-        recipientName: data.customer?.fullName,
-        shopId: data.shop?.id,
-        metadata: {
-          documentType,
-          invoiceId: data.invoice?.id,
-          receiptId: data.receipt?.id,
+      const res = await sendUniversalWhatsAppMessage(
+        {
+          phoneNumber,
+          messageText: formattedMessage,
+          mediaUrl: invoiceUrl,
+          mediaType: "DOCUMENT",
+          templateKey,
+          recipientName: data.customer?.fullName,
+          shopId: data.shop?.id,
+          shopSettings: data.shop?.settings,
+          metadata: {
+            documentType,
+            invoiceId: data.invoice?.id,
+            receiptId: data.receipt?.id,
+          },
+          showToast: false,
         },
-      });
+        dispatchWhatsAppMessageAction
+      );
 
-      if (dispatchRes.success && dispatchRes.isDesktopOnline) {
-        toast.success("Sent directly via Optical Manager Desktop Assistant! ✓");
-        setJustSentSuccess(true);
-        setTimeout(() => setJustSentSuccess(false), 4000);
-        return;
+      if (res.mode === "desktop_assistant") {
+        if (res.isDesktopOnline) {
+          toast.success("Sent directly via Optical Manager Tool! ✓");
+          setJustSentSuccess(true);
+          setTimeout(() => setJustSentSuccess(false), 4000);
+        } else {
+          toast.success("Message queued in Optical Manager Tool! (Sent on reconnect)");
+          setJustSentSuccess(true);
+          setTimeout(() => setJustSentSuccess(false), 4000);
+        }
+      } else {
+        toast.success("WhatsApp message opened in browser!");
       }
-
-      // If desktop assistant is offline, gracefully open WhatsApp Web / App
-      if (!dispatchRes.isDesktopOnline) {
-        toast.info("Desktop Assistant is offline. Launching WhatsApp Web fallback...");
-      }
-      openWhatsAppChat(phoneNumber, formattedMessage);
-      toast.success("WhatsApp message launched!");
     } catch (err) {
       console.warn("Direct dispatch fallback:", err);
       openWhatsAppChat(phoneNumber, formattedMessage);
-      toast.success("WhatsApp message launched!");
+      toast.success("WhatsApp message launched in browser!");
     } finally {
       setIsSendingWhatsApp(false);
     }

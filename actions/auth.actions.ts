@@ -204,18 +204,51 @@ export async function login(
 }
 
 /**
- * Server Action: Log out the current user.
+ * Server Action: Log out the current user and wipe all session cookies.
  */
 export async function logout() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.warn("[logout] Supabase signOut warning:", err);
+  }
+
   try {
     const { cookies } = await import("next/headers");
     const cookieStore = await cookies();
+    
+    // Explicitly delete custom session cookies with root path
     cookieStore.delete("opt_session_profile");
     cookieStore.delete("active_shop_context_id");
-  } catch {}
-  redirect("/login");
+
+    // Clear all Supabase auth cookies
+    const allCookies = cookieStore.getAll();
+    for (const c of allCookies) {
+      if (
+        c.name.startsWith("sb-") ||
+        c.name.includes("auth-token") ||
+        c.name.includes("session") ||
+        c.name === "opt_session_profile" ||
+        c.name === "active_shop_context_id"
+      ) {
+        try {
+          cookieStore.set(c.name, "", {
+            path: "/",
+            expires: new Date(0),
+            maxAge: 0,
+          });
+        } catch {}
+        try {
+          cookieStore.delete(c.name);
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.error("[logout] Cookie clearing error:", err);
+  }
+
+  return { success: true };
 }
 
 /**

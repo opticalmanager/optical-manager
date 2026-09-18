@@ -254,7 +254,8 @@ export function Sidebar({
   const handleLogout = () => {
     startTransition(async () => {
       try {
-        await logout();
+        const { performLogout } = await import("@/utils/auth-logout");
+        await performLogout("/");
       } catch (error) {
         console.error("Logout error:", error);
       }

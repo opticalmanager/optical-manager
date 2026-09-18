@@ -133,13 +133,22 @@ export async function dispatchWhatsAppMessageAction(payload: DispatchWhatsAppPay
       cleanPhone = `91${cleanPhone}`;
     }
 
-    // Resolve shopId
-    const shopId = payload.shopId || user.shopId;
+    // Resolve shopId with owner fallback
+    let shopId = payload.shopId || user.shopId;
+    if (!shopId && user.organizationId) {
+      const [firstShop] = await db
+        .select({ id: shops.id })
+        .from(shops)
+        .where(eq(shops.organizationId, user.organizationId))
+        .limit(1);
+      shopId = firstShop?.id;
+    }
+
     if (!shopId) {
       return { success: false, error: "Shop ID is required for dispatch routing." };
     }
 
-    // Check if desktop assistant is currently online (last active < 90s)
+    // Check if desktop assistant is currently online (last active < 120s)
     const status = await checkDesktopAssistantStatusAction(shopId);
 
     const insertedRows = await db

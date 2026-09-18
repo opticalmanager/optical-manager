@@ -47,9 +47,8 @@ export default function AdminSidebar({ adminName = "Super Admin" }: { adminName?
   );
 
   const handleAdminLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/admin/login");
-    router.refresh();
+    const { performLogout } = await import("@/utils/auth-logout");
+    await performLogout("/admin/login");
   };
 
   return (

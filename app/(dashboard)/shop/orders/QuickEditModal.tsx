@@ -18,7 +18,7 @@ import {
 } from "@/actions/order.actions";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
-import { parseWhatsAppTemplate, openWhatsAppChat } from "@/utils/whatsapp-parser";
+import { parseWhatsAppTemplate, openWhatsAppChat, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { offlineDB } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
@@ -176,39 +176,35 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`
       });
 
-      // Check shop WhatsApp dispatch mode
-      const dispatchMode = shopData?.settings?.whatsappDispatchMode || "whatsapp_web";
-      if (dispatchMode === "whatsapp_web") {
-        openWhatsAppChat(targetPhone, parsedText);
-        toast.success("WhatsApp message opened in browser!");
-        return;
-      }
-
-      // Attempt 1-click silent dispatch via local Desktop Assistant
-      const dispatchRes = await dispatchWhatsAppMessageAction({
-        phoneNumber: targetPhone,
-        messageText: parsedText,
-        mediaUrl: `${window.location.origin}/share/invoice/${order.invoiceId}`,
-        mediaType: "DOCUMENT",
-        templateKey: key,
-        recipientName: order.customerName,
-        metadata: {
-          orderId: order.id,
-          invoiceId: order.invoiceId,
+      const res = await sendUniversalWhatsAppMessage(
+        {
+          phoneNumber: targetPhone,
+          messageText: parsedText,
+          mediaUrl: `${window.location.origin}/share/invoice/${order.invoiceId}`,
+          mediaType: "DOCUMENT",
           templateKey: key,
+          recipientName: order.customerName,
+          shopId: shopData?.id,
+          shopSettings: shopData?.settings,
+          metadata: {
+            orderId: order.id,
+            invoiceId: order.invoiceId,
+            templateKey: key,
+          },
+          showToast: false,
         },
-      });
+        dispatchWhatsAppMessageAction
+      );
 
-      if (dispatchRes.success && dispatchRes.isDesktopOnline) {
-        toast.success("Sent directly via Optical Manager Desktop Assistant! ✓");
-        return;
+      if (res.mode === "desktop_assistant") {
+        if (res.isDesktopOnline) {
+          toast.success("Sent directly via Optical Manager Tool! ✓");
+        } else {
+          toast.success("Message queued in Optical Manager Tool! (Will send on reconnect)");
+        }
+      } else {
+        toast.success("WhatsApp message opened in browser!");
       }
-
-      if (!dispatchRes.isDesktopOnline) {
-        toast.info("Desktop Assistant is offline. Launching WhatsApp Web fallback...");
-      }
-      openWhatsAppChat(targetPhone, parsedText);
-      toast.success("WhatsApp message launched!");
     } catch (error) {
       toast.error("Failed to trigger WhatsApp message.");
     }

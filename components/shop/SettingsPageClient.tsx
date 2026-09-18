@@ -198,10 +198,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   };
 
   const handleSelectDispatchMode = (mode: "whatsapp_web" | "desktop_assistant" | "official_api") => {
-    if (mode === "desktop_assistant" && !isShopDesktopOnline) {
-      toast.error("Desktop Assistant is offline. Please connect your Counter Desktop Assistant above first.");
-      return;
-    }
     if (mode === "official_api") {
       const isConfigured = Boolean(shop?.settings?.metaCloudApi?.isConfigured);
       if (!isConfigured) {
@@ -213,13 +209,13 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     handleSaveConfig(
       "whatsappDispatchMode",
       mode,
-      `WhatsApp dispatch method set to ${
-        mode === "whatsapp_web"
-          ? "WhatsApp Web (Direct Browser)"
-          : mode === "desktop_assistant"
-          ? "Optical Manager Desktop Assistant"
-          : "WhatsApp Official API"
-      }.`
+      mode === "desktop_assistant"
+        ? (isShopDesktopOnline
+            ? "Optical Manager Tool activated! Utility messages will send automatically in 1 click."
+            : "Optical Manager Tool selected! Ensure desktop app is running on counter PC for 1-click dispatch.")
+        : mode === "whatsapp_web"
+        ? "WhatsApp dispatch set to WhatsApp Web (Direct Browser)."
+        : "WhatsApp dispatch set to WhatsApp Official API."
     );
   };
 
@@ -922,24 +918,16 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
 
                         {/* TOGGLE 2: OPTICAL MANAGER DESKTOP ASSISTANT */}
                         <div
-                          onClick={() => {
-                            if (isShopDesktopOnline) {
-                              handleSelectDispatchMode("desktop_assistant");
-                            } else {
-                              toast.error("First connect the WhatsApp Desktop Assistant above before enabling 1-click dispatch.");
-                            }
-                          }}
-                          className={`p-4 rounded-2xl border-2 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                            !isShopDesktopOnline
-                              ? "bg-slate-50/70 border-slate-200 opacity-80 cursor-not-allowed"
-                              : whatsappDispatchMode === "desktop_assistant"
-                              ? "bg-blue-50/40 border-blue-600 shadow-xs cursor-pointer"
-                              : "bg-white border-slate-200 hover:border-slate-300 cursor-pointer"
+                          onClick={() => handleSelectDispatchMode("desktop_assistant")}
+                          className={`p-4 rounded-2xl border-2 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer ${
+                            whatsappDispatchMode === "desktop_assistant"
+                              ? "bg-blue-50/40 border-blue-600 shadow-xs"
+                              : "bg-white border-slate-200 hover:border-slate-300"
                           }`}
                         >
                           <div className="flex items-start sm:items-center gap-3.5">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black ${
-                              whatsappDispatchMode === "desktop_assistant" && isShopDesktopOnline
+                              whatsappDispatchMode === "desktop_assistant"
                                 ? "bg-blue-600 text-white shadow-sm"
                                 : "bg-slate-100 text-slate-600"
                             }`}>
@@ -959,7 +947,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                                   </span>
                                 ) : (
                                   <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
-                                    Offline
+                                    App Offline (Will Queue)
                                   </span>
                                 )}
                               </div>
@@ -969,7 +957,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                               {!isShopDesktopOnline && (
                                 <div className="pt-0.5 flex items-center gap-1.5 text-[11px] text-amber-700 font-bold">
                                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                  <span>First connect WhatsApp Desktop Assistant above to activate 1-click silent dispatch.</span>
+                                  <span>Desktop Assistant is not running yet. Messages will be queued and sent once connected.</span>
                                 </div>
                               )}
                             </div>
@@ -979,14 +967,9 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             <input
                               type="radio"
                               name="whatsappDispatchMode"
-                              disabled={!isShopDesktopOnline}
                               checked={whatsappDispatchMode === "desktop_assistant"}
-                              onChange={() => {
-                                if (isShopDesktopOnline) {
-                                  handleSelectDispatchMode("desktop_assistant");
-                                }
-                              }}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                              onChange={() => handleSelectDispatchMode("desktop_assistant")}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
                             />
                           </div>
                         </div>

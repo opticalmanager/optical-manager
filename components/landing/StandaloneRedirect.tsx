@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 export function StandaloneRedirect() {
   const router = useRouter();
@@ -13,22 +14,33 @@ export function StandaloneRedirect() {
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as any).standalone === true;
 
-    const cachedUserStr = localStorage.getItem("om_cached_user");
-    const activeShopId = localStorage.getItem("om_active_shop_id");
+    // Only attempt client redirection if in installed PWA standalone mode
+    if (!isStandalone) return;
 
-    if (isStandalone || (cachedUserStr && activeShopId)) {
+    async function checkSessionAndRedirect() {
       try {
-        const user = cachedUserStr ? JSON.parse(cachedUserStr) : null;
-        if (user?.role === "SUPER_ADMIN") {
-          router.replace("/admin");
-        } else {
-          router.replace("/shop/invoices/new");
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Only redirect if there is a verified active session
+        if (session?.user) {
+          const role = session.user.user_metadata?.role;
+          if (role === "SUPER_ADMIN") {
+            router.replace("/admin");
+          } else if (role === "OWNER") {
+            router.replace("/owner");
+          } else {
+            router.replace("/shop/dashboard");
+          }
         }
-      } catch {
-        router.replace("/shop/invoices/new");
+      } catch (err) {
+        console.warn("[StandaloneRedirect] Session check error:", err);
       }
     }
+
+    checkSessionAndRedirect();
   }, [router]);
 
   return null;
 }
+
