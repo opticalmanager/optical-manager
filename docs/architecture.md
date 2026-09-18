@@ -138,14 +138,12 @@ Optical Manager implements an enterprise-grade client-side offline layer allowin
     - **Pending Records Badge**: Displays count of uncommitted offline invoices and mutations with one-click push to cloud.
 - **Offline Invoices & Receipts Viewing**:
   - Offline invoice detail viewer (`/shop/invoices/offline/[id]`) and fallback handler in `/shop/invoices/[id]` dynamically load invoices from `offlineDB.cached_invoices` or `offlineDB.offline_invoices_queue` with 0ms latency. Allows full viewing, printing, and offline PDF generation (`window.print()`).
-- **Offline WhatsApp Notification Templates**:
-  - `QuickEditModal` loads notification templates from `offlineDB.cached_shop_profile` with built-in optical fallbacks, eliminating "can't get template data" errors when disconnected.
-- **Unified Cloud Sync Endpoints (Resilient Auth via `getCurrentUser`)**:
-  - `GET /api/offline/sync-all`: Unified bulk exporter for store profile, organization, WhatsApp templates, customers, inventory, appointments, orders, invoices, and returns with `?since=` incremental delta support. Role-aware: exports multi-branch organization data, appointment config, and subscription info for `OWNER`.
-  - `GET /api/offline/customers` & `GET /api/offline/inventory`: Resilient role-aware databank warming endpoints.
-  - `GET /api/offline/ping` / `HEAD /api/offline/ping`: Ultra-lightweight endpoint for client-side connection verification with zero database overhead (or `?db=1` for cloud reachability check).
-  - `POST /api/sync/offline-mutations`: Batch reconciliation for offline patient registrations, appointment creation, order status updates, partial payments, and dues settlements.
-  - `POST /api/sync/offline-invoices`: Uses client-generated idempotency markers (`[OFFLINE_QUEUE_ID:uuid]`) in invoice metadata to prevent duplicate billing. Atomically commits customers, prescriptions, sequential invoices, inventory stock decrements, orders, and receipts.
+- **Universal WhatsApp Utility Routing & Optical Manager Tool Integration**:
+  - **3-Way Dispatch Routing (`utils/whatsapp-parser.ts` -> `sendUniversalWhatsAppMessage`)**: Checks active store configuration (`whatsappDispatchMode`: `desktop_assistant` | `whatsapp_web` | `official_api`) across all UI triggers (`DocumentActionBar`, `QuickEditModal`, order status transitions, dues settlements, and payment updates).
+  - **Optical Manager Desktop Assistant (`desktop_assistant`)**: 1-click background dispatch engine. Enqueues messages to `whatsapp_dispatch_queue` via `dispatchWhatsAppMessageAction`, which the local counter Electron/Baileys assistant picks up in real-time over Supabase WebSocket + 8s polling and silently dispatches to customer WhatsApp without leaving the POS screen.
+  - **WhatsApp Web Fallback (`whatsapp_web`)**: Direct browser/app launcher with pre-filled variables via `openWhatsAppChat`.
+  - **Official Cloud API (`official_api`)**: Enterprise Meta WhatsApp Cloud API gateway integration.
+  - **Resilient Document Resolvers**: `getInvoiceById`, `getReceiptById`, and public share routes support both database UUIDs and human-readable identifiers (`INV-1-2026-0001`, `PPS-1-2026-0001`) with strict null-safety for walk-in transactions.
 
 ---
 

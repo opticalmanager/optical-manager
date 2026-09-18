@@ -7,7 +7,7 @@ import {
   DollarSign, FileText, User, Search, ArrowLeft, Settings,
   Save, Landmark, ShieldCheck, Mail, Trash2, Plus, Clock, 
   Award, X, Check, Star, ShieldAlert,
-  Laptop, Download, Copy, RefreshCw
+  Laptop, Download, Copy, RefreshCw, Globe, Zap, Radio, CheckCircle2, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
@@ -34,6 +34,7 @@ const SETTING_ITEMS: SettingItem[] = [
   { id: "contact", label: "Contact Info", category: "Store Details" },
   
   // Communication
+  { id: "whatsapp-utility", label: "WhatsApp Utility", category: "Communication" },
   { id: "whatsapp", label: "WhatsApp Templates", category: "Communication" },
   { id: "email", label: "Email Templates", category: "Communication" },
   { id: "campaigns", label: "Campaigns", category: "Communication" },
@@ -130,11 +131,20 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("invoice_sent");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 5B. Shop Desktop Assistant Pairing state
+  // 5B. Shop Desktop Assistant Pairing state & Dispatch Mode
+  const [whatsappDispatchMode, setWhatsappDispatchMode] = useState<"whatsapp_web" | "desktop_assistant" | "official_api">(
+    shop?.settings?.whatsappDispatchMode || "whatsapp_web"
+  );
   const [shopPairingKey, setShopPairingKey] = useState("");
   const [isShopDesktopOnline, setIsShopDesktopOnline] = useState(false);
   const [isLoadingShopPairing, setIsLoadingShopPairing] = useState(false);
   const [hasCopiedShopKey, setHasCopiedShopKey] = useState(false);
+
+  useEffect(() => {
+    if (shop?.settings?.whatsappDispatchMode) {
+      setWhatsappDispatchMode(shop.settings.whatsappDispatchMode);
+    }
+  }, [shop?.settings?.whatsappDispatchMode]);
 
   const fetchShopPairing = () => {
     if (!shop?.id) return;
@@ -149,8 +159,32 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
       .finally(() => setIsLoadingShopPairing(false));
   };
 
+  const refreshConnectionStatus = async () => {
+    if (!shop?.id) return;
+    setIsLoadingShopPairing(true);
+    try {
+      const statusRes = await checkDesktopAssistantStatusAction(shop.id);
+      setIsShopDesktopOnline(statusRes.isOnline);
+      if (statusRes.isOnline) {
+        toast.success("Desktop Assistant is Online & Connected! ✓");
+      } else {
+        toast.info("Desktop Assistant is Offline. Please ensure the app is open on this counter PC.");
+      }
+      if (!shopPairingKey) {
+        const keyRes = await generateShopPairingKeyAction(shop.id);
+        if (keyRes.success && keyRes.data) {
+          setShopPairingKey(keyRes.data.pairingKey);
+        }
+      }
+    } catch {
+      toast.error("Failed to check connection status.");
+    } finally {
+      setIsLoadingShopPairing(false);
+    }
+  };
+
   useEffect(() => {
-    if (activeSubTab === "whatsapp" && shop?.id && !shopPairingKey) {
+    if ((activeSubTab === "whatsapp-utility" || activeSubTab === "whatsapp") && shop?.id && !shopPairingKey) {
       fetchShopPairing();
     }
   }, [activeSubTab, shop?.id, shopPairingKey]);
@@ -161,6 +195,28 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     setHasCopiedShopKey(true);
     toast.success("Counter Pairing Key copied to clipboard!");
     setTimeout(() => setHasCopiedShopKey(false), 3000);
+  };
+
+  const handleSelectDispatchMode = (mode: "whatsapp_web" | "desktop_assistant" | "official_api") => {
+    if (mode === "official_api") {
+      const isConfigured = Boolean(shop?.settings?.metaCloudApi?.isConfigured);
+      if (!isConfigured) {
+        toast.error("Meta Cloud API is not configured for this branch. Contact administrator.");
+        return;
+      }
+    }
+    setWhatsappDispatchMode(mode);
+    handleSaveConfig(
+      "whatsappDispatchMode",
+      mode,
+      mode === "desktop_assistant"
+        ? (isShopDesktopOnline
+            ? "Optical Manager Tool activated! Utility messages will send automatically in 1 click."
+            : "Optical Manager Tool selected! Ensure desktop app is running on counter PC for 1-click dispatch.")
+        : mode === "whatsapp_web"
+        ? "WhatsApp dispatch set to WhatsApp Web (Direct Browser)."
+        : "WhatsApp dispatch set to WhatsApp Official API."
+    );
   };
 
   // 6. Email Customizer state
@@ -187,7 +243,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
       if (["profile", "hours", "contact"].includes(activeView)) {
         setActiveTab("store");
         setActiveSubTab(activeView);
-      } else if (["whatsapp", "email", "campaigns", "sms"].includes(activeView)) {
+      } else if (["whatsapp-utility", "whatsapp", "email", "campaigns", "sms"].includes(activeView)) {
         setActiveTab("communication");
         setActiveSubTab(activeView);
       } else if (["gst-rates", "tax-logic"].includes(activeView)) {
@@ -236,7 +292,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     // Map main tabs to standard initial sub-tabs
     const defaultSubMap: Record<string, string> = {
       store: "profile",
-      communication: "whatsapp",
+      communication: "whatsapp-utility",
       tax: "gst-rates",
       access: "staff",
       expenses: "categories",
@@ -661,6 +717,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                 {/* Sub-tabs */}
                 <div className="flex border-b border-slate-100 pb-3 gap-6">
                   {[
+                    { id: "whatsapp-utility", label: "WhatsApp Utility" },
                     { id: "whatsapp", label: "WhatsApp Templates" },
                     { id: "email", label: "Email System" }
                   ].map((sub) => (
@@ -678,64 +735,74 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                   ))}
                 </div>
 
-                {/* Sub-tab 2A: WhatsApp Templates Customizer & Counter Assistant */}
-                {activeSubTab === "whatsapp" && (
+                {/* Sub-tab 2A: WhatsApp Dispatch Utility & Assistant Connection */}
+                {activeSubTab === "whatsapp-utility" && (
                   <div className="space-y-6">
-                    {/* COUNTER DESKTOP ASSISTANT CONNECTION CARD */}
-                    <div className="p-5 bg-gradient-to-r from-blue-50/60 via-slate-50 to-emerald-50/40 border border-slate-200/90 rounded-2xl shadow-xs space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/60">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20 font-black">
+                    {/* SECTION 1: UPPER CARD - COUNTER DESKTOP ASSISTANT PAIRING */}
+                    <div className="p-6 bg-gradient-to-r from-blue-50/70 via-slate-50 to-indigo-50/50 border border-slate-200/90 rounded-2xl shadow-xs space-y-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/70">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20 font-black shrink-0">
                             <Laptop className="w-5 h-5" />
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="text-sm font-black text-slate-900 tracking-tight">
-                                Counter WhatsApp Assistant
+                                Optical Manager Desktop Assistant
                               </h4>
                               <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-100 text-blue-800">
                                 {shop?.name || "This Branch"}
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-500 font-semibold">
-                              1-Click background invoice & receipt sending directly from this counter's PC.
+                              Windows counter assistant for 1-click silent background WhatsApp messaging directly from your store PC.
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-white border border-slate-200 shadow-2xs">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black bg-white border border-slate-200 shadow-2xs">
                             {isShopDesktopOnline ? (
                               <>
                                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-emerald-700">Online & Ready</span>
+                                <span className="text-emerald-700">🟢 Connected & Online</span>
                               </>
                             ) : (
                               <>
                                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                                <span className="text-slate-600">Offline / Not Connected</span>
+                                <span className="text-slate-600">⚪ Disconnected / Offline</span>
                               </>
                             )}
                           </div>
                           <button
                             type="button"
-                            onClick={fetchShopPairing}
-                            title="Refresh Status"
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all cursor-pointer"
+                            onClick={refreshConnectionStatus}
+                            title="Refresh Live Status"
+                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-white rounded-xl border border-transparent hover:border-slate-200 transition-all cursor-pointer"
                           >
-                            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingShopPairing ? "animate-spin" : ""}`} />
+                            <RefreshCw className={`w-4 h-4 ${isLoadingShopPairing ? "animate-spin" : ""}`} />
                           </button>
                         </div>
                       </div>
 
+                      {/* Online Confirmation Banner */}
+                      {isShopDesktopOnline && (
+                        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          <div className="text-xs font-bold leading-relaxed">
+                            <strong>Device Connected & Ready:</strong> This counter's Desktop Assistant is online and listening. You can select "Optical Manager Desktop Assistant" below to dispatch invoices silently in 1-click.
+                          </div>
+                        </div>
+                      )}
+
                       {/* Store Pairing Key Section */}
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
                             Branch Store Pairing Key
                           </label>
                           <span className="text-[10px] text-slate-400 font-bold">
-                            Unique to {shop?.name || "this branch"}
+                            Enter this in the Desktop Assistant app
                           </span>
                         </div>
 
@@ -744,13 +811,13 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text"
                             readOnly
                             value={isLoadingShopPairing ? "Generating pairing key..." : shopPairingKey}
-                            className="flex-1 px-3 py-2 bg-white border border-slate-200 text-slate-700 font-mono text-[11px] font-semibold rounded-xl select-all outline-none focus:border-blue-500"
+                            className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 text-slate-800 font-mono text-xs font-bold rounded-xl select-all outline-none focus:border-blue-500 shadow-2xs"
                           />
                           <button
                             type="button"
                             disabled={isLoadingShopPairing || !shopPairingKey}
                             onClick={handleCopyShopPairingKey}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer shrink-0"
                           >
                             {hasCopiedShopKey ? (
                               <>
@@ -767,7 +834,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                           <a
                             href="/downloads/Optical-Manager-WhatsApp-Assistant-Setup.exe"
                             download="Optical-Manager-WhatsApp-Assistant-Setup.exe"
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>Download App (.exe)</span>
@@ -775,21 +842,246 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                         </div>
                       </div>
 
-                      {/* 3 Steps */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px] text-slate-600 font-semibold">
-                        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2.5">
-                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-black text-[10px] flex items-center justify-center shrink-0">1</span>
-                          <span>Download & open app on this counter PC</span>
+                      {/* 3 Quick Setup Steps */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px] text-slate-600 font-semibold">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-800 font-black text-xs flex items-center justify-center shrink-0">1</span>
+                          <span>Download & install app on this counter PC</span>
                         </div>
-                        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2.5">
-                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-black text-[10px] flex items-center justify-center shrink-0">2</span>
+                        <div className="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-800 font-black text-xs flex items-center justify-center shrink-0">2</span>
                           <span>Paste this Branch Pairing Key</span>
                         </div>
-                        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2.5">
-                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-black text-[10px] flex items-center justify-center shrink-0">3</span>
+                        <div className="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-800 font-black text-xs flex items-center justify-center shrink-0">3</span>
                           <span>Scan WhatsApp QR code once</span>
                         </div>
                       </div>
+                    </div>
+
+                    {/* SECTION 2: THREE DISPATCH METHOD TOGGLES */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                            <Radio className="w-4 h-4 text-blue-600" /> WhatsApp Dispatch Channel
+                          </h4>
+                          <p className="text-[11px] text-slate-500 font-medium">
+                            Select how Optical Manager sends invoices, receipts, and order readiness notices to customers.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3.5">
+                        {/* TOGGLE 1: WHATSAPP WEB */}
+                        <div
+                          onClick={() => handleSelectDispatchMode("whatsapp_web")}
+                          className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                            whatsappDispatchMode === "whatsapp_web"
+                              ? "bg-blue-50/40 border-blue-600 shadow-xs"
+                              : "bg-white border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-start sm:items-center gap-3.5">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black ${
+                              whatsappDispatchMode === "whatsapp_web"
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "bg-slate-100 text-slate-600"
+                            }`}>
+                              <Globe className="w-5 h-5" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                                  Send through WhatsApp Web (Browser)
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                                  Default • Always Available
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Opens customer chat directly in WhatsApp Web or desktop browser with the pre-filled template and invoice link. Zero desktop setup required.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                            <input
+                              type="radio"
+                              name="whatsappDispatchMode"
+                              checked={whatsappDispatchMode === "whatsapp_web"}
+                              onChange={() => handleSelectDispatchMode("whatsapp_web")}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </div>
+                        </div>
+
+                        {/* TOGGLE 2: OPTICAL MANAGER DESKTOP ASSISTANT */}
+                        <div
+                          onClick={() => handleSelectDispatchMode("desktop_assistant")}
+                          className={`p-4 rounded-2xl border-2 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer ${
+                            whatsappDispatchMode === "desktop_assistant"
+                              ? "bg-blue-50/40 border-blue-600 shadow-xs"
+                              : "bg-white border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-start sm:items-center gap-3.5">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black ${
+                              whatsappDispatchMode === "desktop_assistant"
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "bg-slate-100 text-slate-600"
+                            }`}>
+                              <Zap className="w-5 h-5" />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                                  Send through Optical Manager Desktop Assistant
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-100 text-blue-800">
+                                  1-Click Background Dispatch
+                                </span>
+                                {isShopDesktopOnline ? (
+                                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                                    <Check className="w-3 h-3" /> Connected
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                                    App Offline (Will Queue)
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Silently dispatches WhatsApp messages directly from this counter's WhatsApp in the background. Staff never leaves the checkout screen.
+                              </p>
+                              {!isShopDesktopOnline && (
+                                <div className="pt-0.5 flex items-center gap-1.5 text-[11px] text-amber-700 font-bold">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Desktop Assistant is not running yet. Messages will be queued and sent once connected.</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                            <input
+                              type="radio"
+                              name="whatsappDispatchMode"
+                              checked={whatsappDispatchMode === "desktop_assistant"}
+                              onChange={() => handleSelectDispatchMode("desktop_assistant")}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </div>
+                        </div>
+
+                        {/* TOGGLE 3: WHATSAPP OFFICIAL CLOUD API */}
+                        <div
+                          onClick={() => {
+                            const isConfigured = Boolean(shop?.settings?.metaCloudApi?.isConfigured);
+                            if (isConfigured) {
+                              handleSelectDispatchMode("official_api");
+                            } else {
+                              toast.info("WhatsApp Official Cloud API is not configured for this branch yet.");
+                            }
+                          }}
+                          className={`p-4 rounded-2xl border-2 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                            !shop?.settings?.metaCloudApi?.isConfigured
+                              ? "bg-slate-50/70 border-slate-200 opacity-80 cursor-not-allowed"
+                              : whatsappDispatchMode === "official_api"
+                              ? "bg-blue-50/40 border-blue-600 shadow-xs cursor-pointer"
+                              : "bg-white border-slate-200 hover:border-slate-300 cursor-pointer"
+                          }`}
+                        >
+                          <div className="flex items-start sm:items-center gap-3.5">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black ${
+                              whatsappDispatchMode === "official_api"
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "bg-slate-100 text-slate-600"
+                            }`}>
+                              <ShieldCheck className="w-5 h-5" />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                                  WhatsApp Official Cloud API (Meta API)
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-purple-100 text-purple-800">
+                                  Meta Cloud API • Enterprise
+                                </span>
+                                {shop?.settings?.metaCloudApi?.isConfigured ? (
+                                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                                    Configured
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                                    Not Configured
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Deliver utility messages through Meta's verified WhatsApp Cloud API gateway with verified business green tick.
+                              </p>
+                              {!shop?.settings?.metaCloudApi?.isConfigured && (
+                                <div className="pt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500 font-bold">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Meta Cloud API is not configured for this branch. Keep disabled or contact administrator.</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                            <input
+                              type="radio"
+                              name="whatsappDispatchMode"
+                              disabled={!shop?.settings?.metaCloudApi?.isConfigured}
+                              checked={whatsappDispatchMode === "official_api"}
+                              onChange={() => {
+                                if (shop?.settings?.metaCloudApi?.isConfigured) {
+                                  handleSelectDispatchMode("official_api");
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-tab 2B: WhatsApp Templates Customizer */}
+                {activeSubTab === "whatsapp" && (
+                  <div className="space-y-6">
+                    {/* Top banner pointing to WhatsApp Utility */}
+                    <div className="p-4 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-950">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                          <Laptop className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="font-bold">
+                            Active Dispatch Channel:{" "}
+                            <span className="text-indigo-600 font-extrabold">
+                              {whatsappDispatchMode === "desktop_assistant"
+                                ? "Desktop Assistant (1-Click Local Engine)"
+                                : whatsappDispatchMode === "official_api"
+                                ? "WhatsApp Official Cloud API"
+                                : "WhatsApp Web (Browser Direct)"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-indigo-700/80">
+                            To connect your counter PC or switch between WhatsApp Web and Desktop Assistant, open the WhatsApp Utility tab.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenView("whatsapp-utility")}
+                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shrink-0 transition-colors shadow-2xs cursor-pointer"
+                      >
+                        Manage Utility &rarr;
+                      </button>
                     </div>
 
                     <div className="space-y-1 pt-2">

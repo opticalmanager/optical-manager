@@ -104,12 +104,14 @@ export async function getInvoiceById(
   id: string,
   organizationId: string
 ): Promise<Invoice | null> {
+  if (!id || !organizationId) return null;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  const condition = isUuid ? eq(invoices.id, id) : eq(invoices.invoiceNumber, id);
+
   const [invoice] = await db
     .select()
     .from(invoices)
-    .where(
-      and(eq(invoices.id, id), eq(invoices.organizationId, organizationId))
-    )
+    .where(and(condition, eq(invoices.organizationId, organizationId)))
     .limit(1);
 
   return invoice ?? null;

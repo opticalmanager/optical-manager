@@ -10,6 +10,7 @@ import {
   Eye, 
   EyeOff, 
   ArrowRight, 
+  ArrowLeft,
   ShieldCheck, 
   Zap, 
   Building2, 
@@ -114,10 +115,29 @@ export default function LoginPage() {
       </div>
 
       {/* RIGHT COLUMN - Form & Authentication (Clean SaaS Light Theme) */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-white">
-        <div className="w-full max-w-md space-y-6">
+      <div className="w-full lg:w-1/2 flex flex-col justify-between p-6 sm:p-10 md:p-12 bg-white min-h-screen relative">
+        {/* Top Header Bar with Prominent Back to Home Button on Top Left */}
+        <div className="w-full flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 text-xs font-bold text-slate-700 hover:text-[#2563eb] transition-all group shadow-2xs cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-slate-400 group-hover:text-[#2563eb]" />
+            <span>Back to Home</span>
+          </Link>
+
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <span>New to Optical Manager?</span>
+            <Link href="/signup" className="text-[#2563eb] font-extrabold hover:underline">
+              Create account
+            </Link>
+          </div>
+        </div>
+
+        {/* Form Card Container (Centered) */}
+        <div className="w-full max-w-md mx-auto my-auto py-6 space-y-6">
           {/* Mobile Header Logo */}
-          <div className="flex lg:hidden items-center justify-center gap-2.5 mb-6">
+          <div className="flex lg:hidden items-center justify-center gap-2.5 mb-2">
             <div className="w-9 h-9 rounded-xl bg-[#2563eb] flex items-center justify-center text-white shadow-md">
               <Glasses className="w-5 h-5" />
             </div>

@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Shield, Lock, Mail, ArrowRight, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 
 export default function AdminLoginClient() {
@@ -89,6 +90,16 @@ export default function AdminLoginClient() {
 
       {/* Login Card */}
       <div className="bg-[#0d1424] border border-slate-800/80 p-6 sm:p-7 rounded-2xl shadow-2xl space-y-5">
+        <div className="flex items-center justify-between pb-1">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-blue-400 transition-colors group cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+            <span>Return to Main Portal</span>
+          </Link>
+        </div>
+
         <form onSubmit={handleAdminLogin} className="space-y-4">
           {/* Email Field */}
           <div className="space-y-1.5">

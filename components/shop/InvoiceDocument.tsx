@@ -18,7 +18,20 @@ interface InvoiceDocumentProps {
 }
 
 export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
-  const { invoice, shop, customer, lineItems, prescriptions, receipt } = data;
+  const invoice = data?.invoice;
+  const shop = data?.shop;
+  const customer = data?.customer;
+  const lineItems = data?.lineItems || [];
+  const prescriptions = data?.prescriptions || [];
+  const receipt = data?.receipt;
+
+  if (!invoice) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh] text-slate-500 font-bold">
+        Document data is not available.
+      </div>
+    );
+  }
 
   const shopDetails = getShopBusinessDetails(shop);
   const customerTax = getCustomerTaxDetails(customer);

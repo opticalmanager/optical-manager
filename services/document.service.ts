@@ -51,14 +51,16 @@ export async function getInvoiceDocumentData(
   invoiceId: string,
   organizationId: string
 ): Promise<DocumentData | null> {
+  if (!invoiceId || !organizationId) return null;
+
   // 1. Fetch the primary Invoice record first
   const invoice = await getInvoiceById(invoiceId, organizationId);
   if (!invoice) return null;
 
-  // 2. Fetch all related entities in parallel for optimal latency
+  // 2. Fetch all related entities in parallel for optimal latency with strict null guards
   const [shop, customer, lineItems, prescriptions, orderRecord, receiptsList] = await Promise.all([
-    getShopById(invoice.shopId, organizationId),
-    getCustomerById(invoice.customerId, organizationId),
+    invoice.shopId ? getShopById(invoice.shopId, organizationId) : Promise.resolve(null),
+    invoice.customerId ? getCustomerById(invoice.customerId, organizationId) : Promise.resolve(null),
     db
       .select({
         id: invoiceItems.id,
@@ -88,30 +90,32 @@ export async function getInvoiceDocumentData(
       .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
       .where(eq(invoiceItems.invoiceId, invoice.id))
       .orderBy(invoiceItems.createdAt),
-    getCustomerById(invoice.customerId, organizationId).then((c) =>
-      c ? getPrescriptionsByCustomer(c.id) : []
-    ),
+    invoice.customerId
+      ? getPrescriptionsByCustomer(invoice.customerId)
+      : Promise.resolve([]),
     db
       .select()
       .from(orders)
       .where(and(eq(orders.invoiceId, invoice.id), eq(orders.organizationId, organizationId)))
       .limit(1)
-      .then((rows) => rows[0] || null),
+      .then((rows) => rows[0] || null)
+      .catch(() => null),
     db
       .select()
       .from(receipts)
       .where(and(eq(receipts.invoiceId, invoice.id), eq(receipts.organizationId, organizationId)))
-      .orderBy(receipts.createdAt),
+      .orderBy(receipts.createdAt)
+      .catch(() => []),
   ]);
 
   return {
     invoice,
-    shop,
-    customer,
-    lineItems,
-    prescriptions,
-    order: orderRecord,
-    allReceipts: receiptsList,
+    shop: shop || null,
+    customer: customer || null,
+    lineItems: lineItems || [],
+    prescriptions: prescriptions || [],
+    order: orderRecord || null,
+    allReceipts: receiptsList || [],
   };
 }
 
@@ -123,6 +127,8 @@ export async function getReceiptDocumentData(
   receiptId: string,
   organizationId: string
 ): Promise<DocumentData | null> {
+  if (!receiptId || !organizationId) return null;
+
   // 1. Fetch the primary Receipt record first
   const receipt = await getReceiptById(receiptId, organizationId);
   if (!receipt) return null;
@@ -144,17 +150,21 @@ export async function getReceiptDocumentData(
 export async function getPublicInvoiceDocumentData(
   invoiceId: string
 ): Promise<DocumentData | null> {
+  if (!invoiceId) return null;
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoiceId);
+    const condition = isUuid ? eq(invoices.id, invoiceId) : eq(invoices.invoiceNumber, invoiceId);
+
     const [invoice] = await db
       .select()
       .from(invoices)
-      .where(eq(invoices.id, invoiceId))
+      .where(condition)
       .limit(1);
 
     if (!invoice) return null;
 
     // Delegate to standard query using the verified organizationId
-    return getInvoiceDocumentData(invoiceId, invoice.organizationId);
+    return getInvoiceDocumentData(invoice.id, invoice.organizationId);
   } catch (error) {
     console.error("[getPublicInvoiceDocumentData] error:", error);
     return null;

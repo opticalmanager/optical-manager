@@ -53,6 +53,9 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 #### `GET /api/auth/callback`
 - **Description**: Handles Supabase OAuth and magic link authentication callbacks, setting SSR session cookies and redirecting to `/shop/dashboard` or `/onboarding`.
 
+#### `POST /api/auth/logout` & `GET /api/auth/logout`
+- **Description**: Robust cloud & session logout handler that invalidates Supabase authentication tokens, explicitly destroys server cookies (`opt_session_profile`, `active_shop_context_id`, and `sb-*-auth-token`), and redirects to the landing page `/`.
+
 #### `GET /book/[slug]`
 - **Description**: Public appointment booking page for patients to view store operating hours and reserve consultation slots.
 
@@ -188,5 +191,19 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Validation**: Enforces strict 10-digit numeric phone format, minimum name length, and email format.
 - **Return Type**: `{ success: boolean, message: string, count?: number, firstRegId?: string, lastRegId?: string, errors?: string[] }`.
 
+---
 
+### Optical Manager Desktop Assistant Actions (`actions/desktop-wa.actions.ts`)
 
+#### `generateShopPairingKeyAction(shopId?)`
+- **Description**: Generates a deterministic Base64-encoded store pairing key (`OM_WA_...`) embedding store credentials and Supabase endpoints for pairing the local Electron Desktop Assistant to this counter.
+- **Return Type**: `{ success: boolean, data?: ShopPairingInfo, error?: string }`.
+
+#### `dispatchWhatsAppMessageAction(payload)`
+- **Description**: Enqueues a WhatsApp utility notification into `whatsapp_dispatch_queue`. The local Desktop Assistant listening via Realtime Supabase WebSockets and periodic polling picks up and sends the message automatically.
+- **Payload**: `DispatchWhatsAppPayload` (`phoneNumber`, `messageText`, `mediaUrl?`, `mediaType?`, `templateKey?`, `recipientName?`, `shopId?`, `metadata?`).
+- **Return Type**: `{ success: boolean, queueId?: string, isDesktopOnline?: boolean, error?: string }`.
+
+#### `checkDesktopAssistantStatusAction(shopId?)`
+- **Description**: Inspects `whatsapp_dispatch_queue` for recent heartbeat updates (`updatedAt > 2 minutes ago`) and pending message counts to determine live online/offline state of the store's Desktop Assistant.
+- **Return Type**: `{ isOnline: boolean, lastActiveAt?: string | null, pendingCount: number, metadata?: any }`.
