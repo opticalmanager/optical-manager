@@ -82,7 +82,6 @@ export async function generateShopPairingKeyAction(shopId?: string): Promise<{
       shopName: targetShop.name,
       supabaseUrl,
       supabaseAnonKey,
-      issuedAt: Date.now(),
     };
 
     const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
@@ -179,31 +178,33 @@ export async function checkDesktopAssistantStatusAction(shopId?: string): Promis
   isOnline: boolean;
   lastActiveAt?: string | null;
   pendingCount: number;
+  metadata?: any;
 }> {
   try {
     if (!shopId) {
       return { isOnline: false, pendingCount: 0 };
     }
 
-    const ninetySecondsAgo = new Date(Date.now() - 90 * 1000);
+    const twoMinutesAgo = new Date(Date.now() - 120 * 1000);
 
-    // 1. Check if any message was updated/sent in the last 90 seconds
+    // 1. Check if any heartbeat or message was updated in the last 120 seconds
     const recentActivity = await db
       .select({
         updatedAt: whatsappDispatchQueue.updatedAt,
         status: whatsappDispatchQueue.status,
+        metadata: whatsappDispatchQueue.metadata,
       })
       .from(whatsappDispatchQueue)
       .where(
         and(
           eq(whatsappDispatchQueue.shopId, shopId),
-          gt(whatsappDispatchQueue.updatedAt, ninetySecondsAgo)
+          gt(whatsappDispatchQueue.updatedAt, twoMinutesAgo)
         )
       )
       .orderBy(desc(whatsappDispatchQueue.updatedAt))
       .limit(1);
 
-    // 2. Check pending queue count
+    // 2. Check pending queue count (excluding HEARTBEAT rows)
     const pendingRows = await db
       .select({ id: whatsappDispatchQueue.id })
       .from(whatsappDispatchQueue)
@@ -217,11 +218,13 @@ export async function checkDesktopAssistantStatusAction(shopId?: string): Promis
 
     const isOnline = recentActivity.length > 0;
     const lastActiveAt = recentActivity[0]?.updatedAt?.toISOString() || null;
+    const metadata = recentActivity[0]?.metadata || null;
 
     return {
       isOnline,
       lastActiveAt,
       pendingCount: pendingRows.length,
+      metadata,
     };
   } catch (error: any) {
     console.warn("checkDesktopAssistantStatusAction Warning:", error.message);

@@ -159,6 +159,30 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
       .finally(() => setIsLoadingShopPairing(false));
   };
 
+  const refreshConnectionStatus = async () => {
+    if (!shop?.id) return;
+    setIsLoadingShopPairing(true);
+    try {
+      const statusRes = await checkDesktopAssistantStatusAction(shop.id);
+      setIsShopDesktopOnline(statusRes.isOnline);
+      if (statusRes.isOnline) {
+        toast.success("Desktop Assistant is Online & Connected! ✓");
+      } else {
+        toast.info("Desktop Assistant is Offline. Please ensure the app is open on this counter PC.");
+      }
+      if (!shopPairingKey) {
+        const keyRes = await generateShopPairingKeyAction(shop.id);
+        if (keyRes.success && keyRes.data) {
+          setShopPairingKey(keyRes.data.pairingKey);
+        }
+      }
+    } catch {
+      toast.error("Failed to check connection status.");
+    } finally {
+      setIsLoadingShopPairing(false);
+    }
+  };
+
   useEffect(() => {
     if ((activeSubTab === "whatsapp-utility" || activeSubTab === "whatsapp") && shop?.id && !shopPairingKey) {
       fetchShopPairing();
@@ -756,7 +780,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                           </div>
                           <button
                             type="button"
-                            onClick={fetchShopPairing}
+                            onClick={refreshConnectionStatus}
                             title="Refresh Live Status"
                             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-white rounded-xl border border-transparent hover:border-slate-200 transition-all cursor-pointer"
                           >
