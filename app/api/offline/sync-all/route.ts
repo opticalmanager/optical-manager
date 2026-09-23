@@ -309,13 +309,16 @@ export async function GET(request: Request) {
           organizationId: orders.organizationId,
           orderNumber: orders.orderNumber,
           invoiceId: orders.invoiceId,
-          createdAt: orders.createdAt,
+          createdAt: invoices.createdAt,
           updatedAt: orders.updatedAt,
           invoiceNumber: invoices.invoiceNumber,
           total: invoices.total,
           amountPaid: invoices.amountPaid,
           balanceDue: invoices.balanceDue,
           status: invoices.status,
+          fulfillmentStatus: invoices.fulfillmentStatus,
+          estimatedDelivery: invoices.estimatedDelivery,
+          customerId: customers.id,
           customerName: customers.fullName,
           customerPhone: customers.phone,
         })
@@ -323,7 +326,7 @@ export async function GET(request: Request) {
         .innerJoin(invoices, eq(orders.invoiceId, invoices.id))
         .leftJoin(customers, eq(orders.customerId, customers.id))
         .where(and(...orderWhere))
-        .orderBy(desc(orders.createdAt))
+        .orderBy(desc(invoices.createdAt))
         .limit(isOwner ? 500 : 100),
 
       db
@@ -413,15 +416,16 @@ export async function GET(request: Request) {
       organizationId: ord.organizationId,
       invoiceId: ord.invoiceId,
       invoiceNumber: ord.invoiceNumber || ord.orderNumber,
-      customerId: null,
+      customerId: ord.customerId || null,
       customerName: ord.customerName || "Walk-in Patient",
       customerPhone: ord.customerPhone || null,
       totalAmount: String(ord.total || "0.00"),
       paidAmount: String(ord.amountPaid || "0.00"),
       dueAmount: String(ord.balanceDue || "0.00"),
-      status: (ord.status === "PAID" ? "DELIVERED" : "PROCESSING") as any,
+      status: (ord.fulfillmentStatus || (ord.status === "PAID" ? "DELIVERED" : "PROCESSING")) as any,
       paymentStatus: (parseFloat(String(ord.balanceDue || "0")) <= 0 ? "PAID" : "PARTIALLY_PAID") as any,
       itemsCount: 1,
+      deliveryDate: ord.estimatedDelivery ? String(ord.estimatedDelivery) : null,
       createdAt: ord.createdAt ? new Date(ord.createdAt).toISOString() : new Date().toISOString(),
       updatedAt: ord.updatedAt ? new Date(ord.updatedAt).toISOString() : new Date().toISOString(),
     }));

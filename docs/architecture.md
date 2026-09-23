@@ -61,10 +61,12 @@ The codebase cleanly separates mutation handling from data fetching:
 
 - **Service Layer (`services/*.service.ts`)**: Server-only modules (`"use server"`) containing database queries using Drizzle ORM. Examples:
   - `auth.service.ts`: User session retrieval (`getCurrentUser`) and profile verification.
-  - `dashboard.service.ts`: Multi-period KPI telemetry calculations and revenue trajectory aggregations.
+  - `dashboard.service.ts`: Multi-period KPI telemetry, exact live operational metrics (pending orders, pickup-ready, delayed deliveries, today's appointments), and unified cross-table operational activity aggregation (`getShopRecentActivities` across invoices, purchases, returns, stock movements, appointments, and WhatsApp dispatches).
   - `inventory.service.ts`: Low stock query logic and SKU CRUD.
   - `email.service.ts`: Nodemailer Gmail SMTP client with 3-tier rate limiting and AES-256 password encryption.
   - `email-trigger.service.ts`: Non-blocking fire-and-forget event trigger service for automated email dispatches.
+  - `customer.service.ts`: Profile aggregations, lifetime order values, clinical history grouping, and store credit ledgers.
+  - `order.service.ts`: Order fulfillment telemetry, payment balancing, and customer order history.
 - **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`) and invalidates Next.js cache using `revalidatePath`.
 
 ### 3. Database Connection & Pooling (`lib/drizzle.ts`)
@@ -173,6 +175,41 @@ export async function getShopInvoices(shopId: string, organizationId: string) {
     .orderBy(desc(invoices.createdAt));
 }
 ```
+
+---
+
+## 🛡️ Role-Based Access Control (RBAC) & Module Permission Architecture
+
+Optical Manager implements strict, multi-tiered authorization spanning navigation UI, direct URL navigation, Server Components, and Server Actions.
+
+### 1. Permission Matrix & Granular Modules
+User profiles store custom module access within the `permissions` JSONB column:
+- `inventory`: Frame catalog, lens stock, inventory adjustments, and SKU management.
+- `sales`: Invoice POS creation, orders table, invoice viewing, and payment settlements.
+- `customers`: Customer directory, clinical history, prescription cards, and patient onboarding.
+- `appointments`: Consultation booking, clinical queue, and appointment schedules.
+- `purchases`: Purchase bills, vendor directory, supplier purchase orders.
+- `returns`: Customer returns, credit notes, item restocks.
+- `reports`: Financial reports, GST tax breakdowns, and cash summaries.
+- `analytics`: Multi-period KPI analytics, revenue trajectories, lens category distribution.
+- `settings`: Store compliance, invoice headers/footers, banking details, and WhatsApp utility settings.
+- `support`: Helpdesk tickets and live customer assistance.
+
+### 2. Centralized Permission Helpers (`utils/permissions.ts`)
+- `hasModulePermission(user, moduleKey)`: Automatically grants full access to `OWNER` and `SUPER_ADMIN` roles. For `SHOP_MANAGER` and other staff roles, validates against `user.permissions[moduleKey]`. Sensitive modules (`settings`, `edit_orders`, `delete_orders`) strictly default to `false` unless explicitly granted.
+- `canAccessRoute(user, pathname)`: Resolves any shop route path to its respective module key and validates access.
+
+### 3. Server Component Route Guards (`AccessDenied.tsx`)
+Every module page under `app/(dashboard)/shop/*` executes a server-side permission check. If unauthorized:
+- Renders the high-density, branded `<AccessDenied />` component.
+- Displays an active role indicator badge, clear permission notice, and intuitive "Return to Dashboard" / "Go Back" recovery buttons.
+- Prevents leaking confidential business data, inventory metrics, or financial revenue reports.
+
+### 4. Server Action Safeguards (`actions/*.actions.ts`)
+Mutating Server Actions (e.g. `updateShopProfileAction`, `updateShopSettingsConfigAction`) enforce `hasModulePermission(user, "moduleKey")` on execution, rejecting unauthorized client mutations even if invoked directly.
+
+### 5. Shorthand Route Normalizer (`proxy.ts`)
+The proxy middleware intercepts top-level shorthand URLs (such as `/setting`, `/settings`, `/inventory`, `/orders`, `/reports`) and normalizes them to their canonical protected paths (e.g. `/shop/settings` or `/owner/settings`), guaranteeing they pass through server authorization checks.
 
 ---
 

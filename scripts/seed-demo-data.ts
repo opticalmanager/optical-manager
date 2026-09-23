@@ -84,8 +84,8 @@ async function main() {
       organizationId: ORG_ID,
       name: "Store 1",
       email: "demo001_opticalmanager@gmail.com",
-      phone: "9999999999",
-      address: "Narsapur",
+      phone: "9821716423",
+      address: "kailash colony, south delhi 110021",
       isActive: true,
     });
   } else {

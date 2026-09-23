@@ -87,3 +87,27 @@ Optical Manager includes a complete, high-density Inward Supply & Purchases modu
 - **Vendor-Scoped Product Autocomplete & Ingestion**: Product code search autocomplete queries existing inventory with prioritization/scoping per selected vendor. Codes are unique per vendor rather than globally.
 - **Spacious Category-Rich Product Details Modal**: Unknown or edited codes open a `max-w-4xl` modal with dynamic category switcher tabs (`Frames`, `Lenses`, `Contact Lenses`, `Accessories`, `Solutions`), full category-specific spec panels (shapes, dimensions, lens design, index, coatings, contact lens BC/DIA, solution volumes, expiry tracking), and auto-filled HSN/GST rates from `product_categories`.
 - **Atomic Stock Increments & Ledger Auditing**: Completing a purchase order atomically increments inventory stock count (`+qty`), updates recent cost and retail prices, links vendor invoice references, and logs `STOCK_IN` movements in `stock_movements`.
+
+---
+
+## 6. Shop Dashboard Intelligence & Real-Time Operational Activity Feed (`/shop/dashboard`)
+
+Optical Manager's store dashboard combines zero-latency operational metrics with a unified cross-table activity stream:
+- **Exact Operational KPIs**: Replaced static/estimated metrics with exact live database queries:
+  - *Pending Orders*: Invoices not marked `DELIVERED` and not `CANCELLED`.
+  - *Ready for Pickup*: Orders in `READY` or `PROCESSING` status awaiting patient collection.
+  - *Delayed Deliveries*: Non-delivered, non-cancelled orders with an estimated delivery date in the past.
+  - *Today's Appointments*: Scheduled patient checkups and eye tests within the current day (00:00:00 to 23:59:59).
+  - *Low Stock & Pending Payments*: Real-time inventory alerts and outstanding customer receivable balances.
+- **Zero-Latency Interactive KPI Table Filtering**: Clicking any operational KPI card instantly (0ms) updates the table below with the corresponding scoped dataset (`pendingOrders`, `pickupOrders`, `delayedOrders`, `todayAppointments`) with active selection borders (`border-2 border-[#2563eb] shadow-md scale-[1.01]`).
+- **Unified Recent Activity Feed**:
+  - Live aggregated audit feed consolidating 6 mission-critical operational tables:
+    1. **Invoices**: Creations, payments, and cancellations with direct links to `/shop/orders`.
+    2. **Purchases**: Inward vendor purchases and stock receipts with direct links to `/shop/purchases`.
+    3. **Sales Returns**: Customer returns and refunds with direct links to `/shop/returns`.
+    4. **Stock Movements**: Inward stock, sales deductions, adjustments, and damaged items with direct links to `/shop/inventory`.
+    5. **Appointments**: Patient eye test bookings and status transitions with direct links to `/shop/appointments`.
+    6. **WhatsApp Notifications**: Outgoing customer dispatches (invoices, pickup alerts, delay updates) with status tags.
+  - **Type-Specific Filter Pills**: Quick toggle filters (`All Activities`, `Invoices`, `Purchases`, `Returns`, `Stock`, `Appointments`, `WhatsApp`) with category badge counts.
+  - **Full Offline Resilience**: Dashboard seamlessly falls back to client-side IndexedDB caching (`cached_orders`, `cached_invoices`, `cached_inventory`, `cached_appointments`) when disconnected from the cloud.
+

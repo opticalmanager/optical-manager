@@ -5,6 +5,12 @@ import { getCurrentUser } from "@/services/auth.service";
 import { updateAppointmentConfig, createAppointmentBooking } from "@/services/appointment.service";
 import { FormFieldConfig } from "@/db/schema/appointment-configs";
 
+function safeRevalidatePath(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {}
+}
+
 /**
  * Server action to save owner's appointment builder settings.
  */
@@ -23,7 +29,7 @@ export async function saveAppointmentConfigAction(payload: {
 
   const res = await updateAppointmentConfig(user.organizationId, payload);
   if (res.success) {
-    revalidatePath("/owner/settings/appointments");
+    safeRevalidatePath("/owner/settings/appointments");
     return { success: true, message: "Appointment page settings saved successfully!" };
   }
 
@@ -70,6 +76,8 @@ export async function submitAppointmentAction(payload: {
   });
 
   if (res.success) {
+    safeRevalidatePath("/shop/appointments");
+    safeRevalidatePath("/shop/dashboard");
     return {
       success: true,
       message: "Your appointment has been successfully scheduled! The branch staff will contact you shortly.",
@@ -95,8 +103,8 @@ export async function updateAppointmentStatusAction(
   const res = await updateAppointmentStatus(appointmentId, status);
 
   if (res.success) {
-    revalidatePath("/shop/dashboard");
-    revalidatePath("/shop/appointments");
+    safeRevalidatePath("/shop/dashboard");
+    safeRevalidatePath("/shop/appointments");
     return {
       success: true,
       message: status === "COMPLETED" 
@@ -153,8 +161,8 @@ export async function createShopAppointmentAction(payload: {
   });
 
   if (res.success && res.data) {
-    revalidatePath("/shop/dashboard");
-    revalidatePath("/shop/appointments");
+    safeRevalidatePath("/shop/dashboard");
+    safeRevalidatePath("/shop/appointments");
 
     const formattedTime = visitDate.toLocaleTimeString("en-US", {
       hour: "2-digit",

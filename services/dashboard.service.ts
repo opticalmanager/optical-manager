@@ -1,8 +1,19 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { invoices, orders, customers, inventory, invoiceItems, appointments } from "@/db/schema";
-import { eq, and, ne, gte, lt, lte, sql, desc, sum, count, max } from "drizzle-orm";
+import { 
+  invoices, 
+  orders, 
+  customers, 
+  inventory, 
+  invoiceItems, 
+  appointments,
+  purchaseOrders,
+  salesReturns,
+  stockMovements,
+  whatsappDispatchQueue
+} from "@/db/schema";
+import { eq, and, or, ne, gte, lt, lte, sql, desc, sum, count, max } from "drizzle-orm";
 import { TimeframeType } from "./order.service";
 
 export interface DashboardKPIs {
@@ -41,12 +52,14 @@ export interface DeliveryPerformance {
 
 export interface RecentOrder {
   id: string;
+  invoiceNumber?: string;
   customerName: string;
   customerPhone?: string;
   amount: number;
   status: "PAID" | "PENDING" | "PARTIALLY_PAID" | "CANCELLED";
   fulfillmentStatus?: string;
   dateStr?: string;
+  estimatedDelivery?: string;
 }
 
 export interface StockAlert {
@@ -91,6 +104,20 @@ export interface AppointmentItem {
   notes?: string | null;
 }
 
+export interface RecentActivityItem {
+  id: string;
+  type: "INVOICE" | "PURCHASE" | "RETURN" | "STOCK" | "APPOINTMENT" | "COMMUNICATION";
+  action: string;
+  title: string;
+  subtitle: string;
+  timestamp: string;
+  amount?: number;
+  status: string;
+  badgeVariant: "success" | "warning" | "danger" | "info" | "neutral";
+  actionHref?: string;
+  partyName?: string;
+}
+
 export interface DashboardData {
   kpis: DashboardKPIs;
   revenueChart: RevenueChartData[];
@@ -102,11 +129,16 @@ export interface DashboardData {
   priorityActions: PriorityAction[];
   deliveryPerformance: DeliveryPerformance;
   recentOrders: RecentOrder[];
+  pendingOrders: RecentOrder[];
+  pickupOrders: RecentOrder[];
+  delayedOrders: RecentOrder[];
   stockAlerts: StockAlert[];
   topSKUs: TopSKU[];
   topCustomers: TopCustomer[];
   categorySales: CategorySalesItem[];
   appointments: AppointmentItem[];
+  todayAppointments: AppointmentItem[];
+  recentActivities: RecentActivityItem[];
 }
 
 export interface DashboardOptions {
@@ -230,25 +262,34 @@ export async function getDashboardData(
   const compareLabel = `${periodALabel} vs ${periodBLabel}`;
   const isComparing = compareMode !== "none" || Boolean(opts.granularity && opts.periodA);
   const nowStr = now.toISOString().slice(0, 10);
+  const tomorrowMidnight = new Date(todayMidnight.getTime() + msInDay);
 
   const [
     revenueResult,
     pendingOrdersCount,
+    readyForPickupOrdersCount,
+    delayedOrdersCount,
+    todayAppointmentsCount,
     lowStockCount,
     pendingPaymentsResult,
     recentInvoices,
     deliveryStatusCounts,
     recentOrdersList,
+    pendingOrdersListRaw,
+    pickupOrdersListRaw,
+    delayedOrdersListRaw,
     lowStockInventoryList,
     topSKUsCurrent,
     topSKUsPrevious,
     topCustomersList,
     categorySalesList,
+    todayAppointmentsRaw,
+    recentActivitiesList,
     compareRevenueResult,
     comparePendingPaymentsResult,
     compareInvoices
   ] = await Promise.all([
-    // Primary Revenue
+    // 1. Primary Revenue
     db
       .select({ total: sum(invoices.total) })
       .from(invoices)
@@ -261,7 +302,7 @@ export async function getDashboardData(
         )
       ),
 
-    // Pending Orders
+    // 2. Pending Orders Count (Not delivered and not cancelled)
     db
       .select({ value: count() })
       .from(invoices)
@@ -273,7 +314,46 @@ export async function getDashboardData(
         )
       ),
 
-    // Low Stock Count
+    // 3. Ready for Pickup Orders Count (Marked READY or PROCESSING)
+    db
+      .select({ value: count() })
+      .from(invoices)
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          or(eq(invoices.fulfillmentStatus, "READY"), eq(invoices.fulfillmentStatus, "PROCESSING")),
+          ne(invoices.status, "CANCELLED")
+        )
+      ),
+
+    // 4. Delayed Orders Count (Estimated delivery < today and not delivered)
+    db
+      .select({ value: count() })
+      .from(invoices)
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          ne(invoices.fulfillmentStatus, "DELIVERED"),
+          ne(invoices.status, "CANCELLED"),
+          sql`${invoices.estimatedDelivery} is not null`,
+          lt(invoices.estimatedDelivery, nowStr)
+        )
+      ),
+
+    // 5. Today's Appointments Count
+    db
+      .select({ value: count() })
+      .from(appointments)
+      .where(
+        and(
+          shopCond(appointments.shopId, appointments.organizationId),
+          gte(appointments.visitTime, todayMidnight),
+          lt(appointments.visitTime, tomorrowMidnight),
+          ne(appointments.status, "CANCELLED")
+        )
+      ),
+
+    // 6. Low Stock Count
     db
       .select({ value: count() })
       .from(inventory)
@@ -284,7 +364,7 @@ export async function getDashboardData(
         )
       ),
 
-    // Pending Payments
+    // 7. Pending Payments
     db
       .select({ balance: sum(sql`${invoices.total} - ${invoices.amountPaid}`) })
       .from(invoices)
@@ -298,7 +378,7 @@ export async function getDashboardData(
         )
       ),
 
-    // Recent Invoices in period
+    // 8. Recent Invoices in period
     db
       .select()
       .from(invoices)
@@ -311,7 +391,7 @@ export async function getDashboardData(
       )
       .orderBy(desc(invoices.createdAt)),
 
-    // Delivery Status Counts
+    // 9. Delivery Status Counts
     db
       .select({
         status: invoices.status,
@@ -329,9 +409,10 @@ export async function getDashboardData(
       )
       .groupBy(invoices.status, invoices.fulfillmentStatus, invoices.estimatedDelivery),
 
-    // Recent Orders List
+    // 10. Recent Orders List
     db
       .select({
+        id: invoices.id,
         invoiceNumber: invoices.invoiceNumber,
         customerName: customers.fullName,
         customerPhone: customers.phone,
@@ -339,23 +420,104 @@ export async function getDashboardData(
         amountPaid: invoices.amountPaid,
         status: invoices.status,
         fulfillmentStatus: invoices.fulfillmentStatus,
+        estimatedDelivery: invoices.estimatedDelivery,
         createdAt: invoices.createdAt
       })
       .from(invoices)
       .leftJoin(customers, eq(invoices.customerId, customers.id))
       .where(shopCond(invoices.shopId, invoices.organizationId))
       .orderBy(desc(invoices.createdAt))
-      .limit(6),
+      .limit(8),
 
-    // Low Stock Inventory List
+    // 11. Pending Orders Specific List
+    db
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        customerName: customers.fullName,
+        customerPhone: customers.phone,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        status: invoices.status,
+        fulfillmentStatus: invoices.fulfillmentStatus,
+        estimatedDelivery: invoices.estimatedDelivery,
+        createdAt: invoices.createdAt
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          ne(invoices.fulfillmentStatus, "DELIVERED"),
+          ne(invoices.status, "CANCELLED")
+        )
+      )
+      .orderBy(desc(invoices.createdAt))
+      .limit(15),
+
+    // 12. Pickup Ready Orders Specific List
+    db
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        customerName: customers.fullName,
+        customerPhone: customers.phone,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        status: invoices.status,
+        fulfillmentStatus: invoices.fulfillmentStatus,
+        estimatedDelivery: invoices.estimatedDelivery,
+        createdAt: invoices.createdAt
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          or(eq(invoices.fulfillmentStatus, "READY"), eq(invoices.fulfillmentStatus, "PROCESSING")),
+          ne(invoices.status, "CANCELLED")
+        )
+      )
+      .orderBy(desc(invoices.createdAt))
+      .limit(15),
+
+    // 13. Delayed Orders Specific List
+    db
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        customerName: customers.fullName,
+        customerPhone: customers.phone,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        status: invoices.status,
+        fulfillmentStatus: invoices.fulfillmentStatus,
+        estimatedDelivery: invoices.estimatedDelivery,
+        createdAt: invoices.createdAt
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          ne(invoices.fulfillmentStatus, "DELIVERED"),
+          ne(invoices.status, "CANCELLED"),
+          sql`${invoices.estimatedDelivery} is not null`,
+          lt(invoices.estimatedDelivery, nowStr)
+        )
+      )
+      .orderBy(invoices.estimatedDelivery)
+      .limit(15),
+
+    // 14. Low Stock Inventory List
     db
       .select()
       .from(inventory)
       .where(shopCond(inventory.shopId, inventory.organizationId))
       .orderBy(inventory.quantity)
-      .limit(6),
+      .limit(8),
 
-    // Top SKUs Current
+    // 15. Top SKUs Current
     db
       .select({
         inventoryId: invoiceItems.inventoryId,
@@ -375,7 +537,7 @@ export async function getDashboardData(
       .orderBy(desc(sum(invoiceItems.quantity)))
       .limit(5),
 
-    // Top SKUs Previous
+    // 16. Top SKUs Previous
     db
       .select({
         inventoryId: invoiceItems.inventoryId,
@@ -391,7 +553,7 @@ export async function getDashboardData(
       )
       .groupBy(invoiceItems.inventoryId),
 
-    // Top Customers (VIP Patients)
+    // 17. Top Customers (VIP Patients)
     db
       .select({
         id: customers.id,
@@ -415,7 +577,7 @@ export async function getDashboardData(
       .orderBy(desc(sum(invoices.total)))
       .limit(5),
 
-    // Category Sales Distribution
+    // 18. Category Sales Distribution
     db
       .select({
         category: inventory.category,
@@ -433,7 +595,24 @@ export async function getDashboardData(
       )
       .groupBy(inventory.category),
 
-    // Comparison Queries
+    // 19. Today's Appointments List
+    db
+      .select()
+      .from(appointments)
+      .where(
+        and(
+          shopCond(appointments.shopId, appointments.organizationId),
+          gte(appointments.visitTime, todayMidnight),
+          lt(appointments.visitTime, tomorrowMidnight)
+        )
+      )
+      .orderBy(appointments.visitTime)
+      .limit(20),
+
+    // 20. Recent Activities Feed
+    getShopRecentActivities(shopId, organizationId, 25),
+
+    // 21. Comparison: Revenue
     isComparing ? db
       .select({ total: sum(invoices.total) })
       .from(invoices)
@@ -446,6 +625,7 @@ export async function getDashboardData(
         )
       ) : Promise.resolve([]),
 
+    // 22. Comparison: Pending Payments
     isComparing ? db
       .select({ balance: sum(sql`${invoices.total} - ${invoices.amountPaid}`) })
       .from(invoices)
@@ -459,6 +639,7 @@ export async function getDashboardData(
         )
       ) : Promise.resolve([]),
 
+    // 23. Comparison: Invoices
     isComparing ? db
       .select()
       .from(invoices)
@@ -472,9 +653,12 @@ export async function getDashboardData(
       .orderBy(desc(invoices.createdAt)) : Promise.resolve([])
   ]);
 
-  // Primary KPIs calculations
+  // Primary KPIs calculations (Exact live numbers)
   const revenueVal = Number(revenueResult[0]?.total || 0);
   const pendingOrdersVal = pendingOrdersCount[0]?.value || 0;
+  const readyForPickupOrdersVal = readyForPickupOrdersCount[0]?.value || 0;
+  const delayedOrdersVal = delayedOrdersCount[0]?.value || 0;
+  const appointmentsTodayVal = todayAppointmentsCount[0]?.value || 0;
   const lowStockVal = lowStockCount[0]?.value || 0;
   const pendingPaymentsVal = Number(pendingPaymentsResult[0]?.balance || 0);
 
@@ -493,16 +677,16 @@ export async function getDashboardData(
     compareKPIs = {
       revenue: compRevenueVal,
       collections: Math.max(0, compRevenueVal - compPendingPaymentsVal),
-      pendingOrders: Math.round(pendingOrdersVal * 0.85),
-      readyForPickupOrders: Math.round(pendingOrdersVal * 0.35),
-      delayedOrders: Math.round(pendingOrdersVal * 0.1),
-      appointmentsToday: 12,
+      pendingOrders: pendingOrdersVal,
+      readyForPickupOrders: readyForPickupOrdersVal,
+      delayedOrders: delayedOrdersVal,
+      appointmentsToday: appointmentsTodayVal,
       lowStockAlerts: lowStockVal,
       pendingPayments: compPendingPaymentsVal,
       totalOrdersCount: compPaidCount,
       avgOrderValue: compAvgOrder,
       paidInvoicesCount: compPaidCount,
-      patientVisitsCount: compPaidCount,
+      patientVisitsCount: appointmentsTodayVal,
     };
 
     compareRevenueChart = buildRevenueChartData(timeframe, prevStartDate, prevEndDate, compareInvoices, todayMidnight, msInDay);
@@ -556,18 +740,18 @@ export async function getDashboardData(
     });
   }
 
-  if (delayedCount > 0) {
+  if (delayedOrdersVal > 0) {
     priorityActions.push({
-      id: "action-[#2563eb]",
-      description: `Review ${delayedCount} Delayed Shipment${delayedCount > 1 ? "s" : ""}`,
+      id: "action-delayed",
+      description: `Review ${delayedOrdersVal} Delayed Order${delayedOrdersVal > 1 ? "s" : ""}`,
       actionLabel: "View Details",
       actionHref: "/shop/orders",
       type: "delivery"
     });
   }
 
-  // Recent Orders Mapping
-  const recentOrders: RecentOrder[] = recentOrdersList.map(o => {
+  // Order Mapper Helper
+  const mapOrderRow = (o: any): RecentOrder => {
     let paymentStatus: "PAID" | "PENDING" | "PARTIALLY_PAID" | "CANCELLED" = "PENDING";
     if (o.status === "PAID") {
       paymentStatus = "PAID";
@@ -578,12 +762,22 @@ export async function getDashboardData(
       paymentStatus = paidAmt > 0 ? "PARTIALLY_PAID" : "PENDING";
     }
     return {
-      id: o.invoiceNumber,
-      customerName: o.customerName || "Walk-in Customer",
+      id: o.invoiceNumber || o.id,
+      invoiceNumber: o.invoiceNumber,
+      customerName: o.customerName || "Walk-in Patient",
+      customerPhone: o.customerPhone || undefined,
       amount: Number(o.total || 0),
-      status: paymentStatus
+      status: paymentStatus,
+      fulfillmentStatus: o.fulfillmentStatus || undefined,
+      dateStr: o.createdAt ? new Date(o.createdAt).toLocaleDateString() : undefined,
+      estimatedDelivery: o.estimatedDelivery || undefined,
     };
-  });
+  };
+
+  const recentOrders: RecentOrder[] = recentOrdersList.map(mapOrderRow);
+  const pendingOrders: RecentOrder[] = pendingOrdersListRaw.map(mapOrderRow);
+  const pickupOrders: RecentOrder[] = pickupOrdersListRaw.map(mapOrderRow);
+  const delayedOrders: RecentOrder[] = delayedOrdersListRaw.map(mapOrderRow);
 
   // Stock Alerts mapping
   const stockAlerts: StockAlert[] = lowStockInventoryList.map(item => ({
@@ -633,33 +827,21 @@ export async function getDashboardData(
     revenue: Number(cat.revenue || 0)
   }));
 
-  // Appointments
-  let shopAppointments: AppointmentItem[] = [];
-  try {
-    const rawAppointments = await db
-      .select()
-      .from(appointments)
-      .where(shopCond(appointments.shopId, appointments.organizationId))
-      .orderBy(desc(appointments.visitTime))
-      .limit(20);
-
-    shopAppointments = rawAppointments.map((app) => ({
-      id: app.id,
-      customerName: app.customerName,
-      customerPhone: app.customerPhone,
-      visitTime: new Date(app.visitTime).toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      }),
-      rawVisitTime: app.visitTime.toISOString(),
-      purposeOfVisit: app.purposeOfVisit,
-      status: app.status as any,
-      notes: app.additionalNotes,
-    }));
-  } catch (err) {
-    console.error("[getDashboardData] appointments query error:", err);
-  }
+  // Appointments mapping
+  const todayAppointments: AppointmentItem[] = todayAppointmentsRaw.map((app) => ({
+    id: app.id,
+    customerName: app.customerName,
+    customerPhone: app.customerPhone,
+    visitTime: new Date(app.visitTime).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }),
+    rawVisitTime: app.visitTime.toISOString(),
+    purposeOfVisit: app.purposeOfVisit,
+    status: app.status as any,
+    notes: app.additionalNotes,
+  }));
 
   const paidInvoicesCount = recentInvoices.length;
   const avgOrderValue = paidInvoicesCount > 0 ? revenueVal / paidInvoicesCount : 0;
@@ -669,15 +851,15 @@ export async function getDashboardData(
       revenue: revenueVal,
       collections: Math.max(0, revenueVal - pendingPaymentsVal),
       pendingOrders: pendingOrdersVal,
-      readyForPickupOrders: Math.floor(pendingOrdersVal * 0.4),
-      delayedOrders: Math.floor(pendingOrdersVal * 0.1),
-      appointmentsToday: shopAppointments.length,
+      readyForPickupOrders: readyForPickupOrdersVal,
+      delayedOrders: delayedOrdersVal,
+      appointmentsToday: appointmentsTodayVal,
       lowStockAlerts: lowStockVal,
       pendingPayments: pendingPaymentsVal,
       totalOrdersCount: paidInvoicesCount,
       avgOrderValue,
       paidInvoicesCount,
-      patientVisitsCount: shopAppointments.length,
+      patientVisitsCount: appointmentsTodayVal,
     },
     revenueChart,
     compareRevenueChart,
@@ -688,12 +870,275 @@ export async function getDashboardData(
     priorityActions,
     deliveryPerformance,
     recentOrders,
+    pendingOrders,
+    pickupOrders,
+    delayedOrders,
     stockAlerts,
     topSKUs,
     topCustomers,
     categorySales,
-    appointments: shopAppointments
+    appointments: todayAppointments,
+    todayAppointments,
+    recentActivities: recentActivitiesList,
   };
+}
+
+/**
+ * Aggregates store-wide recent activity across Invoices, Purchases, Returns, Stock, Appointments, and Communications
+ */
+export async function getShopRecentActivities(
+  shopId: string,
+  organizationId?: string,
+  limit = 25
+): Promise<RecentActivityItem[]> {
+  const shopCond = (shopCol: any, orgCol: any) => {
+    if (shopId === "all" && organizationId) {
+      return eq(orgCol, organizationId);
+    }
+    return eq(shopCol, shopId);
+  };
+
+  const activities: RecentActivityItem[] = [];
+
+  try {
+    const [recentInvoices, recentPurchases, recentReturns, recentMovements, recentAppointments, recentWhatsApp] =
+      await Promise.allSettled([
+        // 1. Invoices
+        db
+          .select({
+            id: invoices.id,
+            invoiceNumber: invoices.invoiceNumber,
+            total: invoices.total,
+            status: invoices.status,
+            fulfillmentStatus: invoices.fulfillmentStatus,
+            createdAt: invoices.createdAt,
+            customerName: customers.fullName,
+          })
+          .from(invoices)
+          .leftJoin(customers, eq(invoices.customerId, customers.id))
+          .where(shopCond(invoices.shopId, invoices.organizationId))
+          .orderBy(desc(invoices.createdAt))
+          .limit(10),
+
+        // 2. Purchases
+        db
+          .select({
+            id: purchaseOrders.id,
+            purchaseNumber: purchaseOrders.purchaseNumber,
+            vendorName: purchaseOrders.vendorName,
+            totalNetPurchase: purchaseOrders.totalNetPurchase,
+            totalQuantity: purchaseOrders.totalQuantity,
+            status: purchaseOrders.status,
+            createdAt: purchaseOrders.createdAt,
+          })
+          .from(purchaseOrders)
+          .where(shopCond(purchaseOrders.shopId, purchaseOrders.organizationId))
+          .orderBy(desc(purchaseOrders.createdAt))
+          .limit(10),
+
+        // 3. Sales Returns
+        db
+          .select({
+            id: salesReturns.id,
+            returnNumber: salesReturns.returnNumber,
+            totalRefundAmount: salesReturns.totalRefundAmount,
+            refundMethod: salesReturns.refundMethod,
+            returnType: salesReturns.returnType,
+            status: salesReturns.status,
+            createdAt: salesReturns.createdAt,
+          })
+          .from(salesReturns)
+          .where(shopCond(salesReturns.shopId, salesReturns.organizationId))
+          .orderBy(desc(salesReturns.createdAt))
+          .limit(10),
+
+        // 4. Stock Movements
+        db
+          .select({
+            id: stockMovements.id,
+            movementType: stockMovements.movementType,
+            quantityChange: stockMovements.quantityChange,
+            balanceAfter: stockMovements.balanceAfter,
+            referenceNumber: stockMovements.referenceNumber,
+            vendorParty: stockMovements.vendorParty,
+            createdAt: stockMovements.createdAt,
+            inventoryName: inventory.name,
+            brand: inventory.brand,
+          })
+          .from(stockMovements)
+          .leftJoin(inventory, eq(stockMovements.inventoryId, inventory.id))
+          .where(shopCond(stockMovements.shopId, stockMovements.organizationId))
+          .orderBy(desc(stockMovements.createdAt))
+          .limit(10),
+
+        // 5. Appointments
+        db
+          .select({
+            id: appointments.id,
+            customerName: appointments.customerName,
+            customerPhone: appointments.customerPhone,
+            visitTime: appointments.visitTime,
+            purposeOfVisit: appointments.purposeOfVisit,
+            status: appointments.status,
+            createdAt: appointments.createdAt,
+          })
+          .from(appointments)
+          .where(shopCond(appointments.shopId, appointments.organizationId))
+          .orderBy(desc(appointments.createdAt))
+          .limit(10),
+
+        // 6. WhatsApp Dispatches
+        db
+          .select({
+            id: whatsappDispatchQueue.id,
+            recipientPhone: whatsappDispatchQueue.recipientPhone,
+            recipientName: whatsappDispatchQueue.recipientName,
+            templateKey: whatsappDispatchQueue.templateKey,
+            status: whatsappDispatchQueue.status,
+            createdAt: whatsappDispatchQueue.createdAt,
+          })
+          .from(whatsappDispatchQueue)
+          .where(shopCond(whatsappDispatchQueue.shopId, whatsappDispatchQueue.organizationId))
+          .orderBy(desc(whatsappDispatchQueue.createdAt))
+          .limit(10),
+      ]);
+
+    // Map Invoices
+    if (recentInvoices.status === "fulfilled" && recentInvoices.value) {
+      for (const inv of recentInvoices.value) {
+        const isPaid = inv.status === "PAID";
+        const isCancelled = inv.status === "CANCELLED";
+        activities.push({
+          id: `inv-${inv.id}`,
+          type: "INVOICE",
+          action: isCancelled ? "Invoice Cancelled" : isPaid ? "Invoice Generated & Paid" : "Invoice Created",
+          title: `Invoice #${inv.invoiceNumber}`,
+          subtitle: `Patient: ${inv.customerName || "Walk-in"} • ₹${parseFloat(inv.total || "0").toLocaleString("en-IN")}`,
+          timestamp: inv.createdAt.toISOString(),
+          amount: parseFloat(inv.total || "0"),
+          status: inv.status,
+          badgeVariant: isCancelled ? "danger" : isPaid ? "success" : "info",
+          actionHref: `/shop/orders`,
+          partyName: inv.customerName || "Walk-in Patient",
+        });
+      }
+    }
+
+    // Map Purchases
+    if (recentPurchases.status === "fulfilled" && recentPurchases.value) {
+      for (const po of recentPurchases.value) {
+        activities.push({
+          id: `po-${po.id}`,
+          type: "PURCHASE",
+          action: po.status === "COMPLETED" ? "Inward Stock Received" : "Purchase Draft Created",
+          title: `Purchase #${po.purchaseNumber}`,
+          subtitle: `Vendor: ${po.vendorName || "Supplier"} • ${po.totalQuantity || 0} items (₹${parseFloat(po.totalNetPurchase || "0").toLocaleString("en-IN")})`,
+          timestamp: po.createdAt.toISOString(),
+          amount: parseFloat(po.totalNetPurchase || "0"),
+          status: po.status,
+          badgeVariant: po.status === "COMPLETED" ? "success" : "neutral",
+          actionHref: `/shop/purchases`,
+          partyName: po.vendorName || "Vendor",
+        });
+      }
+    }
+
+    // Map Returns
+    if (recentReturns.status === "fulfilled" && recentReturns.value) {
+      for (const ret of recentReturns.value) {
+        activities.push({
+          id: `ret-${ret.id}`,
+          type: "RETURN",
+          action: "Sales Return Processed",
+          title: `Return #${ret.returnNumber}`,
+          subtitle: `Refund: ₹${parseFloat(ret.totalRefundAmount || "0").toLocaleString("en-IN")} • ${ret.refundMethod || ret.returnType || "Store Credit"}`,
+          timestamp: ret.createdAt.toISOString(),
+          amount: parseFloat(ret.totalRefundAmount || "0"),
+          status: ret.status,
+          badgeVariant: "warning",
+          actionHref: `/shop/returns`,
+        });
+      }
+    }
+
+    // Map Stock Movements
+    if (recentMovements.status === "fulfilled" && recentMovements.value) {
+      for (const m of recentMovements.value) {
+        const isPositive = m.quantityChange > 0;
+        activities.push({
+          id: `sm-${m.id}`,
+          type: "STOCK",
+          action:
+            m.movementType === "STOCK_IN"
+              ? "Stock Inward Added"
+              : m.movementType === "RETURN"
+              ? "Restocked From Return"
+              : m.movementType === "ADJUSTMENT"
+              ? "Inventory Adjusted"
+              : "Stock Dispatched",
+          title: `${m.inventoryName || "Inventory Item"}`,
+          subtitle: `Qty: ${isPositive ? `+${m.quantityChange}` : m.quantityChange} • Balance: ${m.balanceAfter}${m.vendorParty ? ` • Ref: ${m.vendorParty}` : ""}`,
+          timestamp: m.createdAt.toISOString(),
+          status: m.movementType,
+          badgeVariant: isPositive ? "success" : "neutral",
+          actionHref: `/shop/inventory`,
+        });
+      }
+    }
+
+    // Map Appointments
+    if (recentAppointments.status === "fulfilled" && recentAppointments.value) {
+      for (const app of recentAppointments.value) {
+        const isCompleted = app.status === "COMPLETED";
+        const isCancelled = app.status === "CANCELLED";
+        activities.push({
+          id: `app-${app.id}`,
+          type: "APPOINTMENT",
+          action:
+            isCompleted
+              ? "Patient Visit Completed"
+              : isCancelled
+              ? "Appointment Cancelled"
+              : "Appointment Scheduled",
+          title: app.customerName,
+          subtitle: `${app.purposeOfVisit || "Consultation"} • ${new Date(app.visitTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+          timestamp: app.createdAt.toISOString(),
+          status: app.status,
+          badgeVariant: isCompleted ? "success" : isCancelled ? "danger" : "info",
+          actionHref: `/shop/appointments`,
+          partyName: app.customerName,
+        });
+      }
+    }
+
+    // Map WhatsApp Dispatches
+    if (recentWhatsApp.status === "fulfilled" && recentWhatsApp.value) {
+      for (const wa of recentWhatsApp.value) {
+        activities.push({
+          id: `wa-${wa.id}`,
+          type: "COMMUNICATION",
+          action:
+            wa.status === "DELIVERED" || wa.status === "SENT"
+              ? "WhatsApp Alert Delivered"
+              : "WhatsApp Notification Queued",
+          title: `WhatsApp: ${wa.recipientName || wa.recipientPhone}`,
+          subtitle: `Template: ${wa.templateKey || "Invoice Alert"} • ${wa.status}`,
+          timestamp: wa.createdAt.toISOString(),
+          status: wa.status,
+          badgeVariant: wa.status === "DELIVERED" || wa.status === "SENT" ? "success" : "info",
+          actionHref: `/shop/settings?tab=whatsapp`,
+          partyName: wa.recipientName || wa.recipientPhone,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[getShopRecentActivities] Error aggregating activities:", err);
+  }
+
+  // Sort newest first
+  activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return activities.slice(0, limit);
 }
 
 // Granularity date range parser helper

@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { appointmentConfigs, appointments, organizations, shops } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { appointmentConfigs, appointments, organizations, shops, profiles } from "@/db/schema";
+import { eq, and, or, desc } from "drizzle-orm";
 import { FormFieldConfig } from "@/db/schema/appointment-configs";
 
 /**
@@ -81,15 +81,38 @@ export async function updateAppointmentConfig(
  */
 export async function getPublicAppointmentData(orgSlug: string) {
   try {
-    // Find organization by slug
-    const [org] = await db
+    if (!orgSlug) return null;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orgSlug);
+
+    const condition = isUuid
+      ? or(eq(organizations.slug, orgSlug), eq(organizations.id, orgSlug))
+      : eq(organizations.slug, orgSlug);
+
+    const matchedOrgs = await db
       .select()
       .from(organizations)
-      .where(eq(organizations.slug, orgSlug))
-      .limit(1);
+      .where(condition)
+      .orderBy(desc(organizations.updatedAt));
 
-    if (!org) {
+    if (!matchedOrgs || matchedOrgs.length === 0) {
       return null;
+    }
+
+    // Prioritize organization that has active user profiles
+    let org = matchedOrgs[0];
+    if (matchedOrgs.length > 1) {
+      for (const candidate of matchedOrgs) {
+        const [prof] = await db
+          .select({ id: profiles.id })
+          .from(profiles)
+          .where(eq(profiles.organizationId, candidate.id))
+          .limit(1);
+        if (prof) {
+          org = candidate;
+          break;
+        }
+      }
     }
 
     // Fetch active shops/branches for this org
@@ -101,7 +124,8 @@ export async function getPublicAppointmentData(orgSlug: string) {
         phone: shops.phone,
       })
       .from(shops)
-      .where(eq(shops.organizationId, org.id));
+      .where(and(eq(shops.organizationId, org.id), eq(shops.isActive, true)))
+      .orderBy(shops.createdAt);
 
     // Fetch appointment configuration
     const [config] = await db

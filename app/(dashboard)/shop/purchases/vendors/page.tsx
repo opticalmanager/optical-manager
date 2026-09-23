@@ -1,13 +1,25 @@
 import Link from "next/link";
 import { Building2, ArrowLeft, PlusCircle, Users, Truck } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { getCurrentUser } from "@/services/auth.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 
 export const metadata = {
   title: "Vendors & Suppliers | Optical Manager",
   description: "Manage optical product suppliers, contact books, payment terms, and vendor GSTINs.",
 };
 
-export default function VendorsPage() {
+export default async function VendorsPage() {
+  const user = await getCurrentUser();
+  if (!hasModulePermission(user, "purchases")) {
+    return (
+      <AccessDenied
+        moduleName="Vendors & Suppliers"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
   return (
     <div className="space-y-5 pb-12 select-none text-slate-800 max-w-[1200px] mx-auto">
       {/* Header */}

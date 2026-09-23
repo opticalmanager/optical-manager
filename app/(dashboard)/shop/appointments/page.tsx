@@ -1,6 +1,8 @@
 import { getCurrentUser } from "@/services/auth.service";
 import { getShopById, getShopsByOrganization } from "@/services/shop.service";
 import { getShopAppointmentsData } from "@/services/appointment.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import AppointmentsWorkspaceClient from "@/components/shop/AppointmentsWorkspaceClient";
 
 export const metadata = {
@@ -10,6 +12,15 @@ export const metadata = {
 
 export default async function ShopAppointmentsPage() {
   const user = await getCurrentUser();
+  if (!hasModulePermission(user, "appointments")) {
+    return (
+      <AccessDenied
+        moduleName="Appointments & Schedules"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
+
   let shopId = user?.shopId;
 
   if (!shopId && user?.role === "OWNER" && user?.organizationId) {

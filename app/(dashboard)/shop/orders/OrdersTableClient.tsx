@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock } from "lucide-react";
+import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock, Search } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { SKUDetailsDropdown } from "./SKUDetailsDropdown";
 import { QuickEditModal } from "./QuickEditModal";
@@ -207,37 +207,36 @@ export function OrdersTableClient({
     }
   }, [orders]);
 
-  // Resilient IndexedDB hydration: activates when offline or when initial orders are empty
+  // Resilient IndexedDB hydration: activates ONLY when genuinely offline
   useEffect(() => {
     async function loadOfflineOrders() {
-      if (typeof navigator === "undefined") return;
-      if (!navigator.onLine || !orders || orders.length === 0) {
-        try {
-          const [cachedOrders, offlineInvoices] = await Promise.all([
-            offlineDB.cached_orders.toArray(),
-            offlineDB.offline_invoices_queue.toArray(),
-          ]);
+      if (typeof navigator === "undefined" || navigator.onLine) return;
+      try {
+        const [cachedOrders, offlineInvoices] = await Promise.all([
+          offlineDB.cached_orders.toArray(),
+          offlineDB.offline_invoices_queue.toArray(),
+        ]);
 
-          const mappedCached: OrderItem[] = cachedOrders.map((o) => ({
-            id: o.id,
-            orderNumber: o.invoiceNumber,
-            invoiceId: o.invoiceId,
-            invoiceNumber: o.invoiceNumber,
-            createdAt: new Date(o.createdAt),
-            total: o.totalAmount,
-            amountPaid: o.paidAmount,
-            balanceDue: o.dueAmount,
-            paymentMethod: "CASH",
-            fulfillmentStatus: o.status,
-            estimatedDelivery: o.deliveryDate || null,
-            isRescheduled: false,
-            customerId: o.customerId || "",
-            customerName: o.customerName,
-            customerPhone: o.customerPhone || null,
-            customerEmail: null,
-            skus: [{ description: "Optical Lens & Frame", quantity: o.itemsCount || 1, category: "FRAME", sku: "OFF-ITEM" }],
-            categoryText: "Prescription Order",
-          }));
+        const mappedCached: OrderItem[] = cachedOrders.map((o) => ({
+          id: o.id,
+          orderNumber: (o as any).orderNumber || o.invoiceNumber,
+          invoiceId: o.invoiceId,
+          invoiceNumber: o.invoiceNumber,
+          createdAt: new Date(o.createdAt),
+          total: o.totalAmount,
+          amountPaid: o.paidAmount,
+          balanceDue: o.dueAmount,
+          paymentMethod: (o as any).paymentMethod || "CASH",
+          fulfillmentStatus: o.status,
+          estimatedDelivery: o.deliveryDate || null,
+          isRescheduled: false,
+          customerId: o.customerId || "",
+          customerName: o.customerName,
+          customerPhone: o.customerPhone || null,
+          customerEmail: null,
+          skus: [{ description: "Optical Item", quantity: o.itemsCount || 1, category: "FRAME", sku: "OFFLINE" }],
+          categoryText: "Prescription Order",
+        }));
 
           const mappedQueue: OrderItem[] = offlineInvoices.map((inv) => {
             const p = inv.payload;
@@ -302,9 +301,8 @@ export function OrdersTableClient({
           console.warn("[OrdersTableClient] Failed to load offline orders:", err);
         }
       }
-    }
 
-    loadOfflineOrders();
+      loadOfflineOrders();
 
     const handleDataUpdated = () => {
       if (!navigator.onLine) {
@@ -332,7 +330,7 @@ export function OrdersTableClient({
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-left border-collapse">
           <thead>
-            <tr className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50 border-b border-slate-100 tracking-wider">
+            <tr className="text-[10px] font-bold text-slate-500 uppercase bg-[#F3F6FA] border-b border-[#E4E9F0] tracking-wider">
               <th className="px-4 py-2.5">Order ID</th>
               <th className="px-4 py-2.5">Customer</th>
               <th className="px-4 py-2.5">Date</th>
@@ -344,7 +342,7 @@ export function OrdersTableClient({
               <th className="px-4 py-2.5 text-center">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
+          <tbody className="divide-y divide-[#E4E9F0] bg-white">
             {ordersList.length > 0 ? (
               ordersList.map((order) => {
                 const itemsCount = order.skus.reduce((sum, s) => sum + s.quantity, 0);
@@ -359,7 +357,7 @@ export function OrdersTableClient({
                   <tr
                     key={order.id}
                     onClick={() => handleRowClick(order)}
-                    className="group hover:bg-blue-50/30 transition-colors align-middle cursor-pointer"
+                    className="group hover:bg-[#F8FAFC] transition-colors align-middle cursor-pointer"
                   >
                     {/* Order ID */}
                     <td className="px-4 py-2.5 font-bold text-slate-900 text-xs">
@@ -474,8 +472,28 @@ export function OrdersTableClient({
               })
             ) : (
               <tr>
-                <td colSpan={9} className="px-6 py-10 text-center font-bold text-slate-450">
-                  No orders matching your search or filters.
+                <td colSpan={9} className="px-6 py-14 text-center">
+                  <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                      <Search className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">
+                      {search ? `No orders found matching "${search}"` : "No orders found"}
+                    </p>
+                    <p className="text-xs text-slate-450 mt-1 mb-4 text-center">
+                      {search
+                        ? "Try searching by customer name, 10-digit phone number, order number, or product SKU."
+                        : "No orders match the selected status tab or date range."}
+                    </p>
+                    {search && (
+                      <Link
+                        href={`/shop/orders?tab=${tab}&timeframe=${timeframe}&filter=${filter}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0a52c3] bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 shadow-xs"
+                      >
+                        Clear Search
+                      </Link>
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
@@ -484,7 +502,7 @@ export function OrdersTableClient({
       </div>
 
       {/* Table Pagination controls */}
-      {(totalCount > 0 || ordersList.length > 0) && (
+      {ordersList.length > 0 && totalCount > 0 && (
         <div className="py-4 px-6 border-t border-slate-200/80 flex flex-col sm:flex-row gap-3 items-center justify-between bg-white text-center sm:text-left">
           <p className="text-xs font-semibold text-slate-500">
             Showing <span className="font-extrabold text-slate-900">{offset + 1}</span> to{" "}

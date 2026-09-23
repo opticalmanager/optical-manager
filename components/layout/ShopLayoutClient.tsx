@@ -116,7 +116,7 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
             shopName={shop?.name || "Corporate Outlet"}
             onMenuClick={() => setIsSidebarOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto bg-slate-50/50 p-4 md:p-8">
+          <main className="flex-1 overflow-y-auto bg-[#F6F7F9] p-4 md:p-8">
             {children}
           </main>
         </div>

@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
+
 export const metadata = {
   title: "Product Returns | Optical Manager",
   description: "Manage sales returns, warranty claims, and inventory restocking.",
@@ -36,6 +39,15 @@ export default async function ReturnsDashboardPage({
   const limit = 8;
 
   const user = await getCurrentUser();
+  if (!hasModulePermission(user, "returns")) {
+    return (
+      <AccessDenied
+        moduleName="Sales Returns"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
+
   let shopId = user?.shopId;
 
   if (!shopId && user?.role === "OWNER" && user?.organizationId) {

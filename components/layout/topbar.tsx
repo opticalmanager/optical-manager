@@ -142,7 +142,7 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
     : "Search patients, invoices, or stock...";
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-4 md:px-8 select-none z-20">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 md:px-8 select-none z-20">
       
       {/* Autocomplete Search Bar */}
       <div className="relative flex-1 max-w-md flex items-center gap-2.5" ref={searchContainerRef}>
@@ -150,13 +150,13 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
           <button
             type="button"
             onClick={onMenuClick}
-            className="lg:hidden p-2 rounded-xl border border-slate-200/60 hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors shrink-0 cursor-pointer flex items-center justify-center bg-white"
+            className="lg:hidden p-2 rounded-xl border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#6B7280] hover:text-[#111827] transition-colors shrink-0 cursor-pointer flex items-center justify-center bg-white"
           >
             <Menu className="h-4 w-4" />
           </button>
         )}
-        <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-50 border border-slate-200/50 px-3.5 py-2 focus-within:ring-2 focus-within:ring-[#0a52c3]/20 focus-within:border-[#0a52c3] focus-within:bg-white transition-all">
-          <Search className="h-4 w-4 text-slate-400 shrink-0" />
+        <div className="flex flex-1 items-center gap-2 rounded-xl bg-[#F6F7F9] border border-[#E5E7EB] px-3.5 py-2 focus-within:ring-2 focus-within:ring-[#2563EB]/20 focus-within:border-[#2563EB] focus-within:bg-white transition-all">
+          <Search className="h-4 w-4 text-[#6B7280] shrink-0" />
           <input
             type="text"
             placeholder={searchPlaceholder}
@@ -282,21 +282,21 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
 
         <button
           onClick={() => router.push("/shop/patients/new")}
-          className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer hidden sm:block"
+          className="h-10 px-4 rounded-xl bg-white border border-[#D1D5DB] hover:bg-[#F9FAFB] text-xs font-semibold text-[#374151] transition-colors cursor-pointer hidden sm:block shadow-2xs"
         >
           Add Patient
         </button>
         <button
           onClick={() => router.push("/shop/invoices/new")}
-          className="h-10 w-10 md:w-auto md:px-4 rounded-xl bg-[#0a52c3] hover:bg-[#004bb5] text-xs font-bold text-white shadow-sm shadow-[#0a52c3]/15 transition-colors cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+          className="h-10 w-10 md:w-auto md:px-4 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-xs font-bold text-white shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
         >
           <ReceiptText className="h-4 w-4" />
           <span className="hidden md:inline">New Invoice</span>
         </button>
         
-        <div className="h-6 w-px bg-slate-200 mx-0.5 hidden sm:block" />
+        <div className="h-6 w-px bg-[#E5E7EB] mx-0.5 hidden sm:block" />
         
-        <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+        <button className="h-10 w-10 flex items-center justify-center text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] rounded-xl transition-colors cursor-pointer bg-transparent">
           <Bell className="h-4.5 w-4.5" />
         </button>
         

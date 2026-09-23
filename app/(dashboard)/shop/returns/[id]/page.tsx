@@ -2,6 +2,8 @@ import { getCurrentUser } from "@/services/auth.service";
 import { getReturnById } from "@/services/return.service";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { ReturnPrintButton } from "@/components/shop/ReturnPrintButton";
 import {
   RotateCcw,
@@ -37,6 +39,15 @@ export default async function ReturnDetailPage({
 
   if (!user || !user.organizationId) {
     redirect("/login");
+  }
+
+  if (!hasModulePermission(user, "returns")) {
+    return (
+      <AccessDenied
+        moduleName="Return Credit Note"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   let data = null;

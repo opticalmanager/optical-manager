@@ -63,11 +63,16 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
     priorityActions: [],
     deliveryPerformance: { onTime: 0, delayed: 0, cancelled: 0 },
     recentOrders: [],
+    pendingOrders: [],
+    pickupOrders: [],
+    delayedOrders: [],
     stockAlerts: [],
     topSKUs: [],
     topCustomers: [],
     categorySales: [],
     appointments: [],
+    todayAppointments: [],
+    recentActivities: [],
   };
   let shop: any = null;
 

@@ -7,6 +7,7 @@ import { db } from "@/lib/drizzle";
 import { profiles } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { FormState } from "@/utils/validators";
+import { hasModulePermission } from "@/utils/permissions";
 import * as z from "zod";
 
 // Zod schema for Shop Profile & Compliance
@@ -44,6 +45,11 @@ export async function updateShopProfileAction(
   // Ensure user has access to this shop
   if (user.role === "SHOP_MANAGER" && user.shopId !== shopId) {
     return { success: false, message: "Access denied." };
+  }
+
+  // Ensure user has settings module permission
+  if (!hasModulePermission(user, "settings")) {
+    return { success: false, message: "Access denied. You do not have permission to modify store settings." };
   }
 
   const validatedFields = shopProfileSchema.safeParse({
@@ -92,6 +98,11 @@ export async function updateShopSettingsConfigAction(
   // Ensure user has access
   if (user.role === "SHOP_MANAGER" && user.shopId !== shopId) {
     return { success: false, message: "Access denied." };
+  }
+
+  // Ensure user has settings module permission
+  if (!hasModulePermission(user, "settings")) {
+    return { success: false, message: "Access denied. You do not have permission to modify store settings." };
   }
 
   try {

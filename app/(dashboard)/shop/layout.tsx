@@ -54,7 +54,7 @@ export default async function ShopDashboardLayout({
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#F6F7F9]">
       {user.isImpersonating && (
         <div className="bg-indigo-900 text-white px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-3 border-b border-indigo-950 shrink-0 shadow-md z-40 relative">
           <div className="flex items-center gap-2 min-w-0">

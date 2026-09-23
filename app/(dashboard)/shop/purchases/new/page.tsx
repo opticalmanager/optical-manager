@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getOrganizationCategories } from "@/services/category.service";
 import { getVendorsByOrganization } from "@/services/vendor.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { PurchaseAddForm } from "@/components/shop/PurchaseAddForm";
 
 export const metadata = {
@@ -17,8 +19,13 @@ export default async function NewPurchasePage() {
   }
 
   // Check RBAC permission for purchases
-  if (user.permissions && user.permissions.purchases === false) {
-    redirect("/shop/dashboard");
+  if (!hasModulePermission(user, "purchases")) {
+    return (
+      <AccessDenied
+        moduleName="Add Purchase"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   // Fetch product categories with organization GST rates & existing vendors

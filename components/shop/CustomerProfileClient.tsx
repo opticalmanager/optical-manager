@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { AddPrescriptionModal } from "@/components/shop/AddPrescriptionModal";
 import { ClinicalPrescriptionCard } from "@/components/shop/ClinicalPrescriptionCard";
+import { CustomerOrdersSection } from "@/components/shop/CustomerOrdersSection";
+import type { OrderItem } from "@/services/order.service";
 import { offlineDB } from "@/lib/offline/db";
 
 interface CustomerData {
@@ -106,6 +108,7 @@ interface ProfileData {
   customer: CustomerData;
   prescriptions: PrescriptionData[];
   invoices: InvoiceData[];
+  orders?: OrderItem[];
   creditLedger?: Array<{
     id: string;
     transactionType: string;
@@ -119,6 +122,7 @@ interface ProfileData {
     performedByName?: string | null;
   }>;
   pendingDues: number;
+  totalOrderValue?: number;
   totalOrdersCount: number;
   lastVisitDate: Date | string;
   latestPrescription: PrescriptionData | null;
@@ -129,9 +133,10 @@ interface CustomerProfileClientProps {
   initialProfile?: ProfileData | null;
   profile?: ProfileData | null;
   customerId?: string;
+  canEditOrders?: boolean;
 }
 
-export function CustomerProfileClient({ initialProfile, profile: legacyProfile, customerId }: CustomerProfileClientProps) {
+export function CustomerProfileClient({ initialProfile, profile: legacyProfile, customerId, canEditOrders = false }: CustomerProfileClientProps) {
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileData | null>(initialProfile || legacyProfile || null);
   const [isLoadingOffline, setIsLoadingOffline] = useState(!initialProfile && !legacyProfile);
@@ -157,11 +162,19 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
             cust = await offlineDB.cached_customers.where("registrationId").equals(customerId!).first();
           }
           if (cust) {
-            const custInvoices = await offlineDB.cached_invoices
-              .where("customerId")
-              .equals(customerId!)
-              .reverse()
-              .sortBy("createdAt");
+            const [custInvoices, custOrders] = await Promise.all([
+              offlineDB.cached_invoices
+                .where("customerId")
+                .equals(customerId!)
+                .reverse()
+                .sortBy("createdAt"),
+              offlineDB.cached_orders
+                .where("customerId")
+                .equals(customerId!)
+                .reverse()
+                .sortBy("createdAt")
+                .catch(() => []),
+            ]);
 
             const mappedInvoices: InvoiceData[] = custInvoices.map((inv) => ({
               id: inv.id,
@@ -172,6 +185,28 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
               fulfillmentStatus: inv.fulfillmentStatus as any,
               createdAt: inv.createdAt,
               notes: inv.notes || null,
+            }));
+
+            const mappedOrders: OrderItem[] = custOrders.map((o) => ({
+              id: o.id,
+              orderNumber: (o as any).orderNumber || o.invoiceNumber,
+              invoiceId: o.invoiceId,
+              invoiceNumber: o.invoiceNumber,
+              createdAt: new Date(o.createdAt),
+              total: o.totalAmount,
+              amountPaid: o.paidAmount,
+              balanceDue: o.dueAmount,
+              paymentMethod: (o as any).paymentMethod || "CASH",
+              fulfillmentStatus: o.status,
+              estimatedDelivery: o.deliveryDate || null,
+              isRescheduled: false,
+              customerId: o.customerId || "",
+              customerName: o.customerName || cust.fullName,
+              customerPhone: o.customerPhone || cust.phone,
+              customerEmail: null,
+              skus: [{ description: "Optical Item", quantity: o.itemsCount || 1, category: "FRAME", sku: "OFFLINE" }],
+              categoryText: "Prescription Order",
+              receipts: [],
             }));
 
             const pendingDues = mappedInvoices.reduce(
@@ -204,9 +239,11 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
               },
               prescriptions: [],
               invoices: mappedInvoices,
+              orders: mappedOrders,
               creditLedger: [],
               pendingDues,
-              totalOrdersCount: mappedInvoices.length,
+              totalOrderValue: mappedOrders.reduce((sum, ord) => sum + (parseFloat(ord.total) || 0), 0),
+              totalOrdersCount: mappedOrders.length || mappedInvoices.length,
               lastVisitDate: cust.updatedAt || new Date().toISOString(),
               latestPrescription: null,
               latestInvoice: mappedInvoices[0] || null,
@@ -225,9 +262,63 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
   const customer = profile?.customer;
   const prescriptions = profile?.prescriptions || [];
   const invoices = profile?.invoices || [];
-  const pendingDues = profile?.pendingDues || 0;
   const lastVisitDate = profile?.lastVisitDate || new Date();
   const latestInvoice = profile?.latestInvoice || null;
+
+  const customerOrders: OrderItem[] = useMemo(() => {
+    if (profile?.orders && profile.orders.length > 0) {
+      return profile.orders;
+    }
+    return (profile?.invoices || [])
+      .filter((inv) => inv.status !== "CANCELLED")
+      .map((inv) => ({
+        id: inv.id,
+        orderNumber: inv.invoiceNumber,
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        createdAt: new Date(inv.createdAt),
+        total: inv.total,
+        amountPaid: String(Math.max(0, Number(inv.total) - Number(inv.balanceDue))),
+        balanceDue: inv.balanceDue,
+        paymentMethod: "CASH",
+        fulfillmentStatus: inv.fulfillmentStatus || "PROCESSING",
+        estimatedDelivery: null,
+        isRescheduled: false,
+        customerId: customer?.id || "",
+        customerName: customer?.fullName || "",
+        customerPhone: customer?.phone || null,
+        customerEmail: customer?.email || null,
+        skus: [{ description: inv.notes || "Optical Billing Order", quantity: 1, category: "FRAME", sku: null }],
+        categoryText: "Prescription Order",
+        receipts: [],
+      }));
+  }, [profile?.orders, profile?.invoices, customer]);
+
+  // Compute Single-Source-of-Truth Pending Dues across Customer Profile
+  const pendingDues = useMemo(() => {
+    if (customerOrders && customerOrders.length > 0) {
+      return customerOrders.reduce((sum, ord) => sum + (parseFloat(ord.balanceDue) || 0), 0);
+    }
+    return profile?.pendingDues || 0;
+  }, [customerOrders, profile?.pendingDues]);
+
+  // Compute Total Lifetime Order Value
+  const totalOrderValue = useMemo(() => {
+    if (customerOrders && customerOrders.length > 0) {
+      return customerOrders
+        .filter((o) => o.fulfillmentStatus !== "CANCELLED")
+        .reduce((sum, ord) => sum + (parseFloat(ord.total) || 0), 0);
+    }
+    return profile?.totalOrderValue || 0;
+  }, [customerOrders, profile?.totalOrderValue]);
+
+  // Single-Source-of-Truth Latest Active Order for snapshot card
+  const latestActiveOrder = useMemo(() => {
+    if (customerOrders && customerOrders.length > 0) {
+      return customerOrders[0];
+    }
+    return latestInvoice;
+  }, [customerOrders, latestInvoice]);
 
   // Compute Automated Customer Tags based on habits & purchase history
   const autoTags = useMemo(() => {
@@ -314,19 +405,20 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
     });
   };
 
-  // Group prescriptions by date/doctor for full historical timeline
+  // Group prescriptions by rxNumber or date for full historical timeline
   const groupedPrescriptions = useMemo(() => {
     if (!prescriptions || prescriptions.length === 0) return [];
     
     const map = new Map<string, { date: string; doctor: string; distRx: PrescriptionData | null; nearRx: PrescriptionData | null }>();
 
     for (const p of prescriptions) {
-      const key = p.prescribedAt ? String(p.prescribedAt) : new Date(p.createdAt).toISOString().split("T")[0];
+      const dateKey = p.prescribedAt ? String(p.prescribedAt) : new Date(p.createdAt).toISOString().split("T")[0];
+      const key = p.rxNumber ? `${p.rxNumber}_${dateKey}` : dateKey;
       const doc = p.prescribedBy || p.doctorName || "Standard Exam";
 
       if (!map.has(key)) {
         map.set(key, {
-          date: key,
+          date: dateKey,
           doctor: doc,
           distRx: p.prescriptionType === "DISTANCE" ? p : null,
           nearRx: p.prescriptionType === "NEAR" ? p : null,
@@ -606,11 +698,11 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
                   <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">Current Order</span>
                   <div className="flex items-center justify-between gap-2 mt-0.5">
                     <span className="text-xs font-bold text-slate-800 truncate">
-                      {latestInvoice ? `Invoice #${latestInvoice.invoiceNumber}` : "No active orders"}
+                      {latestActiveOrder ? `Invoice #${latestActiveOrder.invoiceNumber}` : "No active orders"}
                     </span>
-                    {latestInvoice && (
+                    {latestActiveOrder && (
                       <Badge className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase bg-blue-50 text-[#0a52c3] border border-blue-150">
-                        {latestInvoice.fulfillmentStatus}
+                        {latestActiveOrder.fulfillmentStatus}
                       </Badge>
                     )}
                   </div>
@@ -726,28 +818,57 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
             {groupedPrescriptions.length > 0 ? (
               <div>
                 
-                {/* Prescription Timeline Selector Bar */}
-                {groupedPrescriptions.length > 1 && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-100 mb-3 scrollbar-none">
-                    <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider shrink-0 mr-1 flex items-center gap-1">
-                      <Clock className="h-3 w-3" /> History Timeline:
-                    </span>
-                    {groupedPrescriptions.map((g, idx) => (
-                      <button
-                        key={g.date + idx}
-                        type="button"
-                        onClick={() => setSelectedRxIndex(idx)}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 transition-all cursor-pointer border ${
-                          selectedRxIndex === idx
-                            ? "bg-[#0a52c3] text-white border-[#0a52c3] shadow-xs"
-                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                        }`}
-                      >
-                        {formatDateStr(g.date)} {g.doctor ? `(${g.doctor})` : ""}
-                      </button>
-                    ))}
+                {/* Smart Prescription Record Selector Dropdown */}
+                {groupedPrescriptions.length > 1 ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-100 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1 shrink-0">
+                        <Clock className="h-3.5 w-3.5 text-[#0a52c3]" />
+                        Select Prescription Record:
+                      </span>
+                      <div className="relative min-w-[260px] sm:min-w-[340px]">
+                        <select
+                          value={selectedRxIndex}
+                          onChange={(e) => setSelectedRxIndex(Number(e.target.value))}
+                          className="w-full h-8 pl-3 pr-8 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] appearance-none cursor-pointer transition-all shadow-2xs"
+                        >
+                          {groupedPrescriptions.map((g, idx) => {
+                            const rxNum = g.distRx?.rxNumber || g.nearRx?.rxNumber;
+                            const rSph = g.distRx?.rightSphere || g.nearRx?.rightSphere;
+                            const lSph = g.distRx?.leftSphere || g.nearRx?.leftSphere;
+                            const powerSummary = (rSph || lSph) ? ` [OD: ${formatPower(rSph)}, OS: ${formatPower(lSph)}]` : "";
+                            const isLatest = idx === 0;
+                            return (
+                              <option key={idx} value={idx}>
+                                {isLatest ? "★ Latest: " : `#${idx + 1}: `}{formatDateStr(g.date)} — {g.doctor}{rxNum ? ` (${rxNum})` : ""}{powerSummary}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] font-semibold text-slate-500">
+                      Showing <span className="font-bold text-slate-800">{selectedRxIndex + 1}</span> of <span className="font-bold text-slate-800">{groupedPrescriptions.length}</span> recorded Rx
+                    </div>
                   </div>
-                )}
+                ) : groupedPrescriptions.length === 1 ? (
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-emerald-600" />
+                        Prescription Record:
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        {formatDateStr(groupedPrescriptions[0].date)} — {groupedPrescriptions[0].doctor}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-150">
+                        Latest / Active
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Modern Clinical Prescription Card Display */}
                 <ClinicalPrescriptionCard
@@ -795,81 +916,21 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
         )}
       </Card>
 
-      {/* Row 4: Recent Orders */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-extrabold tracking-tight text-slate-900 uppercase">
-            Recent Orders & Invoices
-          </h2>
-          <Link
-            href="/shop/invoices"
-            className="text-xs font-bold text-[#0a52c3] hover:text-[#004bb5] uppercase tracking-wider"
-          >
-            View All
-          </Link>
-        </div>
-
-        <Card className="border-slate-200/80 shadow-sm rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="text-[10px] text-slate-400 uppercase font-extrabold bg-slate-50/50 border-b border-slate-100 tracking-wider">
-                <tr>
-                  <th className="px-4 py-2.5">Invoice #</th>
-                  <th className="px-4 py-2.5">Date</th>
-                  <th className="px-4 py-2.5">Details</th>
-                  <th className="px-4 py-2.5 text-right">Total Amount</th>
-                  <th className="px-4 py-2.5 text-right">Balance Due</th>
-                  <th className="px-4 py-2.5 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {invoices.length > 0 ? (
-                  invoices.slice(0, 5).map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-4 py-2.5 font-mono font-extrabold text-[#0a52c3]">
-                        <Link href={`/shop/invoices/${inv.id}`} className="hover:underline">
-                          {inv.invoiceNumber}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-700">
-                        {formatDateStr(inv.createdAt)}
-                      </td>
-                      <td className="px-4 py-2.5 font-medium text-slate-600">
-                        {inv.notes || "Optical Billing Order"}
-                      </td>
-                      <td className="px-4 py-2.5 font-bold text-slate-800 text-right">
-                        {formatCurrency(Number(inv.total))}
-                      </td>
-                      <td className="px-4 py-2.5 font-bold text-right">
-                        {Number(inv.balanceDue) > 0 ? (
-                          <span className="text-rose-600">{formatCurrency(Number(inv.balanceDue))}</span>
-                        ) : (
-                          <span className="text-emerald-600">₹0.00</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <Badge className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase select-none ${
-                          inv.status === "PAID" 
-                            ? "bg-emerald-50 border-emerald-150 text-emerald-600" 
-                            : "bg-rose-50 border-rose-150 text-rose-600"
-                        }`}>
-                          {inv.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs font-semibold text-slate-400">
-                      No invoices recorded for this customer.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+      {/* Row 4: Orders & Invoices History with Parity Table */}
+      {customer && (
+        <CustomerOrdersSection
+          orders={customerOrders}
+          customer={{
+            id: customer.id,
+            fullName: customer.fullName,
+            phone: customer.phone,
+          }}
+          canEditOrders={canEditOrders}
+          onOrderUpdated={() => {
+            router.refresh();
+          }}
+        />
+      )}
 
       {/* Row 5: Store Credit History & Ledger */}
       {profile.creditLedger && profile.creditLedger.length > 0 && (
