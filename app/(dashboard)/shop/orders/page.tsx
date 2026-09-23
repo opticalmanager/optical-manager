@@ -2,12 +2,14 @@ import Link from "next/link";
 import { getCurrentUser } from "@/services/auth.service";
 import { getOrdersDashboardData, getDeletedOrders, TimeframeType } from "@/services/order.service";
 import { getShopsByOrganization } from "@/services/shop.service";
-import { canUserEditOrders, canUserDeleteOrders } from "@/utils/permissions";
+import { canUserEditOrders, canUserDeleteOrders, hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReminderCardAction } from "./ReminderCardAction";
 import { TimeframeDropdown } from "./TimeframeDropdown";
 import { OrdersTableClient } from "./OrdersTableClient";
 import { DeletedRecordsModal } from "./DeletedRecordsModal";
+import { OrdersSearchInput } from "@/components/shop/orders/OrdersSearchInput";
 import { 
   SlidersHorizontal, 
   Download, 
@@ -43,6 +45,15 @@ export default async function OrdersDashboardPage({
   const limit = 8; // Display 8 rows per page for high-density SaaS viewing
  
   const user = await getCurrentUser();
+  if (!hasModulePermission(user, "sales")) {
+    return (
+      <AccessDenied
+        moduleName="Orders & Sales"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
+
   let shopId = user?.shopId;
 
   if (!shopId && user?.role === "OWNER" && user?.organizationId) {
@@ -307,20 +318,8 @@ export default async function OrdersDashboardPage({
             </Link>
           </div>
  
-          {/* Search Filter Input (adjacent to tabs) */}
-          <form method="GET" action="/shop/orders" className="relative flex-1">
-            <input type="hidden" name="tab" value={tab} />
-            <input type="hidden" name="timeframe" value={timeframe} />
-            <input type="hidden" name="filter" value={filter} />
-            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-600" />
-            <input
-              type="text"
-              name="search"
-              defaultValue={search}
-              placeholder="Search order id, customers, or SKU..."
-              className="w-full h-9 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#0a52c3] text-slate-800 placeholder:text-slate-450"
-            />
-          </form>
+          {/* Smart Multi-Criteria Search Input (Order #, Invoice #, Customer, Phone, SKU) */}
+          <OrdersSearchInput defaultValue={search} />
         </div>
  
         {/* Right: Filters/CSV Buttons */}

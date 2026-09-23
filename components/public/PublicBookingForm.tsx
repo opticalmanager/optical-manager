@@ -104,6 +104,11 @@ export function PublicBookingForm({
       return;
     }
 
+    if (customerPhone.trim().length !== 10) {
+      toast.error("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
     if (!visitTime) {
       toast.error("Please select a date and time for your visit.");
       return;
@@ -269,10 +274,12 @@ export function PublicBookingForm({
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                       <input
                         type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
                         required={fields.find((f) => f.id === "phone_number")?.required}
                         value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="Enter your phone number"
+                        onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        placeholder="10-digit mobile number"
                         className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-medium bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 shadow-xs"
                       />
                     </div>
@@ -308,13 +315,18 @@ export function PublicBookingForm({
                         required={fields.find((f) => f.id === "select_branch")?.required}
                         value={selectedShopId}
                         onChange={(e) => setSelectedShopId(e.target.value)}
-                        className="w-full pl-10 pr-8 py-2.5 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 shadow-xs"
+                        disabled={shops.length === 0}
+                        className="w-full pl-10 pr-8 py-2.5 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 shadow-xs disabled:bg-slate-50 disabled:text-slate-400"
                       >
-                        {shops.map((shop) => (
-                          <option key={shop.id} value={shop.id}>
-                            {shop.name} {shop.address ? `(${shop.address})` : ""}
-                          </option>
-                        ))}
+                        {shops.length === 0 ? (
+                          <option value="">No active branches available</option>
+                        ) : (
+                          shops.map((shop) => (
+                            <option key={shop.id} value={shop.id}>
+                              {shop.name} {shop.address ? `(${shop.address})` : ""}
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>

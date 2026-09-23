@@ -5,6 +5,8 @@ import { AlertCircle } from "lucide-react";
 import { InventoryDashboardClient } from "@/components/shop/InventoryDashboardClient";
 
 import { getOrganizationCategories } from "@/services/category.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 
 interface PageProps {
   searchParams: Promise<{
@@ -16,6 +18,15 @@ interface PageProps {
 
 export default async function InventoryPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
+  if (!hasModulePermission(user, "inventory")) {
+    return (
+      <AccessDenied
+        moduleName="Inventory & Stock"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
+
   let shopId = user?.shopId;
 
   if (!shopId && user?.role === "OWNER" && user?.organizationId) {

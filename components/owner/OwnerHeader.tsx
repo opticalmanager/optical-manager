@@ -72,7 +72,7 @@ export function OwnerHeader({
     : "OW";
 
   return (
-    <header className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-20 select-none">
+    <header className="h-16 bg-white border-b border-[#E4E9F0] px-6 flex items-center justify-between sticky top-0 z-20 select-none">
       
       {/* Page Title & Hamburger & Org Badge */}
       <div className="flex items-center gap-3">

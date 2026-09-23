@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getCustomerProfileData } from "@/services/customer.service";
+import { hasModulePermission, canUserEditOrders } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { CustomerProfileClient } from "@/components/shop/CustomerProfileClient";
 
 interface CustomerDetailPageProps {
@@ -22,6 +24,15 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
     redirect("/login");
   }
 
+  if (!hasModulePermission(user, "customers")) {
+    return (
+      <AccessDenied
+        moduleName="Customer Profile"
+        userRole={user.customRoleName || user.role}
+      />
+    );
+  }
+
   // Retrieve customer data for profile view with fast-fail timeout for offline resilience
   let profileData: any = null;
   try {
@@ -37,9 +48,11 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
     profileData = null;
   }
 
+  const canEditOrders = canUserEditOrders(user);
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-2 sm:py-3">
-      <CustomerProfileClient initialProfile={profileData} customerId={id} />
+      <CustomerProfileClient initialProfile={profileData} customerId={id} canEditOrders={canEditOrders} />
     </div>
   );
 }

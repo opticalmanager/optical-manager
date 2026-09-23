@@ -146,13 +146,21 @@ export async function buildOrderFilters(params: {
     sql`(${orders.deletedAt} IS NULL OR ${orders.id} IS NULL)`,
   ];
 
-  if (currentStart > 0) {
-    const startIso = new Date(currentStart).toISOString();
-    filters.push(sql`${invoices.createdAt} >= ${startIso}::timestamptz`);
-  }
-  if (currentEnd < nowTime) {
-    const endIso = new Date(currentEnd).toISOString();
-    filters.push(sql`${invoices.createdAt} <= ${endIso}::timestamptz`);
+  const cleanSearch = (search || "").trim().replace(/^#/, "");
+
+  // If search is active with default 30d timeframe, allow searching all-time orders so older records can be found immediately
+  const isSearchActive = cleanSearch.length > 0;
+  const shouldApplyTimeframe = !isSearchActive || timeframe !== "30d";
+
+  if (shouldApplyTimeframe) {
+    if (currentStart > 0) {
+      const startIso = new Date(currentStart).toISOString();
+      filters.push(sql`${invoices.createdAt} >= ${startIso}::timestamptz`);
+    }
+    if (currentEnd < nowTime) {
+      const endIso = new Date(currentEnd).toISOString();
+      filters.push(sql`${invoices.createdAt} <= ${endIso}::timestamptz`);
+    }
   }
 
   if (tab === "PAID") {
@@ -181,15 +189,31 @@ export async function buildOrderFilters(params: {
     );
   }
 
-  if (search) {
-    const searchPattern = `%${search}%`;
-    filters.push(
-      or(
-        ilike(orders.orderNumber, searchPattern),
-        ilike(invoices.invoiceNumber, searchPattern),
-        ilike(customers.fullName, searchPattern)
-      )!
-    );
+  if (isSearchActive) {
+    const searchPattern = `%${cleanSearch}%`;
+    const digitsOnly = cleanSearch.replace(/\D/g, "");
+
+    const searchConditions = [
+      ilike(orders.orderNumber, searchPattern),
+      ilike(invoices.invoiceNumber, searchPattern),
+      ilike(customers.fullName, searchPattern),
+      ilike(customers.phone, searchPattern),
+      sql`${invoices.id} IN (
+        SELECT ${invoiceItems.invoiceId}
+        FROM ${invoiceItems}
+        LEFT JOIN ${inventory} ON ${invoiceItems.inventoryId} = ${inventory.id}
+        WHERE ${invoiceItems.description} ILIKE ${searchPattern}
+           OR ${inventory.sku} ILIKE ${searchPattern}
+      )`,
+    ];
+
+    if (digitsOnly.length >= 3) {
+      searchConditions.push(
+        sql`regexp_replace(${customers.phone}, '[^0-9]', '', 'g') LIKE ${'%' + digitsOnly + '%'}`
+      );
+    }
+
+    filters.push(or(...searchConditions)!);
   }
 
   return {

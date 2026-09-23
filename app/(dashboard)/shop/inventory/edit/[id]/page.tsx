@@ -14,6 +14,9 @@ import { EditContactLensItemForm } from "@/components/shop/EditContactLensItemFo
 import { EditAccessoryItemForm } from "@/components/shop/EditAccessoryItemForm";
 import { StockLedger } from "@/components/shop/StockLedger";
 
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
+
 interface PageProps {
   params: Promise<{
     id: string;
@@ -30,6 +33,15 @@ export default async function EditItemPage({ params }: PageProps) {
   
   if (!user || !user.shopId || !user.organizationId) {
     redirect("/login");
+  }
+
+  if (!hasModulePermission(user, "inventory")) {
+    return (
+      <AccessDenied
+        moduleName="Edit Inventory Item"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   // Await the route path parameters

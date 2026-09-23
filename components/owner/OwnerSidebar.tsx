@@ -76,10 +76,10 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
   ];
 
   return (
-    <aside className="w-[240px] bg-white border-r border-slate-200 text-slate-500 flex flex-col justify-between h-full select-none shadow-sm">
+    <aside className="w-[240px] bg-white border-r border-[#E4E9F0] text-slate-500 flex flex-col justify-between h-full select-none shadow-sm">
       {/* Top Brand Logo Area & Primary Navigation */}
       <div className="flex flex-col flex-1 min-h-0">
-        <div className="h-16 px-6 border-b border-slate-100 flex items-center gap-3 shrink-0">
+        <div className="h-16 px-6 border-b border-[#E4E9F0] flex items-center gap-3 shrink-0">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/10 border border-indigo-500/10">
             <Glasses className="w-5 h-5 text-white" />
           </div>

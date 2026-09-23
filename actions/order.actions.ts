@@ -1102,6 +1102,7 @@ export async function updateFullOrderAction(
           .update(orders)
           .set({
             receiptId: newReceiptId,
+            createdAt: payload.createdAt ? new Date(payload.createdAt) : order.createdAt,
             updatedAt: new Date(),
           })
           .where(eq(orders.id, order.id));
@@ -1116,7 +1117,7 @@ export async function updateFullOrderAction(
             invoiceId: existingInvoice.id,
             receiptId: newReceiptId,
             orderNumber,
-            createdAt: existingInvoice.createdAt,
+            createdAt: payload.createdAt ? new Date(payload.createdAt) : existingInvoice.createdAt,
             updatedAt: new Date(),
           })
           .returning();

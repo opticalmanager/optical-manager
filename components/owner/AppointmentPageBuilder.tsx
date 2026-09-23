@@ -103,7 +103,7 @@ export function AppointmentPageBuilder({
   const [isAddingOption, setIsAddingOption] = useState(false);
 
   // Dynamic public booking URL
-  const publicSlug = organization.slug || "niceroptical";
+  const publicSlug = organization.slug || organization.id;
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://opticalmanager.in";
   const publicBookingUrl = `${baseUrl}/book/${publicSlug}`;
 
@@ -611,9 +611,15 @@ export function AppointmentPageBuilder({
                         className="w-full pl-3.5 pr-8 py-2.5 border border-slate-200 rounded-xl text-xs font-medium bg-white text-slate-700 appearance-none"
                       >
                         <option>Select preferred branch</option>
-                        {shops.map((shop) => (
-                          <option key={shop.id}>{shop.name}</option>
-                        ))}
+                        {shops.length > 0 ? (
+                          shops.map((shop) => (
+                            <option key={shop.id}>
+                              {shop.name} {shop.address ? `(${shop.address})` : ""}
+                            </option>
+                          ))
+                        ) : (
+                          <option>{organization.name} - Main Branch</option>
+                        )}
                       </select>
                     </div>
                   </div>

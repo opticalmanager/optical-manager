@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getPatientDetailsAction } from "@/actions/patient.actions";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { PatientRegistrationForm } from "@/components/shop/PatientRegistrationForm";
 
 interface EditPatientPageProps {
@@ -20,6 +22,15 @@ export default async function EditPatientPage({ params }: EditPatientPageProps) 
 
   if (!user) {
     redirect("/login");
+  }
+
+  if (!hasModulePermission(user, "customers")) {
+    return (
+      <AccessDenied
+        moduleName="Edit Patient & Customer"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   // Fetch patient profile details (demographics + prescriptions) with fast timeout race

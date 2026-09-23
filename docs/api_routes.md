@@ -9,9 +9,12 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 ### 1. CSV Data Export APIs
 
 #### `GET /api/orders/export`
-- **Description**: Generates and downloads a CSV spreadsheet of orders and customer billing history for a specified timeframe.
+- **Description**: Generates and downloads a CSV spreadsheet of orders and customer billing history matching the active multi-criteria filters. Supports smart search across order numbers, invoice numbers, customer names, mobile phone numbers, and product SKU/descriptions.
 - **Query Parameters**:
-  - `timeframe`: `24h` | `7d` | `30d` | `90d` | `12m` | `ytd` | `all`
+  - `search` (optional): Free-text multi-criteria search keyword (strips leading `#`, matches digits or text).
+  - `tab` (optional): `ALL` | `PAID` | `PARTIALLY_PAID`.
+  - `timeframe`: `24h` | `7d` | `30d` | `90d` | `12m` | `ytd` | `all` (bypassed for all-time matching when `search` is provided).
+  - `filter` (optional): `ALL` | `DELIVERED` | `PENDING` | `DELAYED`.
 - **Response**: `200 OK` with `Content-Type: text/csv` download header.
 
 #### `GET /api/reports/export`
@@ -57,7 +60,16 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Description**: Robust cloud & session logout handler that invalidates Supabase authentication tokens, explicitly destroys server cookies (`opt_session_profile`, `active_shop_context_id`, and `sb-*-auth-token`), and redirects to the landing page `/`.
 
 #### `GET /book/[slug]`
-- **Description**: Public appointment booking page for patients to view store operating hours and reserve consultation slots.
+- **Description**: Public store appointment booking interface for patients to view branch locations, operating hours, and schedule consultations.
+- **Slug Resolution**: Dynamically matches organization by `organizations.slug` (or `organizations.id` if UUID), prioritizing active accounts with associated user profiles over legacy or archived organizations.
+- **Branch Scoping**: Automatically retrieves and displays active store branches (`where(and(eq(shops.organizationId, org.id), eq(shops.isActive, true)))`) with authentic branch names, addresses, and contact numbers.
+- **Submission Action**: `submitAppointmentAction` persists booking records scoped to the selected `shopId` and `organizationId`, with automatic cache revalidation for `/shop/appointments` and `/shop/dashboard`.
+
+#### Shorthand Route Normalizer (`proxy.ts`)
+- **Description**: Middleware normalizes root-level convenience endpoints (`/setting`, `/settings`, `/inventory`, `/orders`, `/customers`, `/patients`, `/reports`, `/analytics`, `/purchases`, `/returns`, `/appointments`, `/support`, `/dashboard`) to their canonical workspace routes based on the authenticated session role (`/owner/*` vs `/shop/*`), enforcing authorization guards on destination pages.
+
+#### Server Action Authorization Guards (`actions/*.actions.ts`)
+- **Description**: Mutating Server Actions enforce `hasModulePermission(user, moduleKey)` checks to prevent unauthorized data updates (e.g. `updateShopProfileAction` and `updateShopSettingsConfigAction` enforce `"settings"` permission). Returns `{ success: false, message: "Access denied." }` when unauthorized.
 
 ---
 

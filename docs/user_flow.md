@@ -36,7 +36,8 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Store Manager searches existing patients or registers a new patient in `/shop/invoices/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
    - **Editable Invoice Date & Time**: By default, populates with the store's current local date and time. Staff can freely select any past or future billing timestamp with live indicator badges (`Live Billing Time`, `Backdated Invoice`, or `Future Billing Date`) and a one-click `Reset` control.
    - Prescriptions, invoices, payment receipts, fulfillment orders, and inventory stock movements are atomically synchronized with the selected timestamp for accurate accounting and historical audit trails.
-2. **Prescription Recording**:
+2. **Prescription Recording & Past Rx Selection**:
+   - **Smart Past Prescription Dropdown**: When an existing patient is loaded from the database or via URL (`?customerId=...`), a high-density prescription selection bar displays all historical exams with date, doctor, and OD/OS power previews. Optometrists can switch between past records to auto-populate refraction inputs or select `+ Blank / Fresh Prescription Exam` to test and save fresh readings.
    - Features the unified high-density **Clinical Prescription Card** (`SPECT(S) RX / CLINICAL PRESCRIPTION`) across `/shop/invoices/new`, `/shop/patients/new`, `/shop/customers/[id]`, and printable invoices.
    - Refraction tabs (`Spect(s) Rx`, `CL Rx`, `Distance`, `Near`) and sequential Rx ID tracking (`Rx #PR-XXXX`).
    - 8-column optometry grid (`EYE/TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`) for Right (`• RE (OD)`) and Left (`• LE (OS)`) eyes.
@@ -418,3 +419,37 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - Executes `bulkImportCustomersAction` which generates sequential registration IDs (`OP-shopNum-YYYY-NNNN`) in a single query batch.
      - Commits all valid records in a single transactional batch into PostgreSQL `customers` table.
      - Displays celebratory success screen with assigned Registration ID ranges (`OP-1-2026-0001` to `OP-1-2026-0050`) and direct navigation to customer records.
+
+---
+
+## 14. Customer Profile & Orders Management Workflow
+
+```
+┌───────────────────────────┐    ┌───────────────────────────┐    ┌───────────────────────────┐
+│ Customer Profile Overview │───>│ Orders Parity Table Grid  │───>│ Quick Actions: WhatsApp, │
+│ (/shop/customers/[id])    │    │ (Filters, Search & CSV)   │    │ Status, Edit & Receipts   │
+└───────────────────────────┘    └───────────────────────────┘    └───────────────────────────┘
+```
+
+1. **Profile Layout Structure (`/shop/customers/[id]`)**:
+   - **01. Patient Personal & Medical Demographics**: Registration ID, phone, email, age/DOB, address, systemic illnesses, allergies, and automated customer badges.
+   - **02. Visual Acuity & Refraction History**: History of clinical refraction visits and visual acuity readouts.
+   - **03. Eye Prescription Details & Clinical History**: Smart prescription dropdown selector displaying all recorded clinical visits with date, doctor, and key power summaries (OD/OS Sph), updating `ClinicalPrescriptionCard` with zero latency.
+   - **04. Customer Orders & Invoices History (`CustomerOrdersSection`)**: High-density orders table with 100% Orders dashboard parity:
+     - **Telemetry Bar**: Displays Total Orders, Paid count, **Total Order Value** (sum of non-cancelled order values with strict currency formatting), and Fulfillment status counts.
+     - **Filter Tabs**: Instant filtering by `ALL`, `PAID`, `DUE`, `PROCESSING`, `READY`, and `DELIVERED`.
+     - **Live Search & Sort**: Real-time filtering across Order Number, Invoice Number, line item descriptions, and SKUs, with sorting by Newest, Oldest, or Highest Amount.
+     - **RFC 4180 CSV Export**: One-click "Export CSV" button generating an Excel-compatible CSV file with UTF-8 BOM, itemized SKU breakdown, tax amounts, and digital bill URLs.
+     - **Parity Table Fields**:
+       - `Order ID`: Bold sequential identifier linking to order detail.
+       - `Date`: Formatted transaction date.
+       - `SKU Details`: `SKUDetailsDropdown` popup showing itemized frames, lenses, and accessories.
+       - `Amount`: Total price formatted in INR, with balance due callout for unpaid amounts.
+       - `Payment Status`: Soft HSL pill badge (`PAID`, `PARTIALLY PAID`, `UNPAID`).
+       - `Delivery Status`: Fulfillment badges (`DELIVERED`, `UNDER PROCESSING`, `READY`, `DELAYED`).
+       - `Invoice / Receipts`: `ReceiptsDropdown` giving one-click access to download/print the Tax Invoice or individual Payment Receipts.
+       - `Actions Column`:
+         - **WhatsApp Utility Button**: 1-click dispatch menu sending digital bills, ready-for-pickup notices, or in-progress updates via Optical Manager desktop tool or WhatsApp Web.
+         - **Change Status Button**: Launches `QuickEditModal` to update fulfillment status, reschedule delivery, record partial payment, or settle dues with discount.
+         - **Edit Order Button**: Navigates to `/shop/orders/[id]/edit` (guarded by `canEditOrders` permission).
+   - **05. Store Credit History & Ledger**: Tracks credit additions from product returns and redemptions on sales bills.

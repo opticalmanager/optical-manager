@@ -136,10 +136,15 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 | `invoiceId` | `uuid` | FK -> `invoices.id` (CASCADE) | Linked tax invoice record |
 | `receiptId` | `uuid` | FK -> `receipts.id` (SET NULL) | Attached payment receipt (if partially paid) |
 | `orderNumber` | `varchar(50)` | NOT NULL, INDEXED | Sequential order number (`ORD-shop-YYYY-NNNN`) |
-| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Order creation timestamp |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Order creation timestamp (strictly harmonized with `invoices.createdAt`) |
 | `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
 | `deletedAt` | `timestamp` | NULLABLE, INDEXED | Soft-deletion timestamp (null for active orders) |
 | `deletedBy` | `uuid` | FK -> `profiles.id` (SET NULL) | User account who deleted the record |
+
+> [!NOTE]
+> **Order & Receipt Timestamp Harmonization**: `orders.createdAt` and `receipts.createdAt` are strictly synchronized with `invoices.createdAt` across all invoice creation, offline sync, and order edit workflows.
+> 
+> **Customer Resolution on Shared Phone Numbers**: In retail optical clinics, family members frequently share a single mobile number. During invoice creation, if a matching phone number exists but the customer's full name differs, a distinct customer record is created for the new family member rather than mutating the existing profile. This guarantees historical orders retain authentic patient identities.
 
 #### `order_edit_history`
 | Column Name | Type | Constraints | Description |

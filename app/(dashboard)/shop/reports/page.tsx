@@ -11,6 +11,8 @@ import {
   getDeadStockReport
 } from "@/services/report.service";
 import { getShopById } from "@/services/shop.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import ReportsClient from "@/components/shop/ReportsClient";
 
 export const metadata = {
@@ -28,6 +30,15 @@ interface PageProps {
 
 export default async function ShopReportsPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
+  if (!hasModulePermission(user, "reports")) {
+    return (
+      <AccessDenied
+        moduleName="Reports & Financials"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
+
   const shopId = user?.shopId;
 
   if (!shopId || !user || !user.organizationId) {

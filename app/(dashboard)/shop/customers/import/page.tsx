@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getShopsByOrganization, getShopById } from "@/services/shop.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { BulkCustomerImportClient } from "@/components/shop/BulkCustomerImportClient";
 
 export const metadata = {
@@ -13,6 +15,15 @@ export default async function BulkCustomerImportPage() {
 
   if (!user) {
     redirect("/login");
+  }
+
+  if (!hasModulePermission(user, "customers")) {
+    return (
+      <AccessDenied
+        moduleName="Bulk Customer Import"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   let shopId = user.shopId;

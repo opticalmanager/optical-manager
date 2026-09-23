@@ -5,6 +5,8 @@ import { getShopById } from "@/services/shop.service";
 import { db } from "@/lib/drizzle";
 import { profiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { SettingsPageClient } from "@/components/shop/SettingsPageClient";
 
 export const metadata = {
@@ -22,9 +24,18 @@ export default async function ShopSettingsPage({ searchParams }: PageProps) {
     redirect("/login");
   }
 
-  // Verify access role
+  // Verify access role and module permission
   if (user.role !== "OWNER" && user.role !== "SHOP_MANAGER") {
     redirect("/login");
+  }
+
+  if (!hasModulePermission(user, "settings")) {
+    return (
+      <AccessDenied
+        moduleName="Store Settings"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   const shopId = user.shopId;

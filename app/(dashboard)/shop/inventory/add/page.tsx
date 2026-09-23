@@ -7,6 +7,9 @@ import { AddContactLensItemForm } from "@/components/shop/AddContactLensItemForm
 import { AddAccessoryItemForm } from "@/components/shop/AddAccessoryItemForm";
 import { AddGeneralItemForm } from "@/components/shop/AddGeneralItemForm";
 
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
+
 export const metadata = {
   title: "Add Inventory Item | Optical Manager",
   description: "Add a new item to your retail and clinical stock catalog.",
@@ -21,6 +24,15 @@ export default async function AddItemPage({ searchParams }: AddItemPageProps) {
   
   if (!user || !user.shopId || !user.organizationId) {
     redirect("/login");
+  }
+
+  if (!hasModulePermission(user, "inventory")) {
+    return (
+      <AccessDenied
+        moduleName="Add Inventory Item"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   const resolvedParams = await searchParams;

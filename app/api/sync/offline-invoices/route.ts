@@ -133,7 +133,7 @@ export async function POST(request: Request) {
           if (!customerId) {
             // Check by phone number in shop
             const [phoneCust] = await tx
-              .select({ id: customers.id })
+              .select({ id: customers.id, fullName: customers.fullName })
               .from(customers)
               .where(
                 and(
@@ -143,7 +143,10 @@ export async function POST(request: Request) {
               )
               .limit(1);
 
-            if (phoneCust) {
+            if (
+              phoneCust &&
+              phoneCust.fullName.trim().toLowerCase() === data.customer.fullName.trim().toLowerCase()
+            ) {
               customerId = phoneCust.id;
             } else {
               // Create customer
@@ -320,12 +323,15 @@ export async function POST(request: Request) {
 
           // Generate Order Record
           const orderNumber = await generateOrderNumber(effectiveShopId, tx);
+          const effectiveDate = offlineCreatedAt ? new Date(offlineCreatedAt) : new Date();
           await tx.insert(orders).values({
             shopId: effectiveShopId,
             organizationId,
             customerId: customerId!,
             invoiceId: invoice.id,
             orderNumber,
+            createdAt: effectiveDate,
+            updatedAt: effectiveDate,
           });
 
           // Generate Receipt if payment was collected
@@ -339,6 +345,8 @@ export async function POST(request: Request) {
               amountPaid: String(amountPaid.toFixed(2)),
               balanceDue: String(balanceDue.toFixed(2)),
               paymentMethod: (data.paymentMethod as any) || "CASH",
+              createdAt: effectiveDate,
+              updatedAt: effectiveDate,
             });
           }
 

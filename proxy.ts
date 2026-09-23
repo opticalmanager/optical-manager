@@ -255,6 +255,30 @@ function extractOfflineUserFromCookies(request: NextRequest): any | null {
     return NextResponse.redirect(new URL("/shop/dashboard", request.url));
   }
 
+  // Shorthand Route Redirections for Authenticated Users (e.g., /setting -> /shop/settings)
+  if (user) {
+    const role = user.user_metadata?.role;
+    const shorthandMap: Record<string, string> = {
+      "/setting": role === "OWNER" ? "/owner/settings" : "/shop/settings",
+      "/settings": role === "OWNER" ? "/owner/settings" : "/shop/settings",
+      "/inventory": "/shop/inventory",
+      "/orders": "/shop/orders",
+      "/customers": "/shop/customers",
+      "/patients": "/shop/customers",
+      "/reports": "/shop/reports",
+      "/analytics": "/shop/analytics",
+      "/purchases": "/shop/purchases",
+      "/returns": "/shop/returns",
+      "/appointments": "/shop/appointments",
+      "/support": "/shop/support",
+      "/dashboard": role === "OWNER" ? "/owner" : "/shop/dashboard",
+    };
+
+    if (shorthandMap[pathname]) {
+      return NextResponse.redirect(new URL(shorthandMap[pathname], request.url));
+    }
+  }
+
   if (isOfflineAuth) {
     supabaseResponse.headers.set("x-offline-session", "1");
   }

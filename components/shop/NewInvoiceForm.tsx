@@ -61,7 +61,26 @@ import {
   Check,
   Briefcase,
   Landmark,
+  Eye,
 } from "lucide-react";
+
+interface PastRxGroup {
+  id: string;
+  date: string;
+  doctor: string;
+  rxNumber: string;
+  lensType: string;
+  distRx: any;
+  nearRx: any;
+  label: string;
+}
+
+const formatRxDate = (dateVal: string | Date | null | undefined) => {
+  if (!dateVal) return "Unknown Date";
+  const d = typeof dateVal === "string" ? new Date(dateVal) : dateVal;
+  if (isNaN(d.getTime())) return String(dateVal);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+};
 
 const INDIAN_STATES = [
   "Andhra Pradesh",
@@ -260,6 +279,8 @@ export function NewInvoiceForm() {
   const [caddLeft, setCaddLeft] = useState("");
   const [rxNumber, setRxNumber] = useState("PR-8821");
   const [rxCategory, setRxCategory] = useState("SPECTACLES");
+  const [availablePastRx, setAvailablePastRx] = useState<PastRxGroup[]>([]);
+  const [selectedPastRxId, setSelectedPastRxId] = useState<string>("DEFAULT");
 
   // Section 04: Product Selection (Order Line Items)
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -398,6 +419,108 @@ export function NewInvoiceForm() {
     "Dr. Amit Gupta",
   ]);
 
+  const applyPrescriptionGroup = (group: PastRxGroup | null) => {
+    if (!group) {
+      // Clear prescription values for fresh test
+      setDistODSphere("");
+      setDistODCylinder("");
+      setDistODAxis("");
+      setDistODNv("");
+      setDistODAdd("");
+      setCaddRight("");
+      setDistOSSphere("");
+      setDistOSCylinder("");
+      setDistOSAxis("");
+      setDistOSNv("");
+      setDistOSAdd("");
+      setCaddLeft("");
+      setNearODSphere("");
+      setNearODCylinder("");
+      setNearODAxis("");
+      setNearODNv("");
+      setNearOSSphere("");
+      setNearOSCylinder("");
+      setNearOSAxis("");
+      setNearOSNv("");
+      setPdRight("31.5");
+      setPdLeft("31.5");
+      setPartyName("");
+      setFrameName("");
+      setRxNumber(`PR-${Date.now().toString().slice(-4)}`);
+      return;
+    }
+
+    const dist = group.distRx;
+    const near = group.nearRx;
+
+    if (dist) {
+      setDistanceEnabled(true);
+      setDistODSphere(dist.rightSphere || "");
+      setDistODCylinder(dist.rightCylinder || "");
+      setDistODAxis(dist.rightAxis || "");
+      setDistODNv(dist.rightNv || "");
+      setDistODAdd(dist.rightAdd || "");
+      setCaddRight(dist.caddRight || "");
+      setDistOSSphere(dist.leftSphere || "");
+      setDistOSCylinder(dist.leftCylinder || "");
+      setDistOSAxis(dist.leftAxis || "");
+      setDistOSNv(dist.leftNv || "");
+      setDistOSAdd(dist.leftAdd || "");
+      setCaddLeft(dist.caddLeft || "");
+      setPdRight(dist.pdRight || dist.pd || "31.5");
+      setPdLeft(dist.pdLeft || dist.pd || "31.5");
+      if (dist.rxNumber) setRxNumber(dist.rxNumber);
+      if (dist.rxCategory) setRxCategory(dist.rxCategory);
+      if (dist.lensType) setLensType(dist.lensType);
+      if (dist.doctorName) setDoctorName(dist.doctorName);
+      if (dist.prescribedAt) setPrescribedAt(String(dist.prescribedAt));
+      setPartyName(dist.partyName || "");
+      setFrameName(dist.frameName || "");
+    }
+
+    if (near) {
+      setNearEnabled(true);
+      setNearODSphere(near.rightSphere || "");
+      setNearODCylinder(near.rightCylinder || "");
+      setNearODAxis(near.rightAxis || "");
+      setNearODNv(near.rightNv || "");
+      setNearOSSphere(near.leftSphere || "");
+      setNearOSCylinder(near.leftCylinder || "");
+      setNearOSAxis(near.leftAxis || "");
+      setNearOSNv(near.leftNv || "");
+      if (!dist) {
+        setPdRight(near.pdRight || near.pd || "31.5");
+        setPdLeft(near.pdLeft || near.pd || "31.5");
+        if (near.caddRight) setCaddRight(near.caddRight);
+        if (near.caddLeft) setCaddLeft(near.caddLeft);
+        if (near.rxNumber) setRxNumber(near.rxNumber);
+        if (near.rxCategory) setRxCategory(near.rxCategory);
+        if (near.lensType) setLensType(near.lensType);
+        if (near.doctorName) setDoctorName(near.doctorName);
+        if (near.prescribedAt) setPrescribedAt(String(near.prescribedAt));
+      }
+    }
+
+    if (dist?.notes || near?.notes) {
+      setLensType((prev) => dist?.lensType || dist?.notes || near?.lensType || near?.notes || prev);
+    }
+  };
+
+  const handleSelectPastRx = (selectedId: string) => {
+    setSelectedPastRxId(selectedId);
+    if (selectedId === "NEW_BLANK") {
+      applyPrescriptionGroup(null);
+      toast.info("Cleared prescription fields for a fresh refraction exam.");
+      return;
+    }
+
+    const group = availablePastRx.find((g) => g.id === selectedId);
+    if (group) {
+      applyPrescriptionGroup(group);
+      toast.success(`Loaded prescription from ${formatRxDate(group.date)}`);
+    }
+  };
+
   // Load Existing Patient Profiles & Prescriptions
   const handleSelectPatient = async (customerId: string) => {
     setShowPatientSearch(false);
@@ -425,7 +548,9 @@ export function NewInvoiceForm() {
       setCity(targetPatient.city || "");
       setState(targetPatient.state || "");
       setPincode(targetPatient.pincode || "");
-      setRegId(targetPatient.registrationId || "OP-2026-XXXX");
+      if (targetPatient.registrationId) {
+        setRegId(targetPatient.registrationId);
+      }
       if (targetPatient.chiefComplaint) setChiefComplaint(targetPatient.chiefComplaint);
       if (targetPatient.familyHistory) setFamilyHistory(targetPatient.familyHistory);
       if (targetPatient.systemicIllness) setSystemicIllness(targetPatient.systemicIllness);
@@ -455,7 +580,7 @@ export function NewInvoiceForm() {
       ]);
 
       if (res.success && res.data) {
-        const { customer, distancePrescription, nearPrescription } = res.data;
+        const { customer, distancePrescription, nearPrescription, prescriptions: allPrescriptions } = res.data;
 
         // Auto-fill Store Credit
         const creditVal = parseFloat(customer.storeCredit || "0") || 0;
@@ -482,60 +607,78 @@ export function NewInvoiceForm() {
         if (customer.systemicIllness) setSystemicIllness(customer.systemicIllness);
         if (customer.allergies) setAllergies(customer.allergies);
 
-        // Auto-fill Section 03 Distance Prescription
-        if (distancePrescription) {
-          setDistanceEnabled(true);
-          setDistODSphere(distancePrescription.rightSphere || "");
-          setDistODCylinder(distancePrescription.rightCylinder || "");
-          setDistODAxis(distancePrescription.rightAxis || "");
-          setDistODNv(distancePrescription.rightNv || "");
-          setDistODAdd(distancePrescription.rightAdd || "");
-          setCaddRight(distancePrescription.caddRight || "");
+        // Group all past prescriptions by rxNumber or date
+        const rawPrescriptions: any[] = allPrescriptions || [];
+        const groupsMap = new Map<string, PastRxGroup>();
 
-          setDistOSSphere(distancePrescription.leftSphere || "");
-          setDistOSCylinder(distancePrescription.leftCylinder || "");
-          setDistOSAxis(distancePrescription.leftAxis || "");
-          setDistOSNv(distancePrescription.leftNv || "");
-          setDistOSAdd(distancePrescription.leftAdd || "");
-          setCaddLeft(distancePrescription.caddLeft || "");
+        for (const p of rawPrescriptions) {
+          const dateKey = p.prescribedAt ? String(p.prescribedAt) : new Date(p.createdAt).toISOString().split("T")[0];
+          const groupKey = p.rxNumber ? `${p.rxNumber}_${dateKey}` : (p.id || dateKey);
+          const doc = p.prescribedBy || p.doctorName || "Optometrist";
 
-          setPdRight(distancePrescription.pdRight || distancePrescription.pd || "31.5");
-          setPdLeft(distancePrescription.pdLeft || distancePrescription.pd || "31.5");
-          if (distancePrescription.rxNumber) setRxNumber(distancePrescription.rxNumber);
-          if (distancePrescription.rxCategory) setRxCategory(distancePrescription.rxCategory);
-          if (distancePrescription.lensType) setLensType(distancePrescription.lensType);
-
-          setDoctorName(distancePrescription.doctorName || "");
-          setPartyName(distancePrescription.partyName || "");
-          setFrameName(distancePrescription.frameName || "");
-        }
-
-        // Auto-fill Section 03 Near Prescription
-        if (nearPrescription) {
-          setNearEnabled(true);
-          setNearODSphere(nearPrescription.rightSphere || "");
-          setNearODCylinder(nearPrescription.rightCylinder || "");
-          setNearODAxis(nearPrescription.rightAxis || "");
-          setNearODNv(nearPrescription.rightNv || "");
-
-          setNearOSSphere(nearPrescription.leftSphere || "");
-          setNearOSCylinder(nearPrescription.leftCylinder || "");
-          setNearOSAxis(nearPrescription.leftAxis || "");
-          setNearOSNv(nearPrescription.leftNv || "");
-
-          if (!distancePrescription) {
-            setPdRight(nearPrescription.pdRight || nearPrescription.pd || "31.5");
-            setPdLeft(nearPrescription.pdLeft || nearPrescription.pd || "31.5");
-            if (nearPrescription.caddRight) setCaddRight(nearPrescription.caddRight);
-            if (nearPrescription.caddLeft) setCaddLeft(nearPrescription.caddLeft);
-            if (nearPrescription.rxNumber) setRxNumber(nearPrescription.rxNumber);
-            if (nearPrescription.rxCategory) setRxCategory(nearPrescription.rxCategory);
-            if (nearPrescription.lensType) setLensType(nearPrescription.lensType);
+          if (!groupsMap.has(groupKey)) {
+            groupsMap.set(groupKey, {
+              id: groupKey,
+              date: dateKey,
+              doctor: doc,
+              rxNumber: p.rxNumber || "",
+              lensType: p.lensType || "",
+              distRx: p.prescriptionType === "DISTANCE" ? p : null,
+              nearRx: p.prescriptionType === "NEAR" ? p : null,
+              label: "",
+            });
+          } else {
+            const existing = groupsMap.get(groupKey)!;
+            if (p.prescriptionType === "DISTANCE") existing.distRx = p;
+            if (p.prescriptionType === "NEAR") existing.nearRx = p;
           }
         }
 
-        if (distancePrescription?.notes || nearPrescription?.notes) {
-          setLensType((prev) => distancePrescription?.lensType || distancePrescription?.notes || nearPrescription?.lensType || nearPrescription?.notes || prev);
+        const groups = Array.from(groupsMap.values());
+
+        // Fallback if rawPrescriptions was empty but distance/nearPrescription exists
+        if (groups.length === 0 && (distancePrescription || nearPrescription)) {
+          const p = distancePrescription || nearPrescription;
+          const dateKey = p.prescribedAt ? String(p.prescribedAt) : new Date(p.createdAt).toISOString().split("T")[0];
+          const groupKey = p.rxNumber ? `${p.rxNumber}_${dateKey}` : (p.id || dateKey);
+          const doc = p.prescribedBy || p.doctorName || "Optometrist";
+          groups.push({
+            id: groupKey,
+            date: dateKey,
+            doctor: doc,
+            rxNumber: p.rxNumber || "",
+            lensType: p.lensType || "",
+            distRx: distancePrescription,
+            nearRx: nearPrescription,
+            label: "",
+          });
+        }
+
+        // Generate high-clarity labels for each past Rx
+        groups.forEach((g) => {
+          const rxNum = g.distRx?.rxNumber || g.nearRx?.rxNumber;
+          const rSph = g.distRx?.rightSphere || g.nearRx?.rightSphere;
+          const lSph = g.distRx?.leftSphere || g.nearRx?.leftSphere;
+          const pwr = (rSph || lSph) ? ` [OD: ${rSph || "0.00"}, OS: ${lSph || "0.00"}]` : "";
+          g.label = `${formatRxDate(g.date)} — ${g.doctor}${rxNum ? ` (${rxNum})` : ""}${pwr}`;
+        });
+
+        setAvailablePastRx(groups);
+
+        if (groups.length > 0) {
+          setSelectedPastRxId(groups[0].id);
+          applyPrescriptionGroup(groups[0]);
+        } else if (distancePrescription || nearPrescription) {
+          applyPrescriptionGroup({
+            id: "default",
+            date: new Date().toISOString(),
+            doctor: "",
+            rxNumber: "",
+            lensType: "",
+            distRx: distancePrescription,
+            nearRx: nearPrescription,
+            label: "",
+          });
         }
 
         toast.success("Patient details & clinical history loaded!", { id: loadingToast });
@@ -994,6 +1137,8 @@ export function NewInvoiceForm() {
   const handleReset = (e?: React.MouseEvent) => {
     if (e?.preventDefault) e.preventDefault();
     setSelectedCustomerId(null);
+    setAvailablePastRx([]);
+    setSelectedPastRxId("DEFAULT");
     const nowStr = formatDateTimeLocal();
     setInvoiceDateTime(nowStr);
     setIsCustomDate(false);
@@ -1678,6 +1823,47 @@ export function NewInvoiceForm() {
       </div>
 
       {/* SECTION 2: SPECT(S) RX / CLINICAL PRESCRIPTION */}
+      {selectedCustomerId && availablePastRx.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-[#0a52c3] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Eye className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-slate-900">
+                  Select Customer Eye Prescription
+                </p>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0a52c3]">
+                  {availablePastRx.length} Recorded
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Choose a previous test record from the database or switch to a blank exam
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-[280px] sm:min-w-[340px]">
+              <select
+                value={selectedPastRxId}
+                onChange={(e) => handleSelectPastRx(e.target.value)}
+                className="w-full h-8 pl-3 pr-8 rounded-lg border border-blue-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] appearance-none cursor-pointer transition-all shadow-2xs"
+              >
+                {availablePastRx.map((g, idx) => (
+                  <option key={g.id} value={g.id}>
+                    {idx === 0 ? "★ Latest: " : `#${idx + 1}: `}{g.label}
+                  </option>
+                ))}
+                <option value="NEW_BLANK">+ Blank / Fresh Prescription Exam</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <ClinicalPrescriptionCard
         values={{
           rxNumber,

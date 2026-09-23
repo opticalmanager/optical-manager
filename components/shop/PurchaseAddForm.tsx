@@ -927,12 +927,12 @@ export function PurchaseAddForm({
                           type="button"
                           onClick={() => handleOpenAddProductModal(index)}
                           title={row.details ? `Specs: ${row.details}` : (row.productName || "Click to view/edit product specifications")}
-                          className="w-full h-7 px-2 rounded-md bg-emerald-50/80 hover:bg-emerald-100/90 text-emerald-800 border border-emerald-300/80 font-semibold text-[11px] flex items-center justify-between gap-1.5 cursor-pointer transition-all shadow-2xs group text-left"
+                          className="w-full h-7 px-2 rounded-md bg-white hover:bg-[#F9FAFB] text-[#374151] border border-[#D1D5DB] font-semibold text-[11px] flex items-center justify-between gap-1.5 cursor-pointer transition-all shadow-2xs group text-left"
                         >
-                          <span className="truncate font-bold text-slate-800 text-xs flex-1">
+                          <span className="truncate font-bold text-[#111827] text-xs flex-1">
                             {row.productName || row.details || "Item"}
                           </span>
-                          <span className="text-[9px] bg-emerald-600 hover:bg-emerald-700 text-white px-1.5 py-0.5 rounded font-bold shrink-0 flex items-center gap-0.5 shadow-2xs transition-colors">
+                          <span className="text-[9px] bg-[#ECFDF5] text-[#059669] border border-emerald-200 px-1.5 py-0.5 rounded font-bold shrink-0 flex items-center gap-0.5 shadow-2xs transition-colors">
                             <Eye className="h-2.5 w-2.5" />
                             <span>View</span>
                           </span>
@@ -941,10 +941,10 @@ export function PurchaseAddForm({
                         <button
                           type="button"
                           onClick={() => handleOpenAddProductModal(index)}
-                          className="w-full h-7 px-1.5 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 font-bold text-[10px] flex items-center justify-center gap-0.5 cursor-pointer transition-all shadow-2xs group"
+                          className="w-full h-7 px-1.5 rounded-md bg-white hover:bg-[#F9FAFB] text-[#374151] border border-[#D1D5DB] font-semibold text-[10px] flex items-center justify-center gap-0.5 cursor-pointer transition-all shadow-2xs group"
                         >
-                          <Plus className="h-2.5 w-2.5" />
-                          <span> Details</span>
+                          <Plus className="h-2.5 w-2.5 text-[#6B7280]" />
+                          <span>+ Details</span>
                         </button>
                       )}
                     </td>

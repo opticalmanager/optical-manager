@@ -5,6 +5,10 @@ import { getOrganizationById } from "@/services/organization.service";
 import { getShopsWithManagers } from "@/services/shop-manager.service";
 import { getAppointmentConfig } from "@/services/appointment.service";
 import { AppointmentPageBuilder } from "@/components/owner/AppointmentPageBuilder";
+import { db } from "@/lib/drizzle";
+import { organizations } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { slugify } from "@/lib/utils";
 
 export const metadata = {
   title: "Appointment Booking Page Builder | Optical Manager",
@@ -43,7 +47,7 @@ export default async function AppointmentSettingsPage() {
     organization = {
       id: user.organizationId,
       name: "Optical Store",
-      slug: "opticalstore",
+      slug: null,
       phone: null,
     };
     shops = [];
@@ -54,9 +58,24 @@ export default async function AppointmentSettingsPage() {
     organization = {
       id: user.organizationId,
       name: "Optical Store",
-      slug: "opticalstore",
+      slug: null,
       phone: null,
     };
+  }
+
+  // Auto-generate and persist unique slug if missing
+  if (organization && !organization.slug) {
+    let generatedSlug = slugify(organization.name || "store");
+    if (!generatedSlug) generatedSlug = `store-${organization.id.slice(0, 6)}`;
+    try {
+      await db
+        .update(organizations)
+        .set({ slug: generatedSlug, updatedAt: new Date() })
+        .where(eq(organizations.id, organization.id));
+      organization.slug = generatedSlug;
+    } catch {
+      organization.slug = organization.id;
+    }
   }
 
   return (
@@ -64,7 +83,7 @@ export default async function AppointmentSettingsPage() {
       organization={{
         id: organization.id,
         name: organization.name,
-        slug: organization.slug || "niceroptical",
+        slug: organization.slug || organization.id,
         phone: organization.phone || null,
       }}
       shops={shops.map((s) => ({

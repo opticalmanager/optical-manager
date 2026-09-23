@@ -1,13 +1,25 @@
 import Link from "next/link";
 import { Truck, PlusCircle, Building2, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { getCurrentUser } from "@/services/auth.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 
 export const metadata = {
   title: "Purchases & Inward Supply | Optical Manager",
   description: "Manage purchase orders, vendor invoices, and inward stock inventory.",
 };
 
-export default function PurchasesPage() {
+export default async function PurchasesPage() {
+  const user = await getCurrentUser();
+  if (!hasModulePermission(user, "purchases")) {
+    return (
+      <AccessDenied
+        moduleName="Purchases & Inward Supply"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
   return (
     <div className="space-y-5 pb-12 select-none text-slate-800 max-w-[1200px] mx-auto">
       {/* Header */}

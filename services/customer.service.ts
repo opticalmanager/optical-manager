@@ -1,9 +1,10 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { customers, shops, invoices, prescriptions, customerCreditLedger } from "@/db/schema";
-import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
+import { customers, shops, invoices, prescriptions, customerCreditLedger, orders, invoiceItems, inventory, receipts } from "@/db/schema";
+import { eq, and, ilike, or, sql, desc, inArray, isNull } from "drizzle-orm";
 import type { Customer, NewCustomer } from "@/types";
+import type { OrderItem, SKUDetail, ReceiptItem } from "@/services/order.service";
 
 /**
  * Generate a sequential registration ID in the format OP-shopNum-YYYY-NNNN.
@@ -278,14 +279,162 @@ export async function getClinicalSuggestions(organizationId: string): Promise<{
 }
 
 /**
- * Get full profile details, prescriptions, invoices and stats for a customer.
+ * Fetch all orders for a specific customer with full item details and receipts.
+ */
+export async function getCustomerOrders(
+  customerId: string,
+  organizationId: string
+): Promise<OrderItem[]> {
+  const ordersListRaw = await db
+    .select({
+      id: invoices.id,
+      orderId: sql<string>`COALESCE(${orders.id}, ${invoices.id})`,
+      orderNumber: sql<string>`COALESCE(${orders.orderNumber}, ${invoices.invoiceNumber})`,
+      invoiceId: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      createdAt: sql<Date>`COALESCE(${orders.createdAt}, ${invoices.createdAt})`,
+      total: invoices.total,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      paymentMethod: invoices.paymentMethod,
+      fulfillmentStatus: invoices.fulfillmentStatus,
+      estimatedDelivery: invoices.estimatedDelivery,
+      isRescheduled: invoices.isRescheduled,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+      customerEmail: customers.email,
+      receiptId: orders.receiptId,
+      notes: invoices.notes,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .leftJoin(orders, eq(orders.invoiceId, invoices.id))
+    .where(
+      and(
+        eq(invoices.customerId, customerId),
+        eq(invoices.organizationId, organizationId),
+        isNull(invoices.deletedAt),
+        sql`(${orders.deletedAt} IS NULL OR ${orders.id} IS NULL)`
+      )
+    )
+    .orderBy(desc(sql`COALESCE(${orders.createdAt}, ${invoices.createdAt})`));
+
+  if (ordersListRaw.length === 0) return [];
+
+  const invoiceIds = ordersListRaw.map((o) => o.invoiceId);
+
+  const [itemsRaw, receiptsRaw] = await Promise.all([
+    db
+      .select({
+        invoiceId: invoiceItems.invoiceId,
+        description: invoiceItems.description,
+        quantity: invoiceItems.quantity,
+        category: inventory.category,
+        sku: inventory.sku,
+      })
+      .from(invoiceItems)
+      .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
+      .where(inArray(invoiceItems.invoiceId, invoiceIds)),
+
+    db
+      .select({
+        id: receipts.id,
+        invoiceId: receipts.invoiceId,
+        receiptNumber: receipts.receiptNumber,
+        amountPaid: receipts.amountPaid,
+        balanceDue: receipts.balanceDue,
+        paymentMethod: receipts.paymentMethod,
+        createdAt: receipts.createdAt,
+      })
+      .from(receipts)
+      .where(inArray(receipts.invoiceId, invoiceIds))
+      .orderBy(receipts.createdAt),
+  ]);
+
+  // Group items by invoiceId
+  const itemsByInvoice = new Map<string, SKUDetail[]>();
+  itemsRaw.forEach((item) => {
+    const list = itemsByInvoice.get(item.invoiceId) || [];
+    list.push({
+      description: item.description || "Optical Item",
+      quantity: item.quantity,
+      category: item.category,
+      sku: item.sku,
+    });
+    itemsByInvoice.set(item.invoiceId, list);
+  });
+
+  // Group receipts by invoiceId
+  const receiptsByInvoice = new Map<string, ReceiptItem[]>();
+  receiptsRaw.forEach((rcp) => {
+    const list = receiptsByInvoice.get(rcp.invoiceId) || [];
+    list.push({
+      id: rcp.id,
+      receiptNumber: rcp.receiptNumber,
+      amountPaid: rcp.amountPaid,
+      balanceDue: rcp.balanceDue,
+      paymentMethod: rcp.paymentMethod,
+      createdAt: rcp.createdAt,
+    });
+    receiptsByInvoice.set(rcp.invoiceId, list);
+  });
+
+  return ordersListRaw.map((ord) => {
+    const skus = itemsByInvoice.get(ord.invoiceId) || [];
+    const ordReceipts = receiptsByInvoice.get(ord.invoiceId) || [];
+
+    // Derive category description
+    let categoryText = "Optical Order";
+    const categories = Array.from(new Set(skus.map((s) => s.category).filter(Boolean)));
+    if (categories.includes("FRAME") && categories.includes("LENS")) {
+      categoryText = "Spectacles Order";
+    } else if (categories.includes("FRAME")) {
+      categoryText = "Eyeglass Frame";
+    } else if (categories.includes("LENS")) {
+      categoryText = "Prescription Lenses";
+    } else if (categories.includes("CONTACT_LENS")) {
+      categoryText = "Contact Lenses";
+    } else if (categories.includes("SUNGLASSES")) {
+      categoryText = "Designer Sunglasses";
+    } else if (categories.includes("ACCESSORY")) {
+      categoryText = "Optical Accessories";
+    }
+
+    return {
+      id: ord.orderId,
+      orderNumber: ord.orderNumber,
+      invoiceId: ord.invoiceId,
+      invoiceNumber: ord.invoiceNumber,
+      createdAt: ord.createdAt,
+      total: ord.total,
+      amountPaid: ord.amountPaid,
+      balanceDue: ord.balanceDue,
+      paymentMethod: ord.paymentMethod,
+      fulfillmentStatus: ord.fulfillmentStatus,
+      estimatedDelivery: ord.estimatedDelivery,
+      isRescheduled: ord.isRescheduled,
+      customerId: ord.customerId,
+      customerName: ord.customerName,
+      customerPhone: ord.customerPhone,
+      customerEmail: ord.customerEmail,
+      skus,
+      categoryText,
+      receiptId: ord.receiptId,
+      receipts: ordReceipts,
+    };
+  });
+}
+
+/**
+ * Get full profile details, prescriptions, invoices, orders and stats for a customer.
  */
 export async function getCustomerProfileData(
   customerId: string,
   organizationId: string
 ): Promise<any | null> {
-  // Fetch customer, prescriptions, invoices, and credit ledger in parallel to minimize database latency
-  const [customerResult, customerPrescriptions, customerInvoices, creditLedgerResult] = await Promise.all([
+  // Fetch customer, prescriptions, invoices, orders, and credit ledger in parallel to minimize database latency
+  const [customerResult, customerPrescriptions, customerInvoices, customerOrders, creditLedgerResult] = await Promise.all([
     db
       .select()
       .from(customers)
@@ -312,10 +461,15 @@ export async function getCustomerProfileData(
       .where(
         and(
           eq(invoices.customerId, customerId),
-          eq(invoices.organizationId, organizationId)
+          eq(invoices.organizationId, organizationId),
+          isNull(invoices.deletedAt)
         )
       )
       .orderBy(desc(invoices.createdAt)),
+    getCustomerOrders(customerId, organizationId).catch((err) => {
+      console.warn("[getCustomerProfileData] Failed to fetch customer orders:", err);
+      return [] as OrderItem[];
+    }),
     db
       .select()
       .from(customerCreditLedger)
@@ -331,30 +485,50 @@ export async function getCustomerProfileData(
   const customer = customerResult[0] || null;
   if (!customer) return null;
 
-  // 4. Calculate aggregates
-  const pendingDues = customerInvoices.reduce(
-    (sum, inv) => sum + Number(inv.balanceDue || 0),
-    0
+  // 4. Calculate aggregates (strictly excluding deleted or cancelled invoices)
+  const activeInvoices = customerInvoices.filter(
+    (inv) => !inv.deletedAt && inv.status !== "CANCELLED"
   );
 
-  const totalOrdersCount = customerInvoices.length;
+  const pendingDues = customerOrders.length > 0
+    ? customerOrders.reduce((sum, ord) => sum + (parseFloat(ord.balanceDue) || 0), 0)
+    : activeInvoices.reduce((sum, inv) => sum + Number(inv.balanceDue || 0), 0);
+
+  const totalOrderValue = customerOrders.length > 0
+    ? customerOrders.reduce((sum, ord) => sum + (parseFloat(ord.total) || 0), 0)
+    : activeInvoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0);
+
+  const totalOrdersCount = customerOrders.length || activeInvoices.length;
 
   const dates = [
     new Date(customer.createdAt),
-    ...customerInvoices.map((inv) => new Date(inv.createdAt)),
+    ...activeInvoices.map((inv) => new Date(inv.createdAt)),
     ...customerPrescriptions.map((p) => new Date(p.createdAt)),
   ];
   const lastVisitDate = new Date(Math.max(...dates.map((d) => d.getTime())));
 
   const latestPrescription = customerPrescriptions[0] || null;
-  const latestInvoice = customerInvoices[0] || null;
+  const latestInvoice = customerOrders.length > 0
+    ? {
+        id: customerOrders[0].invoiceId,
+        invoiceNumber: customerOrders[0].invoiceNumber,
+        total: customerOrders[0].total,
+        balanceDue: customerOrders[0].balanceDue,
+        status: (parseFloat(customerOrders[0].balanceDue) === 0 ? "PAID" : "PENDING") as "DRAFT" | "PENDING" | "PAID" | "CANCELLED",
+        fulfillmentStatus: (customerOrders[0].fulfillmentStatus as any) || "PROCESSING",
+        createdAt: customerOrders[0].createdAt,
+        notes: null,
+      }
+    : (activeInvoices[0] || null);
 
   return {
     customer,
     prescriptions: customerPrescriptions,
-    invoices: customerInvoices,
+    invoices: activeInvoices,
+    orders: customerOrders,
     creditLedger: creditLedgerResult,
     pendingDues,
+    totalOrderValue,
     totalOrdersCount,
     lastVisitDate,
     latestPrescription,

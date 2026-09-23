@@ -29,7 +29,7 @@ export function OwnerShell({
 
   return (
     <OfflineProvider shopId={shopId}>
-      <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
+      <div className="min-h-screen flex bg-[#F7F8FA] text-slate-800 font-sans">
       
       {/* 1. Desktop Sidebar (Left Panel) - Hidden on Mobile */}
       <div className="hidden lg:block h-screen sticky top-0 shrink-0">
@@ -46,7 +46,7 @@ export function OwnerShell({
           />
 
           {/* Drawer Sidebar Container */}
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white border-r border-slate-200 animate-slide-in-left shadow-2xl z-50">
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white border-r border-[#E4E9F0] animate-slide-in-left shadow-2xl z-50">
             {/* Close Button */}
             <div className="absolute top-4 right-4 z-50">
               <button
@@ -75,7 +75,7 @@ export function OwnerShell({
         />
 
         {/* Dynamic Main Workspace Panel */}
-        <main className="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto overflow-y-auto">
+        <main className="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto overflow-y-auto bg-[#F7F8FA]">
           {children}
         </main>
       </div>

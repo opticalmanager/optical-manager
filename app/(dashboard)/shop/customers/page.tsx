@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getCustomersDashboard } from "@/services/customer.service";
 import { getShopsByOrganization } from "@/services/shop.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import { CustomerRecordsClient } from "@/components/shop/CustomerRecordsClient";
 
 export default async function CustomersPage() {
@@ -9,6 +11,15 @@ export default async function CustomersPage() {
   
   if (!user) {
     redirect("/login");
+  }
+
+  if (!hasModulePermission(user, "customers")) {
+    return (
+      <AccessDenied
+        moduleName="Patients & Customers"
+        userRole={user.customRoleName || user.role}
+      />
+    );
   }
 
   let shopId = user.shopId;

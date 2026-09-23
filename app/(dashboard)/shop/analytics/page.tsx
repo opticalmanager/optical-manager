@@ -1,6 +1,8 @@
 import { getCurrentUser } from "@/services/auth.service";
 import { getDashboardData, DashboardOptions } from "@/services/dashboard.service";
 import { TimeframeType } from "@/services/order.service";
+import { hasModulePermission } from "@/utils/permissions";
+import { AccessDenied } from "@/components/shop/AccessDenied";
 import AnalyticsClient from "@/components/shop/AnalyticsClient";
 
 export const metadata = {
@@ -24,6 +26,15 @@ interface PageProps {
 
 export default async function ShopAnalyticsPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
+  if (!hasModulePermission(user, "analytics")) {
+    return (
+      <AccessDenied
+        moduleName="Analytics & Telemetry"
+        userRole={user?.customRoleName || user?.role}
+      />
+    );
+  }
+
   const shopId = user?.shopId;
 
   if (!shopId) {

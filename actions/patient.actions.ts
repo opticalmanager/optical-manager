@@ -252,7 +252,15 @@ export async function registerPatientAndInvoiceAction(
           .limit(1);
 
         if (existingPhoneCust) {
-          customerId = existingPhoneCust.id;
+          const isSamePerson =
+            existingPhoneCust.fullName.trim().toLowerCase() ===
+            data.customer.fullName.trim().toLowerCase();
+
+          if (isSamePerson) {
+            customerId = existingPhoneCust.id;
+          }
+          // Note: If names differ (family member sharing the phone number), do NOT reuse customerId,
+          // which safely allows inserting a new customer record with data.customer.fullName below.
         }
       }
 
@@ -698,6 +706,7 @@ export async function getPatientDetailsAction(
         customer,
         distancePrescription,
         nearPrescription,
+        prescriptions: patientPrescriptions,
       },
     };
   } catch (error: any) {
