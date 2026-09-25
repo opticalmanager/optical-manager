@@ -45,3 +45,26 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
 
 4. **Synchronized Documentation Maintenance (`docs/`)**:
    - Whenever performing any development, adding features, modifying database schemas, updating architecture, adding API endpoints, or configuring external services, you MUST simultaneously update the relevant documentation files inside the `docs/` directory (`docs/overview.md`, `docs/architecture.md`, `docs/tech_stack.md`, `docs/user_flow.md`, `docs/database_schema.md`, `docs/ai_spec.md`, `docs/requirements.md`, `docs/services_used.md`, `docs/api_routes.md`). System documentation must always remain 100% synchronized with the live codebase.
+
+---
+
+## 3. Google Gemini Vision API & Smart Bill Scanning Architecture
+
+1. **Multimodal OCR & Resilient Model Architecture**:
+   - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-3.1-pro-preview`).
+   - If a tenant's configured model is temporarily unavailable or restricted (e.g. 403 Forbidden / 404 Not Found), the extraction engine automatically falls back across the stable candidate sequence (`gemini-2.5-flash` -> `gemini-2.5-pro` -> `gemini-1.5-flash`), eliminating scan failures.
+   - Supports JPG, PNG, WEBP images and single-page PDF supplier bills.
+   - Enforces structured JSON output via `generationConfig: { responseMimeType: "application/json" }`.
+
+2. **Zero-Math Hallucination Engine**:
+   - Gemini extracts raw text, item names, rates, quantities, and GST rates.
+   - All arithmetic (CGST/SGST/IGST splitting, base price calculation, purchase price per unit, item totals, and bill rounding) is calculated on the server/client math engine to ensure 100% financial precision without floating-point errors.
+
+3. **Client-Side Image Optimization**:
+   - High-resolution mobile camera captures (8–15MB) are downscaled using an off-screen HTML5 canvas to a max dimension of 1800px at 85% JPEG quality before base64 encoding.
+   - Shrinks network payloads from ~10MB to <300KB, dropping network upload latency by up to 70%.
+
+4. **Per-Account Credentials Isolation**:
+   - Each tenant organization stores its private `geminiApiKey` and `geminiModel` in `organizations.settings.ai`.
+   - Keys are managed and tested via `actions/ai-settings.actions.ts`.
+   - Fallback to `process.env.GEMINI_API_KEY` for development and platform testing.

@@ -192,6 +192,12 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Payload**: `{ category, productCode, productName, brand?, gender?, color?, size?, type?, material?, hsnCode?, gstPercent, cgstPercent, sgstPercent, igstPercent, costPrice, retailPrice }`.
 - **Return Type**: `{ success: boolean, message: string, item?: InventoryItem }`.
 
+#### `createPurchaseFromCsvAction(payload)` (`actions/purchase.actions.ts`)
+- **Description**: High-performance transactional batch ingestion endpoint for supplier purchase bills and catalog inventory imported via CSV (`/shop/inventory/import`). Performs smart catalog verification (matching existing store items by `productCode` vs creating new products with auto-generated SKUs), inserts frame/lens/contact-lens category specs, creates the master `purchaseOrders` and `purchaseOrderItems` records, recalculates tax splits, and writes audit trails into `stock_movements`.
+- **Route**: Accessible via `/shop/inventory/import` (Step 4 of Bulk Purchase Wizard).
+- **Payload**: `BulkPurchaseCsvPayload` (`vendorId?`, `vendorName`, `purchaseNumber`, `purchaseDate`, `taxRule`, `taxType`, `notes?`, `items: Array<CsvPurchaseItem>`).
+- **Return Type**: `{ success: boolean, message: string, purchaseId?: string, purchaseNumber?: string, totalQuantity?: number, totalPurchase?: number, itemsCreated?: number, itemsUpdated?: number }`.
+
 ---
 
 ### Customer & Bulk Ingestion Actions (`actions/customer.actions.ts`)
@@ -202,6 +208,12 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Payload**: `shopId: string`, `records: Array<{ fullName, phone, email?, gender?, dateOfBirth?, address?, city?, state?, pincode?, referredBy?, notes? }>`.
 - **Validation**: Enforces strict 10-digit numeric phone format, minimum name length, and email format.
 - **Return Type**: `{ success: boolean, message: string, count?: number, firstRegId?: string, lastRegId?: string, errors?: string[] }`.
+
+#### `bulkImportInvoicesAction(shopId, payload)` (`actions/invoice.actions.ts`)
+- **Description**: High-performance transactional batch ingestion endpoint for historical sales invoices and billing records imported via CSV (`/shop/invoices/import`). Performs smart customer matching against the store directory by 10-digit phone number, automatically registers new customers with sequential `registrationId` values, preserves external legacy bill numbers or auto-assigns series numbers (`generateBatchInvoiceNumbers`), groups multi-item invoices, inserts `invoices`, `invoiceItems`, and `orders` records with historical timestamps, and writes payment receipts (`receipts`) for paid balances.
+- **Route**: Accessible via `/shop/invoices/import` (Step 4 of Bulk Invoices Wizard).
+- **Payload**: `BulkInvoiceImportPayload` (`shopId`, `records: Array<BulkInvoiceItemInput>`, `defaultDate?`, `defaultPaymentMethod?`, `defaultFulfillmentStatus?`, `autoCreateCustomers?`).
+- **Return Type**: `{ success: boolean, message: string, invoicesCount?: number, itemsCount?: number, newCustomersCount?: number, existingCustomersCount?: number, totalRevenue?: number, firstInvoiceNum?: string, lastInvoiceNum?: string, errors?: string[] }`.
 
 ---
 

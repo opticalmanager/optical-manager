@@ -10,6 +10,7 @@ import { TimeframeDropdown } from "./TimeframeDropdown";
 import { OrdersTableClient } from "./OrdersTableClient";
 import { DeletedRecordsModal } from "./DeletedRecordsModal";
 import { OrdersSearchInput } from "@/components/shop/orders/OrdersSearchInput";
+import { OrderHeaderActions } from "@/components/shop/orders/OrderHeaderActions";
 import { 
   SlidersHorizontal, 
   Download, 
@@ -137,12 +138,13 @@ export default async function OrdersDashboardPage({
           </p>
         </div>
 
-        {/* Deleted Records Action Button (Restricted to Owners and Admins) */}
-        {canDelete && (
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          {/* Deleted Records Action Button (Restricted to Owners and Admins) */}
+          {canDelete && (
             <DeletedRecordsModal deletedOrders={deletedOrders} />
-          </div>
-        )}
+          )}
+          <OrderHeaderActions />
+        </div>
       </div>
  
       {/* 2. Analytical Metrics Row */}

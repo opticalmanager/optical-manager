@@ -213,6 +213,8 @@ export const CORE_SHOP_ROUTES = [
   "/shop/patients/new",
   "/shop/returns/new",
   "/shop/inventory/add",
+  "/shop/inventory/import",
+  "/shop/invoices/import",
 ];
 
 export const CORE_OWNER_ROUTES = [
@@ -240,13 +242,13 @@ export async function precacheAppRoutes(role?: string): Promise<void> {
   }
 
   try {
-    const cache = await caches.open("optical-manager-cache-v15");
+    const cache = await caches.open("optical-manager-html-v18");
     const routesToPrecache =
       role === "OWNER"
-        ? [...CORE_OWNER_ROUTES, ...CORE_SHOP_ROUTES]
+        ? ["/offline", ...CORE_OWNER_ROUTES, ...CORE_SHOP_ROUTES]
         : role === "SHOP_MANAGER"
-        ? CORE_SHOP_ROUTES
-        : [...CORE_OWNER_ROUTES, ...CORE_SHOP_ROUTES];
+        ? ["/offline", ...CORE_SHOP_ROUTES]
+        : ["/offline", ...CORE_OWNER_ROUTES, ...CORE_SHOP_ROUTES];
 
     // Warm routes sequentially with idle delays to avoid server overload
     for (const route of routesToPrecache) {
@@ -254,8 +256,11 @@ export async function precacheAppRoutes(role?: string): Promise<void> {
         const match = await cache.match(route);
         if (!match) {
           const res = await fetch(route);
-          if (res && res.status === 200) {
-            await cache.put(route, res);
+          if (res && res.status === 200 && !res.redirected) {
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("text/html")) {
+              await cache.put(route, res);
+            }
           }
           // 800ms idle delay between requests
           await new Promise((resolve) => setTimeout(resolve, 800));

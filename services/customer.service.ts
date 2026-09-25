@@ -5,15 +5,22 @@ import { customers, shops, invoices, prescriptions, customerCreditLedger, orders
 import { eq, and, ilike, or, sql, desc, inArray, isNull } from "drizzle-orm";
 import type { Customer, NewCustomer } from "@/types";
 import type { OrderItem, SKUDetail, ReceiptItem } from "@/services/order.service";
+import {
+  DEFAULT_DOCUMENT_SERIES,
+  buildSeriesPrefix,
+  formatDocumentNumber,
+  extractTrailingSerial,
+} from "@/utils/document-series";
 
 /**
- * Generate a sequential registration ID in the format OP-shopNum-YYYY-NNNN.
+ * Generate a sequential registration ID supporting custom series or standard OP-shopNum-YYYY-NNNN.
  */
 export async function generateRegistrationId(shopId: string): Promise<string> {
-  // Fetch current shop organizationId
+  // Fetch current shop organizationId and custom settings
   const [shop] = await db
     .select({
       organizationId: shops.organizationId,
+      settings: shops.settings,
     })
     .from(shops)
     .where(eq(shops.id, shopId))
@@ -33,9 +40,16 @@ export async function generateRegistrationId(shopId: string): Promise<string> {
   const shopIndex = orgShops.findIndex((s) => s.id === shopId);
   const shopNum = shopIndex !== -1 ? shopIndex + 1 : 1;
 
-  const currentYear = new Date().getFullYear().toString();
-  const pattern = `OP-${shopNum}-${currentYear}-%`;
+  // Retrieve custom configuration or fall back to standard default
+  const customConfig = (shop.settings as any)?.documentSeries?.customer;
+  const config = customConfig
+    ? { ...DEFAULT_DOCUMENT_SERIES.customer, ...customConfig }
+    : DEFAULT_DOCUMENT_SERIES.customer;
 
+  const now = new Date();
+  const seriesPrefix = buildSeriesPrefix(config, shopNum, now);
+
+  // Query most recent customer matching this series prefix
   const [lastCustomer] = await db
     .select({
       registrationId: customers.registrationId,
@@ -44,34 +58,30 @@ export async function generateRegistrationId(shopId: string): Promise<string> {
     .where(
       and(
         eq(customers.shopId, shopId),
-        ilike(customers.registrationId, pattern)
+        ilike(customers.registrationId, `${seriesPrefix}%`)
       )
     )
-    .orderBy(sql`registration_id DESC`)
+    .orderBy(desc(customers.createdAt), desc(customers.registrationId))
     .limit(1);
 
-  let nextSerial = 1;
+  // Extract last serial from DB if exists
+  let lastDbSerial: number | null = null;
   if (lastCustomer?.registrationId) {
-    const parts = lastCustomer.registrationId.split("-");
-    // Format: OP-shopNum-year-serial (length 4)
-    if (parts.length === 4) {
-      const lastSerialStr = parts[3];
-      const lastSerial = parseInt(lastSerialStr, 10);
-      if (!isNaN(lastSerial)) {
-        nextSerial = lastSerial + 1;
-      }
-    } else {
-      // Backward compatibility fallback for old format: OP-year-serial (length 3)
-      const lastSerialStr = parts[2];
-      const lastSerial = parseInt(lastSerialStr, 10);
-      if (!isNaN(lastSerial)) {
-        nextSerial = lastSerial + 1;
-      }
-    }
+    lastDbSerial = extractTrailingSerial(lastCustomer.registrationId, seriesPrefix);
   }
 
-  const paddedSerial = nextSerial.toString().padStart(4, "0");
-  return `OP-${shopNum}-${currentYear}-${paddedSerial}`;
+  // Anti-collision safeguard: ensure next number is at least lastDbSerial + 1
+  const configuredNext =
+    typeof config.nextNumber === "number" && config.nextNumber > 0
+      ? config.nextNumber
+      : 1;
+
+  const nextSerial =
+    lastDbSerial !== null
+      ? Math.max(configuredNext, lastDbSerial + 1)
+      : configuredNext;
+
+  return formatDocumentNumber(config, nextSerial, shopNum, now);
 }
 
 /**

@@ -147,3 +147,104 @@ export async function updateShopInvoiceSettingsAction(
     return { success: false, message: "Failed to save invoice settings." };
   }
 }
+
+/**
+ * Server Action: Update custom document sequence & ID series for a shop.
+ */
+export async function updateShopDocumentSeriesAction(
+  shopId: string,
+  seriesData: {
+    invoice?: Partial<import("@/db/schema/shops").DocumentSequenceConfig>;
+    customer?: Partial<import("@/db/schema/shops").DocumentSequenceConfig>;
+    order?: Partial<import("@/db/schema/shops").DocumentSequenceConfig> & { matchInvoice?: boolean };
+  }
+): Promise<FormState> {
+  const user = await getCurrentUser();
+  if (!user || !user.organizationId) {
+    return { success: false, message: "Unauthorized." };
+  }
+
+  // Allow OWNER or SHOP_MANAGER with permission
+  const isOwner = user.role === "OWNER";
+  const isShopManager = user.role === "SHOP_MANAGER" && user.shopId === shopId;
+  if (!isOwner && !isShopManager) {
+    return { success: false, message: "Permission denied." };
+  }
+
+  try {
+    const { getShopById, updateShop } = await import("@/services/shop.service");
+    const existingShop = await getShopById(shopId, user.organizationId);
+    if (!existingShop) {
+      return { success: false, message: "Shop not found." };
+    }
+
+    // Validation: GST 16-character rule on Invoice Prefix & formatting
+    if (seriesData.invoice?.prefix) {
+      const cleanPrefix = seriesData.invoice.prefix.trim().toUpperCase();
+      if (!/^[A-Z0-9\-_/]+$/.test(cleanPrefix)) {
+        return {
+          success: false,
+          message: "Invoice prefix may only contain letters, numbers, hyphens, and slashes.",
+        };
+      }
+    }
+
+    if (seriesData.customer?.prefix) {
+      const cleanPrefix = seriesData.customer.prefix.trim().toUpperCase();
+      if (!/^[A-Z0-9\-_/]+$/.test(cleanPrefix)) {
+        return {
+          success: false,
+          message: "Customer ID prefix may only contain letters, numbers, hyphens, and slashes.",
+        };
+      }
+    }
+
+    if (seriesData.order?.prefix) {
+      const cleanPrefix = seriesData.order.prefix.trim().toUpperCase();
+      if (!/^[A-Z0-9\-_/]+$/.test(cleanPrefix)) {
+        return {
+          success: false,
+          message: "Order prefix may only contain letters, numbers, hyphens, and slashes.",
+        };
+      }
+    }
+
+    const existingSettings = (existingShop.settings as Record<string, any>) || {};
+    const existingSeries = existingSettings.documentSeries || {};
+
+    const updatedDocumentSeries = {
+      invoice: {
+        ...(existingSeries.invoice || {}),
+        ...(seriesData.invoice || {}),
+      },
+      customer: {
+        ...(existingSeries.customer || {}),
+        ...(seriesData.customer || {}),
+      },
+      order: {
+        ...(existingSeries.order || {}),
+        ...(seriesData.order || {}),
+      },
+    };
+
+    const updatedSettings = {
+      ...existingSettings,
+      documentSeries: updatedDocumentSeries,
+    };
+
+    await updateShop(shopId, user.organizationId, { settings: updatedSettings });
+
+    revalidatePath("/owner/settings");
+    revalidatePath("/shop/settings");
+    revalidatePath("/shop/invoices/new");
+    revalidatePath("/shop/patients/new");
+
+    return {
+      success: true,
+      message: "Document and serial number series saved successfully.",
+    };
+  } catch (error: any) {
+    console.error("[updateShopDocumentSeriesAction] error:", error);
+    return { success: false, message: error.message || "Failed to save document series." };
+  }
+}

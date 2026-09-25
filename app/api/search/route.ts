@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/services/auth.service";
 import { db } from "@/lib/drizzle";
 import { customers, inventory, invoices, shops } from "@/db/schema";
-import { eq, and, or, ilike } from "drizzle-orm";
+import { eq, and, or, ilike, ne, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,10 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") ?? "";
+    const shopParam = searchParams.get("shopId");
+    if (shopParam && shopParam.trim()) {
+      activeShopId = shopParam.trim();
+    }
 
     if (query.trim().length < 1) {
       return NextResponse.json({ customers: [], inventory: [], invoices: [] });
@@ -92,44 +96,48 @@ export async function GET(request: Request) {
       .limit(10);
 
     // 2. Parallel Lookup: Search Stock Inventory (Frames, Lenses, etc.)
-    const inventoryScope = activeShopId
-      ? and(
-          eq(inventory.shopId, activeShopId),
-          eq(inventory.isActive, true),
-          or(
-            ilike(inventory.name, `%${query}%`),
-            ilike(inventory.sku, `%${query}%`),
-            ilike(inventory.brand, `%${query}%`),
-            ilike(inventory.model, `%${query}%`)
+    const inventoryScope = and(
+      eq(inventory.organizationId, user.organizationId),
+      ne(inventory.isActive, false),
+      activeShopId
+        ? or(
+            eq(inventory.shopId, activeShopId),
+            sql`${inventory.shopId} is null`
           )
-        )
-      : and(
-          eq(inventory.organizationId, user.organizationId),
-          eq(inventory.isActive, true),
-          or(
-            ilike(inventory.name, `%${query}%`),
-            ilike(inventory.sku, `%${query}%`),
-            ilike(inventory.brand, `%${query}%`),
-            ilike(inventory.model, `%${query}%`)
-          )
-        );
+        : sql`true`,
+      or(
+        ilike(inventory.name, `%${query}%`),
+        ilike(inventory.productName, `%${query}%`),
+        ilike(inventory.productCode, `%${query}%`),
+        ilike(inventory.sku, `%${query}%`),
+        ilike(inventory.brand, `%${query}%`),
+        ilike(inventory.model, `%${query}%`)
+      )
+    );
 
     const inventoryQuery = db
       .select({
         id: inventory.id,
         name: inventory.name,
+        productName: inventory.productName,
+        productCode: inventory.productCode,
         sku: inventory.sku,
         category: inventory.category,
         brand: inventory.brand,
+        model: inventory.model,
         price: inventory.price,
+        sellingPrice: inventory.price,
+        costPrice: inventory.costPrice,
         quantity: inventory.quantity,
+        stockQuantity: inventory.quantity,
+        stock_quantity: inventory.quantity,
         cgstPercent: inventory.cgstPercent,
         sgstPercent: inventory.sgstPercent,
         igstPercent: inventory.igstPercent,
       })
       .from(inventory)
       .where(inventoryScope)
-      .limit(10);
+      .limit(15);
 
     // 3. Parallel Lookup: Search Invoices Ledger
     const invoiceScope = activeShopId

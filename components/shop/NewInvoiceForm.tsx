@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   calculateAgeFromDOB,
   calculateDOBFromAge,
@@ -314,6 +315,62 @@ export function NewInvoiceForm() {
   // Barcode Scanning Quick Ingestion States
   const [barcodeInput, setBarcodeInput] = useState("");
   const [isBarcodeSearching, setIsBarcodeSearching] = useState(false);
+
+  // Dropdown portal positioning state for product autocomplete (floating overlay without table height expansion)
+  const [dropdownTarget, setDropdownTarget] = useState<{
+    index: number;
+    rect: { top: number; bottom: number; left: number; width: number };
+  } | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const updateDropdownCoords = (index: number) => {
+    if (typeof document === "undefined") return;
+    const activeInput = document.querySelector(
+      `input[data-product-search-index="${index}"]`
+    ) as HTMLElement | null;
+    if (activeInput) {
+      const r = activeInput.getBoundingClientRect();
+      setDropdownTarget({
+        index,
+        rect: { top: r.top, bottom: r.bottom, left: r.left, width: r.width },
+      });
+    }
+  };
+
+  // Keep portal dropdown aligned with input box on scroll or window resize
+  useEffect(() => {
+    if (!dropdownTarget) return;
+
+    const handleScrollOrResize = () => {
+      const activeInput = document.querySelector(
+        `input[data-product-search-index="${dropdownTarget.index}"]`
+      ) as HTMLElement | null;
+      if (activeInput) {
+        const r = activeInput.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) {
+          setDropdownTarget(null);
+        } else {
+          setDropdownTarget({
+            index: dropdownTarget.index,
+            rect: { top: r.top, bottom: r.bottom, left: r.left, width: r.width },
+          });
+        }
+      } else {
+        setDropdownTarget(null);
+      }
+    };
+
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [dropdownTarget]);
 
   // Section 05: Payments & Summary
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "UPI" | "BANK_TRANSFER">("CASH");
@@ -796,6 +853,7 @@ export function NewInvoiceForm() {
 
     // Don't search if query is empty
     if (!query.trim()) {
+      setDropdownTarget(null);
       setLineItems((prev) =>
         prev.map((item, idx) =>
           idx === index
@@ -816,9 +874,10 @@ export function NewInvoiceForm() {
     searchInventoryOffline(shopId || "", query)
       .then((offlineProducts) => {
         if (offlineProducts && offlineProducts.length > 0) {
+          updateDropdownCoords(index);
           setLineItems((prev) =>
             prev.map((item, idx) =>
-              idx === index && item.searchQuery === query
+              idx === index
                 ? {
                     ...item,
                     suggestions: offlineProducts,
@@ -839,14 +898,36 @@ export function NewInvoiceForm() {
         );
 
         try {
-          const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+          const res = await fetch(
+            `/api/search?q=${encodeURIComponent(query)}&shopId=${encodeURIComponent(shopId || "")}`
+          );
           if (res.ok) {
             const data = await res.json();
-            const cloudProducts = data.inventory || [];
+            const rawProducts = data.inventory || [];
+            const cloudProducts = rawProducts.map((p: any) => ({
+              ...p,
+              id: p.id,
+              name: p.name || p.productName || "Product",
+              productName: p.productName || p.name,
+              productCode: p.productCode || "",
+              sku: p.sku || "",
+              category: p.category || "GENERAL",
+              brand: p.brand || "",
+              model: p.model || "",
+              price: parseFloat(p.price ?? p.sellingPrice ?? p.selling_price) || 0,
+              sellingPrice: parseFloat(p.price ?? p.sellingPrice ?? p.selling_price) || 0,
+              quantity: parseInt(p.quantity ?? p.stockQuantity ?? p.stock_quantity, 10) || 0,
+              stockQuantity: parseInt(p.quantity ?? p.stockQuantity ?? p.stock_quantity, 10) || 0,
+              cgstPercent: parseFloat(p.cgstPercent) || 0,
+              sgstPercent: parseFloat(p.sgstPercent) || 0,
+              igstPercent: parseFloat(p.igstPercent) || 0,
+            }));
+
             if (cloudProducts.length > 0) {
+              updateDropdownCoords(index);
               setLineItems((prev) =>
                 prev.map((item, idx) =>
-                  idx === index && item.searchQuery === query
+                  idx === index
                     ? {
                         ...item,
                         suggestions: cloudProducts,
@@ -867,12 +948,16 @@ export function NewInvoiceForm() {
       // Offline or network returned no extra results: finish search spinner
       try {
         const offlineProducts = await searchInventoryOffline(shopId || "", query);
+        if ((offlineProducts || []).length > 0) {
+          updateDropdownCoords(index);
+        }
         setLineItems((prev) =>
           prev.map((item, idx) =>
-            idx === index && item.searchQuery === query
+            idx === index
               ? {
                   ...item,
                   suggestions: offlineProducts || item.suggestions || [],
+                  showDropdown: (offlineProducts || item.suggestions || []).length > 0,
                   isSearching: false,
                 }
               : item
@@ -883,11 +968,12 @@ export function NewInvoiceForm() {
           prev.map((item, idx) => (idx === index ? { ...item, isSearching: false } : item))
         );
       }
-    }, 300);
+    }, 250);
   };
 
   // Add Item Table Actions
   const handleAddRow = () => {
+    setDropdownTarget(null);
     setLineItems([
       ...lineItems,
       {
@@ -916,6 +1002,7 @@ export function NewInvoiceForm() {
   };
 
   const handleRemoveRow = (index: number) => {
+    setDropdownTarget(null);
     if (lineItems.length === 1) {
       toast.warning("Invoices must contain at least one row item.");
       return;
@@ -953,18 +1040,44 @@ export function NewInvoiceForm() {
 
         merged.taxableSubtotal = Number(Math.max(0, lineSubtotal - merged.discountAmount).toFixed(2));
 
-        // Editable GST computations:
-        const cgstPct = Math.max(0, merged.cgstPercent ?? 0);
-        const sgstPct = Math.max(0, merged.sgstPercent ?? 0);
-        const igstPct = Math.max(0, merged.igstPercent ?? 0);
+        // Bi-directional CGST computations:
+        if (fields.cgstAmount !== undefined) {
+          const amt = Math.max(0, fields.cgstAmount || 0);
+          merged.cgstAmount = amt;
+          merged.cgstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
+        } else if (fields.cgstPercent !== undefined) {
+          const pct = Math.max(0, fields.cgstPercent || 0);
+          merged.cgstPercent = pct;
+          merged.cgstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
+        } else {
+          merged.cgstAmount = Number((merged.taxableSubtotal * ((merged.cgstPercent || 0) / 100)).toFixed(2));
+        }
 
-        merged.cgstPercent = cgstPct;
-        merged.sgstPercent = sgstPct;
-        merged.igstPercent = igstPct;
+        // Bi-directional SGST computations:
+        if (fields.sgstAmount !== undefined) {
+          const amt = Math.max(0, fields.sgstAmount || 0);
+          merged.sgstAmount = amt;
+          merged.sgstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
+        } else if (fields.sgstPercent !== undefined) {
+          const pct = Math.max(0, fields.sgstPercent || 0);
+          merged.sgstPercent = pct;
+          merged.sgstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
+        } else {
+          merged.sgstAmount = Number((merged.taxableSubtotal * ((merged.sgstPercent || 0) / 100)).toFixed(2));
+        }
 
-        merged.cgstAmount = Number((merged.taxableSubtotal * (cgstPct / 100)).toFixed(2));
-        merged.sgstAmount = Number((merged.taxableSubtotal * (sgstPct / 100)).toFixed(2));
-        merged.igstAmount = Number((merged.taxableSubtotal * (igstPct / 100)).toFixed(2));
+        // Bi-directional IGST computations:
+        if (fields.igstAmount !== undefined) {
+          const amt = Math.max(0, fields.igstAmount || 0);
+          merged.igstAmount = amt;
+          merged.igstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
+        } else if (fields.igstPercent !== undefined) {
+          const pct = Math.max(0, fields.igstPercent || 0);
+          merged.igstPercent = pct;
+          merged.igstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
+        } else {
+          merged.igstAmount = Number((merged.taxableSubtotal * ((merged.igstPercent || 0) / 100)).toFixed(2));
+        }
 
         merged.rowTotal = Number(
           (merged.taxableSubtotal + merged.cgstAmount + merged.sgstAmount + merged.igstAmount).toFixed(2)
@@ -1095,37 +1208,42 @@ export function NewInvoiceForm() {
   };
 
   const handleSelectProduct = (index: number, product: any) => {
-    const price = parseFloat(product.price) || 0;
+    setDropdownTarget(null);
+    const price = parseFloat(product.price ?? product.sellingPrice ?? product.selling_price) || 0;
     const cgst = parseFloat(product.cgstPercent) || 0;
     const sgst = parseFloat(product.sgstPercent) || 0;
     const igst = parseFloat(product.igstPercent) || 0;
-    const maxStock = parseInt(product.quantity, 10) || 0;
+    const maxStock = parseInt(product.quantity ?? product.stockQuantity ?? product.stock_quantity, 10) || 0;
 
+    const prodName = product.name || product.productName || "Product";
     if (maxStock <= 0) {
-      toast.error(`Out of stock! "${product.name}" has 0 units available.`);
+      toast.error(`Out of stock! "${prodName}" has 0 units available.`);
     }
 
     updateLineItem(index, {
       inventoryId: product.id,
-      description: product.name,
-      sku: product.sku || "N/A",
+      description: prodName,
+      sku: product.sku || product.productCode || "N/A",
       unitPrice: price,
       cgstPercent: cgst,
       sgstPercent: sgst,
       igstPercent: igst,
       maxQty: maxStock,
-      searchQuery: product.name,
+      searchQuery: prodName,
       suggestions: [],
       showDropdown: false,
     });
-    toast.success(`Loaded "${product.name}" into billing row.`);
+    toast.success(`Loaded "${prodName}" into billing row.`);
   };
 
   // Close all row dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      setLineItems((prev) => prev.map((item) => ({ ...item, showDropdown: false })));
       const target = event.target as HTMLElement;
+      if (!target.closest(".product-autocomplete-cell") && !target.closest(".product-autocomplete-portal")) {
+        setLineItems((prev) => prev.map((item) => ({ ...item, showDropdown: false })));
+        setDropdownTarget(null);
+      }
       if (!target.closest(".state-autocomplete-wrapper")) {
         setShowStateSuggestions(false);
       }
@@ -1939,7 +2057,7 @@ export function NewInvoiceForm() {
       />
 
       {/* SECTION 3: PRODUCT SELECTION */}
-      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs">
         <div className="py-1.5 px-3.5 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-3.5 w-3.5 text-[#2563eb]" />
@@ -1963,9 +2081,9 @@ export function NewInvoiceForm() {
                   <th className="py-1.5 px-2 text-right min-w-[80px]">Price (₹)</th>
                   <th className="py-1.5 px-1.5 text-center min-w-[60px]">Disc %</th>
                   <th className="py-1.5 px-1.5 text-center min-w-[70px]">Disc ₹</th>
-                  <th className="py-1.5 px-2 text-right min-w-[65px]">CGST (₹)</th>
-                  <th className="py-1.5 px-2 text-right min-w-[65px]">SGST (₹)</th>
-                  <th className="py-1.5 px-2 text-right min-w-[65px]">IGST (₹)</th>
+                  <th className="py-1.5 px-1.5 text-center min-w-[105px]">CGST (₹ / %)</th>
+                  <th className="py-1.5 px-1.5 text-center min-w-[105px]">SGST (₹ / %)</th>
+                  <th className="py-1.5 px-1.5 text-center min-w-[105px]">IGST (₹ / %)</th>
                   <th className="py-1.5 px-2 text-right min-w-[85px]">Total (₹)</th>
                   <th className="py-1.5 px-1 text-center min-w-[36px]"></th>
                 </tr>
@@ -1974,13 +2092,18 @@ export function NewInvoiceForm() {
                 {lineItems.map((item, index) => (
                   <tr key={index} className="hover:bg-slate-50/50 transition-colors">
                     {/* Product Search & Description Autocomplete */}
-                    <td className="py-1.5 px-2 relative">
+                    <td className="py-1.5 px-2 relative product-autocomplete-cell">
                       <div className="relative">
                         <input
                           type="text"
+                          data-product-search-index={index}
                           value={item.description || item.searchQuery}
-                          onChange={(e) => handleRowSearchChange(index, e.target.value)}
+                          onChange={(e) => {
+                            handleRowSearchChange(index, e.target.value);
+                            updateDropdownCoords(index);
+                          }}
                           onFocus={() => {
+                            updateDropdownCoords(index);
                             if (item.suggestions.length > 0) {
                               const updated = [...lineItems];
                               updated[index].showDropdown = true;
@@ -1994,36 +2117,6 @@ export function NewInvoiceForm() {
                           <Loader2 className="absolute right-2 top-1.5 h-3.5 w-3.5 text-[#2563eb] animate-spin pointer-events-none" />
                         )}
                       </div>
-
-                      {/* Autocomplete Dropdown */}
-                      {item.showDropdown && item.suggestions.length > 0 && (
-                        <div className="absolute top-full left-2 w-[320px] mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100 ring-1 ring-black/5">
-                          {item.suggestions.map((sug) => (
-                            <button
-                              key={sug.id}
-                              type="button"
-                              onClick={() => handleSelectProduct(index, sug)}
-                              className="w-full text-left p-2.5 hover:bg-blue-50/60 transition-colors flex items-center justify-between gap-2 group cursor-pointer"
-                            >
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-800 text-xs truncate group-hover:text-[#2563eb]">
-                                  {sug.name}
-                                </p>
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-semibold mt-0.5">
-                                  <span>SKU: {sug.sku}</span>
-                                  <span>•</span>
-                                  <span>Stock: {sug.stockQuantity ?? sug.stock_quantity ?? 0}</span>
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="font-extrabold text-xs text-slate-900 block">
-                                  ₹{Number(sug.sellingPrice ?? sug.selling_price ?? 0).toFixed(2)}
-                                </span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </td>
 
                     {/* SKU */}
@@ -2112,19 +2205,127 @@ export function NewInvoiceForm() {
                       </div>
                     </td>
 
-                    {/* CGST (₹) */}
-                    <td className="py-1.5 px-2 text-right font-semibold text-slate-600">
-                      ₹{item.cgstAmount.toFixed(2)}
+                    {/* CGST (₹ / %) */}
+                    <td className="py-1.5 px-1.5 text-center">
+                      <div className="flex items-center gap-1">
+                        <div className="relative flex-1 min-w-[46px]">
+                          <span className="absolute left-1 top-1 text-slate-400 font-bold text-[9px] pointer-events-none">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="0"
+                            value={item.cgstAmount === 0 ? "" : item.cgstAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                cgstAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
+                              });
+                            }}
+                            className="w-full text-right py-1 border border-slate-200 rounded-lg font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pl-2.5 pr-1 shadow-2xs"
+                          />
+                        </div>
+                        <div className="relative w-11 shrink-0">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="any"
+                            placeholder="0"
+                            value={item.cgstPercent === 0 ? "" : item.cgstPercent}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                cgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
+                              });
+                            }}
+                            className="w-full text-center py-1 border border-slate-200 rounded-lg font-semibold text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pr-2.5 shadow-2xs"
+                          />
+                          <span className="absolute right-0.5 top-1 text-slate-400 font-bold text-[8px] pointer-events-none">%</span>
+                        </div>
+                      </div>
                     </td>
 
-                    {/* SGST (₹) */}
-                    <td className="py-1.5 px-2 text-right font-semibold text-slate-600">
-                      ₹{item.sgstAmount.toFixed(2)}
+                    {/* SGST (₹ / %) */}
+                    <td className="py-1.5 px-1.5 text-center">
+                      <div className="flex items-center gap-1">
+                        <div className="relative flex-1 min-w-[46px]">
+                          <span className="absolute left-1 top-1 text-slate-400 font-bold text-[9px] pointer-events-none">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="0"
+                            value={item.sgstAmount === 0 ? "" : item.sgstAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                sgstAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
+                              });
+                            }}
+                            className="w-full text-right py-1 border border-slate-200 rounded-lg font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pl-2.5 pr-1 shadow-2xs"
+                          />
+                        </div>
+                        <div className="relative w-11 shrink-0">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="any"
+                            placeholder="0"
+                            value={item.sgstPercent === 0 ? "" : item.sgstPercent}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                sgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
+                              });
+                            }}
+                            className="w-full text-center py-1 border border-slate-200 rounded-lg font-semibold text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pr-2.5 shadow-2xs"
+                          />
+                          <span className="absolute right-0.5 top-1 text-slate-400 font-bold text-[8px] pointer-events-none">%</span>
+                        </div>
+                      </div>
                     </td>
 
-                    {/* IGST (₹) */}
-                    <td className="py-1.5 px-2 text-right font-semibold text-slate-600">
-                      ₹{item.igstAmount.toFixed(2)}
+                    {/* IGST (₹ / %) */}
+                    <td className="py-1.5 px-1.5 text-center">
+                      <div className="flex items-center gap-1">
+                        <div className="relative flex-1 min-w-[46px]">
+                          <span className="absolute left-1 top-1 text-slate-400 font-bold text-[9px] pointer-events-none">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="0"
+                            value={item.igstAmount === 0 ? "" : item.igstAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                igstAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
+                              });
+                            }}
+                            className="w-full text-right py-1 border border-slate-200 rounded-lg font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pl-2.5 pr-1 shadow-2xs"
+                          />
+                        </div>
+                        <div className="relative w-11 shrink-0">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="any"
+                            placeholder="0"
+                            value={item.igstPercent === 0 ? "" : item.igstPercent}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                igstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
+                              });
+                            }}
+                            className="w-full text-center py-1 border border-slate-200 rounded-lg font-semibold text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] bg-white pr-2.5 shadow-2xs"
+                          />
+                          <span className="absolute right-0.5 top-1 text-slate-400 font-bold text-[8px] pointer-events-none">%</span>
+                        </div>
+                      </div>
                     </td>
 
                     {/* Row Total (₹) */}
@@ -2183,6 +2384,57 @@ export function NewInvoiceForm() {
           </div>
         </div>
       </div>
+
+      {/* Autocomplete Dropdown Floating Portal (expands below section with zero container clipping) */}
+      {isMounted &&
+        dropdownTarget !== null &&
+        lineItems[dropdownTarget.index]?.showDropdown &&
+        lineItems[dropdownTarget.index]?.suggestions.length > 0 &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: `${dropdownTarget.rect.bottom + 4}px`,
+              left: `${dropdownTarget.rect.left}px`,
+              width: `${Math.max(340, dropdownTarget.rect.width)}px`,
+              zIndex: 99999,
+            }}
+            className="product-autocomplete-portal bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-100 ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95 duration-100"
+          >
+            {lineItems[dropdownTarget.index].suggestions.map((sug) => (
+              <button
+                key={sug.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const targetIdx = dropdownTarget.index;
+                  handleSelectProduct(targetIdx, sug);
+                  setDropdownTarget(null);
+                }}
+                className="w-full text-left p-2.5 hover:bg-blue-50/60 transition-colors flex items-center justify-between gap-2 group cursor-pointer"
+              >
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800 text-xs truncate group-hover:text-[#2563eb]">
+                    {sug.name || sug.productName}
+                  </p>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-semibold mt-0.5">
+                    <span>SKU: {sug.sku || sug.productCode || "N/A"}</span>
+                    <span>•</span>
+                    <span>Stock: {sug.stockQuantity ?? sug.stock_quantity ?? sug.quantity ?? 0}</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="font-extrabold text-xs text-slate-900 block">
+                    ₹{Number(sug.sellingPrice ?? sug.selling_price ?? sug.price ?? 0).toFixed(2)}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
 
       {/* SECTION 4: PAYMENT & INVOICE SUMMARY */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">

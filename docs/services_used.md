@@ -52,3 +52,11 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 | **Starter / Single Shop** | 1 Store | < 3,000 emails | **$0.00 / month** (Free Tiers) |
 | **Growing Retail Chain** | 3 – 10 Stores | 10,000 – 50,000 emails | **~$35.00 – $55.00 / month** |
 | **Enterprise Chain** | 20+ Stores | 100,000+ emails | **~$75.00 – $120.00 / month** |
+
+### 5. Google Gemini AI (Multimodal Vision OCR)
+- **Primary Function**: Auto-extracts supplier invoice details, HSN codes, product classifications, tax rates, and optical specifications from uploaded bill photos and PDFs on the Add Purchase page.
+- **Implementation**: Powered by `@google/generative-ai` with structured JSON schema responses, offloading arithmetic calculations to the local system engine.
+- **Credentials & Multi-Tenancy**: Configured per organization in `organizations.settings.ai.geminiApiKey`, with platform fallback to `GEMINI_API_KEY`.
+- **Cost Analysis**:
+  - **Google AI Studio Free Tier**: 1,500 requests/day, 1M tokens/minute (**$0.00 / month**).
+  - **Pay-as-you-go Tier**: ~$0.00015 per 1,000 input tokens (< $1.00/month for retail stores).

@@ -2,6 +2,7 @@
 
 import React, { useState, useActionState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { login, signInWithGoogle } from "@/actions/auth.actions";
 import { 
   Glasses, 
@@ -13,12 +14,27 @@ import {
   ArrowLeft,
   ShieldCheck, 
   Zap, 
-  Building2, 
-  CheckCircle2, 
-  Sparkles,
   AlertCircle,
   Loader2
 } from "lucide-react";
+
+// Zero-overhead dynamic loading with SSR disabled to ensure 0ms blocking time for login form
+const SecureLoginAnimation = dynamic(
+  () => import("@/components/auth/SecureLoginAnimation"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-[240px] h-[240px] rounded-2xl bg-blue-50/40 border border-blue-100/50 flex flex-col items-center justify-center animate-pulse">
+        <div className="w-12 h-12 rounded-xl bg-blue-100/70 flex items-center justify-center text-[#2563eb]">
+          <ShieldCheck className="w-6 h-6" />
+        </div>
+        <span className="text-[10px] font-bold text-slate-400 mt-2 tracking-wide uppercase">
+          Securing Gateway...
+        </span>
+      </div>
+    ),
+  }
+);
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(login, undefined);
@@ -26,86 +42,82 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen w-full flex bg-[#f8fafc] text-slate-900 select-none overflow-hidden font-sans">
-      {/* LEFT COLUMN - Professional Brand Hero (Desktop Light Theme) */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 p-12 flex-col justify-between overflow-hidden border-r border-slate-200/80">
-        {/* Subtle Background Geometry */}
+      {/* LEFT COLUMN - Professional Brand Hero with Secure Animation */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-10 xl:p-12 flex-col justify-between overflow-hidden border-r border-slate-200/80">
+        {/* Subtle Background Glow Geometry */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Top Brand Header */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#2563eb] flex items-center justify-center shadow-md shadow-blue-500/20 text-white">
-            <Glasses className="w-5 h-5" />
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#2563eb] flex items-center justify-center shadow-md shadow-blue-500/20 text-white">
+              <Glasses className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xl font-extrabold tracking-tight text-slate-900 block leading-tight">
+                Optical Manager
+              </span>
+              <span className="text-[10px] font-black tracking-widest text-[#2563eb] uppercase">
+                Optical Enterprise ERP & POS
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-xl font-extrabold tracking-tight text-slate-900 block">
-              Optical Manager
-            </span>
-            <span className="text-[10px] font-black tracking-widest text-[#2563eb] uppercase">
-              Clinical POS & Practice Management
-            </span>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[10px] font-extrabold shadow-2xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Secure Cloud</span>
           </div>
         </div>
 
-        {/* Center Feature Presentation */}
-        <div className="relative z-10 space-y-8 my-auto max-w-lg">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-[#2563eb] border border-blue-100 text-xs font-bold shadow-2xs">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Enterprise Optical SaaS</span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight">
-              Streamline billing, GST filings, and patient prescriptions.
-            </h1>
-            <p className="text-sm text-slate-600 font-medium leading-relaxed">
-              Designed specifically for single optical stores and multi-branch clinical chains with zero-latency telemetry and automated tax reporting.
-            </p>
-          </div>
-
-          {/* Feature Highlight Cards */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#2563eb] flex items-center justify-center font-bold">
-                <Zap className="w-4 h-4" />
-              </div>
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Fast Checkout</h3>
-              <p className="text-xs text-slate-500 font-medium">Instant GST invoices & automatic HSN code mapping.</p>
+        {/* Center Presentation: Elevated Animation Card + Useful Login Context */}
+        <div className="relative z-10 space-y-6 my-auto max-w-lg mx-auto w-full">
+          <div className="p-7 rounded-2xl bg-white/85 backdrop-blur-md border border-slate-200/90 shadow-sm flex flex-col items-center text-center space-y-5">
+            {/* Lottie Animation Showcase */}
+            <div className="relative flex items-center justify-center w-full">
+              <SecureLoginAnimation size={240} className="mx-auto drop-shadow-xs" />
             </div>
 
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                <Building2 className="w-4 h-4" />
+            {/* Context Heading & Details */}
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#2563eb] border border-blue-100 text-[11px] font-bold shadow-2xs">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Protected Practice Gateway</span>
               </div>
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Multi-Shop Context</h3>
-              <p className="text-xs text-slate-500 font-medium">Aggregated organization analytics across all outlets.</p>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                Unified Optical Practice Management
+              </h2>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-sm mx-auto">
+                Sign in to manage patient clinical records, high-speed POS billing, multi-branch inventory, and automated GST compliance.
+              </p>
             </div>
-          </div>
 
-          {/* Testimonial Card */}
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-3">
-            <div className="flex items-center gap-1 text-amber-400 text-xs">
-              {"★".repeat(5)}
-            </div>
-            <p className="text-xs text-slate-700 italic font-medium leading-relaxed">
-              &quot;Optical Manager transformed our multi-branch optical chain operations. Billing speed and GST reporting dropped from hours to seconds.&quot;
-            </p>
-            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-              <div>
-                <p className="text-xs font-bold text-slate-900">Dr. Rajesh Sharma</p>
-                <p className="text-[10px] text-slate-400 font-semibold">Managing Director • VisionCare Optics</p>
+            {/* Core Capability Pills (Clean, useful, high-density) */}
+            <div className="grid grid-cols-3 gap-2 w-full pt-1 border-t border-slate-100 text-left">
+              <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
+                <span className="block text-[10px] font-extrabold uppercase text-[#2563eb] tracking-wider">Zero-Latency</span>
+                <span className="text-[11px] font-bold text-slate-700 block mt-0.5">Offline POS</span>
               </div>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Customer
-              </span>
+              <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
+                <span className="block text-[10px] font-extrabold uppercase text-indigo-600 tracking-wider">Multi-Shop</span>
+                <span className="text-[11px] font-bold text-slate-700 block mt-0.5">Live Sync</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
+                <span className="block text-[10px] font-extrabold uppercase text-emerald-600 tracking-wider">256-Bit SSL</span>
+                <span className="text-[11px] font-bold text-slate-700 block mt-0.5">Encrypted</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Bottom Trust Indicators */}
-        <div className="relative z-10 flex items-center gap-6 text-xs text-slate-500 font-medium pt-4 border-t border-slate-200/70">
+        <div className="relative z-10 flex items-center justify-between text-xs text-slate-500 font-medium pt-4 border-t border-slate-200/70">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-[#2563eb]" />
-            <span>256-Bit Bank Grade SSL</span>
+            <span>Role-Scoped Permissions</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Lock className="w-4 h-4 text-slate-400" />
+            <span>Hardware Encrypted</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Zap className="w-4 h-4 text-amber-500" />

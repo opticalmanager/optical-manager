@@ -1,9 +1,13 @@
-// Optical Manager PWA Service Worker (v17 - Fail-Safe Zero-Latency Offline Engine)
-const CACHE_NAME = "optical-manager-cache-v17";
+// Optical Manager PWA Service Worker (v18 - Fail-Safe Isolated RSC & Offline Engine)
+const CACHE_VERSION = "v18";
+const CACHE_STATIC = `optical-manager-static-${CACHE_VERSION}`;
+const CACHE_HTML = `optical-manager-html-${CACHE_VERSION}`;
+const CACHE_RSC = `optical-manager-rsc-${CACHE_VERSION}`;
 
-// Core static assets to precache on install (static shell only — zero heavy SSR pages to avoid compilation storms)
+// Core static assets and offline fallback page to precache on install
 const PRECACHE_ASSETS = [
   "/",
+  "/offline",
   "/manifest.webmanifest",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
@@ -14,37 +18,44 @@ const PRECACHE_ASSETS = [
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => {
+    Promise.all([
+      // Precache static assets
+      caches.open(CACHE_STATIC).then((cache) => {
         return Promise.allSettled(
           PRECACHE_ASSETS.map(async (asset) => {
             try {
               const res = await fetch(asset, { cache: "no-store" });
               if (res && res.status === 200 && !res.redirected) {
-                await cache.put(asset, res).catch(() => {});
+                const contentType = res.headers.get("content-type") || "";
+                if (contentType.includes("text/html")) {
+                  const htmlCache = await caches.open(CACHE_HTML);
+                  await htmlCache.put(asset, res.clone()).catch(() => {});
+                } else {
+                  await cache.put(asset, res).catch(() => {});
+                }
               }
             } catch (err) {
               console.warn("[SW] Asset precache skipped:", asset);
             }
           })
         );
-      })
-      .catch((err) => {
-        console.warn("[SW] Precache initialization error ignored:", err);
-      })
+      }),
+    ]).catch((err) => {
+      console.warn("[SW] Precache initialization error ignored:", err);
+    })
   );
 });
 
-// 2. Activate event: Immediately purge ALL older caches and claim clients
+// 2. Activate event: Purge ALL legacy and mismatched cache buckets
 self.addEventListener("activate", (event) => {
+  const currentCaches = [CACHE_STATIC, CACHE_HTML, CACHE_RSC];
   event.waitUntil(
     caches
       .keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME) {
+            if (!currentCaches.includes(cacheName)) {
               console.log("[SW] Purging legacy cache bucket:", cacheName);
               return caches.delete(cacheName);
             }
@@ -58,22 +69,22 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 3. Fetch event: Direct Network Passthrough for navigations/RSC, Cache-Fallback when offline
+// 3. Fetch event: Strictly Isolated Routing for HTML Navigations, RSC Flight Streams & Static Chunks
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // CRITICAL: Only handle same-origin requests. Never intercept cross-origin traffic (e.g. gstatic.com ping, Supabase, external APIs)
+  // Only handle same-origin requests
   if (url.origin !== self.location.origin) {
     return;
   }
 
-  // Skip non-GET requests and non-http protocols (chrome-extension, ws, etc.)
+  // Skip non-GET requests and non-http protocols
   if (request.method !== "GET" || !url.protocol.startsWith("http")) {
     return;
   }
 
-  // Never intercept Turbopack HMR, WebSockets, auth endpoints, or Server Actions
+  // Never intercept Turbopack HMR, WebSockets, auth APIs, or Server Actions
   if (
     url.pathname.includes("/_next/webpack-hmr") ||
     url.pathname.includes("__turbopack__") ||
@@ -83,11 +94,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 0. FAST CACHE-FIRST for static immutable Next.js chunks
-  // Filenames in /_next/static/ contain content hashes and never change once built
+  // ─── 0. FAST CACHE-FIRST FOR STATIC IMMUTABLE ASSETS ───
+  // Next.js chunks in /_next/static/ contain hashes and never change once built
   if (url.pathname.startsWith("/_next/static/") && !url.pathname.includes("__turbopack__")) {
     event.respondWith(
-      caches.open(CACHE_NAME).then(async (cache) => {
+      caches.open(CACHE_STATIC).then(async (cache) => {
         const cached = await cache.match(request);
         if (cached) return cached;
         try {
@@ -104,76 +115,195 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // A. Navigations & Next.js RSC Flight Streams
-  const isNavigationOrRsc =
-    request.mode === "navigate" ||
-    request.headers.get("RSC") === "1" ||
-    url.searchParams.has("_rsc");
+  // ─── A. NEXT.JS RSC FLIGHT REQUESTS (Client-side Link clicks / Prefetching) ───
+  const isRscRequest = request.headers.get("RSC") === "1" || url.searchParams.has("_rsc");
 
-  if (isNavigationOrRsc) {
+  if (isRscRequest && request.mode !== "navigate") {
     event.respondWith(
       (async () => {
-        // 1. When online, directly fetch from live server and pass through response immediately.
-        // Never discard non-200 responses (e.g. 307/302 redirects from proxy/auth, 304, 401).
+        if (navigator.onLine) {
+          try {
+            const networkResponse = await fetch(request);
+            if (networkResponse && networkResponse.status === 200 && !networkResponse.redirected) {
+              const contentType = networkResponse.headers.get("content-type") || "";
+              // ONLY store in RSC cache if genuine flight stream
+              if (contentType.includes("text/x-component")) {
+                try {
+                  const rscCache = await caches.open(CACHE_RSC);
+                  rscCache.put(url.pathname, networkResponse.clone()).catch(() => {});
+                  rscCache.put(request, networkResponse.clone()).catch(() => {});
+                } catch {}
+              }
+            }
+            return networkResponse;
+          } catch (netErr) {
+            console.warn("[SW] Live RSC fetch failed:", url.pathname);
+          }
+        }
+
+        // Offline: Check RSC Cache ONLY
+        try {
+          const rscCache = await caches.open(CACHE_RSC);
+          const cachedRsc =
+            (await rscCache.match(request)) ||
+            (await rscCache.match(url.pathname, { ignoreSearch: true }));
+
+          if (cachedRsc) {
+            const contentType = cachedRsc.headers.get("content-type") || "";
+            // Strictly ensure we only return text/x-component to Next.js client router
+            if (contentType.includes("text/x-component")) {
+              return cachedRsc;
+            }
+          }
+        } catch (rscErr) {
+          console.warn("[SW] RSC cache lookup error:", rscErr);
+        }
+
+        // CRITICAL: NEVER return HTML or 307 to an RSC request when offline!
+        // Returning a 503 tells Next.js router that flight stream is unavailable,
+        // allowing it to safely fall back to full document navigation without throwing React JSON syntax errors.
+        return new Response(null, {
+          status: 503,
+          statusText: "Service Unavailable (Offline)",
+        });
+      })().catch((err) => {
+        console.error("[SW] Fatal RSC handler error prevented:", err);
+        return new Response(null, { status: 503 });
+      })
+    );
+    return;
+  }
+
+  // ─── B. FULL DOCUMENT NAVIGATIONS (Browser Address Bar / Hard Reload) ───
+  if (request.mode === "navigate") {
+    event.respondWith(
+      (async () => {
         if (navigator.onLine) {
           try {
             const networkResponse = await fetch(request);
             if (networkResponse) {
-              // Cache clean 200 OK responses that are NOT redirected (redirected responses cannot be cached)
+              // Cache clean 200 OK HTML responses into CACHE_HTML
               if (networkResponse.status === 200 && !networkResponse.redirected) {
-                try {
-                  const cache = await caches.open(CACHE_NAME);
-                  cache.put(request, networkResponse.clone()).catch(() => {});
-                  if (request.mode === "navigate") {
-                    cache.put(url.pathname, networkResponse.clone()).catch(() => {});
-                  }
-                } catch {
-                  // Ignore caching errors — network response delivery is paramount
+                const contentType = networkResponse.headers.get("content-type") || "";
+                if (contentType.includes("text/html")) {
+                  try {
+                    const htmlCache = await caches.open(CACHE_HTML);
+                    htmlCache.put(request, networkResponse.clone()).catch(() => {});
+                    htmlCache.put(url.pathname, networkResponse.clone()).catch(() => {});
+                  } catch {}
                 }
               }
               return networkResponse;
             }
           } catch (netErr) {
-            // Live fetch failed (actual network loss, DNS failure, server unreachable)
-            console.warn("[SW] Live fetch failed, activating offline cache fallback:", url.pathname);
+            console.warn("[SW] Live navigation failed, checking offline HTML cache:", url.pathname);
           }
         }
 
-        // 2. Offline or network failed: check exact cached route or clean pathname
+        // Offline Navigation: Search CACHE_HTML with STRICT text/html validation
         try {
-          const cache = await caches.open(CACHE_NAME);
+          const htmlCache = await caches.open(CACHE_HTML);
+          
+          // 1. Check exact requested route
           const exactCached =
-            (await cache.match(request)) ||
-            (await cache.match(url.pathname, { ignoreSearch: true }));
+            (await htmlCache.match(request)) ||
+            (await htmlCache.match(url.pathname)) ||
+            (await htmlCache.match(url.pathname, { ignoreSearch: true })) ||
+            (await htmlCache.match(url.pathname.replace(/\/$/, "")));
 
           if (exactCached) {
-            return exactCached;
+            const contentType = exactCached.headers.get("content-type") || "";
+            // STRICT VALIDATION: Under NO circumstances return an RSC flight stream to a browser navigation!
+            if (contentType.includes("text/html")) {
+              return exactCached;
+            } else {
+              console.warn("[SW] Discarded non-HTML response found in HTML cache for:", url.pathname);
+            }
           }
 
-          // 3. Fallback safely from cache without crashing or hijacking
-          return await handleOfflineFallback(request, url, cache);
-        } catch (cacheErr) {
-          console.error("[SW] Offline cache lookup failed:", cacheErr);
-          if (request.mode === "navigate") {
-            return new Response(
-              `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Optical Manager - Connection Error</title></head><body style="font-family:system-ui,-apple-system,sans-serif;padding:48px 24px;text-align:center;"><div style="max-width:400px;margin:0 auto;"><h2>Connection Error</h2><p style="color:#64748b;">Unable to connect to the server. Please check your internet connection.</p><button onclick="window.location.reload()" style="padding:8px 16px;border-radius:8px;background:#0a52c3;color:#fff;border:none;cursor:pointer;font-weight:600;">Retry</button></div></body></html>`,
-              { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 200 }
-            );
+          // 2. Check cached dashboard shell for shop routes
+          if (url.pathname.startsWith("/shop/")) {
+            const dashboardShell = await htmlCache.match("/shop/dashboard", { ignoreSearch: true });
+            if (dashboardShell && dashboardShell.headers.get("content-type")?.includes("text/html")) {
+              return dashboardShell;
+            }
           }
-          return new Response(null, { status: 503, statusText: "Service Unavailable (Offline)" });
+
+          // 3. Check cached dedicated /offline fallback page
+          const offlinePage =
+            (await htmlCache.match("/offline", { ignoreSearch: true })) ||
+            (await htmlCache.match("/offline"));
+
+          if (offlinePage && offlinePage.headers.get("content-type")?.includes("text/html")) {
+            return offlinePage;
+          }
+
+          // 4. Ultimate fail-safe: Embedded standalone high-density offline UI
+          return new Response(
+            `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Offline Mode | Optical Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F6F7F9; color: #1E293B; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .card { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 20px; max-width: 480px; width: 100%; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); overflow: hidden; text-align: center; }
+    .header { background: linear-gradient(135deg, #F59E0B, #EA580C); padding: 32px 24px; color: #FFFFFF; }
+    .icon-box { display: inline-flex; padding: 12px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; margin-bottom: 12px; }
+    .title { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; opacity: 0.95; line-height: 1.4; }
+    .body { padding: 28px 24px; }
+    .badge { display: inline-block; padding: 6px 12px; background: #FEF3C7; color: #92400E; border-radius: 8px; font-size: 12px; font-weight: 700; margin-bottom: 20px; }
+    .desc { font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 24px; }
+    .actions { display: flex; flex-direction: column; gap: 10px; }
+    .btn-primary { padding: 12px 20px; border-radius: 12px; background: #0A52C3; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 13px; border: none; cursor: pointer; display: block; }
+    .btn-secondary { padding: 12px 20px; border-radius: 12px; background: #F1F5F9; color: #334155; text-decoration: none; font-weight: 700; font-size: 13px; border: 1px solid #CBD5E1; cursor: pointer; display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="icon-box">⚡</div>
+      <div class="title">Offline Mode Active</div>
+      <div class="subtitle">Optical Manager local databanks remain ready for counter billing.</div>
+    </div>
+    <div class="body">
+      <div class="badge">No Internet Connection</div>
+      <p class="desc">The requested view (<code>${url.pathname}</code>) has not been cached yet. You can continue creating bills using local cached records.</p>
+      <div class="actions">
+        <a href="/shop/dashboard" class="btn-primary">Go to Shop Dashboard</a>
+        <a href="/shop/invoices/new" class="btn-secondary">New Offline Invoice</a>
+        <button onclick="window.location.reload()" class="btn-secondary">Retry Connection</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`,
+            {
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+              status: 200,
+            }
+          );
+        } catch (navErr) {
+          console.error("[SW] Fatal offline navigation error:", navErr);
+          return new Response(
+            `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline</title></head><body style="font-family:sans-serif;padding:40px;text-align:center;"><h2>Offline Mode</h2><p>Please check your connection and <a href="javascript:location.reload()">retry</a>.</p></body></html>`,
+            { headers: { "Content-Type": "text/html; charset=utf-8" } }
+          );
         }
       })().catch((fatalErr) => {
-        // Top-level catch guarantee: event.respondWith NEVER rejects!
-        console.error("[SW] Fatal navigation handler rejection prevented:", fatalErr);
+        console.error("[SW] Fatal navigation rejection prevented:", fatalErr);
         return new Response("Service Unavailable", { status: 503 });
       })
     );
     return;
   }
 
-  // B. Standard static assets (images, icons, styles)
+  // ─── C. STANDARD STATIC ASSETS (Images, Icons, Fonts) ───
   event.respondWith(
-    caches.open(CACHE_NAME).then(async (cache) => {
+    caches.open(CACHE_STATIC).then(async (cache) => {
       const cached = await cache.match(request, { ignoreSearch: true });
       if (cached) return cached;
 
@@ -190,112 +320,7 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// Helper: Offline Fallback with ZERO Route Hijacking
-async function handleOfflineFallback(request, url, cache) {
-  // 1. Next.js RSC Flight requests (_rsc query param or RSC: 1 header)
-  if (request.headers.get("RSC") === "1" || url.searchParams.has("_rsc")) {
-    let cachedRsc =
-      (await cache.match(request)) ||
-      (await cache.match(request, { ignoreSearch: true }));
-    if (cachedRsc) return cachedRsc;
-
-    const cleanRscReq = new Request(url.pathname, { headers: { RSC: "1" } });
-    cachedRsc = await cache.match(cleanRscReq, { ignoreSearch: true });
-    if (cachedRsc) return cachedRsc;
-
-    const plainCached = await cache.match(url.pathname, { ignoreSearch: true });
-    if (plainCached) {
-      if (plainCached.headers.get("content-type")?.includes("text/x-component")) {
-        return plainCached;
-      }
-    }
-
-    // CRITICAL: NEVER return a 307 redirect for uncached RSC flight requests!
-    // A 307 redirect instructs the browser/router to follow with the RSC header,
-    // which dumps raw RSC Flight JSON strings (0:{"f":...}) directly on a blank screen.
-    // Return a clean 503 so the client App Router handles the offline boundary gracefully.
-    return new Response(null, {
-      status: 503,
-      statusText: "Service Unavailable (Offline)",
-    });
-  }
-
-  // 2. Full Page Navigations (HTML documents)
-  if (request.mode === "navigate") {
-    const cachedPage =
-      (await cache.match(request)) ||
-      (await cache.match(request, { ignoreSearch: true })) ||
-      (await cache.match(url.pathname)) ||
-      (await cache.match(url.pathname, { ignoreSearch: true })) ||
-      (await cache.match(url.pathname.replace(/\/$/, "")));
-
-    if (cachedPage) {
-      return cachedPage;
-    }
-
-    // Module-specific fallback instead of blanket dashboard redirect!
-    if (url.pathname.startsWith("/shop/customers")) {
-      const customersPage = await cache.match("/shop/customers", { ignoreSearch: true });
-      if (customersPage) return customersPage;
-    }
-
-    if (url.pathname.startsWith("/shop/invoices")) {
-      const invoicesPage = await cache.match("/shop/invoices", { ignoreSearch: true });
-      if (invoicesPage) return invoicesPage;
-    }
-
-    if (url.pathname.startsWith("/shop/orders")) {
-      const ordersPage = await cache.match("/shop/orders", { ignoreSearch: true });
-      if (ordersPage) return ordersPage;
-    }
-
-    if (url.pathname.startsWith("/shop/returns")) {
-      const returnsPage = await cache.match("/shop/returns", { ignoreSearch: true });
-      if (returnsPage) return returnsPage;
-    }
-
-    if (url.pathname.startsWith("/shop/inventory")) {
-      const inventoryPage = await cache.match("/shop/inventory", { ignoreSearch: true });
-      if (inventoryPage) return inventoryPage;
-    }
-
-    if (url.pathname.startsWith("/shop/settings")) {
-      const settingsPage = await cache.match("/shop/settings", { ignoreSearch: true });
-      if (settingsPage) return settingsPage;
-    }
-
-    if (url.pathname.startsWith("/shop/support")) {
-      const supportPage = await cache.match("/shop/support", { ignoreSearch: true });
-      if (supportPage) return supportPage;
-    }
-
-    if (url.pathname.startsWith("/shop/analytics")) {
-      const analyticsPage = await cache.match("/shop/analytics", { ignoreSearch: true });
-      if (analyticsPage) return analyticsPage;
-    }
-
-    if (url.pathname.startsWith("/owner")) {
-      const ownerPage =
-        (await cache.match("/owner", { ignoreSearch: true })) ||
-        (await cache.match("/owner/shops", { ignoreSearch: true }));
-      if (ownerPage) return ownerPage;
-    }
-
-    // If still unmatched, return informative offline UI with explicit UTF-8 charset
-    return new Response(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline - Optical Manager</title><meta name='viewport' content='width=device-width, initial-scale=1.0'></head><body style='font-family:system-ui,-apple-system,sans-serif;padding:48px 24px;text-align:center;background:#f8fafc;color:#1e293b;'><div style='max-width:460px;margin:0 auto;background:white;padding:32px;border-radius:16px;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.05);border:1px solid #e2e8f0;'><div style='width:48px;height:48px;border-radius:12px;background:#fef3c7;color:#d97706;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:24px;'>⚡</div><h2 style='margin:0 0 8px 0;font-size:20px;font-weight:700;'>Offline Mode Active</h2><p style='color:#64748b;font-size:14px;line-height:1.5;margin:0 0 24px 0;'>The requested view (<code>${url.pathname}</code>) has not been cached in offline databank yet.</p><div style='display:flex;gap:12px;justify-content:center;'><a href='/shop/dashboard' style='padding:10px 20px;border-radius:10px;background:#0a52c3;color:white;text-decoration:none;font-weight:600;font-size:13px;'>Go to Dashboard</a><button onclick='window.location.reload()' style='padding:10px 20px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer;font-weight:600;font-size:13px;'>Retry</button></div></div></body></html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
-    );
-  }
-
-  // 3. Any other resource (images, CSS, JS) from cache
-  const cachedAny = (await cache.match(request)) || (await cache.match(request, { ignoreSearch: true }));
-  if (cachedAny) return cachedAny;
-
-  return new Response("Offline", { status: 503, statusText: "Service Unavailable" });
-}
-
-// 4. Background Sync: handle 'sync-offline-invoices'
+// 4. Background Sync: dispatch event to active clients
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-offline-invoices") {
     event.waitUntil(

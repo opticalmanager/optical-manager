@@ -538,7 +538,7 @@ export async function registerPatientAndInvoiceAction(
       }
 
       // Create Order linking invoice and receipt
-      const orderNumber = await generateOrderNumber(shopId, tx);
+      const orderNumber = await generateOrderNumber(shopId, tx, invoice.invoiceNumber);
       const [order] = await tx
         .insert(orders)
         .values({

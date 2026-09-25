@@ -1107,7 +1107,7 @@ export async function updateFullOrderAction(
           })
           .where(eq(orders.id, order.id));
       } else {
-        const orderNumber = await generateOrderNumber(existingInvoice.shopId, tx);
+        const orderNumber = await generateOrderNumber(existingInvoice.shopId, tx, existingInvoice.invoiceNumber);
         const [newOrder] = await tx
           .insert(orders)
           .values({
