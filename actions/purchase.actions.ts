@@ -483,3 +483,474 @@ export async function createPurchaseProductAction(data: CreatePurchaseProductInp
     };
   }
 }
+
+export interface BulkPurchaseCsvItem {
+  productCode: string;
+  productName: string;
+  category?: string;
+  brand?: string;
+  model?: string;
+  quantity: number;
+  unitPrice: number;
+  retailPrice: number;
+  gstPercent: number;
+  hsnCode?: string;
+  rackLocation?: string;
+  details?: string;
+
+  // Extended specs if filled
+  frameSpecs?: {
+    gender?: string;
+    color?: string;
+    size?: string;
+    type?: string;
+    material?: string;
+    frameShape?: string;
+    modelNumber?: string;
+  };
+  lensSpecs?: {
+    design?: string;
+    refractiveIndex?: string;
+    lensMaterial?: string;
+    blankDiameter?: number;
+    stockPower?: string;
+    isUncoated?: boolean;
+    isAntiReflective?: boolean;
+    isBlueControl?: boolean;
+    isTinted?: boolean;
+    isPolarized?: boolean;
+    isHardCoat?: boolean;
+    isPhotochromic?: boolean;
+  };
+  contactLensSpecs?: {
+    modality?: string;
+    boxQuantity?: number;
+    baseCurve?: string;
+    diameter?: string;
+    color?: string;
+    sphere?: string;
+    cylinder?: string;
+    axis?: string;
+    addPower?: string;
+  };
+}
+
+export interface BulkPurchaseCsvPayload {
+  vendorName: string;
+  vendorId?: string | null;
+  purchaseNumber: string;
+  purchaseDate: string; // YYYY-MM-DD
+  taxRule?: "EXCLUDE" | "INCLUDE";
+  taxType?: string;
+  notes?: string;
+  items: BulkPurchaseCsvItem[];
+}
+
+/**
+ * Server action to process bulk purchase inventory inwarding from CSV.
+ * Executes in a single atomic database transaction:
+ * - Upserts vendor
+ * - Matches items by productCode: refills stock for existing items, or creates new catalog items with specifications
+ * - Records stock_movements (STOCK_IN)
+ * - Inserts purchase_orders & purchase_order_items for official records
+ */
+export async function createPurchaseFromCsvAction(payload: BulkPurchaseCsvPayload) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.shopId || !user.organizationId) {
+      return { success: false, message: "Unauthorized or missing shop session." };
+    }
+
+    const organizationId = user.organizationId;
+    const shopId = user.shopId;
+    const userId = user.id;
+
+    if (user.permissions && user.permissions.purchases === false) {
+      return { success: false, message: "You do not have permission to record purchases." };
+    }
+
+    if (!payload.items || payload.items.length === 0) {
+      return { success: false, message: "At least one product item is required." };
+    }
+
+    const cleanVendorName = payload.vendorName?.trim() || "General Supplier";
+    const cleanPurchaseNumber = payload.purchaseNumber?.trim() || `PUR-${Date.now()}`;
+    const cleanPurchaseDate = payload.purchaseDate?.trim() || new Date().toISOString().split("T")[0];
+    const taxRule = payload.taxRule || "EXCLUDE";
+    const taxType = payload.taxType || "SGST_CGST";
+
+    const { db } = await import("@/lib/drizzle");
+    const {
+      purchaseOrders,
+      purchaseOrderItems,
+      inventory,
+      vendors,
+      stockMovements,
+      frameDetails,
+      lensDetails,
+      contactLensDetails,
+      accessoryDetails,
+    } = await import("@/db/schema");
+    const { eq, and, sql } = await import("drizzle-orm");
+    const { recordStockMovement } = await import("@/services/inventory.service");
+    const { generateSKU } = await import("@/lib/utils");
+    const { getNextSkuSequence } = await import("@/services/sku.service");
+
+    const result = await db.transaction(async (tx) => {
+      // 1. Resolve or create vendor
+      let resolvedVendorId = payload.vendorId || null;
+      if (!resolvedVendorId && cleanVendorName) {
+        const [existingVendor] = await tx
+          .select()
+          .from(vendors)
+          .where(
+            and(
+              eq(vendors.organizationId, organizationId),
+              sql`lower(${vendors.name}) = lower(${cleanVendorName})`
+            )
+          )
+          .limit(1);
+
+        if (existingVendor) {
+          resolvedVendorId = existingVendor.id;
+        } else {
+          const [newVendor] = await tx
+            .insert(vendors)
+            .values({
+              organizationId,
+              shopId,
+              name: cleanVendorName,
+              isActive: true,
+            })
+            .returning();
+          resolvedVendorId = newVendor?.id || null;
+        }
+      }
+
+      // 2. Calculate summary totals across rows
+      let totalQuantity = 0;
+      let totalUnitAmount = 0;
+      let totalBasePrice = 0;
+      let totalGstAmount = 0;
+      let totalPurchase = 0;
+
+      const processedRows = payload.items.map((item, idx) => {
+        const qty = Number(item.quantity) || 1;
+        const costPrice = Number(item.unitPrice) || 0;
+        const retailPrice = Number(item.retailPrice) > 0 ? Number(item.retailPrice) : costPrice;
+        const gstRate = Number(item.gstPercent) || 0;
+
+        let basePrice = costPrice;
+        let lineGstAmount = 0;
+        let purchasePrice = costPrice;
+
+        if (taxRule === "INCLUDE" && gstRate > 0) {
+          basePrice = Number((costPrice / (1 + gstRate / 100)).toFixed(2));
+          lineGstAmount = Number((costPrice - basePrice).toFixed(2));
+          purchasePrice = costPrice;
+        } else {
+          basePrice = costPrice;
+          lineGstAmount = Number(((basePrice * gstRate) / 100).toFixed(2));
+          purchasePrice = Number((basePrice + lineGstAmount).toFixed(2));
+        }
+
+        let cgstPercent = 0;
+        let cgstAmount = 0;
+        let sgstPercent = 0;
+        let sgstAmount = 0;
+        let igstPercent = 0;
+        let igstAmount = 0;
+
+        if (taxType === "IGST") {
+          igstPercent = gstRate;
+          igstAmount = Number((lineGstAmount * qty).toFixed(2));
+        } else {
+          const halfRate = Number((gstRate / 2).toFixed(2));
+          const halfAmount = Number(((lineGstAmount * qty) / 2).toFixed(2));
+          cgstPercent = halfRate;
+          cgstAmount = halfAmount;
+          sgstPercent = halfRate;
+          sgstAmount = halfAmount;
+        }
+
+        const totalLinePurchase = Number((purchasePrice * qty).toFixed(2));
+
+        totalQuantity += qty;
+        totalUnitAmount += costPrice * qty;
+        totalBasePrice += basePrice * qty;
+        totalGstAmount += lineGstAmount * qty;
+        totalPurchase += totalLinePurchase;
+
+        return {
+          ...item,
+          serialNumber: idx + 1,
+          quantity: qty,
+          unitPrice: costPrice,
+          basePrice,
+          retailPrice,
+          gstPercent: gstRate,
+          cgstPercent,
+          cgstAmount,
+          sgstPercent,
+          sgstAmount,
+          igstPercent,
+          igstAmount,
+          purchasePrice,
+          totalPurchasePrice: totalLinePurchase,
+        };
+      });
+
+      // 3. Insert purchase_orders header
+      const [order] = await tx
+        .insert(purchaseOrders)
+        .values({
+          shopId,
+          organizationId,
+          vendorId: resolvedVendorId,
+          vendorName: cleanVendorName,
+          purchaseNumber: cleanPurchaseNumber,
+          purchaseDate: cleanPurchaseDate as any,
+          status: "COMPLETED",
+          taxRule,
+          taxType,
+          totalQuantity,
+          totalUnitAmount: String(totalUnitAmount.toFixed(2)),
+          totalBasePrice: String(totalBasePrice.toFixed(2)),
+          totalGstAmount: String(totalGstAmount.toFixed(2)),
+          totalPurchase: String(totalPurchase.toFixed(2)),
+          roundOff: "0.00",
+          totalNetPurchase: String(totalPurchase.toFixed(2)),
+          notes: payload.notes || "Inwarded via CSV Bulk Purchase Import",
+          createdBy: userId,
+        })
+        .returning();
+
+      // 4. Ingest and link each item
+      let itemsCreated = 0;
+      let itemsUpdated = 0;
+
+      for (const row of processedRows) {
+        const cleanCode = row.productCode.trim();
+        let linkedInventoryId: string | null = null;
+
+        // Check if item exists in this shop by product code
+        const [existingItem] = await tx
+          .select()
+          .from(inventory)
+          .where(
+            and(
+              eq(inventory.shopId, shopId),
+              eq(inventory.productCode, cleanCode)
+            )
+          )
+          .limit(1);
+
+        if (existingItem) {
+          linkedInventoryId = existingItem.id;
+          itemsUpdated++;
+
+          const [updatedItem] = await tx
+            .update(inventory)
+            .set({
+              quantity: sql`${inventory.quantity} + ${row.quantity}`,
+              costPrice: String(row.unitPrice),
+              price: row.retailPrice > 0 ? String(row.retailPrice) : existingItem.price,
+              purchaseInvoiceNo: cleanPurchaseNumber,
+              inwardDate: cleanPurchaseDate as any,
+              vendorName: cleanVendorName,
+              rackLocation: row.rackLocation?.trim() || existingItem.rackLocation,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventory.id, existingItem.id))
+            .returning();
+
+          if (updatedItem) {
+            await recordStockMovement(
+              {
+                inventoryId: updatedItem.id,
+                shopId,
+                organizationId,
+                movementType: "STOCK_IN",
+                quantityChange: row.quantity,
+                balanceAfter: updatedItem.quantity,
+                referenceType: "PURCHASE_INVOICE",
+                referenceNumber: cleanPurchaseNumber,
+                vendorParty: cleanVendorName,
+                costPriceAtTime: String(row.unitPrice),
+                notes: `Bulk CSV purchase inward #${cleanPurchaseNumber}`,
+                performedBy: userId,
+              },
+              tx
+            );
+          }
+        } else {
+          // Create new catalog inventory item
+          itemsCreated++;
+          const catUpper = (row.category || "FRAME").toUpperCase();
+          const validCategory = (["FRAME", "LENS", "CONTACT_LENS", "ACCESSORY", "SOLUTION"].includes(catUpper)
+            ? catUpper
+            : "FRAME") as "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION";
+          const seq = await getNextSkuSequence(organizationId);
+          const autoSku = generateSKU({
+            category: validCategory,
+            brand: row.brand?.trim() || cleanVendorName,
+            modelNumber: row.model?.trim() || cleanCode,
+            colorCode: row.frameSpecs?.color || undefined,
+            sequentialNumber: seq,
+          });
+
+          const [newItem] = await tx
+            .insert(inventory)
+            .values({
+              shopId,
+              organizationId,
+              name: row.productName.trim(),
+              productName: row.productName.trim(),
+              productCode: cleanCode,
+              sku: autoSku,
+              category: catUpper as any,
+              brand: row.brand?.trim() || null,
+              model: row.model?.trim() || null,
+              price: String(row.retailPrice > 0 ? row.retailPrice : row.unitPrice),
+              costPrice: String(row.unitPrice),
+              quantity: row.quantity,
+              minQuantity: 5,
+              isActive: true,
+              hsnCode: row.hsnCode?.trim() || (catUpper === "LENS" ? "9001" : "9004"),
+              cgstPercent: String(row.cgstPercent.toFixed(2)),
+              sgstPercent: String(row.sgstPercent.toFixed(2)),
+              igstPercent: String(row.igstPercent.toFixed(2)),
+              rackLocation: row.rackLocation?.trim() || null,
+              vendorName: cleanVendorName,
+              purchaseInvoiceNo: cleanPurchaseNumber,
+              inwardDate: cleanPurchaseDate as any,
+            })
+            .returning();
+
+          linkedInventoryId = newItem.id;
+
+          // Insert category specifics if provided
+          if (catUpper === "FRAME" && row.frameSpecs) {
+            await tx.insert(frameDetails).values({
+              inventoryId: newItem.id,
+              targetDemographic: row.frameSpecs.gender || null,
+              colorCode: row.frameSpecs.color || null,
+              size: row.frameSpecs.size || null,
+              material: row.frameSpecs.material || null,
+              frameShape: row.frameSpecs.frameShape || null,
+              modelNumber: row.frameSpecs.modelNumber || null,
+            }).catch(() => {});
+          } else if (catUpper === "LENS" && row.lensSpecs) {
+            await tx.insert(lensDetails).values({
+              inventoryId: newItem.id,
+              design: row.lensSpecs.design || null,
+              refractiveIndex: row.lensSpecs.refractiveIndex || null,
+              material: row.lensSpecs.lensMaterial || null,
+              blankDiameter: row.lensSpecs.blankDiameter || 65,
+              stockPower: row.lensSpecs.stockPower || null,
+              isUncoated: Boolean(row.lensSpecs.isUncoated),
+              isAntiReflective: Boolean(row.lensSpecs.isAntiReflective),
+              isBlueControl: Boolean(row.lensSpecs.isBlueControl),
+              isTinted: Boolean(row.lensSpecs.isTinted),
+              isPolarized: Boolean(row.lensSpecs.isPolarized),
+              isHardCoat: Boolean(row.lensSpecs.isHardCoat),
+              isPhotochromic: Boolean(row.lensSpecs.isPhotochromic),
+            }).catch(() => {});
+          } else if (catUpper === "CONTACT_LENS" && row.contactLensSpecs) {
+            await tx.insert(contactLensDetails).values({
+              inventoryId: newItem.id,
+              modality: row.contactLensSpecs.modality || null,
+              boxQuantity: row.contactLensSpecs.boxQuantity || null,
+              baseCurve: row.contactLensSpecs.baseCurve || null,
+              diameter: row.contactLensSpecs.diameter || null,
+              color: row.contactLensSpecs.color || null,
+              sphere: row.contactLensSpecs.sphere || null,
+              cylinder: row.contactLensSpecs.cylinder || null,
+              axis: row.contactLensSpecs.axis || null,
+              addPower: row.contactLensSpecs.addPower || null,
+            }).catch(() => {});
+          } else if (catUpper === "ACCESSORY" || catUpper === "SOLUTION") {
+            await tx.insert(accessoryDetails).values({
+              inventoryId: newItem.id,
+              type: catUpper === "SOLUTION" ? "Contact Lens Solution" : "Accessory",
+            }).catch(() => {});
+          }
+
+          await recordStockMovement(
+            {
+              inventoryId: newItem.id,
+              shopId,
+              organizationId,
+              movementType: "STOCK_IN",
+              quantityChange: row.quantity,
+              balanceAfter: row.quantity,
+              referenceType: "PURCHASE_INVOICE",
+              referenceNumber: cleanPurchaseNumber,
+              vendorParty: cleanVendorName,
+              costPriceAtTime: String(row.unitPrice),
+              notes: `New product catalog ingestion via CSV purchase #${cleanPurchaseNumber}`,
+              performedBy: userId,
+            },
+            tx
+          );
+        }
+
+        // Insert purchase_order_items row
+        await tx.insert(purchaseOrderItems).values({
+          purchaseOrderId: order.id,
+          inventoryId: linkedInventoryId,
+          shopId,
+          organizationId,
+          serialNumber: row.serialNumber,
+          productName: row.productName.trim(),
+          productCode: cleanCode,
+          category: (row.category || "FRAME").toUpperCase(),
+          details: row.details || null,
+          unitPrice: String(row.unitPrice.toFixed(2)),
+          basePrice: String(row.basePrice.toFixed(2)),
+          hsnCode: row.hsnCode || null,
+          gstPercent: String(row.gstPercent.toFixed(2)),
+          cgstPercent: String(row.cgstPercent.toFixed(2)),
+          cgstAmount: String(row.cgstAmount.toFixed(2)),
+          sgstPercent: String(row.sgstPercent.toFixed(2)),
+          sgstAmount: String(row.sgstAmount.toFixed(2)),
+          igstPercent: String(row.igstPercent.toFixed(2)),
+          igstAmount: String(row.igstAmount.toFixed(2)),
+          purchasePrice: String(row.purchasePrice.toFixed(2)),
+          quantity: row.quantity,
+          totalPurchasePrice: String(row.totalPurchasePrice.toFixed(2)),
+          retailPrice: String(row.retailPrice.toFixed(2)),
+        });
+      }
+
+      return {
+        order,
+        totalQuantity,
+        totalPurchase,
+        itemsCreated,
+        itemsUpdated,
+      };
+    });
+
+    revalidatePath("/shop/inventory");
+    revalidatePath("/shop/purchases");
+
+    return {
+      success: true,
+      message: `Purchase #${cleanPurchaseNumber} recorded successfully! Ingested ${result.totalQuantity} total units (${result.itemsCreated} new products, ${result.itemsUpdated} restocked).`,
+      purchaseId: result.order.id,
+      purchaseNumber: cleanPurchaseNumber,
+      totalQuantity: result.totalQuantity,
+      totalPurchase: result.totalPurchase,
+      itemsCreated: result.itemsCreated,
+      itemsUpdated: result.itemsUpdated,
+    };
+  } catch (error: any) {
+    console.error("Error importing bulk purchase from CSV:", error);
+    return {
+      success: false,
+      message: error?.message || "Failed to import purchase from CSV.",
+    };
+  }
+}
+

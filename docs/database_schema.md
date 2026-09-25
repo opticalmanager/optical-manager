@@ -28,6 +28,21 @@ CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANC
 
 ### 1. Platform & Tenant Tables
 
+#### `organizations` (`db/schema/organizations.ts`)
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Unique organization ID |
+| `name` | `varchar(255)` | NOT NULL | Business entity name |
+| `slug` | `varchar(100)` | UNIQUE, NULLABLE | Public booking URL handle |
+| `email` | `varchar(255)` | NULLABLE | Primary account contact email |
+| `phone` | `varchar(20)` | NULLABLE | Registered contact mobile phone |
+| `address` | `text` | NULLABLE | Registered headquarters address |
+| `logoUrl` | `text` | NULLABLE | Brand logo asset URL |
+| `onboardingCompleted` | `boolean` | NOT NULL, DEFAULT false | Tenant onboarding status |
+| `settings` | `jsonb` | NOT NULL, DEFAULT '{}' | Account-level configuration (e.g., `ai.geminiApiKey`, `ai.geminiModel`) |
+| `createdAt` | `timestamp` | NOT NULL, defaultNow() | Organization creation timestamp |
+| `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
+
 #### `demo_requests` (`db/schema/demo-requests.ts`)
 | Column Name | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
@@ -67,6 +82,49 @@ CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANC
 | `role` | `user_role` | NOT NULL | `SUPER_ADMIN`, `OWNER`, `SHOP_MANAGER` |
 | `customRoleName` | `varchar(100)` | NULLABLE | Custom role title (e.g. Optometrist, Cashier, Sales & Billing) |
 | `permissions` | `jsonb` | NULLABLE | Granular module permission flags (`dashboard`, `inventory`, `sales`, `returns`, `customers`, `appointments`, `analytics`, `reports`, `settings`, `support`, `edit_orders`, `delete_orders`) |
+
+#### `shops` (`db/schema/shops.ts`)
+| Column Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Physical store outlet ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization reference |
+| `name` | `varchar(255)` | NOT NULL | Store outlet / branch name |
+| `address` | `text` | NULLABLE | Physical location address |
+| `phone` | `varchar(20)` | NULLABLE | Store phone number |
+| `email` | `varchar(255)` | NULLABLE | Store email address |
+| `isActive` | `boolean` | NOT NULL, DEFAULT true | Branch active state |
+| `gstin` | `varchar(50)` | NULLABLE | 15-character GSTIN |
+| `cin` | `varchar(50)` | NULLABLE | Company Identification Number |
+| `msmeUdyam` | `varchar(100)` | NULLABLE | MSME / Udyam registration ID |
+| `bankName` | `varchar(255)` | NULLABLE | Store bank name |
+| `bankBranch` | `varchar(255)` | NULLABLE | Bank branch |
+| `bankAccountNumber` | `varchar(50)` | NULLABLE | Bank account number |
+| `bankIfsc` | `varchar(20)` | NULLABLE | 11-character IFSC code |
+| `settings` | `jsonb` | NOT NULL, DEFAULT `{}` | JSONB configuration including business hours, taxes, WhatsApp templates, and **`documentSeries`** |
+
+##### `shops.settings.documentSeries` JSONB Structure
+Stores per-store customizable document sequence templates for Tax Invoices, Patient/Customer IDs, and Workshop Orders:
+```typescript
+interface DocumentSeriesSettings {
+  invoice?: DocumentSequenceConfig;
+  customer?: DocumentSequenceConfig;
+  order?: DocumentSequenceConfig & { matchInvoice?: boolean };
+}
+
+interface DocumentSequenceConfig {
+  prefix: string;            // e.g. "INV", "OM", "PAT", "ORD"
+  separator: string;         // "-" | "/" | ""
+  includeYear: boolean;      // true | false
+  yearFormat: "YYYY" | "YY" | "FY" | "NONE"; // FY = Indian Financial Year "24-25"
+  includeShopCode: boolean;  // embeds shop sequence number (e.g. 1)
+  paddingDigits: number;     // 4 -> "0042", 0 -> "42"
+  nextNumber: number;        // Starting serial for seamless legacy CRM migration (Marg, Tally)
+  suffix?: string;           // Optional trailing text (e.g. "/RET", "-A")
+}
+```
+* **Anti-Collision Math**: `nextSerial = max(configuredNext, lastDbSerial + 1)` prevents duplicate key exceptions if a user sets a lower number than existing records.
+* **Historical Immutability**: Modifying document series configs applies strictly to newly issued documents; past invoices, customers, and orders are 100% immutable.
+* **CGST Rule 46(b) Compliance**: Real-time counter validates invoice numbers against the 16-character statutory tax limit.
 
 ---
 

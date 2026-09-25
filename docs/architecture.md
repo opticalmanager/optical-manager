@@ -65,9 +65,12 @@ The codebase cleanly separates mutation handling from data fetching:
   - `inventory.service.ts`: Low stock query logic and SKU CRUD.
   - `email.service.ts`: Nodemailer Gmail SMTP client with 3-tier rate limiting and AES-256 password encryption.
   - `email-trigger.service.ts`: Non-blocking fire-and-forget event trigger service for automated email dispatches.
-  - `customer.service.ts`: Profile aggregations, lifetime order values, clinical history grouping, and store credit ledgers.
+  - `invoice.service.ts`: Sequential invoice generation (`generateInvoiceNumber`) using store-specific document series templates, financial year formats, and safe anti-collision math `max(configuredNext, lastDbSerial + 1)`.
+  - `customer.service.ts`: Profile aggregations, lifetime order values, clinical history grouping, store credit ledgers, and sequential registration ID generation (`generateRegistrationId`).
+  - `receipt.service.ts`: Sequential receipt and order number generation (`generateOrderNumber`) supporting independent job series or synchronized invoice matching (`matchInvoice`).
   - `order.service.ts`: Order fulfillment telemetry, payment balancing, and customer order history.
-- **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`) and invalidates Next.js cache using `revalidatePath`.
+- **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`) and invalidates Next.js cache using `revalidatePath`. Example: `updateShopDocumentSeriesAction` for per-branch series customization.
+- **Utility Layer (`utils/document-series.ts`)**: Pure TypeScript helper routines for formatting document numbers, calculating Indian financial years (`getIndianFinancialYear`), and extracting trailing serial integers (`extractTrailingSerial`).
 
 ### 3. Database Connection & Pooling (`lib/drizzle.ts`)
 Database interactions use Drizzle ORM over a pooled PostgreSQL connection managed by Supabase PgBouncer:

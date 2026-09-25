@@ -39,7 +39,16 @@ import { updateShopInvoiceSettingsAction } from "@/actions/shop.actions";
 import { toast } from "sonner";
 import { updateOrganizationAction } from "@/actions/organization.actions";
 import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
+import { DocumentSeriesSettings } from "@/components/shop/DocumentSeriesSettings";
 import { offlineDB } from "@/lib/offline/db";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
+import {
+  updateOrganizationAiSettingsAction,
+  testGeminiApiKeyAction,
+  getOrganizationAiStatusAction,
+} from "@/actions/ai-settings.actions";
 
 interface OrganizationData {
   id: string;
@@ -49,6 +58,7 @@ interface OrganizationData {
   address: string | null;
   logoUrl?: string | null;
   logo?: string | null;
+  settings?: any;
 }
 
 interface ShopData {
@@ -84,7 +94,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
   // Search filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [activeModal, setActiveModal] = useState<
-    "org" | "tax" | "customers" | "reports" | "appointments" | "access" | "invoice" | null
+    "org" | "tax" | "customers" | "reports" | "appointments" | "access" | "invoice" | "series" | "ai" | null
   >(null);
 
   // Keyboard shortcut listener to focus search on '/'
@@ -186,6 +196,37 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
   const [invTermsNotes, setInvTermsNotes] = useState("");
   const [isSavingInvoice, setIsSavingInvoice] = useState(false);
 
+  // AI Settings Modal state
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiModel, setAiModel] = useState("gemini-3.5-flash");
+  const [showAiKey, setShowAiKey] = useState(false);
+  const [isTestingAiKey, setIsTestingAiKey] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSavingAi, setIsSavingAi] = useState(false);
+
+  // Load AI settings when opening AI modal
+  useEffect(() => {
+    if (activeModal === "ai") {
+      const validModels = [
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-latest",
+        "gemini-3.8-flash",
+      ];
+      getOrganizationAiStatusAction().then((status) => {
+        if (status.model) {
+          setAiModel(validModels.includes(status.model) ? status.model : "gemini-3.5-flash");
+        }
+      });
+      const orgAi = organization?.settings?.ai;
+      if (orgAi?.geminiApiKey) setAiApiKey(orgAi.geminiApiKey);
+      if (orgAi?.geminiModel) {
+        setAiModel(validModels.includes(orgAi.geminiModel) ? orgAi.geminiModel : "gemini-3.5-flash");
+      }
+    }
+  }, [activeModal, organization]);
+
   // Populate invoice form from selected shop's existing data
   const populateInvoiceFormFromShop = useCallback((shopId: string) => {
     const shop = shopsList.find((s) => s.id === shopId);
@@ -221,6 +262,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
         { id: "business_hours", label: "Business Hours", action: "modal_org" },
         { id: "contact_info", label: "Contact Info", action: "modal_org" },
         { id: "invoice_settings", label: "Invoice & Billing", action: "modal_invoice" },
+        { id: "document_series", label: "Series & Custom IDs", action: "modal_series" },
       ],
     },
     {
@@ -230,6 +272,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
       tags: [
         { id: "gst_rates", label: "GST Rates", action: "modal_tax" },
         { id: "taxation_logic", label: "Taxation Logic", action: "modal_tax" },
+        { id: "series_sequence", label: "Invoice Number Series", action: "modal_series" },
       ],
     },
     {
@@ -276,6 +319,16 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
         { id: "appointment_template", label: "Appointment Form Template", action: "modal_appointments" },
       ],
     },
+    {
+      id: "ai",
+      title: "AI & Automations",
+      icon: Sparkles,
+      tags: [
+        { id: "ai_gemini_key", label: "Gemini API Key", action: "modal_ai" },
+        { id: "ai_model", label: "Model Selection", action: "modal_ai" },
+        { id: "ai_ocr_scanner", label: "Bill OCR Scanner", action: "modal_ai" },
+      ],
+    },
   ];
 
   // Live filter categories based on search input
@@ -297,6 +350,12 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
         break;
       case "modal_invoice":
         setActiveModal("invoice");
+        break;
+      case "modal_series":
+        setActiveModal("series");
+        break;
+      case "modal_ai":
+        setActiveModal("ai");
         break;
       case "route_email":
         router.push("/owner/settings/email");
@@ -659,50 +718,31 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
               {/* Product Categories GST Master Matrix */}
               <CategoryGstRatesSettings />
 
-              {/* Outlet Level GSTIN & Prefix */}
-              <form onSubmit={handleSaveTax} className="p-5 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-4">
+              {/* Outlet Level GSTIN & Document Series Link */}
+              <div className="p-5 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-4">
                 <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">
-                  Store Identifier &amp; Invoice Billing Prefix
+                  Store Identifier &amp; Invoice Number Series
                 </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
-                      GSTIN (Tax Identification Number)
-                    </label>
-                    <input
-                      type="text"
-                      value={gstinNumber}
-                      onChange={(e) => setGstinNumber(e.target.value.toUpperCase())}
-                      placeholder="e.g. 07AAAAA0000A1Z5"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                    />
+                <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Hash className="w-3.5 h-3.5 text-blue-600" />
+                      Custom Document &amp; Invoice Series Configuration
+                    </span>
+                    <p className="text-[11px] text-slate-500">
+                      Configure custom invoice prefixes, financial year formats, padding, and starting serials compliant with CGST Rule 46.
+                    </p>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
-                      Invoice Number Prefix
-                    </label>
-                    <input
-                      type="text"
-                      value={invoicePrefix}
-                      onChange={(e) => setInvoicePrefix(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
                   <button
-                    type="submit"
-                    disabled={isSavingTax}
-                    className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => setActiveModal("series")}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors shrink-0 cursor-pointer text-center"
                   >
-                    {isSavingTax ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    <span>Save Store GSTIN &amp; Prefix</span>
+                    Configure Document Series
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         </div>
@@ -1193,6 +1233,23 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                 </div>
               </div>
 
+              {/* Link to Document Series Modal */}
+              <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Hash className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="text-xs text-slate-700 font-medium">
+                    Need to configure custom Invoice, Patient, or Order number sequences?
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal("series")}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors shrink-0 cursor-pointer"
+                >
+                  Configure Series Sequences
+                </button>
+              </div>
+
               {/* Footer Actions */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
@@ -1212,6 +1269,285 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 8: Custom Document Series & ID Sequences */}
+      {activeModal === "series" && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Hash className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Custom Number Series & Sequences</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Configure custom prefix, financial year format, and starting serial numbers for Invoices, Patient IDs, and Orders.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Branch Selector if multiple branches */}
+              {shopsList.length > 1 && (
+                <div className="space-y-1.5 p-3 bg-slate-50 rounded-xl border border-slate-200/70">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
+                    Select Store / Branch to Configure
+                  </label>
+                  <div className="relative">
+                    <Store className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <select
+                      value={selectedShopId}
+                      onChange={(e) => setSelectedShopId(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 appearance-none bg-white"
+                    >
+                      {shopsList.map((shop, idx) => (
+                        <option key={shop.id} value={shop.id}>
+                          Branch #{idx + 1}: {shop.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {/* Document Series Configuration Component */}
+              {(() => {
+                const currentShop = shopsList.find((s) => s.id === selectedShopId) || shopsList[0];
+                const currentShopIndex = shopsList.findIndex((s) => s.id === selectedShopId);
+                if (!currentShop) {
+                  return (
+                    <div className="text-center py-8 text-slate-400 text-sm">
+                      No stores found to configure.
+                    </div>
+                  );
+                }
+                return (
+                  <DocumentSeriesSettings
+                    key={currentShop.id}
+                    shopId={currentShop.id}
+                    shopName={currentShop.name}
+                    shopNumber={currentShopIndex !== -1 ? currentShopIndex + 1 : 1}
+                    initialSeries={currentShop.settings?.documentSeries}
+                    onSaved={() => {
+                      setActiveModal(null);
+                      router.refresh();
+                    }}
+                    onCancel={() => setActiveModal(null)}
+                    isModal={true}
+                  />
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 9: AI & Automation Settings */}
+      {activeModal === "ai" && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">AI &amp; Automation Settings</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Connect Google Gemini AI to enable smart optical bill scanning &amp; automated inward entry.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-6 space-y-4 overflow-y-auto">
+              {/* Info banner */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3.5 text-xs text-blue-900">
+                <p className="font-semibold mb-1">Per-Account Secure Isolation</p>
+                <p className="text-[11px] text-blue-700 leading-relaxed">
+                  Your Gemini API key is stored privately in your account&apos;s database record. Each store in your organisation shares this AI capability.
+                </p>
+              </div>
+
+              {/* Gemini API Key */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">
+                  Google Gemini API Key
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showAiKey ? "text" : "password"}
+                    placeholder="Enter your Gemini API Key..."
+                    value={aiApiKey}
+                    onChange={(e) => {
+                      setAiApiKey(e.target.value);
+                      setAiTestResult(null);
+                    }}
+                    className="font-mono text-xs pr-16 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAiKey(!showAiKey)}
+                    className="absolute right-2.5 top-2 text-[11px] font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    {showAiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5">
+                  <span>Get your free key from Google AI Studio</span>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 font-semibold hover:underline"
+                  >
+                    Open AI Studio &rarr;
+                  </a>
+                </div>
+              </div>
+
+              {/* Model Selection */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">
+                  Gemini Model
+                </label>
+                <select
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-white cursor-pointer"
+                >
+                  <option value="gemini-3.5-flash">gemini-3.5-flash (Recommended - Ultra Fast &amp; Accurate)</option>
+                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Lightweight &amp; Fast)</option>
+                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Fast OCR)</option>
+                  <option value="gemini-flash-latest">gemini-flash-latest (Flash Latest)</option>
+                  <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash)</option>
+                </select>
+              </div>
+
+              {/* Test Connection Result */}
+              {aiTestResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                    aiTestResult.success
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-rose-200 bg-rose-50 text-rose-800"
+                  }`}
+                >
+                  {aiTestResult.success ? (
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span className="leading-snug">{aiTestResult.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!aiApiKey.trim()) {
+                    toast.error("Please enter a Gemini API Key first.");
+                    return;
+                  }
+                  setIsTestingAiKey(true);
+                  try {
+                    const res = await testGeminiApiKeyAction(aiApiKey, aiModel);
+                    setAiTestResult(res);
+                    if (res.success) toast.success(res.message);
+                    else toast.error(res.message);
+                  } catch (e: any) {
+                    setAiTestResult({ success: false, message: e?.message || "Test failed" });
+                  } finally {
+                    setIsTestingAiKey(false);
+                  }
+                }}
+                disabled={isTestingAiKey || !aiApiKey.trim()}
+                className="text-xs h-9 cursor-pointer"
+              >
+                {isTestingAiKey ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    Testing...
+                  </>
+                ) : (
+                  "Test Connection"
+                )}
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setActiveModal(null)}
+                  className="text-xs h-9 text-slate-600 cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={async () => {
+                    setIsSavingAi(true);
+                    try {
+                      const res = await updateOrganizationAiSettingsAction({
+                        geminiApiKey: aiApiKey.trim(),
+                        geminiModel: aiModel,
+                      });
+                      if (res.success) {
+                        toast.success("AI settings saved successfully!");
+                        setActiveModal(null);
+                        router.refresh();
+                      } else {
+                        toast.error(res.message);
+                      }
+                    } catch (e: any) {
+                      toast.error("Failed to save AI settings.");
+                    } finally {
+                      setIsSavingAi(false);
+                    }
+                  }}
+                  disabled={isSavingAi}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 px-4 cursor-pointer"
+                >
+                  {isSavingAi ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Settings"
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

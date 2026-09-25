@@ -9,6 +9,23 @@ import {
 } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 
+export interface DocumentSequenceConfig {
+  prefix: string;
+  separator: string;
+  includeYear: boolean;
+  yearFormat: "YYYY" | "YY" | "FY" | "NONE";
+  includeShopCode: boolean;
+  paddingDigits: number;
+  nextNumber: number;
+  suffix?: string;
+}
+
+export interface DocumentSeriesSettings {
+  invoice?: DocumentSequenceConfig;
+  customer?: DocumentSequenceConfig;
+  order?: DocumentSequenceConfig & { matchInvoice?: boolean };
+}
+
 export const shops = pgTable("shops", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
@@ -52,6 +69,7 @@ export const shops = pgTable("shops", {
     invoiceTermsNotes?: string;
     customerGroups?: string[];
     secondaryContacts?: Array<{ name: string; role: string; phone: string; email?: string }>;
+    documentSeries?: DocumentSeriesSettings;
   }>().default({}),
 
   createdAt: timestamp("created_at", { withTimezone: true })

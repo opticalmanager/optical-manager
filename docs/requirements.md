@@ -14,6 +14,8 @@ This document details the functional, non-functional, and compliance requirement
 - POS billing must support items from 4 categories (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`).
 - Automated GST calculation (12% / 18%) and HSN mapping (`9004` / `9001`).
 - Support for advance partial deposits (`PARTIALLY_PAID`) and tracking remaining balance in 'Pending Receivables'.
+- Dedicated 4-stage CSV Bulk Invoices Import Wizard (`/shop/invoices/import`) supporting historical sales ingestion, external bill number preservation or series auto-generation, automatic patient profile matching/registration, and payment receipt ledger synchronization.
+- Multi-dashboard inward triggers across `/shop/customers` (`Add Bulk Invoices (CSV)`) and `/shop/orders` (`Invoices & Sales` -> `Import Invoices (CSV)`).
 
 ### FR-3: Patient Prescriptions & Clinical Refraction
 - 8-column high-density Clinical Prescription format (`EYE/TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`) for OD (Right Eye) and OS (Left Eye).
@@ -21,10 +23,12 @@ This document details the functional, non-functional, and compliance requirement
 - Smart clinical optometry logic: highlighted ADD column, auto-bilateral ADD inheritance, monocular PD auto-split, datalists for ±0.25 diopters, and doctor attribution.
 - Zero-latency auto-syncing across New Invoice (`/shop/invoices/new`), Patient Registration & Edit (`/shop/patients/new`), Customer Profile & Add Modal (`/shop/customers/[id]`), and Generated / Printable Invoices.
 
-### FR-4: Inventory & Low Stock Alerts
+### FR-4: Inventory & Purchase Ingestion
 - Real-time stock decrementing on invoice generation.
 - Automated low stock alert badges when quantity falls below `minQuantity`.
-- CSV bulk import and export capabilities.
+- High-density multi-option `+ Add Item` dropdown selector (`Add Single`, `Add Bulk Purchase`, `Add Bulk (CSV)`).
+- 4-step CSV Bulk Purchase Inwarding Wizard (`/shop/inventory/import`) with automated column mapping, smart catalog verification (🟢 Refill Stock vs 🟡 New Item by product code), inline data rectification, category specification drawer (`+ Specs`), and atomic stock movement ledger creation.
+- CSV bulk import and export capabilities across inventory and purchase orders.
 
 ### FR-5: Dual-Period Granularity Telemetry
 - Compare any two time windows across Day, ISO Week, Month, Quarter, or Year granularity.

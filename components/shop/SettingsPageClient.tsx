@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
 import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
+import { DocumentSeriesSettings } from "@/components/shop/DocumentSeriesSettings";
 import { generateShopPairingKeyAction, checkDesktopAssistantStatusAction } from "@/actions/desktop-wa.actions";
 
 interface SettingsPageClientProps {
@@ -32,6 +33,7 @@ const SETTING_ITEMS: SettingItem[] = [
   { id: "profile", label: "Profile", category: "Store Details" },
   { id: "hours", label: "Business Hours", category: "Store Details" },
   { id: "contact", label: "Contact Info", category: "Store Details" },
+  { id: "series", label: "Series & Custom IDs", category: "Store Details" },
   
   // Communication
   { id: "whatsapp-utility", label: "WhatsApp Utility", category: "Communication" },
@@ -240,7 +242,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   // Sync Search URL view parameters with UI Tabs
   useEffect(() => {
     if (activeView) {
-      if (["profile", "hours", "contact"].includes(activeView)) {
+      if (["profile", "hours", "contact", "series"].includes(activeView)) {
         setActiveTab("store");
         setActiveSubTab(activeView);
       } else if (["whatsapp-utility", "whatsapp", "email", "campaigns", "sms"].includes(activeView)) {
@@ -473,7 +475,8 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                 <div className="flex border-b border-slate-100 pb-3 gap-6">
                   {[
                     { id: "profile", label: "Store Profile" },
-                    { id: "hours", label: "Operating Hours" }
+                    { id: "hours", label: "Operating Hours" },
+                    { id: "series", label: "Series & Numbering" },
                   ].map((sub) => (
                     <button
                       key={sub.id}
@@ -707,6 +710,17 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                       </button>
                     </div>
                   </div>
+                )}
+
+                {/* Sub-tab 1C: Series & Document Sequences */}
+                {activeSubTab === "series" && (
+                  <DocumentSeriesSettings
+                    shopId={shop.id}
+                    shopName={shop.name}
+                    shopNumber={1}
+                    initialSeries={shop.settings?.documentSeries}
+                    onSaved={() => router.refresh()}
+                  />
                 )}
               </div>
             )}

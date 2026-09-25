@@ -23,6 +23,7 @@ Optical Manager is built with cutting-edge web technologies designed for zero-la
 | **Lucide React** | `^0.487.0` | Enterprise iconography set. |
 | **Shadcn UI / Radix** | `^4.6.0` | Unstyled accessible primitive components. |
 | **Recharts** | `^3.9.2` | SVG-based charting library for revenue trendlines, category splits, and fulfillment donuts. |
+| **Lottie Web** | `^5.12.2` | Vector SVG animation engine (`lottie-web`) dynamically loaded with React Error Boundary and 0ms blocking latency. |
 | **Sonner** | `^1.7.4` | Toast notification system for async user actions. |
 
 ### Global Color Palette & Design System Specifications

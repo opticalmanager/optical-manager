@@ -19,6 +19,7 @@ import {
   Plus,
   UserPlus,
   FileSpreadsheet,
+  Receipt,
   ChevronDown
 } from "lucide-react";
 import { offlineDB } from "@/lib/offline/db";
@@ -502,8 +503,24 @@ export function CustomerRecordsClient({ initialCustomers }: CustomerRecordsClien
                         <FileSpreadsheet className="h-4 w-4" />
                       </div>
                       <div>
-                        <span className="block font-bold text-slate-800 group-hover:text-emerald-700">Add Bulk</span>
+                        <span className="block font-bold text-slate-800 group-hover:text-emerald-700">Add Bulk (Customers)</span>
                         <span className="block text-[10px] text-slate-400 font-medium">Import customer records via CSV</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setAddMenuOpen(false);
+                        router.push("/shop/invoices/import");
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-3 text-xs font-bold text-slate-700 hover:text-[#0a52c3] group cursor-pointer"
+                    >
+                      <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-[#0a52c3] group-hover:text-white transition-colors">
+                        <Receipt className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="block font-bold text-slate-800 group-hover:text-[#0a52c3]">Add Bulk Invoices (CSV)</span>
+                        <span className="block text-[10px] text-slate-400 font-medium">Import historical sales bills via CSV</span>
                       </div>
                     </button>
                   </div>

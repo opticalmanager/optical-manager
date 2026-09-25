@@ -13,15 +13,20 @@ export function ServiceWorkerRegistrar() {
         // Proactively purge legacy caches directly from window
         if ("caches" in window) {
           try {
+            const currentCaches = [
+              "optical-manager-static-v18",
+              "optical-manager-html-v18",
+              "optical-manager-rsc-v18",
+            ];
             const keys = await window.caches.keys();
             await Promise.all(
-              keys.map((k) => (k !== "optical-manager-cache-v16" ? window.caches.delete(k) : Promise.resolve()))
+              keys.map((k) => (!currentCaches.includes(k) ? window.caches.delete(k) : Promise.resolve()))
             );
           } catch {}
         }
 
         // Cache-busting URL ensures browser fetches fresh service worker script
-        const registration = await navigator.serviceWorker.register("/sw.js?v=20260914_v16", {
+        const registration = await navigator.serviceWorker.register("/sw.js?v=20260925_v18", {
           scope: "/",
         });
 

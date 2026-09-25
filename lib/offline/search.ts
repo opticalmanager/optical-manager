@@ -94,30 +94,57 @@ export async function searchInventoryOffline(
       ? offlineDB.cached_inventory.where("shopId").equals(targetShopId)
       : offlineDB.cached_inventory.toCollection();
 
-    const results = await queryBuilder
+    let results = await queryBuilder
       .filter((item) => {
-        if (!item.isActive) return false;
+        if (item.isActive === false) return false;
 
-        const nameMatch = item.name.toLowerCase().includes(lowerQuery);
+        const nameMatch = item.name ? item.name.toLowerCase().includes(lowerQuery) : false;
+        const prodNameMatch = item.productName ? item.productName.toLowerCase().includes(lowerQuery) : false;
+        const prodCodeMatch = item.productCode ? item.productCode.toLowerCase().includes(lowerQuery) : false;
         const skuMatch = item.sku ? item.sku.toLowerCase().includes(lowerQuery) : false;
         const brandMatch = item.brand ? item.brand.toLowerCase().includes(lowerQuery) : false;
         const modelMatch = item.model ? item.model.toLowerCase().includes(lowerQuery) : false;
 
-        return nameMatch || skuMatch || brandMatch || modelMatch;
+        return nameMatch || prodNameMatch || prodCodeMatch || skuMatch || brandMatch || modelMatch;
       })
       .limit(limit)
       .toArray();
 
+    // If no results found scoped to targetShopId, search entire cached_inventory across organization
+    if (results.length === 0 && targetShopId) {
+      results = await offlineDB.cached_inventory
+        .toCollection()
+        .filter((item) => {
+          if (item.isActive === false) return false;
+
+          const nameMatch = item.name ? item.name.toLowerCase().includes(lowerQuery) : false;
+          const prodNameMatch = item.productName ? item.productName.toLowerCase().includes(lowerQuery) : false;
+          const prodCodeMatch = item.productCode ? item.productCode.toLowerCase().includes(lowerQuery) : false;
+          const skuMatch = item.sku ? item.sku.toLowerCase().includes(lowerQuery) : false;
+          const brandMatch = item.brand ? item.brand.toLowerCase().includes(lowerQuery) : false;
+          const modelMatch = item.model ? item.model.toLowerCase().includes(lowerQuery) : false;
+
+          return nameMatch || prodNameMatch || prodCodeMatch || skuMatch || brandMatch || modelMatch;
+        })
+        .limit(limit)
+        .toArray();
+    }
+
     // Map to match the shape expected by NewInvoiceForm line-items
     return results.map((item) => ({
       id: item.id,
-      name: item.name,
-      sku: item.sku,
+      name: item.name || item.productName || "Product",
+      productName: item.productName || item.name,
+      productCode: item.productCode || "",
+      sku: item.sku || "",
       category: item.category,
       brand: item.brand,
       model: item.model,
       price: item.price,
+      sellingPrice: item.price,
       quantity: item.quantity,
+      stockQuantity: item.quantity,
+      stock_quantity: item.quantity,
       cgstPercent: item.cgstPercent,
       sgstPercent: item.sgstPercent,
       igstPercent: item.igstPercent,

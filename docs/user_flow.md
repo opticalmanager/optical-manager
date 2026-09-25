@@ -44,9 +44,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Smart industrial logic: highlighted ADD column, bilateral ADD diopter auto-sync, monocular PD auto-split (`31.5mm / 31.5mm`), lens design selection (`Single Vision`, `Bifocal`, `Progressive`, `Blue-cut`, etc.), and doctor attribution.
    - **Zero-Latency Reactive Syncing**: Removed manual "Apply to Job" button; all prescription data continuously updates form state and commits automatically when saving bills or patients.
 3. **Line Item Assembly & Pricing Controls**:
-   - Manager adds optical inventory items (spectacle frame, anti-reflective lenses, cleaning kit) from `/shop/invoices/new` via live search autocomplete or barcode scanner.
+   - Manager adds optical inventory items (spectacle frame, anti-reflective lenses, contact lenses, accessories) from `/shop/invoices/new` via live search autocomplete or barcode scanner.
+   - **Enhanced Product Search & Autocomplete**: Instant search across product names, frame models, brands, SKUs, and product codes (`productName`, `productCode`, `name`, `sku`, `brand`, `model`) with instant 0ms IndexedDB local lookup and debounced cloud enrichment, rendering non-clipped suggestion cards with live stock counts and selling prices.
    - **Dual Discount Synchronization**: Supports discount entry in percentage (`DISC %`) and in Rupees (`DISC ₹`) with real-time bi-directional recalculation.
-   - **Editable GST Taxes**: CGST, SGST, and IGST percentages are fully editable per row with real-time rupee tax calculations displayed underneath, supporting intra-state and inter-state GST rates (0%, 5%, 12%, 18%, 28%).
+   - **Dual Editable GST Controls (₹ & %)**: CGST, SGST, and IGST are completely editable per row with dual ₹ amount and % percentage inputs. Editing amount auto-calculates percentage and vice versa, reactively updating line totals, tax aggregates, and invoice grand totals smoothly without schema or calculation errors.
 4. **Checkout, Delivery Date & Payment**:
    - **Salesperson Attribution ("Sold By")**: Staff can record the name of the sales representative who completed the order, stamped permanently into the invoice database and printed on tax invoices and payment receipts.
    - **Expected Delivery Scheduling**: Selects or enters estimated dispatch date with zero default assumptions. Supports interactive calendar picker (`showPicker()`), dynamic day interval readout (`X Days (DD MMM YYYY)`), and quick preset pills (`0D Today`, `3D`, `7D`, `✕ Clear`).
@@ -453,3 +454,172 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
          - **Change Status Button**: Launches `QuickEditModal` to update fulfillment status, reschedule delivery, record partial payment, or settle dues with discount.
          - **Edit Order Button**: Navigates to `/shop/orders/[id]/edit` (guarded by `canEditOrders` permission).
    - **05. Store Credit History & Ledger**: Tracks credit additions from product returns and redemptions on sales bills.
+
+---
+
+## 15. Custom Document Numbering & ID Series Configuration Workflow
+
+```
+┌────────────────────────────────┐    ┌────────────────────────────────┐    ┌────────────────────────────────┐
+│ Owner Portal (/owner/settings) │───>│ Real-Time Live Preview Badge   │───>│ Safe Sequence Resolution &    │
+│ or Shop Settings (Store Tab)   │    │ & CGST Rule 46 16-Char Counter │    │ Anti-Collision Guarantee       │
+└────────────────────────────────┘    └────────────────────────────────┘    └────────────────────────────────┘
+```
+
+1. **Access Locations**:
+   - **System Owner**: `/owner/settings` -> click "Series & Custom IDs" tag under Organisation Details or "Invoice Number Series" under Tax & GST. Features a multi-branch selector to customize series individually for any store location.
+   - **Store Manager**: `/shop/settings?view=series` -> "Store Details" tab -> "Series & Numbering" sub-tab.
+
+2. **Customizable Sequences**:
+   - **Tax Invoices (`invoice`)**:
+     - Configurable Prefix (e.g. `INV`, `OM`, `SALE`), separator (`-`, `/`, or None), Year/FY format (`YYYY`, `YY`, Indian FY `24-25`, or `NONE`), Shop Code toggle (`-1-`), digit padding (0 to 6 digits), next starting number (e.g. `1051`), and optional suffix (`/RET`).
+     - **Central GST Rule 46(b) Indicator**: Real-time counter validates invoice number length against statutory 16-character limit for Indian tax compliance.
+   - **Customer / Patient Registration ID (`customer`)**:
+     - Configurable Prefix (e.g. `OP`, `PAT`, `CUST`), separator, Year format, Shop Code toggle, digit padding, next starting number, and optional suffix.
+   - **Workshop Job Orders (`order`)**:
+     - **Match Invoice # Toggle**: One-click option to make order job slips directly mirror the invoice number (e.g. `INV-1-2026-1051`) for streamlined single-slip workshop management.
+     - Independent series option if separate job numbering is preferred.
+
+3. **Smart Safeguards & Migration Guarantees**:
+   - **Historical Immutability**: Modifying document sequences only applies to newly created records; past invoices, customers, and orders remain 100% untouched.
+   - **Anti-Collision Math**: The sequence generator resolves `nextSerial = max(configuredNext, lastDbSerial + 1)`, ensuring users never encounter duplicate key collisions even when setting a lower starting number.
+   - **Input Sanitation**: Enforces uppercase-only alphanumeric characters and valid separators (`[A-Z0-9\-_/]`) with strict numeric controls for padding and serials.
+
+---
+
+## 16. Multi-Option Inventory Ingestion & CSV Bulk Purchase Inwarding Workflow
+
+```
+┌─────────────────────────────────┐    ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
+│ Store Inventory Dashboard       │───>│ "+ Add Item" Dropdown Selector  │───>│ Choice: Single / Bulk Purchase   │
+│ (/shop/inventory)               │    │ (Click or Hover Trigger)        │    │ or 4-Step CSV Inward Wizard     │
+└─────────────────────────────────┘    └─────────────────────────────────┘    └─────────────────────────────────┘
+```
+
+1. **Top-Right Dynamic Dropdown Trigger**:
+   - Store Managers on `/shop/inventory` access the **`+ Add Item`** button in the sticky page header.
+   - Hovering or clicking reveals a high-density, accessible action popover with 3 distinct options:
+     - **Add Single**: Direct shortcut to `/shop/inventory/add` for adding individual spectacle frames, lenses, or contact lenses.
+     - **Add Bulk Purchase**: Direct route to `/shop/purchases/new` for manual supplier purchase invoice entry with tax grids.
+     - **Add Bulk (CSV)**: Launches the dedicated 4-step Bulk Purchase Inwarding Wizard at `/shop/inventory/import`.
+
+2. **4-Step CSV Bulk Purchase Inwarding Wizard (`/shop/inventory/import`)**:
+   - **Step 1: Upload CSV & Invoice Metadata**:
+     - Drag-and-drop or file selector accepting `.csv` files up to 10MB.
+     - One-click **Download Sample CSV Template** (`optical_manager_bulk_purchase_sample.csv`) pre-formatted with standard optical columns and specification headers.
+     - Inward header controls: Vendor Name (autocomplete or new supplier auto-creation), Purchase Invoice / Bill Number, Invoice Date, Tax Treatment (`Tax Excluded` / `Tax Included`), and GST Type (`CGST + SGST` / `IGST`).
+   - **Step 2: Intelligent Column Mapping**:
+     - Auto-maps CSV columns against 15+ optical catalog and purchase fields (`productCode`, `productName`, `category`, `brand`, `model`, `quantity`, `unitPrice`, `retailPrice`, `hsnCode`, `gstPercent`, `rackLocation`, etc.).
+     - Visual confidence tags showing detected matches with manual re-assignment dropdowns.
+   - **Step 3: High-Density Spreadsheet Review & Smart Catalog Verification**:
+     - Live validation of all parsed rows with instant duplicate detection and format sanitization.
+     - **Smart Catalog Matching (0ms lookup)**:
+       - Checks `productCode` against current shop inventory.
+       - 🟢 **Refill Stock**: Existing product identified in store. Inwarding will atomically increment stock quantity and update cost/retail rates without duplicating records.
+       - 🟡 **New Item**: Unrecognized product code. Inwarding will create a fresh catalog entry with auto-generated SKU sequence.
+     - **Inline Data Rectification**: Directly modify quantity, unit cost price, retail price, and rack shelf locations right within the spreadsheet cells.
+     - **`+ Specs` Specification Enrichment Drawer**: Allows staff to configure category-specific attributes before saving:
+       - *Frames*: Frame shape, size, color, material, gender, model number.
+       - *Lenses*: Refractive index, design (single vision/bifocal/progressive), stock power, and coating checkboxes.
+       - *Contact Lenses*: Modality, base curve, diameter, sphere, cylinder, axis, box quantity.
+   - **Step 4: Atomic Execution & Stock Synchronization**:
+     - Dispatches `createPurchaseFromCsvAction` inside an isolated database transaction.
+     - Atomically commits:
+       1. Master `purchase_orders` record stamped with vendor, invoice number, and calculated tax totals.
+       2. Itemized `purchase_order_items` linked to inventory rows.
+       3. Catalog inventory entries (inserting new items or updating stock balance on existing products).
+       4. Detailed `stock_movements` log entries (`STOCK_IN`) stamped with purchase invoice reference, unit cost price, and performing staff user ID.
+     - Auto-invalidates `/shop/inventory` and `/shop/purchases` caches, offering direct buttons to View Purchase Bill or Return to Inventory.
+
+---
+
+## 17. CSV Bulk Invoices Import & Historical Sales Onboarding Workflow
+
+```
+┌─────────────────────────────────┐    ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
+│ Entry Points:                   │───>│ 4-Step Invoices Wizard          │───>│ Atomic Transaction:             │
+│ /shop/customers (Add Dropdown)  │    │ (/shop/invoices/import)         │    │ • Auto-Registers New Patients   │
+│ /shop/orders (Billing Dropdown) │    │ Upload -> Map -> Review -> Sync │    │ • Writes Invoices, Items, Rects │
+└─────────────────────────────────┘    └─────────────────────────────────┘    └─────────────────────────────────┘
+```
+
+1. **Multi-Dashboard Entry Points**:
+   - **Customers Dashboard (`/shop/customers`)**:
+     - The **`Add Customer`** dropdown includes:
+       - `Add Single`: Individual patient registration (`/shop/patients/new`).
+       - `Add Bulk (Customers)`: Import customer records via CSV (`/shop/customers/import`).
+       - `Add Bulk Invoices (CSV)`: Ingest historical sales and invoices via CSV (`/shop/invoices/import`).
+   - **Orders Management Dashboard (`/shop/orders`)**:
+     - The **`Invoices & Sales`** top-level action dropdown includes:
+       - `+ New Invoice`: Create real-time POS bill (`/shop/invoices/new`).
+       - `Import Invoices (CSV)`: Launch 4-step batch import wizard (`/shop/invoices/import`).
+
+2. **4-Step CSV Bulk Invoices Ingestion Wizard (`/shop/invoices/import`)**:
+   - **Step 1: Upload CSV & Default Store Settings**:
+     - Accepts `.csv` files up to 10MB via drag-and-drop or file selector.
+     - One-click **Download Sample CSV Template** (`optical_invoices_import_template.csv`) with realistic optical scenarios (frames, single vision lenses, contact lenses, sunglasses, reading glasses, advance dues, and full payments).
+     - Store Default Controls: Default Payment Mode (Cash/UPI/Card), Default Fulfillment Status (pre-set to `DELIVERED` for historical invoices), Default Date, and Auto-register New Patients toggle.
+   - **Step 2: Intelligent Column Mapping**:
+     - Auto-maps CSV columns against 18+ optical billing and patient fields (`customerName`, `customerPhone`, `invoiceNumber`, `invoiceDate`, `itemDescription`, `quantity`, `unitPrice`, `discountAmount`, `taxPercent`, `taxAmount`, `totalAmount`, `amountPaid`, `paymentMethod`, `paymentStatus`, `fulfillmentStatus`, `soldBy`, `notes`).
+     - Real-time confidence tags with dropdown overrides and first-row preview.
+   - **Step 3: High-Density Spreadsheet Review & Smart Verification**:
+     - **0ms Customer Matching**:
+       - Compares 10-digit phone number against the store's patient directory.
+       - 🟢 **Existing Patient**: Displays matched patient name and registration ID. The invoice is atomically mapped to their existing profile.
+       - 🟡 **New Patient (Auto-Register)**: Unrecognized phone number. The wizard flags the row for automatic customer creation upon import, generating a collision-safe registration ID (`OP-shopNum-YYYY-NNNN`).
+     - **Legacy Bill Number Preservation & Collision Checks**:
+       - Existing external invoice numbers (`INV-2023-01`, `BILL-1049`, `1249`) are preserved exactly as provided.
+       - Rows missing an invoice number are automatically assigned next available sequence numbers from the store's configured series (`INV-shopNum-YYYY-NNNN`).
+       - 🔴 **Collision Alert**: If an invoice number already exists in the shop database, it is flagged with an error badge and given a one-click **Fix Dupes** button to auto-suffix numbers with `-OLD`.
+     - **Inline Data Rectification**: Directly modify customer names, phone numbers, bill numbers, dates, descriptions, quantities, totals, and paid amounts directly in the spreadsheet grid.
+     - **`+ Details` Specification Modal**: Allows staff to review or enrich customer email, city, address, salesperson attribution, and prescription notes.
+   - **Step 4: Atomic Execution & Financial Ledger Sync**:
+     - Dispatches `bulkImportInvoicesAction` in an isolated Drizzle transaction.
+     - Atomically commits:
+       1. New `customers` records with sequential registration numbers.
+       2. Grouped `invoices` header records with historical timestamps.
+       3. Itemized `invoice_items` records for each item description and tax amount.
+       4. Sequential `orders` tracking records.
+       5. Payment receipts (`receipts`) for paid balances, ensuring audit accuracy.
+     - Revalidates `/shop/orders`, `/shop/customers`, `/shop/dashboard`, `/shop/analytics`.
+     - Renders completion metrics cards and direct quick-navigation buttons.
+
+
+
+---
+
+## 18. AI Bill Scanning & Smart Purchase Inward Flow
+
+```
+┌──────────────────────────────┐    ┌──────────────────────────────┐    ┌──────────────────────────────┐
+│ Add Purchase Page            │───>│ AI Bill Scanner Drawer       │───>│ Form Auto-Fill               │
+│ (/shop/purchases/new)        │    │ Client Canvas Downsampling   │    │ • Auto-Matches DB Vendor     │
+│ [Scan Bill with AI] CTA      │    │ -> Gemini Vision API Call    │    │ • Populates Line Items & Math│
+└──────────────────────────────┘    └──────────────────────────────┘    │ • Enriches Modal Specs       │
+                                                                        └──────────────────────────────┘
+```
+
+1. **Owner Configuration & API Key Management (`/owner/settings`)**:
+   - Store owners navigate to **Owner Settings** and access the **AI & Automations** category card.
+   - Owners can configure their private **Google Gemini API Key** and preferred model (`gemini-2.5-flash`, `gemini-1.5-flash`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-flash-latest`, or custom).
+   - "Test Connection" button performs a lightweight round-trip test to verify connectivity and display latency in milliseconds.
+   - Credentials are saved securely to the database in `organizations.settings.ai`. Each organization's key remains completely isolated.
+
+2. **Add Purchase Inward Flow (`/shop/purchases/new`)**:
+   - Store staff click **"Scan Bill with AI"** in the top action toolbar.
+   - A slide-over drawer opens:
+     - **Setup Fallback**: If the organization hasn't added a Gemini API key yet, the drawer immediately displays an inline "Connect Google Gemini AI" card with an API key input, Google AI Studio link, and "Test Connection" tool, allowing the user to configure and proceed without leaving the page.
+     - **File Upload**: Accepts photo formats (`.jpg`, `.jpeg`, `.png`, `.webp`) and single-page `.pdf` bills or challans up to 15MB.
+     - **Client-Side Canvas Downsampling**: High-resolution camera photos (8–15MB) are automatically downscaled to a max dimension of 1800px at 85% JPEG quality via an off-screen HTML5 canvas, reducing transmission size to ~300KB and dropping network transfer latency by up to 70%.
+     - **Gemini Vision Extraction**: Calls `extractBillDataAction` with structured JSON schema enforcement (`responseMimeType: "application/json"`).
+     - **System-Side Arithmetic Engine**: Gemini extracts raw item names, rates, quantities, and GST rates. The system calculates exact CGST, SGST, IGST, base price, unit purchase price, and item totals without floating-point math hallucinations.
+     - **Smart Vendor Matching**:
+       - Compares extracted GSTIN against existing vendors in the store's directory.
+       - Compares extracted supplier name against normalized vendor names.
+       - If matched: auto-selects the existing vendor ID and displays a green `Matched Vendor` badge.
+       - If not found: marks as `+ New Vendor (Free text)` so inward entry is never blocked.
+     - **Optical Attributes & Modal Specification Enrichment**:
+       - Extracts brand, model, color, eye size, frame shape, lens category, contact lens modality, batch number, and expiry date.
+       - Automatically maps these into the row's `ProductModalData` structure, so clicking the **Details** (eye) button opens the `PurchaseAddProductModal` with all specifications pre-filled.
+     - **Review & Verification**: Staff can inspect extracted items, codes, and totals, remove unwanted rows, and click **"Apply to Purchase Form"**.
+     - **Active Banner**: Form displays an auto-fill confirmation banner with instant recalculation of total units, base price, GST, and net payable.

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   Image as ImageIcon, 
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
   Package, 
   Box, 
   Pencil, 
@@ -21,7 +23,9 @@ import {
   PiggyBank,
   Search,
   X,
-  Barcode
+  Barcode,
+  PackagePlus,
+  FileSpreadsheet
 } from "lucide-react";
 import { BarcodeDesignerModal } from "@/components/shop/BarcodeDesignerModal";
 import { offlineDB } from "@/lib/offline/db";
@@ -76,7 +80,7 @@ export function InventoryDashboardClient({
   initialSort = "SKU",
   categories = [],
 }: InventoryDashboardClientProps) {
-  // Client states
+  const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>(initialItems);
   const [category, setCategory] = useState<string>(initialCategory.toUpperCase());
   const [filter, setFilter] = useState<string>(initialFilter.toLowerCase());
@@ -84,6 +88,20 @@ export function InventoryDashboardClient({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [activeBarcodeItem, setActiveBarcodeItem] = useState<InventoryItem | null>(null);
+
+  // Top-Right Add Item Dropdown State
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setIsAddMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Derive dynamic list of categories from props and items
   const availableCategories = useMemo(() => {
@@ -452,12 +470,85 @@ export function InventoryDashboardClient({
           >
             <Download className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Export CSV
           </Button>
-          <Link 
-            href="/shop/inventory/add" 
-            className="inline-flex items-center justify-center px-3.5 h-9 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 transition-colors"
+          {/* Interactive 3-Option Add Item Dropdown */}
+          <div 
+            className="relative" 
+            ref={addMenuRef}
+            onMouseEnter={() => setIsAddMenuOpen(true)}
+            onMouseLeave={() => setIsAddMenuOpen(false)}
           >
-            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Item
-          </Link>
+            <Button 
+              type="button"
+              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+              className="inline-flex items-center justify-center px-3.5 h-9 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Item</span>
+              <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${isAddMenuOpen ? "rotate-180" : ""}`} />
+            </Button>
+
+            {isAddMenuOpen && (
+              <div 
+                className="absolute right-0 top-full pt-1.5 w-64 z-50 animate-in fade-in zoom-in-95 duration-150 select-none"
+              >
+                <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xl p-1.5 space-y-1">
+                  {/* Option 1: Add Single */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddMenuOpen(false);
+                      router.push("/shop/inventory/add");
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-3 text-xs font-bold text-slate-700 hover:text-[#2563eb] group cursor-pointer"
+                  >
+                    <div className="p-2 rounded-lg bg-blue-50 text-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white transition-colors">
+                      <Plus className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="block font-bold text-slate-800 group-hover:text-[#2563eb]">Add Single</span>
+                      <span className="block text-[10px] text-slate-400 font-medium">Individual product registration</span>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Add Bulk Purchase */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddMenuOpen(false);
+                      router.push("/shop/purchases/new");
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-3 text-xs font-bold text-slate-700 hover:text-purple-700 group cursor-pointer"
+                  >
+                    <div className="p-2 rounded-lg bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-colors">
+                      <PackagePlus className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="block font-bold text-slate-800 group-hover:text-purple-700">Add Bulk Purchase</span>
+                      <span className="block text-[10px] text-slate-400 font-medium">Inward stock supply &amp; vendor bill</span>
+                    </div>
+                  </button>
+
+                  {/* Option 3: Add Bulk (CSV) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddMenuOpen(false);
+                      router.push("/shop/inventory/import");
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-3 text-xs font-bold text-slate-700 hover:text-emerald-700 group cursor-pointer"
+                  >
+                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="block font-bold text-slate-800 group-hover:text-emerald-700">Add Bulk (CSV)</span>
+                      <span className="block text-[10px] text-slate-400 font-medium">Import purchase inventory via CSV</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

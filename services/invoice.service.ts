@@ -2,17 +2,24 @@
 
 import { db } from "@/lib/drizzle";
 import { invoices, shops } from "@/db/schema";
-import { eq, and, ilike, sql } from "drizzle-orm";
+import { eq, and, ilike, desc } from "drizzle-orm";
 import type { Invoice, NewInvoice } from "@/types";
+import {
+  DEFAULT_DOCUMENT_SERIES,
+  buildSeriesPrefix,
+  formatDocumentNumber,
+  extractTrailingSerial,
+} from "@/utils/document-series";
 
 /**
- * Generate a sequential invoice number in the format INV-shopNum-YYYY-NNNN.
+ * Generate a sequential invoice number supporting custom series or standard INV-shopNum-YYYY-NNNN.
  */
 export async function generateInvoiceNumber(shopId: string): Promise<string> {
-  // Fetch current shop organizationId
+  // Fetch current shop organizationId and custom settings
   const [shop] = await db
     .select({
       organizationId: shops.organizationId,
+      settings: shops.settings,
     })
     .from(shops)
     .where(eq(shops.id, shopId))
@@ -32,9 +39,16 @@ export async function generateInvoiceNumber(shopId: string): Promise<string> {
   const shopIndex = orgShops.findIndex((s) => s.id === shopId);
   const shopNum = shopIndex !== -1 ? shopIndex + 1 : 1;
 
-  const currentYear = new Date().getFullYear().toString();
-  const pattern = `INV-${shopNum}-${currentYear}-%`;
+  // Retrieve custom configuration or fall back to standard default
+  const customConfig = (shop.settings as any)?.documentSeries?.invoice;
+  const config = customConfig
+    ? { ...DEFAULT_DOCUMENT_SERIES.invoice, ...customConfig }
+    : DEFAULT_DOCUMENT_SERIES.invoice;
 
+  const now = new Date();
+  const seriesPrefix = buildSeriesPrefix(config, shopNum, now);
+
+  // Query most recent invoice matching this series prefix
   const [lastInvoice] = await db
     .select({
       invoiceNumber: invoices.invoiceNumber,
@@ -43,34 +57,109 @@ export async function generateInvoiceNumber(shopId: string): Promise<string> {
     .where(
       and(
         eq(invoices.shopId, shopId),
-        ilike(invoices.invoiceNumber, pattern)
+        ilike(invoices.invoiceNumber, `${seriesPrefix}%`)
       )
     )
-    .orderBy(sql`invoice_number DESC`)
+    .orderBy(desc(invoices.createdAt), desc(invoices.invoiceNumber))
     .limit(1);
 
-  let nextSerial = 1;
+  // Extract last serial from DB if exists
+  let lastDbSerial: number | null = null;
   if (lastInvoice?.invoiceNumber) {
-    const parts = lastInvoice.invoiceNumber.split("-");
-    // Format: INV-shopNum-year-serial (length 4)
-    if (parts.length === 4) {
-      const lastSerialStr = parts[3];
-      const lastSerial = parseInt(lastSerialStr, 10);
-      if (!isNaN(lastSerial)) {
-        nextSerial = lastSerial + 1;
-      }
-    } else {
-      // Fallback for old format or custom strings
-      const lastSerialStr = parts[parts.length - 1];
-      const lastSerial = parseInt(lastSerialStr, 10);
-      if (!isNaN(lastSerial)) {
-        nextSerial = lastSerial + 1;
-      }
-    }
+    lastDbSerial = extractTrailingSerial(lastInvoice.invoiceNumber, seriesPrefix);
   }
 
-  const paddedSerial = nextSerial.toString().padStart(4, "0");
-  return `INV-${shopNum}-${currentYear}-${paddedSerial}`;
+  // Anti-collision safeguard: ensure next number is at least lastDbSerial + 1
+  const configuredNext =
+    typeof config.nextNumber === "number" && config.nextNumber > 0
+      ? config.nextNumber
+      : 1;
+
+  const nextSerial =
+    lastDbSerial !== null
+      ? Math.max(configuredNext, lastDbSerial + 1)
+      : configuredNext;
+
+  return formatDocumentNumber(config, nextSerial, shopNum, now);
+}
+
+/**
+ * Generate sequential invoice numbers in batch for a shop.
+ */
+export async function generateBatchInvoiceNumbers(
+  shopId: string,
+  count: number,
+  tx: any = db
+): Promise<string[]> {
+  if (count <= 0) return [];
+
+  const [shop] = await tx
+    .select({
+      organizationId: shops.organizationId,
+      settings: shops.settings,
+    })
+    .from(shops)
+    .where(eq(shops.id, shopId))
+    .limit(1);
+
+  if (!shop) {
+    throw new Error(`Shop with ID ${shopId} not found.`);
+  }
+
+  const orgShops = await tx
+    .select({ id: shops.id })
+    .from(shops)
+    .where(eq(shops.organizationId, shop.organizationId))
+    .orderBy(shops.createdAt);
+
+  const shopIndex = orgShops.findIndex((s: any) => s.id === shopId);
+  const shopNum = shopIndex !== -1 ? shopIndex + 1 : 1;
+
+  const customConfig = (shop.settings as any)?.documentSeries?.invoice;
+  const config = customConfig
+    ? { ...DEFAULT_DOCUMENT_SERIES.invoice, ...customConfig }
+    : DEFAULT_DOCUMENT_SERIES.invoice;
+
+  const now = new Date();
+  const seriesPrefix = buildSeriesPrefix(config, shopNum, now);
+
+  const [lastInvoice] = await tx
+    .select({
+      invoiceNumber: invoices.invoiceNumber,
+    })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.shopId, shopId),
+        ilike(invoices.invoiceNumber, `${seriesPrefix}%`)
+      )
+    )
+    .orderBy(desc(invoices.createdAt), desc(invoices.invoiceNumber))
+    .limit(1);
+
+  let lastDbSerial: number | null = null;
+  if (lastInvoice?.invoiceNumber) {
+    lastDbSerial = extractTrailingSerial(lastInvoice.invoiceNumber, seriesPrefix);
+  }
+
+  const configuredNext =
+    typeof config.nextNumber === "number" && config.nextNumber > 0
+      ? config.nextNumber
+      : 1;
+
+  let startSerial =
+    lastDbSerial !== null
+      ? Math.max(configuredNext, lastDbSerial + 1)
+      : configuredNext;
+
+  const invoiceNumbers: string[] = [];
+  for (let i = 0; i < count; i++) {
+    invoiceNumbers.push(
+      formatDocumentNumber(config, startSerial + i, shopNum, now)
+    );
+  }
+
+  return invoiceNumbers;
 }
 
 /**

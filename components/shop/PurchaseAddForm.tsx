@@ -33,6 +33,8 @@ import {
 } from "@/actions/purchase.actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { BillScanDrawer } from "@/components/shop/BillScanDrawer";
+import type { ExtractedBillData } from "@/types/bill-scan";
 
 export interface PurchaseTableRow {
   id: string; // temporary row key
@@ -145,6 +147,13 @@ export function PurchaseAddForm({
     null
   );
   const [modalInitialCode, setModalInitialCode] = useState<string>("");
+
+  // AI Bill Scanner Drawer State
+  const [isScanDrawerOpen, setIsScanDrawerOpen] = useState(false);
+  const [aiExtractedBanner, setAiExtractedBanner] = useState<{
+    vendor: string;
+    count: number;
+  } | null>(null);
 
   // Table Rows (SS2 columns)
   const [rows, setRows] = useState<PurchaseTableRow[]>([
@@ -557,6 +566,93 @@ export function PurchaseAddForm({
     }
   };
 
+  // Handler to apply AI extracted bill data into the form
+  const handleApplyExtractedBill = (data: ExtractedBillData) => {
+    // 1. Auto-select or set vendor
+    if (data.matchedVendorId) {
+      setSelectedVendorId(data.matchedVendorId);
+      setVendorName(data.vendorName || "");
+    } else if (data.vendorName) {
+      setSelectedVendorId(null);
+      setVendorName(data.vendorName);
+    }
+
+    // 2. Invoice number & date
+    if (data.invoiceNumber) {
+      setPurchaseNumber(data.invoiceNumber);
+    }
+    if (data.invoiceDate) {
+      setPurchaseDate(data.invoiceDate);
+    }
+
+    // 3. Tax type
+    if (data.taxType) {
+      setTaxType(data.taxType);
+    }
+
+    // 4. Populate table rows with extracted line items
+    if (data.items && data.items.length > 0) {
+      const newRows: PurchaseTableRow[] = data.items.map((item) => {
+        const matchedCat = categories.find((c) => c.code === item.category);
+        const hsn = item.hsnCode || matchedCat?.hsnCode || "90049000";
+
+        const baseRow: PurchaseTableRow = {
+          id: crypto.randomUUID(),
+          inventoryId: null,
+          productName: item.productName,
+          productCode: item.productCode || "",
+          category: item.category,
+          details: item.brand
+            ? `${item.brand} ${item.model || ""}`.trim()
+            : "",
+          unitPrice: item.unitPrice,
+          basePrice: item.unitPrice,
+          hsnCode: hsn,
+          gstPercent: item.gstPercent,
+          cgstPercent: item.cgstPercent,
+          cgstAmount: item.cgstAmount,
+          sgstPercent: item.sgstPercent,
+          sgstAmount: item.sgstAmount,
+          igstPercent: item.igstPercent,
+          igstAmount: item.igstAmount,
+          purchasePrice: item.purchasePrice,
+          quantity: item.quantity,
+          totalPurchasePrice: item.totalPurchasePrice,
+          retailPrice: item.retailPrice,
+
+          // Extended specs for the modal
+          brand: item.brand,
+          model: item.model,
+          color: item.color,
+          size: item.size,
+          batchNumber: item.batchNumber,
+          expiryDate: item.expiryDate,
+          requiresExpiryTracking: item.requiresExpiryTracking,
+
+          suggestions: [],
+          isSearching: false,
+          showSuggestions: false,
+          showAddBadge: false,
+        };
+
+        return recalculateRow(baseRow, {
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          basePrice: item.unitPrice,
+        });
+      });
+
+      setRows(newRows);
+      setAiExtractedBanner({
+        vendor: data.vendorName || "vendor",
+        count: data.items.length,
+      });
+      toast.success(
+        `Imported ${data.items.length} items from ${data.vendorName || "bill"} into form!`
+      );
+    }
+  };
+
   // Summary Calculations (SS1 bottom right card)
   let totalQuantity = 0;
   let totalUnitAmount = 0;
@@ -729,22 +825,53 @@ export function PurchaseAddForm({
           </div>
         </div>
 
-        {/* Date Box Top Right */}
-        <div className="flex items-center gap-2 self-end sm:self-auto bg-blue-50/50 border border-blue-100 rounded-xl px-3 py-1.5 shadow-2xs">
-          <Calendar className="h-4 w-4 text-[#2563eb]" />
-          <div className="text-left">
-            <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">
-              Date
-            </span>
-            <input
-              type="date"
-              value={purchaseDate}
-              onChange={(e) => setPurchaseDate(e.target.value)}
-              className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
-            />
+        {/* Top Right Actions: AI Bill Scanner & Date Box */}
+        <div className="flex items-center gap-2.5 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setIsScanDrawerOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>Scan Bill with AI</span>
+          </button>
+
+          {/* Date Box Top Right */}
+          <div className="flex items-center gap-2 bg-blue-50/50 border border-blue-100 rounded-xl px-3 py-1.5 shadow-2xs">
+            <Calendar className="h-4 w-4 text-[#2563eb]" />
+            <div className="text-left">
+              <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Date
+              </span>
+              <input
+                type="date"
+                value={purchaseDate}
+                onChange={(e) => setPurchaseDate(e.target.value)}
+                className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+              />
+            </div>
           </div>
         </div>
       </div>
+
+      {/* AI Extraction Banner */}
+      {aiExtractedBanner && (
+        <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-2.5 text-xs text-blue-900 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
+            <span>
+              <strong>AI Auto-Fill Active:</strong> Populated {aiExtractedBanner.count} items from <strong>{aiExtractedBanner.vendor}</strong>'s bill. Review quantities and rates before finalizing.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAiExtractedBanner(null)}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800 ml-3 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Primary Configuration Bar (SS1: Tax Rule, Tax Type, Supplier Name, Purchase Bill Number) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4">
@@ -1220,6 +1347,13 @@ export function PurchaseAddForm({
         initialProductCode={modalInitialCode}
         vendorName={vendorName}
         onProductAdded={handleProductAddedFromModal}
+      />
+
+      {/* AI Bill Scanner Drawer */}
+      <BillScanDrawer
+        isOpen={isScanDrawerOpen}
+        onClose={() => setIsScanDrawerOpen(false)}
+        onApply={handleApplyExtractedBill}
       />
     </div>
   );
