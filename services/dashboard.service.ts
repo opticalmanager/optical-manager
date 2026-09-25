@@ -10,11 +10,112 @@ import {
   appointments,
   purchaseOrders,
   salesReturns,
+  salesReturnItems,
   stockMovements,
-  whatsappDispatchQueue
+  whatsappDispatchQueue,
+  shops,
+  frameDetails,
+  lensDetails
 } from "@/db/schema";
-import { eq, and, or, ne, gte, lt, lte, sql, desc, sum, count, max } from "drizzle-orm";
+import { eq, and, or, ne, gte, lt, lte, sql, desc, sum, count, max, inArray } from "drizzle-orm";
 import { TimeframeType } from "./order.service";
+
+export interface OpticalDashboardKPIs extends DashboardKPIs {
+  revenueGrowth: number;
+  salesInvoicesCount: number;
+  salesInvoicesGrowth: number;
+  accountsReceivable: number;
+  accountsReceivableGrowth: number;
+  activeCustomersCount: number;
+  activeCustomersGrowth: number;
+  totalStoresCount: number;
+  totalStoresGrowth: number;
+}
+
+export interface CustomerBifurcation {
+  onlyFrame: number;
+  onlyFramePercent: number;
+  onlyLens: number;
+  onlyLensPercent: number;
+  bothFrameAndLens: number;
+  bothFrameAndLensPercent: number;
+  totalCustomers: number;
+}
+
+export interface DeadStockData {
+  count: number;
+  percentageOfTotal: number;
+  totalItems: number;
+}
+
+export interface StockCategoryValuation {
+  category: string;
+  label: string;
+  value: number;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface StockValuationData {
+  totalValue: number;
+  totalUnits: number;
+  categories: StockCategoryValuation[];
+}
+
+export interface ReturnRateData {
+  totalSales: number;
+  returnedItems: number;
+  returnRatePercent: number;
+}
+
+export interface SalesBifurcationSlice {
+  name: string;
+  count: number;
+  amount: number;
+  percentage: number;
+  color: string;
+}
+
+export interface SalesBifurcationData {
+  totalSalesAmount: number;
+  byLenses: { slices: SalesBifurcationSlice[]; total: number };
+  byFrames: { slices: SalesBifurcationSlice[]; total: number };
+  byBrands: { slices: SalesBifurcationSlice[]; total: number };
+  byGender: { slices: SalesBifurcationSlice[]; total: number };
+  byAge: { slices: SalesBifurcationSlice[]; total: number };
+}
+
+export interface RetentionRateData {
+  totalCustomers: number;
+  returningCustomers: number;
+  retentionRatePercent: number;
+}
+
+export interface RecentTransactionItem {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  itemsSummary: string;
+  amount: number;
+  status: "PAID" | "PARTIALLY_PAID" | "PENDING" | "CANCELLED";
+  dateFormatted: string;
+  rawDate: string;
+}
+
+export interface LowStockAlertItem {
+  id: string;
+  name: string;
+  quantity: number;
+  minQuantity: number;
+  category?: string;
+  sku?: string;
+}
+
+export interface LowStockSummaryData {
+  lowStockCount: number;
+  items: LowStockAlertItem[];
+}
 
 export interface DashboardKPIs {
   revenue: number;
@@ -120,6 +221,15 @@ export interface RecentActivityItem {
 
 export interface DashboardData {
   kpis: DashboardKPIs;
+  opticalKPIs?: OpticalDashboardKPIs;
+  customerBifurcation?: CustomerBifurcation;
+  deadStock?: DeadStockData;
+  stockValuation?: StockValuationData;
+  returnRate?: ReturnRateData;
+  salesBifurcation?: SalesBifurcationData;
+  retentionRate?: RetentionRateData;
+  recentTransactions?: RecentTransactionItem[];
+  lowStockSummary?: LowStockSummaryData;
   revenueChart: RevenueChartData[];
   compareRevenueChart?: RevenueChartData[];
   compareKPIs?: DashboardKPIs;
@@ -287,7 +397,16 @@ export async function getDashboardData(
     recentActivitiesList,
     compareRevenueResult,
     comparePendingPaymentsResult,
-    compareInvoices
+    compareInvoices,
+    storesCountResult,
+    detailedInvoiceItems,
+    allActiveInventory,
+    salesReturnsList,
+    salesReturnItemsList,
+    customerLifetimeCounts,
+    recent90DayMovements,
+    prevPeriodInvoicesList,
+    recent10InvoicesWithItems
   ] = await Promise.all([
     // 1. Primary Revenue
     db
@@ -650,7 +769,178 @@ export async function getDashboardData(
           lte(invoices.createdAt, prevEndDate)
         )
       )
-      .orderBy(desc(invoices.createdAt)) : Promise.resolve([])
+      .orderBy(desc(invoices.createdAt)) : Promise.resolve([]),
+
+    // 24. Stores count in organization
+    organizationId
+      ? db
+          .select({ val: count() })
+          .from(shops)
+          .where(and(eq(shops.organizationId, organizationId), eq(shops.isActive, true)))
+      : Promise.resolve([{ val: 1 }]),
+
+    // 25. Detailed invoice items in period (for customer & sales bifurcation)
+    db
+      .select({
+        itemId: invoiceItems.id,
+        invoiceId: invoiceItems.invoiceId,
+        inventoryId: invoiceItems.inventoryId,
+        description: invoiceItems.description,
+        quantity: invoiceItems.quantity,
+        unitPrice: invoiceItems.unitPrice,
+        subtotal: invoiceItems.subtotal,
+        customerId: invoices.customerId,
+        customerGender: customers.gender,
+        customerDob: customers.dateOfBirth,
+        inventoryCategory: inventory.category,
+        inventoryBrand: inventory.brand,
+        inventoryName: inventory.name,
+        lensDesign: lensDetails.design,
+        frameShape: frameDetails.frameShape,
+        frameDemographic: frameDetails.targetDemographic,
+      })
+      .from(invoiceItems)
+      .innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
+      .leftJoin(lensDetails, eq(inventory.id, lensDetails.inventoryId))
+      .leftJoin(frameDetails, eq(inventory.id, frameDetails.inventoryId))
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          gte(invoices.createdAt, startDate),
+          lte(invoices.createdAt, endDate),
+          ne(invoices.status, "CANCELLED")
+        )
+      ),
+
+    // 26. All active inventory (for stock valuation, dead stock, and low stock)
+    db
+      .select({
+        id: inventory.id,
+        name: inventory.name,
+        category: inventory.category,
+        brand: inventory.brand,
+        quantity: inventory.quantity,
+        minQuantity: inventory.minQuantity,
+        costPrice: inventory.costPrice,
+        price: inventory.price,
+        createdAt: inventory.createdAt,
+        sku: inventory.sku,
+      })
+      .from(inventory)
+      .where(
+        and(
+          shopCond(inventory.shopId, inventory.organizationId),
+          eq(inventory.isActive, true)
+        )
+      ),
+
+    // 27. Sales Returns in period
+    db
+      .select({
+        id: salesReturns.id,
+        totalRefundAmount: salesReturns.totalRefundAmount,
+        returnType: salesReturns.returnType,
+        status: salesReturns.status,
+      })
+      .from(salesReturns)
+      .where(
+        and(
+          shopCond(salesReturns.shopId, salesReturns.organizationId),
+          gte(salesReturns.createdAt, startDate),
+          lte(salesReturns.createdAt, endDate),
+          ne(salesReturns.status, "CANCELLED")
+        )
+      ),
+
+    // 28. Sales Return Items in period
+    db
+      .select({
+        id: salesReturnItems.id,
+        quantityReturned: salesReturnItems.quantityReturned,
+      })
+      .from(salesReturnItems)
+      .where(
+        and(
+          shopCond(salesReturnItems.shopId, salesReturnItems.organizationId),
+          gte(salesReturnItems.createdAt, startDate),
+          lte(salesReturnItems.createdAt, endDate)
+        )
+      ),
+
+    // 29. Customer lifetime invoice counts (for retention rate)
+    db
+      .select({
+        customerId: invoices.customerId,
+        totalInvoices: count(invoices.id),
+      })
+      .from(invoices)
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          ne(invoices.status, "CANCELLED")
+        )
+      )
+      .groupBy(invoices.customerId),
+
+    // 30. Recent 90-day stock movements (for dead stock)
+    db
+      .select({
+        inventoryId: stockMovements.inventoryId,
+      })
+      .from(stockMovements)
+      .where(
+        and(
+          shopCond(stockMovements.shopId, stockMovements.organizationId),
+          gte(stockMovements.createdAt, new Date(now.getTime() - 90 * msInDay))
+        )
+      )
+      .groupBy(stockMovements.inventoryId),
+
+    // 31. Previous period invoices (for growth comparisons)
+    db
+      .select({
+        id: invoices.id,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        customerId: invoices.customerId,
+        status: invoices.status,
+      })
+      .from(invoices)
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          gte(invoices.createdAt, prevStartDate),
+          lte(invoices.createdAt, prevEndDate),
+          ne(invoices.status, "CANCELLED")
+        )
+      ),
+
+    // 32. Recent Invoices with items (for Recent Transactions high-density table)
+    db
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        total: invoices.total,
+        amountPaid: invoices.amountPaid,
+        status: invoices.status,
+        createdAt: invoices.createdAt,
+        customerName: customers.fullName,
+        itemDescription: invoiceItems.description,
+        itemQuantity: invoiceItems.quantity,
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .leftJoin(invoiceItems, eq(invoices.id, invoiceItems.invoiceId))
+      .where(
+        and(
+          shopCond(invoices.shopId, invoices.organizationId),
+          ne(invoices.status, "CANCELLED")
+        )
+      )
+      .orderBy(desc(invoices.createdAt))
+      .limit(30)
   ]);
 
   // Primary KPIs calculations (Exact live numbers)
@@ -661,6 +951,434 @@ export async function getDashboardData(
   const appointmentsTodayVal = todayAppointmentsCount[0]?.value || 0;
   const lowStockVal = lowStockCount[0]?.value || 0;
   const pendingPaymentsVal = Number(pendingPaymentsResult[0]?.balance || 0);
+
+  // Helper for growth calculation
+  const calcGrowth = (curr: number, prev: number) => {
+    if (prev <= 0) return curr > 0 ? 100 : 0;
+    return Math.round(((curr - prev) / prev) * 100);
+  };
+
+  // Optical KPI calculations & growth rates
+  const prevRevenueVal = prevPeriodInvoicesList
+    .filter((inv) => inv.status === "PAID")
+    .reduce((acc, inv) => acc + Number(inv.total || 0), 0);
+  const revenueGrowth = calcGrowth(revenueVal, prevRevenueVal);
+
+  const salesInvoicesCount = recentInvoices.length;
+  const prevSalesInvoicesCount = prevPeriodInvoicesList.length;
+  const salesInvoicesGrowth = calcGrowth(salesInvoicesCount, prevSalesInvoicesCount);
+
+  const accountsReceivableVal = pendingPaymentsVal;
+  const prevAccountsReceivable = prevPeriodInvoicesList
+    .filter((inv) => inv.status !== "PAID")
+    .reduce((acc, inv) => acc + Math.max(0, Number(inv.total || 0) - Number(inv.amountPaid || 0)), 0);
+  const accountsReceivableGrowth = calcGrowth(accountsReceivableVal, prevAccountsReceivable);
+
+  const activeCustomersSet = new Set(recentInvoices.map((inv) => inv.customerId).filter(Boolean));
+  const activeCustomersCount = activeCustomersSet.size;
+  const prevCustomersSet = new Set(prevPeriodInvoicesList.map((inv) => inv.customerId).filter(Boolean));
+  const activeCustomersGrowth = calcGrowth(activeCustomersCount, prevCustomersSet.size);
+
+  const totalStoresCount = Number(storesCountResult[0]?.val || 1);
+  const totalStoresGrowth = 0;
+
+  const opticalKPIs: OpticalDashboardKPIs = {
+    revenue: revenueVal,
+    collections: Math.max(0, revenueVal - pendingPaymentsVal),
+    pendingOrders: pendingOrdersVal,
+    readyForPickupOrders: readyForPickupOrdersVal,
+    delayedOrders: delayedOrdersVal,
+    appointmentsToday: appointmentsTodayVal,
+    lowStockAlerts: lowStockVal,
+    pendingPayments: pendingPaymentsVal,
+    totalOrdersCount: salesInvoicesCount,
+    avgOrderValue: salesInvoicesCount > 0 ? revenueVal / salesInvoicesCount : 0,
+    paidInvoicesCount: recentInvoices.filter((i) => i.status === "PAID").length,
+    patientVisitsCount: appointmentsTodayVal,
+    revenueGrowth,
+    salesInvoicesCount,
+    salesInvoicesGrowth,
+    accountsReceivable: accountsReceivableVal,
+    accountsReceivableGrowth,
+    activeCustomersCount,
+    activeCustomersGrowth,
+    totalStoresCount,
+    totalStoresGrowth,
+  };
+
+  // 1. Customer Bifurcation (Only Frame, Only Lens, Both Frame & Lens)
+  const customerItemCategoryMap = new Map<string, { hasFrame: boolean; hasLens: boolean }>();
+  detailedInvoiceItems.forEach((item) => {
+    const cid = item.customerId || "walk-in";
+    const cat = (item.inventoryCategory || "").toUpperCase();
+    const desc = (item.description || "").toUpperCase();
+    const isFrame =
+      cat.includes("FRAME") ||
+      desc.includes("FRAME") ||
+      Boolean(item.frameShape) ||
+      Boolean(item.frameDemographic);
+    const isLens =
+      cat.includes("LENS") ||
+      cat.includes("CONTACT") ||
+      desc.includes("LENS") ||
+      desc.includes("VISION") ||
+      desc.includes("BIFOCAL") ||
+      desc.includes("PROGRESSIVE") ||
+      Boolean(item.lensDesign);
+
+    const existing = customerItemCategoryMap.get(cid) || { hasFrame: false, hasLens: false };
+    if (isFrame) existing.hasFrame = true;
+    if (isLens) existing.hasLens = true;
+    customerItemCategoryMap.set(cid, existing);
+  });
+
+  let onlyFrame = 0;
+  let onlyLens = 0;
+  let bothFrameAndLens = 0;
+
+  customerItemCategoryMap.forEach((flags) => {
+    if (flags.hasFrame && !flags.hasLens) onlyFrame++;
+    else if (!flags.hasFrame && flags.hasLens) onlyLens++;
+    else if (flags.hasFrame && flags.hasLens) bothFrameAndLens++;
+    else onlyFrame++; // fallback for items categorized under general accessories
+  });
+
+  const totalBifurcationCustomers = onlyFrame + onlyLens + bothFrameAndLens;
+  const customerBifurcation: CustomerBifurcation = {
+    onlyFrame,
+    onlyFramePercent: totalBifurcationCustomers > 0 ? Math.round((onlyFrame / totalBifurcationCustomers) * 100) : 0,
+    onlyLens,
+    onlyLensPercent: totalBifurcationCustomers > 0 ? Math.round((onlyLens / totalBifurcationCustomers) * 100) : 0,
+    bothFrameAndLens,
+    bothFrameAndLensPercent: totalBifurcationCustomers > 0 ? Math.round((bothFrameAndLens / totalBifurcationCustomers) * 100) : 0,
+    totalCustomers: totalBifurcationCustomers,
+  };
+
+  // 2. Dead Stock (Items not moved in last 90 days)
+  const movedInventoryIds = new Set(recent90DayMovements.map((m) => m.inventoryId).filter(Boolean));
+  const ninetyDaysCutoff = new Date(now.getTime() - 90 * msInDay);
+  const deadStockItems = allActiveInventory.filter((item) => {
+    const qty = Number(item.quantity || 0);
+    const isOlderThan90 = item.createdAt ? new Date(item.createdAt).getTime() < ninetyDaysCutoff.getTime() : false;
+    return qty > 0 && isOlderThan90 && !movedInventoryIds.has(item.id);
+  });
+  const deadStockCount = deadStockItems.length;
+  const totalInventoryCount = allActiveInventory.length;
+  const deadStock: DeadStockData = {
+    count: deadStockCount,
+    percentageOfTotal: totalInventoryCount > 0 ? Math.round((deadStockCount / totalInventoryCount) * 100) : 0,
+    totalItems: totalInventoryCount,
+  };
+
+  // 3. Stock Valuation (Asset distribution by category)
+  const valuationMap: Record<string, { value: number; count: number }> = {
+    FRAME: { value: 0, count: 0 },
+    LENS: { value: 0, count: 0 },
+    CONTACT_LENS: { value: 0, count: 0 },
+    ACCESSORY: { value: 0, count: 0 },
+    SOLUTION: { value: 0, count: 0 },
+    OTHER: { value: 0, count: 0 },
+  };
+
+  let totalValuationSum = 0;
+  let totalUnitsSum = 0;
+
+  allActiveInventory.forEach((item) => {
+    const qty = Number(item.quantity || 0);
+    const cost = Number(item.costPrice || 0) > 0 ? Number(item.costPrice) : Number(item.price || 0);
+    const itemTotalValue = qty * cost;
+
+    let catKey = (item.category || "OTHER").toUpperCase();
+    if (!valuationMap[catKey]) {
+      catKey = "OTHER";
+    }
+
+    valuationMap[catKey].value += itemTotalValue;
+    valuationMap[catKey].count += qty;
+    totalValuationSum += itemTotalValue;
+    totalUnitsSum += qty;
+  });
+
+  const categoryColorMap: Record<string, { label: string; color: string }> = {
+    FRAME: { label: "Frames", color: "#3B82F6" },
+    LENS: { label: "Lenses", color: "#8B5CF6" },
+    CONTACT_LENS: { label: "Contact Lenses", color: "#06B6D4" },
+    ACCESSORY: { label: "Accessories", color: "#10B981" },
+    SOLUTION: { label: "Solutions", color: "#EC4899" },
+    OTHER: { label: "Other", color: "#64748B" },
+  };
+
+  const stockCategories: StockCategoryValuation[] = Object.entries(valuationMap)
+    .filter(([_, v]) => v.value > 0 || v.count > 0)
+    .map(([k, v]) => ({
+      category: k,
+      label: categoryColorMap[k]?.label || k,
+      value: v.value,
+      count: v.count,
+      percentage: totalValuationSum > 0 ? Math.round((v.value / totalValuationSum) * 100) : 0,
+      color: categoryColorMap[k]?.color || "#94A3B8",
+    }));
+
+  const stockValuation: StockValuationData = {
+    totalValue: totalValuationSum,
+    totalUnits: totalUnitsSum,
+    categories: stockCategories.length > 0 ? stockCategories : [
+      { category: "FRAME", label: "Frames", value: 0, count: 0, percentage: 0, color: "#3B82F6" },
+      { category: "LENS", label: "Lenses", value: 0, count: 0, percentage: 0, color: "#8B5CF6" }
+    ],
+  };
+
+  // 4. Return Rate
+  const totalSalesCount = salesInvoicesCount;
+  const returnedItemsCount = salesReturnItemsList.reduce((acc, it) => acc + (it.quantityReturned || 1), 0) || salesReturnsList.length;
+  const returnRatePercent = totalSalesCount > 0 ? Math.round((returnedItemsCount / totalSalesCount) * 100) : 0;
+  const returnRate: ReturnRateData = {
+    totalSales: totalSalesCount,
+    returnedItems: returnedItemsCount,
+    returnRatePercent,
+  };
+
+  // 5. Sales Bifurcation (5 Dynamic Dimensions)
+  const totalPeriodSalesAmount = recentInvoices.reduce((acc, inv) => acc + Number(inv.total || 0), 0);
+
+  // By Lenses
+  const lensDesignMap: Record<string, { count: number; amount: number }> = {
+    "Single Vision": { count: 0, amount: 0 },
+    "Bifocal": { count: 0, amount: 0 },
+    "Progressive": { count: 0, amount: 0 },
+    "Other": { count: 0, amount: 0 },
+  };
+
+  // By Frames
+  const frameShapeMap: Record<string, { count: number; amount: number }> = {
+    "Full Rim": { count: 0, amount: 0 },
+    "Half Rim": { count: 0, amount: 0 },
+    "Rimless": { count: 0, amount: 0 },
+    "Sunglasses": { count: 0, amount: 0 },
+    "Other": { count: 0, amount: 0 },
+  };
+
+  // By Brands
+  const brandMap: Record<string, { count: number; amount: number }> = {};
+
+  // By Gender
+  const genderMap: Record<string, { count: number; amount: number }> = {
+    "Male": { count: 0, amount: 0 },
+    "Female": { count: 0, amount: 0 },
+    "Unisex": { count: 0, amount: 0 },
+    "Other": { count: 0, amount: 0 },
+  };
+
+  // By Age
+  const ageMap: Record<string, { count: number; amount: number }> = {
+    "Kids (<18)": { count: 0, amount: 0 },
+    "Young Adults (18-35)": { count: 0, amount: 0 },
+    "Middle Age (36-55)": { count: 0, amount: 0 },
+    "Seniors (55+)": { count: 0, amount: 0 },
+    "Unspecified": { count: 0, amount: 0 },
+  };
+
+  detailedInvoiceItems.forEach((item) => {
+    const qty = Number(item.quantity || 1);
+    const amt = Number(item.subtotal || (item.unitPrice ? Number(item.unitPrice) * qty : 0));
+    const cat = (item.inventoryCategory || "").toUpperCase();
+    const desc = (item.description || "").toUpperCase();
+
+    // 1. Lens classification
+    if (cat.includes("LENS") || desc.includes("LENS") || desc.includes("VISION") || desc.includes("BIFOCAL") || desc.includes("PROGRESSIVE") || item.lensDesign) {
+      const design = (item.lensDesign || desc).toUpperCase();
+      if (design.includes("SINGLE") || design.includes("SV")) {
+        lensDesignMap["Single Vision"].count += qty;
+        lensDesignMap["Single Vision"].amount += amt;
+      } else if (design.includes("BIFOCAL") || design.includes("D-BIFOCAL") || design.includes("KRYPTOK")) {
+        lensDesignMap["Bifocal"].count += qty;
+        lensDesignMap["Bifocal"].amount += amt;
+      } else if (design.includes("PROGRESSIVE") || design.includes("PAL") || design.includes("MULTIFOCAL")) {
+        lensDesignMap["Progressive"].count += qty;
+        lensDesignMap["Progressive"].amount += amt;
+      } else {
+        lensDesignMap["Other"].count += qty;
+        lensDesignMap["Other"].amount += amt;
+      }
+    }
+
+    // 2. Frame classification
+    if (cat.includes("FRAME") || desc.includes("FRAME") || Boolean(item.frameShape) || Boolean(item.frameDemographic)) {
+      const shape = (item.frameShape || desc).toUpperCase();
+      if (shape.includes("FULL") || shape.includes("FULL RIM")) {
+        frameShapeMap["Full Rim"].count += qty;
+        frameShapeMap["Full Rim"].amount += amt;
+      } else if (shape.includes("HALF") || shape.includes("SUPRA") || shape.includes("SEMI")) {
+        frameShapeMap["Half Rim"].count += qty;
+        frameShapeMap["Half Rim"].amount += amt;
+      } else if (shape.includes("RIMLESS") || shape.includes("FRAMELESS")) {
+        frameShapeMap["Rimless"].count += qty;
+        frameShapeMap["Rimless"].amount += amt;
+      } else if (shape.includes("SUN") || cat.includes("SUNGLASS")) {
+        frameShapeMap["Sunglasses"].count += qty;
+        frameShapeMap["Sunglasses"].amount += amt;
+      } else {
+        frameShapeMap["Other"].count += qty;
+        frameShapeMap["Other"].amount += amt;
+      }
+    }
+
+    // 3. Brand classification
+    const brandName = item.inventoryBrand || (desc.includes("RAY-BAN") ? "Ray-Ban" : desc.includes("OAKLEY") ? "Oakley" : desc.includes("GUCCI") ? "Gucci" : desc.includes("TITAN") ? "Titan" : "Generic");
+    if (!brandMap[brandName]) {
+      brandMap[brandName] = { count: 0, amount: 0 };
+    }
+    brandMap[brandName].count += qty;
+    brandMap[brandName].amount += amt;
+
+    // 4. Gender classification
+    const gender = (item.customerGender || item.frameDemographic || "UNSPECIFIED").toUpperCase();
+    if (gender === "MALE" || gender === "MEN") {
+      genderMap["Male"].count += qty;
+      genderMap["Male"].amount += amt;
+    } else if (gender === "FEMALE" || gender === "WOMEN") {
+      genderMap["Female"].count += qty;
+      genderMap["Female"].amount += amt;
+    } else if (gender === "UNISEX") {
+      genderMap["Unisex"].count += qty;
+      genderMap["Unisex"].amount += amt;
+    } else {
+      genderMap["Other"].count += qty;
+      genderMap["Other"].amount += amt;
+    }
+
+    // 5. Age classification
+    if (item.customerDob) {
+      const dob = new Date(item.customerDob);
+      const ageDiff = now.getFullYear() - dob.getFullYear();
+      if (ageDiff < 18) {
+        ageMap["Kids (<18)"].count += qty;
+        ageMap["Kids (<18)"].amount += amt;
+      } else if (ageDiff <= 35) {
+        ageMap["Young Adults (18-35)"].count += qty;
+        ageMap["Young Adults (18-35)"].amount += amt;
+      } else if (ageDiff <= 55) {
+        ageMap["Middle Age (36-55)"].count += qty;
+        ageMap["Middle Age (36-55)"].amount += amt;
+      } else {
+        ageMap["Seniors (55+)"].count += qty;
+        ageMap["Seniors (55+)"].amount += amt;
+      }
+    } else {
+      ageMap["Unspecified"].count += qty;
+      ageMap["Unspecified"].amount += amt;
+    }
+  });
+
+  const buildSlices = (map: Record<string, { count: number; amount: number }>, colors: string[]): { slices: SalesBifurcationSlice[]; total: number } => {
+    const totalCount = Object.values(map).reduce((acc, v) => acc + v.count, 0);
+    const totalAmt = Object.values(map).reduce((acc, v) => acc + v.amount, 0);
+    const entries = Object.entries(map);
+
+    const slices: SalesBifurcationSlice[] = entries.map(([name, data], idx) => ({
+      name,
+      count: data.count,
+      amount: data.amount,
+      percentage: totalCount > 0 ? Math.round((data.count / totalCount) * 100) : 0,
+      color: colors[idx % colors.length],
+    }));
+
+    return { slices, total: totalAmt || totalCount };
+  };
+
+  const salesBifurcation: SalesBifurcationData = {
+    totalSalesAmount: totalPeriodSalesAmount,
+    byLenses: buildSlices(lensDesignMap, ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B"]),
+    byFrames: buildSlices(frameShapeMap, ["#3B82F6", "#8B5CF6", "#06B6D4", "#F59E0B", "#64748B"]),
+    byBrands: buildSlices(brandMap, ["#3B82F6", "#8B5CF6", "#06B6D4", "#10B981", "#F59E0B", "#EC4899", "#64748B"]),
+    byGender: buildSlices(genderMap, ["#3B82F6", "#EC4899", "#8B5CF6", "#64748B"]),
+    byAge: buildSlices(ageMap, ["#06B6D4", "#3B82F6", "#8B5CF6", "#F59E0B", "#94A3B8"]),
+  };
+
+  // 6. Retention Rate
+  const lifetimeCountsMap = new Map<string, number>();
+  customerLifetimeCounts.forEach((c) => {
+    if (c.customerId) {
+      lifetimeCountsMap.set(c.customerId, Number(c.totalInvoices || 0));
+    }
+  });
+
+  const periodCustomerIds = Array.from(activeCustomersSet);
+  let returningCustomersCount = 0;
+  periodCustomerIds.forEach((cid) => {
+    if ((lifetimeCountsMap.get(cid) || 0) >= 2) {
+      returningCustomersCount++;
+    }
+  });
+
+  const retentionRatePercent = periodCustomerIds.length > 0 ? Math.round((returningCustomersCount / periodCustomerIds.length) * 100) : 0;
+  const retentionRate: RetentionRateData = {
+    totalCustomers: periodCustomerIds.length,
+    returningCustomers: returningCustomersCount,
+    retentionRatePercent,
+  };
+
+  // 7. Low Stock Alerts Summary
+  const lowStockAlertItems: LowStockAlertItem[] = allActiveInventory
+    .filter((i) => i.quantity <= i.minQuantity)
+    .slice(0, 5)
+    .map((i) => ({
+      id: i.id,
+      name: i.name,
+      quantity: i.quantity,
+      minQuantity: i.minQuantity,
+      category: i.category || undefined,
+      sku: i.sku || undefined,
+    }));
+
+  const lowStockSummary: LowStockSummaryData = {
+    lowStockCount: lowStockVal,
+    items: lowStockAlertItems,
+  };
+
+  // 8. Recent Transactions
+  const invoiceItemsSummaryMap = new Map<string, string[]>();
+  const invoiceRowMap = new Map<string, any>();
+
+  recent10InvoicesWithItems.forEach((row) => {
+    if (!invoiceRowMap.has(row.id)) {
+      invoiceRowMap.set(row.id, row);
+    }
+    if (row.itemDescription) {
+      const list = invoiceItemsSummaryMap.get(row.id) || [];
+      const itemText = `${row.itemQuantity || 1} × ${row.itemDescription}`;
+      if (!list.includes(itemText)) {
+        list.push(itemText);
+      }
+      invoiceItemsSummaryMap.set(row.id, list);
+    }
+  });
+
+  const recentTransactions: RecentTransactionItem[] = Array.from(invoiceRowMap.values())
+    .slice(0, 6)
+    .map((inv) => {
+      const items = invoiceItemsSummaryMap.get(inv.id) || ["1 × Optical Purchase"];
+      const itemsSummary = items.slice(0, 2).join(", ") + (items.length > 2 ? ` (+${items.length - 2} more)` : "");
+      const d = inv.createdAt ? new Date(inv.createdAt) : new Date();
+
+      return {
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber || inv.id,
+        customerName: inv.customerName || "Walk-in Customer",
+        itemsSummary,
+        amount: Number(inv.total || 0),
+        status: inv.status as any,
+        dateFormatted: d.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }),
+        rawDate: d.toISOString(),
+      };
+    });
 
   // Revenue Chart Trends
   const revenueChart: RevenueChartData[] = buildRevenueChartData(timeframe, startDate, endDate, recentInvoices, todayMidnight, msInDay);
@@ -847,20 +1565,16 @@ export async function getDashboardData(
   const avgOrderValue = paidInvoicesCount > 0 ? revenueVal / paidInvoicesCount : 0;
 
   return {
-    kpis: {
-      revenue: revenueVal,
-      collections: Math.max(0, revenueVal - pendingPaymentsVal),
-      pendingOrders: pendingOrdersVal,
-      readyForPickupOrders: readyForPickupOrdersVal,
-      delayedOrders: delayedOrdersVal,
-      appointmentsToday: appointmentsTodayVal,
-      lowStockAlerts: lowStockVal,
-      pendingPayments: pendingPaymentsVal,
-      totalOrdersCount: paidInvoicesCount,
-      avgOrderValue,
-      paidInvoicesCount,
-      patientVisitsCount: appointmentsTodayVal,
-    },
+    kpis: opticalKPIs,
+    opticalKPIs,
+    customerBifurcation,
+    deadStock,
+    stockValuation,
+    returnRate,
+    salesBifurcation,
+    retentionRate,
+    recentTransactions,
+    lowStockSummary,
     revenueChart,
     compareRevenueChart,
     compareKPIs,

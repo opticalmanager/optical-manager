@@ -106,24 +106,27 @@ Optical Manager includes a complete, high-density Inward Supply & Purchases modu
 
 ---
 
-## 6. Shop Dashboard Intelligence & Real-Time Operational Activity Feed (`/shop/dashboard`)
+## 6. High-Density Optical Store Dashboard Architecture (`/shop/dashboard`)
 
-Optical Manager's store dashboard combines zero-latency operational metrics with a unified cross-table activity stream:
-- **Exact Operational KPIs**: Replaced static/estimated metrics with exact live database queries:
-  - *Pending Orders*: Invoices not marked `DELIVERED` and not `CANCELLED`.
-  - *Ready for Pickup*: Orders in `READY` or `PROCESSING` status awaiting patient collection.
-  - *Delayed Deliveries*: Non-delivered, non-cancelled orders with an estimated delivery date in the past.
-  - *Today's Appointments*: Scheduled patient checkups and eye tests within the current day (00:00:00 to 23:59:59).
-  - *Low Stock & Pending Payments*: Real-time inventory alerts and outstanding customer receivable balances.
-- **Zero-Latency Interactive KPI Table Filtering**: Clicking any operational KPI card instantly (0ms) updates the table below with the corresponding scoped dataset (`pendingOrders`, `pickupOrders`, `delayedOrders`, `todayAppointments`) with active selection borders (`border-2 border-[#2563eb] shadow-md scale-[1.01]`).
-- **Unified Recent Activity Feed**:
-  - Live aggregated audit feed consolidating 6 mission-critical operational tables:
-    1. **Invoices**: Creations, payments, and cancellations with direct links to `/shop/orders`.
-    2. **Purchases**: Inward vendor purchases and stock receipts with direct links to `/shop/purchases`.
-    3. **Sales Returns**: Customer returns and refunds with direct links to `/shop/returns`.
-    4. **Stock Movements**: Inward stock, sales deductions, adjustments, and damaged items with direct links to `/shop/inventory`.
-    5. **Appointments**: Patient eye test bookings and status transitions with direct links to `/shop/appointments`.
-    6. **WhatsApp Notifications**: Outgoing customer dispatches (invoices, pickup alerts, delay updates) with status tags.
-  - **Type-Specific Filter Pills**: Quick toggle filters (`All Activities`, `Invoices`, `Purchases`, `Returns`, `Stock`, `Appointments`, `WhatsApp`) with category badge counts.
-  - **Full Offline Resilience**: Dashboard seamlessly falls back to client-side IndexedDB caching (`cached_orders`, `cached_invoices`, `cached_inventory`, `cached_appointments`) when disconnected from the cloud.
+Optical Manager features a production-grade, zero-latency, high-density **Optical Dashboard** designed specifically for standard laptop viewports to eliminate vertical scrolling fatigue while providing 100% live database insights:
+- **5 Top-Row KPI Metrics Grid**:
+  - *Total Revenue*: Net collected revenue with live comparative growth percentage (`↑ %`) vs baseline time window.
+  - *Sales Invoices*: Total invoice slips generated with volume growth indicator.
+  - *Accounts Receivable*: Outstanding customer balances due with comparative growth rate.
+  - *Active Customers*: Distinct customer count transacting within the active date range.
+  - *Total Stores*: Total active branches connected under the organization hierarchy.
+- **Row 2 Analytics (3 Columns)**:
+  - *Customer Bifurcation*: High-density pure SVG donut breakdown categorizing customers into `🟣 Only Frame`, `🔵 Only Lense`, and `🟢 Both Frame & Lense` with exact counts and percentages.
+  - *Dead Stock (90 Days)*: Real-time identification of inventory items with active positive stock that have had zero sales or stock movements in the past 90 days, showing item count and percentage of total stock.
+  - *Stock Valuation*: Asset value distribution across optical inventory categories (`Frames`, `Lenses`, `Contact Lenses`, `Sunglasses`, `Accessories`, `Solutions`, `Other`) with interactive SVG donut visualization.
+- **Row 3 Analytics (3 Columns)**:
+  - *Return Rate*: Radial gauge visualizing merchandise return percentage alongside total sales, returned items, and net return rate.
+  - *Sales Bifurcation (5 Dynamic Tabs)*: Instant `0ms` client-side switcher breaking down sales by `By Lenses` (Single Vision, Bifocal, Progressive, Other), `By Frames` (Full Rim, Half Rim, Rimless, Sunglasses, Other), `By Brands` (top brands + other), `By Gender` (Male, Female, Unisex, Other), and `By Age` (<18, 18-35, 36-55, 55+, Unspecified).
+  - *Low Stock Alerts*: Clean state badge when stock is fully compliant, or compact actionable list of items below threshold with direct restock links to `/shop/inventory`.
+- **Row 4 Analytics (2 Columns)**:
+  - *Retention Rate (1/3 Col)*: Donut gauge showing repeat customer percentage alongside total customers and returning customer counts.
+  - *Recent Transactions Table (2/3 Col)*: High-density live ledger displaying recent invoices with formatted timestamps, patient name, item summary strings (e.g. `1 × Ray-Ban Frame`, `2 × Single Vision Lenses`), total bill amount, and soft HSL status pills (`✓ Completed`, `Partial`, `Pending`).
+- **Dynamic Date Range Controls**: Sticky top-right date selector with presets (`Today`, `Yesterday`, `Last 7 Days`, `This Month`, `This Quarter`, `Last 12 Months`, `Year to Date`, `All Time`).
+- **Zero Mock Data & 100% Live Aggregations**: All numbers, slices, and tables query Neon PostgreSQL tables (`invoices`, `invoice_items`, `customers`, `inventory`, `sales_returns`, `stock_movements`, `shops`) via Drizzle ORM in parallel.
+
 
