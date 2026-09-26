@@ -54,25 +54,22 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
   };
 
   const handleDisconnect = async () => {
+    toast.loading("Disconnecting WhatsApp...", { id: "wa-disconnect" });
     const res = await disconnectWhatsAppAction();
     if (res.success) {
-      toast.success("WhatsApp disconnected");
+      toast.success("WhatsApp disconnected successfully", { id: "wa-disconnect" });
       setDataState((prev) => ({
         ...prev,
         whatsappStatus: "DISCONNECTED",
         phoneNumber: undefined,
       }));
+      router.refresh();
     } else {
-      toast.error(res.error || "Failed to disconnect");
+      toast.error(res.error || "Failed to disconnect WhatsApp", { id: "wa-disconnect" });
     }
   };
 
   const handleConnectSuccess = () => {
-    setDataState((prev) => ({
-      ...prev,
-      whatsappStatus: "CONNECTED",
-      phoneNumber: "+91 98765 43210",
-    }));
     router.refresh();
   };
 

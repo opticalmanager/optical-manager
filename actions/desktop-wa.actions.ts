@@ -23,6 +23,8 @@ export interface ShopPairingInfo {
   shopName: string;
   organizationId: string;
   isOnline: boolean;
+  isWaConnected: boolean;
+  connectedPhone?: string | null;
   lastActiveAt?: string | null;
 }
 
@@ -98,6 +100,8 @@ export async function generateShopPairingKeyAction(shopId?: string): Promise<{
         shopName: targetShop.name,
         organizationId: user.organizationId,
         isOnline: statusCheck.isOnline,
+        isWaConnected: statusCheck.isWaConnected,
+        connectedPhone: statusCheck.connectedPhone,
         lastActiveAt: statusCheck.lastActiveAt,
       },
     };
@@ -180,23 +184,30 @@ export async function dispatchWhatsAppMessageAction(payload: DispatchWhatsAppPay
   }
 }
 
-/**
- * Checks if the Desktop Assistant for a given shop is actively polling or connected.
- */
-export async function checkDesktopAssistantStatusAction(shopId?: string): Promise<{
+export interface DesktopAssistantStatusResult {
   isOnline: boolean;
+  isWaConnected: boolean;
+  status: "CONNECTED_READY" | "APP_ONLINE_WA_DISCONNECTED" | "OFFLINE";
+  connectedPhone?: string | null;
   lastActiveAt?: string | null;
   pendingCount: number;
   metadata?: any;
-}> {
+}
+
+/**
+ * Checks if the Desktop Assistant for a given shop is actively polling, connected,
+ * and authenticated to WhatsApp (ready to dispatch messages).
+ */
+export async function checkDesktopAssistantStatusAction(shopId?: string): Promise<DesktopAssistantStatusResult> {
   try {
     if (!shopId) {
-      return { isOnline: false, pendingCount: 0 };
+      return { isOnline: false, isWaConnected: false, status: "OFFLINE", pendingCount: 0 };
     }
 
-    const twoMinutesAgo = new Date(Date.now() - 120 * 1000);
+    // Assistant sends heartbeats every 15s; 45s threshold allows for 2 missed heartbeats
+    const fortyFiveSecondsAgo = new Date(Date.now() - 45 * 1000);
 
-    // 1. Check if any heartbeat or message was updated in the last 120 seconds
+    // 1. Check if any heartbeat was updated in the last 45 seconds
     const recentActivity = await db
       .select({
         updatedAt: whatsappDispatchQueue.updatedAt,
@@ -207,13 +218,13 @@ export async function checkDesktopAssistantStatusAction(shopId?: string): Promis
       .where(
         and(
           eq(whatsappDispatchQueue.shopId, shopId),
-          gt(whatsappDispatchQueue.updatedAt, twoMinutesAgo)
+          gt(whatsappDispatchQueue.updatedAt, fortyFiveSecondsAgo)
         )
       )
       .orderBy(desc(whatsappDispatchQueue.updatedAt))
       .limit(1);
 
-    // 2. Check pending queue count (excluding HEARTBEAT rows)
+    // 2. Check pending queue count (excluding HEARTBEAT and COMMAND rows)
     const pendingRows = await db
       .select({ id: whatsappDispatchQueue.id })
       .from(whatsappDispatchQueue)
@@ -227,17 +238,108 @@ export async function checkDesktopAssistantStatusAction(shopId?: string): Promis
 
     const isOnline = recentActivity.length > 0;
     const lastActiveAt = recentActivity[0]?.updatedAt?.toISOString() || null;
-    const metadata = recentActivity[0]?.metadata || null;
+    const metadata: any = recentActivity[0]?.metadata || null;
+    const isWaConnected = Boolean(isOnline && metadata?.isWaConnected);
+    const connectedPhone = isWaConnected && metadata?.connectedPhone ? String(metadata.connectedPhone) : null;
+
+    let status: "CONNECTED_READY" | "APP_ONLINE_WA_DISCONNECTED" | "OFFLINE" = "OFFLINE";
+    if (isOnline) {
+      status = isWaConnected ? "CONNECTED_READY" : "APP_ONLINE_WA_DISCONNECTED";
+    }
 
     return {
       isOnline,
+      isWaConnected,
+      status,
+      connectedPhone,
       lastActiveAt,
       pendingCount: pendingRows.length,
       metadata,
     };
   } catch (error: any) {
     console.warn("checkDesktopAssistantStatusAction Warning:", error.message);
-    return { isOnline: false, pendingCount: 0 };
+    return { isOnline: false, isWaConnected: false, status: "OFFLINE", pendingCount: 0 };
+  }
+}
+
+/**
+ * Triggers a remote WhatsApp disconnection on the Desktop Assistant.
+ * Pushes a control event into whatsapp_dispatch_queue that the Desktop Assistant picks up instantly via Realtime.
+ */
+export async function triggerDesktopAssistantDisconnectAction(shopId?: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    let targetShopId = shopId || user.shopId;
+    if (!targetShopId) {
+      const [firstShop] = await db
+        .select({ id: shops.id })
+        .from(shops)
+        .where(eq(shops.organizationId, user.organizationId))
+        .limit(1);
+      targetShopId = firstShop?.id;
+    }
+
+    if (!targetShopId) {
+      return { success: false, error: "Shop ID is required for disconnect routing." };
+    }
+
+    // 1. Enqueue remote control command
+    await db.insert(whatsappDispatchQueue).values({
+      organizationId: user.organizationId,
+      shopId: targetShopId,
+      recipientPhone: "CONTROL",
+      recipientName: "System Command",
+      messageText: "DISCONNECT",
+      mediaType: "TEXT",
+      templateKey: "CMD_DISCONNECT",
+      status: "COMMAND",
+      metadata: {
+        command: "DISCONNECT",
+        triggeredBy: user.id,
+        triggeredAt: new Date().toISOString(),
+      },
+    });
+
+    // 2. Mark existing HEARTBEAT record as disconnected
+    await db
+      .update(whatsappDispatchQueue)
+      .set({
+        updatedAt: new Date(),
+        messageText: "Desktop Assistant Disconnected",
+        metadata: {
+          isAlive: true,
+          isWaConnected: false,
+          connectedPhone: null,
+          lastHeartbeat: new Date().toISOString(),
+        },
+      })
+      .where(
+        and(
+          eq(whatsappDispatchQueue.shopId, targetShopId),
+          eq(whatsappDispatchQueue.status, "HEARTBEAT")
+        )
+      );
+
+    // 3. Mark whatsappConfigs as DISCONNECTED
+    await db
+      .update(whatsappConfigs)
+      .set({
+        status: "DISCONNECTED",
+        updatedAt: new Date(),
+      })
+      .where(eq(whatsappConfigs.organizationId, user.organizationId));
+
+    revalidatePath("/owner/promotions");
+    revalidatePath("/shop/settings");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("triggerDesktopAssistantDisconnectAction Error:", error);
+    return { success: false, error: error.message || "Failed to trigger disconnect" };
   }
 }
 
@@ -253,7 +355,6 @@ export async function heartbeatDesktopAssistantAction(payload: {
   try {
     if (!payload.shopId) return { success: false };
 
-    // We touch or insert a heartbeat record into whatsapp_dispatch_queue as a sentinel or update whatsappConfigs
     const existingConfig = await db
       .select()
       .from(whatsappConfigs)

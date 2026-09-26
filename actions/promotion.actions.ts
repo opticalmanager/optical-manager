@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { promotionTriggers, whatsappConfigs } from "@/db/schema";
+import { promotionTriggers, whatsappConfigs, shops, whatsappDispatchQueue } from "@/db/schema";
 import { getCurrentUser } from "@/services/auth.service";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -135,6 +135,7 @@ export async function disconnectWhatsAppAction() {
       return { success: false, error: "Unauthorized" };
     }
 
+    // 1. Update whatsappConfigs table
     await db
       .update(whatsappConfigs)
       .set({
@@ -143,7 +144,58 @@ export async function disconnectWhatsAppAction() {
       })
       .where(eq(whatsappConfigs.organizationId, user.organizationId));
 
+    // 2. Fetch all shops for this organization to notify desktop assistant
+    const orgShops = await db
+      .select({ id: shops.id })
+      .from(shops)
+      .where(eq(shops.organizationId, user.organizationId))
+      .catch(() => []);
+
+    for (const s of orgShops) {
+      try {
+        // Enqueue command for desktop assistant to unlink WhatsApp socket
+        await db.insert(whatsappDispatchQueue).values({
+          organizationId: user.organizationId,
+          shopId: s.id,
+          recipientPhone: "CONTROL",
+          recipientName: "System Command",
+          messageText: "DISCONNECT",
+          mediaType: "TEXT",
+          templateKey: "CMD_DISCONNECT",
+          status: "COMMAND",
+          metadata: {
+            command: "DISCONNECT",
+            triggeredBy: user.id,
+            triggeredAt: new Date().toISOString(),
+          },
+        });
+
+        // Clear active heartbeat flag
+        await db
+          .update(whatsappDispatchQueue)
+          .set({
+            updatedAt: new Date(),
+            messageText: "Desktop Assistant Disconnected",
+            metadata: {
+              isAlive: true,
+              isWaConnected: false,
+              connectedPhone: null,
+              lastHeartbeat: new Date().toISOString(),
+            },
+          })
+          .where(
+            and(
+              eq(whatsappDispatchQueue.shopId, s.id),
+              eq(whatsappDispatchQueue.status, "HEARTBEAT")
+            )
+          );
+      } catch (cmdErr) {
+        console.warn("[disconnectWhatsAppAction] Command dispatch notice:", cmdErr);
+      }
+    }
+
     revalidatePath("/owner/promotions");
+    revalidatePath("/shop/settings");
     return { success: true };
   } catch (error: any) {
     console.error("disconnectWhatsAppAction Error:", error);
