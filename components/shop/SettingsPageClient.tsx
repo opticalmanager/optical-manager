@@ -7,14 +7,14 @@ import {
   DollarSign, FileText, User, Search, ArrowLeft, Settings,
   Save, Landmark, ShieldCheck, Mail, Trash2, Plus, Clock, 
   Award, X, Check, Star, ShieldAlert,
-  Laptop, Download, Copy, RefreshCw, Globe, Zap, Radio, CheckCircle2, AlertCircle
+  Laptop, Download, Copy, RefreshCw, Globe, Zap, Radio, CheckCircle2, AlertCircle, QrCode
 } from "lucide-react";
 import { toast } from "sonner";
 import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
 import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
 import { DocumentSeriesSettings } from "@/components/shop/DocumentSeriesSettings";
-import { generateShopPairingKeyAction, checkDesktopAssistantStatusAction } from "@/actions/desktop-wa.actions";
+import { generateShopPairingKeyAction, checkDesktopAssistantStatusAction, triggerDesktopAssistantDisconnectAction } from "@/actions/desktop-wa.actions";
 
 interface SettingsPageClientProps {
   shop: any;
@@ -151,7 +151,10 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   );
   const [shopPairingKey, setShopPairingKey] = useState("");
   const [isShopDesktopOnline, setIsShopDesktopOnline] = useState(false);
+  const [isShopWaConnected, setIsShopWaConnected] = useState(false);
+  const [shopConnectedPhone, setShopConnectedPhone] = useState<string | null>(null);
   const [isLoadingShopPairing, setIsLoadingShopPairing] = useState(false);
+  const [isDisconnectingWa, setIsDisconnectingWa] = useState(false);
   const [hasCopiedShopKey, setHasCopiedShopKey] = useState(false);
 
   useEffect(() => {
@@ -168,6 +171,8 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
         if (res.success && res.data) {
           setShopPairingKey(res.data.pairingKey);
           setIsShopDesktopOnline(res.data.isOnline);
+          setIsShopWaConnected(res.data.isWaConnected);
+          setShopConnectedPhone(res.data.connectedPhone || null);
         }
       })
       .finally(() => setIsLoadingShopPairing(false));
@@ -179,11 +184,17 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     try {
       const statusRes = await checkDesktopAssistantStatusAction(shop.id);
       setIsShopDesktopOnline(statusRes.isOnline);
-      if (statusRes.isOnline) {
-        toast.success("Desktop Assistant is Online & Connected! ✓");
+      setIsShopWaConnected(statusRes.isWaConnected);
+      setShopConnectedPhone(statusRes.connectedPhone || null);
+
+      if (statusRes.isWaConnected) {
+        toast.success(`Desktop Assistant is Online & WhatsApp Connected (+${statusRes.connectedPhone || "Ready"})! ✓`);
+      } else if (statusRes.isOnline) {
+        toast.info("Desktop Assistant app is open, but WhatsApp is awaiting QR scan.");
       } else {
         toast.info("Desktop Assistant is Offline. Please ensure the app is open on this counter PC.");
       }
+
       if (!shopPairingKey) {
         const keyRes = await generateShopPairingKeyAction(shop.id);
         if (keyRes.success && keyRes.data) {
@@ -194,6 +205,27 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
       toast.error("Failed to check connection status.");
     } finally {
       setIsLoadingShopPairing(false);
+    }
+  };
+
+  const handleDisconnectDesktopWa = async () => {
+    if (!shop?.id) return;
+    setIsDisconnectingWa(true);
+    toast.loading("Disconnecting WhatsApp from Desktop Assistant...", { id: "wa-shop-disconnect" });
+    try {
+      const res = await triggerDesktopAssistantDisconnectAction(shop.id);
+      if (res.success) {
+        setIsShopWaConnected(false);
+        setShopConnectedPhone(null);
+        toast.success("WhatsApp disconnected from Desktop Assistant.", { id: "wa-shop-disconnect" });
+        refreshConnectionStatus();
+      } else {
+        toast.error(res.error || "Failed to disconnect", { id: "wa-shop-disconnect" });
+      }
+    } catch {
+      toast.error("An error occurred while disconnecting.", { id: "wa-shop-disconnect" });
+    } finally {
+      setIsDisconnectingWa(false);
     }
   };
 
@@ -781,14 +813,24 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
 
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black bg-white border border-slate-200 shadow-2xs">
-                            {isShopDesktopOnline ? (
+                            {isShopDesktopOnline && isShopWaConnected ? (
                               <>
                                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-emerald-700">🟢 Connected & Online</span>
+                                <span className="text-emerald-700">🟢 Connected & Ready</span>
+                                {shopConnectedPhone && (
+                                  <span className="text-[10px] text-emerald-800 font-mono font-bold hidden sm:inline">
+                                    ({shopConnectedPhone.startsWith("+") ? shopConnectedPhone : `+${shopConnectedPhone}`})
+                                  </span>
+                                )}
+                              </>
+                            ) : isShopDesktopOnline ? (
+                              <>
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                                <span className="text-amber-700">🟡 App Open (Scan QR)</span>
                               </>
                             ) : (
                               <>
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                                <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
                                 <span className="text-slate-600">⚪ Disconnected / Offline</span>
                               </>
                             )}
@@ -801,15 +843,36 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                           >
                             <RefreshCw className={`w-4 h-4 ${isLoadingShopPairing ? "animate-spin" : ""}`} />
                           </button>
+                          {isShopWaConnected && (
+                            <button
+                              type="button"
+                              disabled={isDisconnectingWa}
+                              onClick={handleDisconnectDesktopWa}
+                              title="Disconnect WhatsApp from Desktop Assistant"
+                              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              Disconnect
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Online Confirmation Banner */}
-                      {isShopDesktopOnline && (
+                      {/* Online & Ready Confirmation Banner */}
+                      {isShopDesktopOnline && isShopWaConnected && (
                         <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800">
                           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                           <div className="text-xs font-bold leading-relaxed">
-                            <strong>Device Connected & Ready:</strong> This counter's Desktop Assistant is online and listening. You can select "Optical Manager Desktop Assistant" below to dispatch invoices silently in 1-click.
+                            <strong>Device Connected & Ready:</strong> This counter's Desktop Assistant is online with WhatsApp authenticated. You can select "Optical Manager Desktop Assistant" below to dispatch invoices silently in 1-click.
+                          </div>
+                        </div>
+                      )}
+
+                      {/* App Running but QR Scan Required Banner */}
+                      {isShopDesktopOnline && !isShopWaConnected && (
+                        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800">
+                          <QrCode className="w-5 h-5 text-amber-600 shrink-0" />
+                          <div className="text-xs font-bold leading-relaxed">
+                            <strong>Desktop Assistant Running:</strong> The app is open on this counter PC. Please scan the QR code inside the Desktop Assistant window using your WhatsApp mobile app (Linked Devices) to activate 1-click messaging.
                           </div>
                         </div>
                       )}

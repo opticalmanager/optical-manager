@@ -43,6 +43,7 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
   const [isLoadingPairing, setIsLoadingPairing] = useState(false);
   const [hasCopiedKey, setHasCopiedKey] = useState(false);
   const [isDesktopOnline, setIsDesktopOnline] = useState(false);
+  const [isWaConnected, setIsWaConnected] = useState(false);
 
   // Auto-fetch pairing key when switching to QR_GATEWAY
   React.useEffect(() => {
@@ -53,6 +54,10 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
           if (res.success && res.data) {
             setPairingKey(res.data.pairingKey);
             setIsDesktopOnline(res.data.isOnline);
+            setIsWaConnected(res.data.isWaConnected);
+            if (res.data.connectedPhone && !phoneNumber) {
+              setPhoneNumber(res.data.connectedPhone);
+            }
             if (res.data.shopName) {
               setBusinessName(res.data.shopName);
             }
@@ -60,7 +65,7 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
         })
         .finally(() => setIsLoadingPairing(false));
     }
-  }, [provider, pairingKey]);
+  }, [provider, pairingKey, phoneNumber]);
 
   const handleCopyPairingKey = () => {
     if (!pairingKey) return;
@@ -244,14 +249,19 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-white border border-slate-200">
-                    {isDesktopOnline ? (
+                    {isDesktopOnline && isWaConnected ? (
                       <>
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="text-emerald-700">Online & Ready</span>
                       </>
+                    ) : isDesktopOnline ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        <span className="text-amber-700">App Open (Scan QR)</span>
+                      </>
                     ) : (
                       <>
-                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        <span className="w-2 h-2 rounded-full bg-slate-400" />
                         <span className="text-slate-600">Waiting for PC App</span>
                       </>
                     )}
