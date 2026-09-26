@@ -18,6 +18,7 @@ import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteI
 import { ClinicalPrescriptionCard } from "./ClinicalPrescriptionCard";
 import { offlineDB, type CachedCustomer } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 import {
   ArrowLeft,
   ChevronDown,
@@ -110,6 +111,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
         gender: initialPatientData.customer.gender || "",
         bloodGroup: initialPatientData.customer.bloodGroup || "",
         referredBy: initialPatientData.customer.referredBy || "",
+        gstin: initialPatientData.customer.gstin || "",
         chiefComplaint: initialPatientData.customer.chiefComplaint || "",
         familyHistory: initialPatientData.customer.familyHistory || "",
         systemicIllness: initialPatientData.customer.systemicIllness || "",
@@ -401,6 +403,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
           city: data.customer.city || null,
           state: data.customer.state || null,
           pincode: data.customer.pincode || null,
+          gstin: data.customer.gstin || null,
           storeCredit: "0.00",
           updatedAt: new Date().toISOString(),
         };
@@ -440,6 +443,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
           city: data.customer.city || null,
           state: data.customer.state || null,
           pincode: data.customer.pincode || null,
+          gstin: data.customer.gstin || null,
           storeCredit: existingCust?.storeCredit || "0.00",
           updatedAt: new Date().toISOString(),
         };
@@ -509,6 +513,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
             city: data.customer.city || null,
             state: data.customer.state || null,
             pincode: data.customer.pincode || null,
+            gstin: data.customer.gstin || null,
             storeCredit: existingCust?.storeCredit || "0.00",
             updatedAt: new Date().toISOString(),
           };
@@ -553,6 +558,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
             city: data.customer.city || null,
             state: data.customer.state || null,
             pincode: data.customer.pincode || null,
+            gstin: data.customer.gstin || null,
             storeCredit: "0.00",
             updatedAt: new Date().toISOString(),
           };
@@ -583,6 +589,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
       className="max-w-6xl mx-auto space-y-8 pb-20 select-none animate-fade-in text-slate-800"
     >
       {/* Top Breadcrumb & Actions */}
@@ -643,8 +650,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               </label>
               <Input
                 type="text"
-                placeholder="e.g. Julianne V. Sterling"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.fullName")}
               />
               {errors.customer?.fullName?.message && (
@@ -664,8 +670,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 inputMode="numeric"
                 pattern="[0-9+]*"
                 maxLength={13}
-                placeholder="9876543210"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.phone")}
                 onKeyPress={(e) => {
                   if (!/[0-9+]/.test(e.key)) {
@@ -698,7 +703,6 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 </label>
                 <Input
                   type="number"
-                  placeholder="e.g. 28"
                   min="0"
                   max="120"
                   className="h-10 bg-white font-semibold border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
@@ -734,8 +738,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               </label>
               <Input
                 type="email"
-                placeholder="example@mail.com"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.email")}
               />
               {errors.customer?.email?.message && (
@@ -746,8 +749,8 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
             </div>
           </div>
 
-          {/* Row 3: Referred By */}
-          <div className="grid grid-cols-1 gap-6">
+          {/* Row 3: Referred By & GSTIN */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
                 Referred By
@@ -755,11 +758,32 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               <ClinicalAutocompleteInput
                 options={referredBySuggestions}
                 iconType="referrer"
-                placeholder="Dr. Sarah Jenkins"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 value={watch("customer.referredBy") || ""}
                 onChange={(e) => setValue("customer.referredBy", e.target.value)}
               />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
+                GST Number (GSTIN) <span className="text-[10px] font-medium text-slate-400 normal-case">(Optional)</span>
+              </label>
+              <Input
+                type="text"
+                placeholder="22AAAAA0000A1Z5"
+                maxLength={15}
+                className="h-10 bg-white font-mono font-semibold uppercase tracking-wider border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3] placeholder:text-slate-300 placeholder:font-normal"
+                value={watch("customer.gstin") || ""}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 15);
+                  setValue("customer.gstin", cleaned, { shouldValidate: true });
+                }}
+              />
+              {errors.customer?.gstin?.message && (
+                <span className="text-[10px] font-bold text-rose-500 mt-1.5 block">
+                  {String(errors.customer.gstin.message)}
+                </span>
+              )}
             </div>
           </div>
 
@@ -771,8 +795,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               </label>
               <Input
                 type="text"
-                placeholder="742 Evergreen Terrace, Springfield, IL 62704"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-355 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.address")}
               />
             </div>
@@ -783,8 +806,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               </label>
               <Input
                 type="text"
-                placeholder="e.g. Gurgaon"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.city")}
               />
             </div>
@@ -795,8 +817,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               </label>
               <Input
                 type="text"
-                placeholder="Type or select State..."
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.state")}
                 onChange={(e) => {
                   register("customer.state").onChange(e);
@@ -838,8 +859,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
               </label>
               <Input
                 type="text"
-                placeholder="000-000"
-                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 placeholder:text-slate-350 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
+                className="h-10 bg-white font-medium border-slate-200/80 text-slate-800 focus-visible:ring-2 focus-visible:ring-[#0a52c3]/20 focus-visible:border-[#0a52c3]"
                 {...register("customer.pincode")}
               />
             </div>
@@ -863,9 +883,8 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 Chief Complaint
               </label>
               <textarea
-                placeholder="Describe symptoms, duration, and severity..."
                 rows={3}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
+                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
                 {...register("customer.chiefComplaint")}
               />
             </div>
@@ -876,9 +895,8 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 Family History
               </label>
               <textarea
-                placeholder="Ocular conditions in blood relatives..."
                 rows={3}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
+                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
                 {...register("customer.familyHistory")}
               />
             </div>
@@ -889,9 +907,8 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 Systemic Illness
               </label>
               <textarea
-                placeholder="e.g. Diabetes, Hypertension..."
                 rows={3}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
+                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
                 {...register("customer.systemicIllness")}
               />
             </div>
@@ -902,9 +919,8 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 Allergies
               </label>
               <textarea
-                placeholder="Medication or environmental allergies..."
                 rows={3}
-                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium placeholder:text-slate-350 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
+                className="flex w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] transition-all"
                 {...register("customer.allergies")}
               />
             </div>

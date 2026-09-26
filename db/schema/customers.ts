@@ -50,6 +50,7 @@ export const customers = pgTable("customers", {
   systemicIllness: text("systemic_illness"),
   allergies: text("allergies"),
   notes: text("notes"),
+  gstin: varchar("gstin", { length: 20 }),
   storeCredit: decimal("store_credit", { precision: 10, scale: 2 })
     .notNull()
     .default("0.00"),
@@ -64,6 +65,7 @@ export const customers = pgTable("customers", {
   shopIdIdx: index("customers_shop_id_idx").on(table.shopId),
   orgIdIdx: index("customers_org_id_idx").on(table.organizationId),
   phoneIdx: index("customers_phone_idx").on(table.phone),
+  gstinIdx: index("customers_gstin_idx").on(table.gstin),
   storeCreditIdx: index("customers_store_credit_idx").on(table.storeCredit),
 }));
 

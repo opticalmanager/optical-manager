@@ -103,7 +103,6 @@ export function ShopDetailsForm({ initialData, onSubmit, onBack, isLoading }: Sh
             <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="e.g. Downtown Branch"
               disabled={isLoading}
               className={`w-full border bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                 ${errors.name ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : "border-slate-200"}
@@ -151,7 +150,6 @@ export function ShopDetailsForm({ initialData, onSubmit, onBack, isLoading }: Sh
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="email"
-                  placeholder="e.g. branch1@visioncare.com"
                   disabled={isLoading}
                   className={`w-full border bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                     ${errors.email ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : "border-slate-200"}
@@ -178,7 +176,6 @@ export function ShopDetailsForm({ initialData, onSubmit, onBack, isLoading }: Sh
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type={showPassword ? "text" : "password"}
-                    placeholder="Min. 8 characters"
                     disabled={isLoading}
                     className={`w-full border bg-white pl-10 pr-10 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                       ${errors.password ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : "border-slate-200"}
@@ -208,7 +205,6 @@ export function ShopDetailsForm({ initialData, onSubmit, onBack, isLoading }: Sh
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Re-enter password"
                     disabled={isLoading}
                     className={`w-full border bg-white pl-10 pr-10 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                       ${errors.confirmPassword ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : "border-slate-200"}
@@ -241,7 +237,6 @@ export function ShopDetailsForm({ initialData, onSubmit, onBack, isLoading }: Sh
             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="tel"
-              placeholder="e.g. 9876543211"
               disabled={isLoading}
               className={`w-full border border-slate-200 bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                 ${errors.phone ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : ""}
@@ -262,7 +257,6 @@ export function ShopDetailsForm({ initialData, onSubmit, onBack, isLoading }: Sh
           <div className="relative">
             <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             <textarea
-              placeholder="e.g. Shop No. 4, Market Square, MG Road, Mumbai"
               disabled={isLoading}
               rows={2}
               className={`w-full border bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 resize-none

@@ -322,7 +322,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                   {parseFloat(invoice.balanceDue) > 0 && invoice.status !== "PAID" ? (
                     <div>
                       <h2 className="text-lg font-black text-[#0a52c3] tracking-wide leading-none uppercase">
-                        ADVANCE PAYMENT RECEIPT
+                        OPTICAL ORDER FORM
                       </h2>
                       <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase">
                         Order Ref # - {invoice.invoiceNumber}
@@ -1037,13 +1037,13 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
               </div>
             </div>
 
-            {/* Receipt Identification */}
+            {/* Order Form Identification */}
             <div className="text-right space-y-1">
               <h2 className="text-base font-black tracking-wide text-black uppercase">
-                BOOKING DETAILS
+                OPTICAL ORDER FORM
               </h2>
               <p className="font-bold text-slate-800">
-                SLIP ID # - <span className="font-black text-black">{receipt.receiptNumber}</span>
+                ORDER FORM # - <span className="font-black text-black">{receipt.receiptNumber}</span>
               </p>
               {invoice?.invoiceNumber && (
                 <p className="font-bold text-slate-600">
@@ -1088,6 +1088,11 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
               {customer?.email && (
                 <p className="font-semibold text-slate-600 break-all">
                   Email: <span className="font-bold text-slate-700">{customer.email}</span>
+                </p>
+              )}
+              {customer?.gstin && (
+                <p className="font-semibold text-slate-600">
+                  GSTIN: <span className="font-mono font-bold text-slate-700">{customer.gstin}</span>
                 </p>
               )}
             </div>
@@ -1472,7 +1477,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
             <div className="flex-1 space-y-4 max-w-[360px]">
               {parseFloat(receipt.balanceDue) > 0 ? (
                 <p className="font-semibold text-slate-600 leading-relaxed italic">
-                  &quot;Please keep this slip for future reference until the total outstanding balance of{" "}
+                  &quot;Please keep this Order Form for future reference until the total outstanding balance of{" "}
                   <span className="font-black text-rose-600">{formatCurrency(receipt.balanceDue)}</span> is cleared.
                   Full delivery of prescription eyewear will occur upon final settlement.&quot;
                 </p>

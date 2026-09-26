@@ -245,6 +245,7 @@ export async function GET(request: Request) {
           gender: customers.gender,
           bloodGroup: customers.bloodGroup,
           referredBy: customers.referredBy,
+          gstin: customers.gstin,
           address: customers.address,
           city: customers.city,
           state: customers.state,

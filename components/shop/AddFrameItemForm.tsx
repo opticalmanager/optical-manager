@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { CategoryItem } from "@/services/category.service";
 import { InventoryAddCategoryTabs } from "@/components/shop/InventoryAddCategoryTabs";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface AddFrameItemFormProps {
   shopId: string;
@@ -238,7 +239,11 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="space-y-6"
+    >
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -339,7 +344,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </div>
                   <Input
                     type="text"
-                    placeholder="e.g. RB-5154-2000"
                     className={`h-11 border-slate-200 bg-white font-mono font-semibold ${
                       isCodeDuplicate ? "border-rose-500 focus-visible:ring-rose-200" : ""
                     }`}
@@ -365,7 +369,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban Wayfarer Classic"
                     className="h-11 border-slate-200 bg-white"
                     {...register("productName")}
                   />
@@ -400,7 +403,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -414,7 +416,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. RX5154"
                     className="h-11 border-slate-200"
                     {...register("modelNumber")}
                   />
@@ -426,7 +427,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 2000"
                     className="h-11 border-slate-200"
                     {...register("colorCode")}
                   />
@@ -438,7 +438,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 52-18-140"
                     className="h-11 border-slate-200"
                     {...register("size")}
                   />
@@ -530,7 +529,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("costPrice")}
                     />
@@ -546,7 +544,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("price")}
                     />
@@ -625,7 +622,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter supplier or vendor name"
                     className="h-11 border-slate-200"
                     {...register("vendorName")}
                   />
@@ -637,7 +633,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. A1-R4-B2"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -651,7 +646,6 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter purchase invoice number"
                     className="h-11 border-slate-200"
                     {...register("purchaseInvoiceNo")}
                   />
@@ -765,9 +759,8 @@ export function AddFrameItemForm({ shopId, categoryDefaults, categories }: AddFr
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A for Frames"}
                   disabled={!requiresExpiry}
-                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
+                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400" : "border-slate-200"}`}
                   {...register("batchNumber")}
                 />
               </div>

@@ -378,8 +378,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                   rows={3}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="e.g., Received ₹15,000 via GPay on Jul 21"
-                  className="w-full p-3 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 resize-none"
+                  className="w-full p-3 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 resize-none"
                 />
               </div>
             </div>
@@ -460,8 +459,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                       required
                       value={formOrgName}
                       onChange={(e) => setFormOrgName(e.target.value)}
-                      placeholder="e.g. Vision Care Optical"
-                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
                     />
                   </div>
 
@@ -473,8 +471,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                       type="text"
                       value={formOutletName}
                       onChange={(e) => setFormOutletName(e.target.value)}
-                      placeholder="e.g. Main Showroom"
-                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
                     />
                   </div>
                 </div>
@@ -497,8 +494,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                         onKeyPress={(e) => {
                           if (!/[0-9]/.test(e.key)) e.preventDefault();
                         }}
-                        placeholder="9876543210"
-                        className="w-full pl-11 pr-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 font-mono"
+                        className="w-full pl-11 pr-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 font-mono"
                       />
                     </div>
                   </div>
@@ -511,8 +507,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                       type="text"
                       value={formAddress}
                       onChange={(e) => setFormAddress(e.target.value)}
-                      placeholder="e.g. Shop 12, MG Road, Pune"
-                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
                     />
                   </div>
                 </div>
@@ -537,8 +532,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                       required
                       value={formOwnerName}
                       onChange={(e) => setFormOwnerName(e.target.value)}
-                      placeholder="e.g. Rahul Verma"
-                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
                     />
                   </div>
 
@@ -551,8 +545,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                       required
                       value={formOwnerEmail}
                       onChange={(e) => setFormOwnerEmail(e.target.value)}
-                      placeholder="owner@store.com"
-                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                      className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
                     />
                   </div>
                 </div>
@@ -568,8 +561,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                         required
                         value={formOwnerPassword}
                         onChange={(e) => setFormOwnerPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 font-mono"
+                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 font-mono"
                       />
                       <button
                         type="button"
@@ -591,8 +583,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                         required
                         value={formConfirmPassword}
                         onChange={(e) => setFormConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 font-mono"
+                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 font-mono"
                       />
                       <button
                         type="button"
@@ -702,8 +693,7 @@ export default function AdminOrganizationsClient({ organizations: initialOrgs }:
                     rows={2}
                     value={formAdminNotes}
                     onChange={(e) => setFormAdminNotes(e.target.value)}
-                    placeholder="e.g. Received ₹4,999 annual payment via UPI. Approved offline."
-                    className="w-full p-3 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+                    className="w-full p-3 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 resize-none"
                   />
                 </div>
               </div>

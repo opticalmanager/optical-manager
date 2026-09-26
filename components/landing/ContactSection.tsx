@@ -153,8 +153,7 @@ export default function ContactSection() {
                       name="name"
                       type="text"
                       required
-                      placeholder="e.g. Rahul Sharma"
-                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
                     />
                   </div>
 
@@ -167,8 +166,7 @@ export default function ContactSection() {
                       name="phone"
                       type="tel"
                       required
-                      placeholder="+91 98765 43210"
-                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
                     />
                   </div>
                 </div>
@@ -183,8 +181,7 @@ export default function ContactSection() {
                       name="email"
                       type="email"
                       required
-                      placeholder="name@opticalstore.com"
-                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
                     />
                   </div>
 
@@ -196,8 +193,7 @@ export default function ContactSection() {
                       id="contact-shop"
                       name="shopName"
                       type="text"
-                      placeholder="e.g. Vision Care Opticals"
-                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
                     />
                   </div>
                 </div>
@@ -211,8 +207,7 @@ export default function ContactSection() {
                     name="message"
                     required
                     rows={4}
-                    placeholder="Tell us how we can assist your optical practice or business..."
-                    className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none"
+                    className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none"
                   ></textarea>
                 </div>
 

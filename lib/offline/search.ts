@@ -36,8 +36,11 @@ export async function searchCustomersOffline(
         const regMatch = customer.registrationId
           ? customer.registrationId.toLowerCase().includes(lowerQuery)
           : false;
+        const gstinMatch = customer.gstin
+          ? customer.gstin.toLowerCase().includes(lowerQuery)
+          : false;
 
-        return nameMatch || phoneMatch || regMatch;
+        return nameMatch || phoneMatch || regMatch || gstinMatch;
       })
       .limit(limit)
       .toArray();
@@ -53,6 +56,7 @@ export async function searchCustomersOffline(
       gender: c.gender,
       bloodGroup: c.bloodGroup,
       referredBy: c.referredBy,
+      gstin: c.gstin,
       address: c.address,
       city: c.city,
       state: c.state,

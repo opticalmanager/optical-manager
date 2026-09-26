@@ -323,7 +323,6 @@ export function EmailTemplatesTab({ initialTemplates }: EmailTemplatesTabProps) 
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Invoice Receipt"
                       required
                       className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-medium text-slate-800"
                     />
@@ -356,7 +355,6 @@ export function EmailTemplatesTab({ initialTemplates }: EmailTemplatesTabProps) 
                     value={subject}
                     onFocus={() => setActiveField("subject")}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Invoice #{{invoice_number}} from {{shop_name}}"
                     required
                     className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-mono text-slate-800"
                   />

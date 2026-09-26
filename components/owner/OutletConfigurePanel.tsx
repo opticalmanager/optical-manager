@@ -698,7 +698,6 @@ export function OutletConfigurePanel({
                           type="text"
                           value={shopPhone}
                           onChange={(e) => setShopPhone(e.target.value)}
-                          placeholder="+91 98765 43210"
                           className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
                         />
                       </div>
@@ -714,7 +713,6 @@ export function OutletConfigurePanel({
                           type="email"
                           value={shopEmail}
                           onChange={(e) => setShopEmail(e.target.value)}
-                          placeholder="shop@opticalstore.com"
                           className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
                         />
                       </div>
@@ -731,7 +729,6 @@ export function OutletConfigurePanel({
                         rows={3}
                         value={shopAddress}
                         onChange={(e) => setShopAddress(e.target.value)}
-                        placeholder="Complete shop address..."
                         className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 resize-none"
                       ></textarea>
                     </div>
@@ -961,7 +958,6 @@ export function OutletConfigurePanel({
                       required
                       value={formFullName}
                       onChange={(e) => setFormFullName(e.target.value)}
-                      placeholder="e.g. Rahul Verma"
                       className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
                     />
                   </div>
@@ -976,7 +972,6 @@ export function OutletConfigurePanel({
                       disabled={activeModal === "edit_role"}
                       value={formEmail}
                       onChange={(e) => setFormEmail(e.target.value)}
-                      placeholder="e.g. rahul.billing@opticalstore.com"
                       className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 disabled:bg-slate-100 disabled:text-slate-500"
                     />
                   </div>
@@ -1093,7 +1088,6 @@ export function OutletConfigurePanel({
                     required
                     value={formCustomRoleName}
                     onChange={(e) => setFormCustomRoleName(e.target.value)}
-                    placeholder="e.g. Senior Optometrist, Cashier..."
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
                   />
                 </div>
@@ -1219,7 +1213,6 @@ export function OutletConfigurePanel({
                     required
                     value={resetNewPassword}
                     onChange={(e) => setResetNewPassword(e.target.value)}
-                    placeholder="Enter new password"
                     className="w-full pr-10 pl-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
                   />
                   <button
@@ -1240,7 +1233,6 @@ export function OutletConfigurePanel({
                     required
                     value={resetConfirmPassword}
                     onChange={(e) => setResetConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password"
                     className="w-full pr-10 pl-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
                   />
                   <button

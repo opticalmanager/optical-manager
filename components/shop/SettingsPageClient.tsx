@@ -112,9 +112,21 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
 
   // 5. WhatsApp Customizer state
   const DEFAULT_WHATSAPP_TEMPLATES = {
+    order_form_sent: {
+      enabled: true,
+      template: "Dear {{customer_name}},\n\nThank you for booking your optical order with {{shop_name}}!\n\n*Order Booking Details:*\n• Order Form #: {{receipt_number}}\n• Amount Paid: {{amount_paid}}\n• Remaining Dues: {{balance_due}}\n• Expected Delivery: {{estimated_delivery}}\n\nAccess your digital Order Form & optical prescription details here:\n{{order_form_url}}\n\nThank you for trusting us with your vision!",
+    },
     invoice_sent: {
       enabled: true,
       template: "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!",
+    },
+    prescription_sent: {
+      enabled: true,
+      template: "Dear {{customer_name}},\n\nHere are your clinical eye prescription details from {{shop_name}}:\n\n*Right Eye (OD):*\n• SPH: {{re_sph}} | CYL: {{re_cyl}} | AXIS: {{re_axis}} | ADD: {{re_add}}\n\n*Left Eye (OS):*\n• SPH: {{le_sph}} | CYL: {{le_cyl}} | AXIS: {{le_axis}} | ADD: {{le_add}}\n\n• P.D.: {{pd}} mm\n• Prescribed By: {{doctor_name}}\n\nView your full optical records & digital card here: {{invoice_url}}\n\nWarm regards,\n{{shop_name}}",
+    },
+    payment_reminder: {
+      enabled: true,
+      template: "Dear {{customer_name}},\n\nThis is a gentle payment reminder from {{shop_name}} regarding your order {{order_number}}.\n\n*Pending Balance:* {{balance_due}}\n*Total Amount:* {{amount}}\n*Amount Paid So Far:* {{amount_paid}}\n\nYou can view your order summary and pay online here: {{invoice_url}}\n\nFeel free to reach out to us at {{phone}} if you have any questions!",
     },
     order_complete: {
       enabled: true,
@@ -130,7 +142,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     },
   };
   const [whatsappTemplates, setWhatsappTemplates] = useState<any>(shop?.settings?.whatsappTemplates || DEFAULT_WHATSAPP_TEMPLATES);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("invoice_sent");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("order_form_sent");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 5B. Shop Desktop Assistant Pairing state & Dispatch Mode
@@ -551,7 +563,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text" 
                             value={profileGstin} 
                             onChange={(e) => setProfileGstin(e.target.value.toUpperCase())}
-                            placeholder="e.g. 27AALCC7382F1ZC"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
                         </div>
@@ -561,7 +572,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text" 
                             value={profileCin} 
                             onChange={(e) => setProfileCin(e.target.value.toUpperCase())}
-                            placeholder="e.g. U32507MH2024PTC422044"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
                         </div>
@@ -571,7 +581,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text" 
                             value={profileMsme} 
                             onChange={(e) => setProfileMsme(e.target.value.toUpperCase())}
-                            placeholder="e.g. UDYAM-MH-33-0456381"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
                         </div>
@@ -589,7 +598,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text" 
                             value={bankName} 
                             onChange={(e) => setBankName(e.target.value)}
-                            placeholder="e.g. Axis Bank Limited"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
                         </div>
@@ -599,7 +607,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text" 
                             value={bankBranch} 
                             onChange={(e) => setBankBranch(e.target.value)}
-                            placeholder="e.g. MIDC Turbhe"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
                         </div>
@@ -609,7 +616,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text" 
                             value={bankAccountNumber} 
                             onChange={(e) => setBankAccountNumber(e.target.value)}
-                            placeholder="e.g. 924020033652178"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
                         </div>
@@ -619,7 +625,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             type="text" 
                             value={bankIfsc} 
                             onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-                            placeholder="e.g. UTIB0000661"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
                         </div>
@@ -1111,7 +1116,10 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                       <div className="lg:col-span-3 space-y-2 border-r border-slate-100 pr-4">
                         <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-2">Select Template</span>
                         {[
-                          { id: "invoice_sent", label: "Invoice Sent", desc: "Digital bill alert" },
+                          { id: "order_form_sent", label: "Order Form Sent", desc: "Order booking & Rx notice" },
+                          { id: "invoice_sent", label: "Invoice Sent", desc: "Digital bill & tax invoice" },
+                          { id: "prescription_sent", label: "Prescription Sent", desc: "Clinical eye Rx details" },
+                          { id: "payment_reminder", label: "Payment Reminder", desc: "Outstanding balance alert" },
                           { id: "order_complete", label: "Order Complete", desc: "Specs pickup notice" },
                           { id: "delivery_sent", label: "Out for Delivery", desc: "Shipment dispatch notice" },
                           { id: "delivery_delay", label: "Delivery Delayed", desc: "Delay notification" }
@@ -1145,7 +1153,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                         <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
                           <div className="space-y-0.5">
                             <span className="text-xs font-black uppercase text-slate-700">
-                              {selectedTemplateId.replace("_", " ")}
+                              {selectedTemplateId.replace(/_/g, " ")}
                             </span>
                             <p className="text-[9px] text-slate-400 font-bold uppercase">Configure status and content</p>
                           </div>
@@ -1198,6 +1206,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                               { code: "shop_name", label: "Shop Name" },
                               { code: "phone", label: "Shop Phone" },
                               { code: "invoice_number", label: "Invoice Number" },
+                              { code: "receipt_number", label: "Order Form #" },
                               { code: "amount", label: "Total Amount" },
                               { code: "amount_paid", label: "Amount Paid" },
                               { code: "balance_due", label: "Balance Due" },
@@ -1205,7 +1214,18 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                               { code: "fulfillment_status", label: "Delivery Status" },
                               { code: "estimated_delivery", label: "Est. Delivery" },
                               { code: "order_number", label: "Order Number" },
-                              { code: "invoice_url", label: "Invoice URL" }
+                              { code: "order_form_url", label: "Order Form URL" },
+                              { code: "invoice_url", label: "Invoice URL" },
+                              { code: "re_sph", label: "RE Sphere" },
+                              { code: "re_cyl", label: "RE Cyl" },
+                              { code: "re_axis", label: "RE Axis" },
+                              { code: "re_add", label: "RE Add" },
+                              { code: "le_sph", label: "LE Sphere" },
+                              { code: "le_cyl", label: "LE Cyl" },
+                              { code: "le_axis", label: "LE Axis" },
+                              { code: "le_add", label: "LE Add" },
+                              { code: "pd", label: "PD (mm)" },
+                              { code: "doctor_name", label: "Doctor" },
                             ].map((item) => (
                               <button
                                 key={item.code}
@@ -1258,6 +1278,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                                   shop_name: shop?.name || "Clarity Eyecare",
                                   phone: shop?.phone || "+91 74161 06064",
                                   invoice_number: "INV-2026-0812",
+                                  receipt_number: "OF-2026-0812",
                                   amount: "Rs. 1,899/-",
                                   amount_paid: "Rs. 1,000/-",
                                   balance_due: "Rs. 899/-",
@@ -1265,7 +1286,18 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                                   fulfillment_status: "READY",
                                   estimated_delivery: "July 12, 2026",
                                   order_number: "ORD-9824",
-                                  invoice_url: "https://opt.mgr/inv/0812"
+                                  order_form_url: "https://opt.mgr/receipts/0812",
+                                  invoice_url: "https://opt.mgr/inv/0812",
+                                  re_sph: "-1.50",
+                                  re_cyl: "-0.50",
+                                  re_axis: "90°",
+                                  re_add: "+2.00",
+                                  le_sph: "-1.75",
+                                  le_cyl: "-0.25",
+                                  le_axis: "85°",
+                                  le_add: "+2.00",
+                                  pd: "63",
+                                  doctor_name: "Dr. Sharma",
                                 }
                               )}
                             </div>
@@ -1682,7 +1714,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                         <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">Destination Email</label>
                         <input 
                           type="email" 
-                          placeholder="owner@clarityeyecare.in"
                           value={reportEmail}
                           onChange={(e) => setReportEmail(e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"

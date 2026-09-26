@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { CategoryItem } from "@/services/category.service";
 import { InventoryAddCategoryTabs } from "@/components/shop/InventoryAddCategoryTabs";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface AddContactLensItemFormProps {
   shopId: string;
@@ -225,7 +226,11 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-slate-800">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="space-y-6 text-slate-800"
+    >
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -326,7 +331,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </div>
                   <Input
                     type="text"
-                    placeholder="e.g., CL-OASYS-84"
                     className={`h-11 border-slate-200 bg-white font-mono font-semibold ${
                       isCodeDuplicate ? "border-rose-500 focus-visible:ring-rose-200" : ""
                     }`}
@@ -352,7 +356,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Acuvue Oasys for Astigmatism"
                     className="h-11 border-slate-200 bg-white"
                     {...register("productName")}
                   />
@@ -384,7 +387,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Johnson & Johnson"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -413,7 +415,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="number"
-                    placeholder="e.g., 30"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("boxQuantity")}
                   />
@@ -427,7 +428,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., 8.6"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("baseCurve")}
                   />
@@ -439,7 +439,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., 14.2"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("diameter")}
                   />
@@ -451,7 +450,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Clear / Tint"
                     className="h-11 border-slate-200"
                     {...register("color")}
                   />
@@ -465,7 +463,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., -2.25"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("sphere")}
                   />
@@ -477,7 +474,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., -0.75"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("cylinder")}
                   />
@@ -489,7 +485,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., 180"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("axis")}
                   />
@@ -536,7 +531,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("costPrice")}
                     />
@@ -552,7 +546,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("price")}
                     />
@@ -631,7 +624,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter supplier or vendor name"
                     className="h-11 border-slate-200"
                     {...register("vendorName")}
                   />
@@ -643,7 +635,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. L-R2-B4"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -707,7 +698,6 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g., PI-2024-001"
                   className="h-11 border-slate-200"
                   {...register("purchaseInvoiceNo")}
                 />
@@ -765,9 +755,8 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
-                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
+                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400" : "border-slate-200"}`}
                   {...register("batchNumber")}
                 />
               </div>

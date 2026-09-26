@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/services/auth.service";
 import {
   createPrescription,
   updatePrescription,
+  getPrescriptionsByCustomer,
 } from "@/services/prescription.service";
 import { prescriptionSchema, type FormState } from "@/utils/validators";
 
@@ -58,3 +59,22 @@ export async function createPrescriptionAction(
     return { success: false, message: "Failed to create prescription." };
   }
 }
+
+/**
+ * Server Action: Fetch all clinical prescriptions for a specific customer.
+ */
+export async function getCustomerPrescriptionsAction(customerId: string) {
+  const user = await getCurrentUser();
+  if (!user || !user.organizationId) {
+    return { success: false, data: [] };
+  }
+
+  try {
+    const data = await getPrescriptionsByCustomer(customerId);
+    return { success: true, data: data || [] };
+  } catch (error) {
+    console.error("[getCustomerPrescriptionsAction] Error:", error);
+    return { success: false, data: [] };
+  }
+}
+

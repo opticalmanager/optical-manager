@@ -29,6 +29,7 @@ export async function createCustomerAction(
     pincode: formData.get("pincode"),
     gender: formData.get("gender"),
     bloodGroup: formData.get("bloodGroup"),
+    gstin: formData.get("gstin"),
     notes: formData.get("notes"),
   });
 
@@ -50,6 +51,7 @@ export async function createCustomerAction(
       pincode: customerData.pincode === "" ? null : customerData.pincode,
       email: customerData.email === "" ? null : customerData.email,
       address: customerData.address === "" ? null : customerData.address,
+      gstin: customerData.gstin === "" ? null : customerData.gstin,
       shopId,
       organizationId: user.organizationId,
     });
@@ -83,6 +85,7 @@ export async function updateCustomerAction(
     pincode: formData.get("pincode"),
     gender: formData.get("gender"),
     bloodGroup: formData.get("bloodGroup"),
+    gstin: formData.get("gstin"),
     notes: formData.get("notes"),
   });
 
@@ -107,6 +110,7 @@ export async function updateCustomerAction(
         pincode: customerData.pincode === "" ? null : customerData.pincode,
         email: customerData.email === "" ? null : customerData.email,
         address: customerData.address === "" ? null : customerData.address,
+        gstin: customerData.gstin === "" ? null : customerData.gstin,
       }
     );
 

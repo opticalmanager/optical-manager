@@ -30,6 +30,7 @@ import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface AddGeneralItemFormProps {
   shopId: string;
@@ -197,7 +198,11 @@ export function AddGeneralItemForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="space-y-6"
+    >
       {/* Header & Back Action */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
@@ -254,7 +259,6 @@ export function AddGeneralItemForm({
                   <div className="relative">
                     <Input
                       type="text"
-                      placeholder="e.g. PRD-9021"
                       className={`h-11 border-slate-200 font-mono ${
                         isCodeDuplicate ? "border-rose-500 bg-rose-50/20" : ""
                       }`}
@@ -292,7 +296,6 @@ export function AddGeneralItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder={`e.g. Premium ${category.name}`}
                     className="h-11 border-slate-200"
                     {...register("productName")}
                   />
@@ -312,7 +315,6 @@ export function AddGeneralItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban, Bausch & Lomb, Zeiss"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -360,7 +362,6 @@ export function AddGeneralItemForm({
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("costPrice")}
                     />
@@ -376,7 +377,6 @@ export function AddGeneralItemForm({
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("price")}
                     />
@@ -398,7 +398,6 @@ export function AddGeneralItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 90049000"
                     className="h-11 border-slate-200 font-mono"
                     {...register("hsnCode")}
                   />
@@ -449,7 +448,6 @@ export function AddGeneralItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Vision Supply Co."
                     className="h-11 border-slate-200"
                     {...register("vendorName")}
                   />
@@ -461,7 +459,6 @@ export function AddGeneralItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Shelf A-3, Drawer 2"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -521,7 +518,6 @@ export function AddGeneralItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. INV-2026-9021"
                     className="h-11 border-slate-200 font-mono"
                     {...register("purchaseInvoiceNo")}
                   />
@@ -561,7 +557,6 @@ export function AddGeneralItemForm({
                     </label>
                     <Input
                       type="text"
-                      placeholder="e.g. BATCH-2026-X"
                       className="h-11 border-slate-200 font-mono bg-white"
                       {...register("batchNumber")}
                     />

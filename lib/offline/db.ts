@@ -12,6 +12,7 @@ export interface CachedCustomer {
   gender?: string | null;
   bloodGroup?: string | null;
   referredBy?: string | null;
+  gstin?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;

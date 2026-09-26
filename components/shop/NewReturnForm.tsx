@@ -37,6 +37,7 @@ import { submitReturnAction } from "@/actions/return.actions";
 import { offlineDB, type CachedReturn } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { useOffline } from "@/components/providers/OfflineProvider";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface InvoiceItemProduct {
   id: string;
@@ -713,7 +714,10 @@ export function NewReturnForm() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20 select-none text-slate-800">
+    <div
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="max-w-6xl mx-auto space-y-6 pb-20 select-none text-slate-800"
+    >
       
       {/* Top Header & Breadcrumb */}
       <div>
@@ -767,8 +771,8 @@ export function NewReturnForm() {
                   }}
                   placeholder={
                     searchByPhone
-                      ? "Enter Customer Mobile Number (e.g. 9876543210)..."
-                      : "Enter Invoice Number (e.g. INV-1-2026-0001)..."
+                      ? "Enter customer mobile number..."
+                      : "Enter invoice number..."
                   }
                   className="w-full h-10 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] focus:bg-white text-slate-800 transition-all placeholder:text-slate-400"
                 />
@@ -1416,7 +1420,6 @@ export function NewReturnForm() {
             rows={2}
             value={staffNotes}
             onChange={(e) => setStaffNotes(e.target.value)}
-            placeholder="Add internal remarks about return condition, customer feedback, or replacement notes..."
             className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] focus:bg-white transition-all resize-none"
           />
         </div>

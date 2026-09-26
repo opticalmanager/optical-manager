@@ -53,7 +53,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. -1.25"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.rightSphere`)}
                 />
@@ -61,7 +60,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. -0.50"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.rightCylinder`)}
                 />
@@ -69,7 +67,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. 180"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.rightAxis`)}
                 />
@@ -77,7 +74,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. +1.75"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.rightAdd`)}
                 />
@@ -85,7 +81,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. N6"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.rightNv`)}
                 />
@@ -100,7 +95,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. -1.50"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.leftSphere`)}
                 />
@@ -108,7 +102,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. -0.75"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.leftCylinder`)}
                 />
@@ -116,7 +109,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. 90"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.leftAxis`)}
                 />
@@ -124,7 +116,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. +1.75"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.leftAdd`)}
                 />
@@ -132,7 +123,6 @@ export function PrescriptionGrid({
               <td className="py-2 px-1">
                 <Input
                   type="text"
-                  placeholder="e.g. N6"
                   className="h-9 text-center bg-white"
                   {...register(`${prefix}.leftNv`)}
                 />
@@ -150,7 +140,6 @@ export function PrescriptionGrid({
           </label>
           <Input
             type="text"
-            placeholder="e.g. 31.5"
             className="h-9 bg-white"
             {...register(`${prefix}.pdRight`)}
           />
@@ -161,7 +150,6 @@ export function PrescriptionGrid({
           </label>
           <Input
             type="text"
-            placeholder="e.g. 31.0"
             className="h-9 bg-white"
             {...register(`${prefix}.pdLeft`)}
           />
@@ -172,7 +160,6 @@ export function PrescriptionGrid({
           </label>
           <Input
             type="text"
-            placeholder="e.g. 62.5"
             className="h-9 bg-white"
             {...register(`${prefix}.pd`)}
           />

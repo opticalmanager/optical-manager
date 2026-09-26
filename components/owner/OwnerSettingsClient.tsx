@@ -631,7 +631,6 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       type="email"
                       value={orgEmail}
                       onChange={(e) => setOrgEmail(e.target.value)}
-                      placeholder="support@opticalmanager.in"
                       className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                     />
                   </div>
@@ -647,7 +646,6 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       type="text"
                       value={orgPhone}
                       onChange={(e) => setOrgPhone(e.target.value)}
-                      placeholder="+91 81789 62366"
                       className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                     />
                   </div>
@@ -664,7 +662,6 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                     rows={3}
                     value={orgAddress}
                     onChange={(e) => setOrgAddress(e.target.value)}
-                    placeholder="New Delhi, India"
                     className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 resize-none"
                   ></textarea>
                 </div>
@@ -1053,9 +1050,8 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       type="text"
                       value={invGstin}
                       onChange={(e) => setInvGstin(e.target.value.toUpperCase())}
-                      placeholder="e.g. 07AAAAA0000A1Z5"
                       maxLength={15}
-                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 placeholder:text-slate-300"
+                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                     />
                   </div>
                 </div>
@@ -1067,8 +1063,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       type="text"
                       value={invCin}
                       onChange={(e) => setInvCin(e.target.value.toUpperCase())}
-                      placeholder="e.g. U32507MH2024PTC422044"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 placeholder:text-slate-300"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1077,8 +1072,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       type="text"
                       value={invMsme}
                       onChange={(e) => setInvMsme(e.target.value.toUpperCase())}
-                      placeholder="e.g. UDYAM-MH-33-0456381"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 placeholder:text-slate-300"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                     />
                   </div>
                 </div>
@@ -1130,9 +1124,8 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                         type="text"
                         value={invBankName}
                         onChange={(e) => setInvBankName(e.target.value)}
-                        placeholder="e.g. State Bank of India"
                         disabled={!invEnableBankDetails}
-                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -1142,9 +1135,8 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       type="text"
                       value={invBankBranch}
                       onChange={(e) => setInvBankBranch(e.target.value)}
-                      placeholder="e.g. Andheri West"
                       disabled={!invEnableBankDetails}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1159,9 +1151,8 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                           setInvBankAccount(val);
                         }}
                         inputMode="numeric"
-                        placeholder="e.g. 924020033652178"
                         disabled={!invEnableBankDetails}
-                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -1171,10 +1162,9 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                       type="text"
                       value={invBankIfsc}
                       onChange={(e) => setInvBankIfsc(e.target.value.toUpperCase())}
-                      placeholder="e.g. SBIN0001234"
                       maxLength={11}
                       disabled={!invEnableBankDetails}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -1223,9 +1213,8 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                     rows={3}
                     value={invTermsNotes}
                     onChange={(e) => setInvTermsNotes(e.target.value)}
-                    placeholder="e.g. All returns must be within 14 days of purchase..."
                     disabled={!invEnableTerms}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 resize-none disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-300"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 resize-none disabled:bg-slate-50 disabled:cursor-not-allowed"
                   />
                   <p className="text-[10px] text-slate-400 italic">
                     This note will be appended below the default terms on the invoice. Leave blank to use default terms only.
@@ -1399,7 +1388,6 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                 <div className="relative">
                   <Input
                     type={showAiKey ? "text" : "password"}
-                    placeholder="Enter your Gemini API Key..."
                     value={aiApiKey}
                     onChange={(e) => {
                       setAiApiKey(e.target.value);

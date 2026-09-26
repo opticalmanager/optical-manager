@@ -113,7 +113,6 @@ export default function ResetPasswordForm({ tokenHash, isAuthSession }: ResetPas
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -130,7 +129,6 @@ export default function ResetPasswordForm({ tokenHash, isAuthSession }: ResetPas
                     id="otpCode"
                     name="otpCode"
                     type="text"
-                    placeholder="e.g. 123456"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
                     required
@@ -152,7 +150,6 @@ export default function ResetPasswordForm({ tokenHash, isAuthSession }: ResetPas
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -180,7 +177,6 @@ export default function ResetPasswordForm({ tokenHash, isAuthSession }: ResetPas
                   id="confirmPassword"
                   name="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
-                  placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required

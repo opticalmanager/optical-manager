@@ -32,8 +32,8 @@ interface ConnectWhatsAppModalProps {
 
 export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhatsAppModalProps) {
   const [provider, setProvider] = useState<"META_CLOUD_API" | "TWILIO" | "QR_GATEWAY">("META_CLOUD_API");
-  const [phoneNumber, setPhoneNumber] = useState("+91 98765 43210");
-  const [businessName, setBusinessName] = useState("VisionCare Optics");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [accountSid, setAccountSid] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
@@ -176,7 +176,6 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
                   required
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  placeholder="+91 98765 43210"
                   className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 text-slate-900 text-xs font-semibold rounded-xl focus:bg-white focus:outline-none focus:border-emerald-600 transition-all"
                 />
               </div>
@@ -193,7 +192,6 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
                   type="text"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="VisionCare Optics"
                   className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 text-slate-900 text-xs font-semibold rounded-xl focus:bg-white focus:outline-none focus:border-emerald-600 transition-all"
                 />
               </div>
@@ -211,7 +209,6 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
                     type="password"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="EAAG...."
                     className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 text-slate-900 text-xs font-semibold rounded-xl focus:bg-white focus:outline-none focus:border-emerald-600 transition-all"
                   />
                 </div>
@@ -230,7 +227,6 @@ export function ConnectWhatsAppModal({ isOpen, onClose, onSuccess }: ConnectWhat
                     type="text"
                     value={accountSid}
                     onChange={(e) => setAccountSid(e.target.value)}
-                    placeholder="AC...."
                     className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 text-slate-900 text-xs font-semibold rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
                   />
                 </div>

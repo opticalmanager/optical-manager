@@ -25,6 +25,7 @@ import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface EditContactLensItemFormProps {
   initialData: any;
@@ -215,7 +216,7 @@ export function EditContactLensItemForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-slate-800">
+    <form onSubmit={handleSubmit(onSubmit)} onKeyDown={(e) => handleEnterKeyNavigation(e)} className="space-y-6 text-slate-800">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -296,7 +297,6 @@ export function EditContactLensItemForm({
                   </div>
                   <Input
                     type="text"
-                    placeholder="e.g., CL-OASYS-01"
                     className={`h-11 font-mono font-medium uppercase ${
                       isCodeDuplicate 
                         ? "border-rose-500 focus-visible:ring-rose-200 bg-rose-50/20" 
@@ -318,7 +318,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Acuvue Oasys for Astigmatism"
                     className="h-11 border-slate-200 bg-white"
                     {...register("productName")}
                   />
@@ -350,7 +349,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Johnson & Johnson"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -379,7 +377,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="number"
-                    placeholder="e.g., 30"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("boxQuantity")}
                   />
@@ -393,7 +390,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., 8.6"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("baseCurve")}
                   />
@@ -405,7 +401,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., 14.2"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("diameter")}
                   />
@@ -417,7 +412,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Clear / Tint"
                     className="h-11 border-slate-200"
                     {...register("color")}
                   />
@@ -431,7 +425,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., -2.25"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("sphere")}
                   />
@@ -443,7 +436,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., -0.75"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("cylinder")}
                   />
@@ -455,7 +447,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., 180"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("axis")}
                   />
@@ -502,7 +493,6 @@ export function EditContactLensItemForm({
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("costPrice")}
                     />
@@ -518,7 +508,6 @@ export function EditContactLensItemForm({
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("price")}
                     />
@@ -588,7 +577,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter supplier or vendor name"
                     className="h-11 border-slate-200"
                     {...register("vendorName")}
                   />
@@ -600,7 +588,6 @@ export function EditContactLensItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. L-R2-B4"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -662,7 +649,6 @@ export function EditContactLensItemForm({
                   <Input
                     type="number"
                     className="h-11 border-indigo-300 focus:ring-2 focus:ring-indigo-500/20 font-bold text-indigo-650 bg-indigo-50/5"
-                    placeholder="0"
                     {...register("addStockQuantity")}
                   />
                   {errors.addStockQuantity && (
@@ -692,7 +678,6 @@ export function EditContactLensItemForm({
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g., PI-2024-001"
                   className="h-11 border-slate-200"
                   {...register("purchaseInvoiceNo")}
                 />
@@ -750,9 +735,8 @@ export function EditContactLensItemForm({
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
-                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
+                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400" : "border-slate-200"}`}
                   {...register("batchNumber")}
                 />
               </div>

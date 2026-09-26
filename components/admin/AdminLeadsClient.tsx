@@ -441,8 +441,7 @@ export default function AdminLeadsClient({ leads: initialLeads }: AdminLeadsClie
                         required
                         value={formOwnerPassword}
                         onChange={(e) => setFormOwnerPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
                       />
                       <button
                         type="button"
@@ -464,8 +463,7 @@ export default function AdminLeadsClient({ leads: initialLeads }: AdminLeadsClie
                         required
                         value={formConfirmPassword}
                         onChange={(e) => setFormConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                        className="w-full pr-10 pl-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
                       />
                       <button
                         type="button"

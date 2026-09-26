@@ -379,7 +379,6 @@ Please reply 1 to confirm your slot.
                 value={triggerName}
                 onChange={(e) => setTriggerName(e.target.value)}
                 className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#2563eb]"
-                placeholder="Give a name to identify this trigger"
               />
             </div>
           </div>

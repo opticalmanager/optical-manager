@@ -77,7 +77,6 @@ export function OrgDetailsForm({ initialData, onSubmit, isLoading }: OrgDetailsF
             <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="e.g. Vision Care Group"
               disabled={isLoading}
               className={`w-full border bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                 ${errors.name ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : "border-slate-200"}
@@ -99,7 +98,6 @@ export function OrgDetailsForm({ initialData, onSubmit, isLoading }: OrgDetailsF
             <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="e.g. vision-care-group"
               disabled={isLoading}
               className={`w-full border bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                 ${errors.slug ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : "border-slate-200"}
@@ -124,7 +122,6 @@ export function OrgDetailsForm({ initialData, onSubmit, isLoading }: OrgDetailsF
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="email"
-              placeholder="e.g. contact@visioncare.com"
               disabled={isLoading}
               className={`w-full border border-slate-200 bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                 ${errors.email ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : ""}
@@ -146,7 +143,6 @@ export function OrgDetailsForm({ initialData, onSubmit, isLoading }: OrgDetailsF
             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="tel"
-              placeholder="e.g. 9876543210"
               disabled={isLoading}
               className={`w-full border border-slate-200 bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600
                 ${errors.phone ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : ""}
@@ -167,7 +163,6 @@ export function OrgDetailsForm({ initialData, onSubmit, isLoading }: OrgDetailsF
           <div className="relative">
             <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             <textarea
-              placeholder="e.g. 1st Floor, Vision Towers, MG Road, Mumbai"
               disabled={isLoading}
               rows={2}
               className="w-full border border-slate-200 bg-white pl-10 pr-3 py-2.5 text-sm rounded-lg outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 resize-none"

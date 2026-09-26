@@ -147,6 +147,14 @@ export const customerSchema = z.object({
   familyHistory: z.string().optional().nullable().or(z.literal("")),
   systemicIllness: z.string().optional().nullable().or(z.literal("")),
   allergies: z.string().optional().nullable().or(z.literal("")),
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Invalid GSTIN format (e.g. 07AAAAA0000A1Z5)")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   notes: z.string().optional().nullable().or(z.literal("")),
 });
 

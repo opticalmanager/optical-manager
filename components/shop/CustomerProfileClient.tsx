@@ -53,6 +53,7 @@ interface CustomerData {
   gender: "MALE" | "FEMALE" | "OTHER" | null;
   bloodGroup: string | null;
   referredBy: string | null;
+  gstin?: string | null;
   chiefComplaint: string | null;
   familyHistory: string | null;
   systemicIllness: string | null;
@@ -608,6 +609,11 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
               <div>
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">Referred By</span>
                 <span className="text-xs font-bold text-slate-800 block mt-0.5">{customer.referredBy || "-"}</span>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">GST Number (GSTIN)</span>
+                <span className="text-xs font-bold font-mono text-slate-800 block mt-0.5">{customer.gstin || "-"}</span>
               </div>
 
               <div className="col-span-2 md:col-span-3 border-t border-slate-100 pt-3">

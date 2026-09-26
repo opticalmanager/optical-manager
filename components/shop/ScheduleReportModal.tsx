@@ -122,7 +122,6 @@ export default function ScheduleReportModal({
                 <input
                   type="email"
                   required
-                  placeholder="manager@store.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"

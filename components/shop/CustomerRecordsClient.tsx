@@ -31,6 +31,7 @@ interface CustomerDashboardItem {
   phone: string;
   email: string | null;
   referredBy?: string | null;
+  gstin?: string | null;
   doctorName?: string | null;
   lastVisitDate: Date | string;
   orderStatus: "READY" | "PROCESSING" | "DELIVERED" | "ON_HOLD";

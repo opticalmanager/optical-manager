@@ -497,7 +497,6 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
                   rows={3}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="e.g., Extended subscription +3 months after payment receipt"
                   className="w-full p-3 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 resize-none"
                 />
               </div>
@@ -565,7 +564,6 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
                   required
                   value={outletName}
                   onChange={(e) => setOutletName(e.target.value)}
-                  placeholder="e.g. Phoenix Mall Branch"
                   className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -585,7 +583,6 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
                     onKeyPress={(e) => {
                       if (!/[0-9]/.test(e.key)) e.preventDefault();
                     }}
-                    placeholder="9876543210"
                     className="w-full pl-11 pr-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
@@ -599,7 +596,6 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
                   type="email"
                   value={outletEmail}
                   onChange={(e) => setOutletEmail(e.target.value)}
-                  placeholder="branch@store.com"
                   className="w-full px-3.5 py-2 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -612,7 +608,6 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
                   rows={2}
                   value={outletAddress}
                   onChange={(e) => setOutletAddress(e.target.value)}
-                  placeholder="e.g. Shop 24, First Floor, Phoenix Mall"
                   className="w-full p-3 bg-[#070b13] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
                 />
               </div>
