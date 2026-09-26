@@ -231,3 +231,26 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 #### `checkDesktopAssistantStatusAction(shopId?)`
 - **Description**: Inspects `whatsapp_dispatch_queue` for recent heartbeat updates (`updatedAt > 2 minutes ago`) and pending message counts to determine live online/offline state of the store's Desktop Assistant.
 - **Return Type**: `{ isOnline: boolean, lastActiveAt?: string | null, pendingCount: number, metadata?: any }`.
+
+---
+
+### 5. High-Density Dashboard Service (`services/dashboard.service.ts`)
+
+#### `getDashboardData(shopId, optsOrTimeframe, organizationId?)`
+- **Description**: Unified server-side aggregation engine returning real-time metrics for `/shop/dashboard`. Executes parallelized SQL queries across `invoices`, `invoice_items`, `customers`, `inventory`, `sales_returns`, `stock_movements`, and `shops`.
+- **Parameters**:
+  - `shopId: string` — Target outlet identifier or `"all"` for organization-wide mode.
+  - `optsOrTimeframe: TimeframeType | DashboardOptions` — Time window (`"24h"`, `"yesterday"`, `"7d"`, `"30d"`, `"90d"`, `"12m"`, `"ytd"`, `"all"`, or custom range).
+  - `organizationId?: string` — Parent organization identifier.
+- **Return Structure (`DashboardData`)**:
+  - `kpis`: Revenue, collections, dues, pending orders, pickup orders, delayed orders, appointments today, low stock count.
+  - `opticalKPIs`: Extended metrics with live comparison growth percentages (`revenueGrowth`, `salesInvoicesGrowth`, `accountsReceivableGrowth`, `activeCustomersGrowth`, `totalStoresCount`).
+  - `customerBifurcation`: `{ onlyFrame, onlyFramePercent, onlyLens, onlyLensPercent, bothFrameAndLens, bothFrameAndLensPercent, totalCustomers }`.
+  - `deadStock`: `{ count, percentageOfTotal, totalItems }` (inventory items with positive stock and zero activity in 90 days).
+  - `stockValuation`: `{ totalValue, totalUnits, categories: [...] }` (asset distribution across Frames, Lenses, Contact Lenses, Sunglasses, Accessories, Solutions).
+  - `returnRate`: `{ totalSales, returnedItems, returnRatePercent }`.
+  - `salesBifurcation`: Multi-dimensional category breakdown across 5 tabs (`byLenses`, `byFrames`, `byBrands`, `byGender`, `byAge`) with individual slice counts, amounts, and percentages.
+  - `retentionRate`: `{ totalCustomers, returningCustomers, retentionRatePercent }` (repeat patient ratio).
+  - `recentTransactions`: Last 6-10 transactions with customer name, items summary string, formatted timestamp, total amount, and status.
+  - `lowStockSummary`: `{ lowStockCount, items: [...] }`.
+

@@ -51,8 +51,8 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 4. **Checkout, Delivery Date & Payment**:
    - **Salesperson Attribution ("Sold By")**: Staff can record the name of the sales representative who completed the order, stamped permanently into the invoice database and printed on tax invoices and payment receipts.
    - **Expected Delivery Scheduling**: Selects or enters estimated dispatch date with zero default assumptions. Supports interactive calendar picker (`showPicker()`), dynamic day interval readout (`X Days (DD MMM YYYY)`), and quick preset pills (`0D Today`, `3D`, `7D`, `✕ Clear`).
-   - **Payment Execution & Draft Saving**: Selects payment method (Cash, Card, UPI, Bank Transfer) and payment type (`Full Payment` or `Partial Payment` with auto-calculated balance due). Offers bottom actions `[ Save Draft ]` and `[ Create Invoice ]` / `[ Generate Receipt ]` side-by-side.
-   - Generates digital invoice link (`/share/invoice/[id]`) and dispatches email/print receipt.
+   - **Payment Execution & Draft Saving**: Selects payment method (Cash, Card, UPI, Bank Transfer) and payment type (`Full Payment` or `Partial Payment` with auto-calculated balance due). Offers bottom actions `[ Save Draft ]` and `[ Book Order ]`. Clicking `Book Order` executes the atomic booking transaction, generates the customer's optical **Order Form** with complete prescription data, and immediately redirects the user to the Order Form preview (`/shop/receipts/[id]`) for printing or WhatsApp transmission. In partial payment scenarios, the final Tax Invoice is generated once all dues are settled; in full payment scenarios, both the Order Form and Tax Invoice are generated simultaneously and remain accessible in the Orders Table.
+   - Generates digital document links and dispatches WhatsApp/Email notifications.
 
 ---
 
@@ -623,3 +623,62 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
        - Automatically maps these into the row's `ProductModalData` structure, so clicking the **Details** (eye) button opens the `PurchaseAddProductModal` with all specifications pre-filled.
      - **Review & Verification**: Staff can inspect extracted items, codes, and totals, remove unwanted rows, and click **"Apply to Purchase Form"**.
      - **Active Banner**: Form displays an auto-fill confirmation banner with instant recalculation of total units, base price, GST, and net payable.
+
+---
+
+## 19. High-Density Optical Store Dashboard Navigation & Analytics Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│ High-Density Optical Dashboard Experience                                                   │
+│                                                                                             │
+│ [ Good morning, User! 👋 ] ───────────────────────── [ Date Range Picker: Apr 1 - Jun 30 ▾ ]│
+│                                                                                             │
+│ [ 5 KPI Summary Cards ]: Revenue, Invoices, Receivables, Active Customers, Total Stores    │
+│                                                                                             │
+│ [ Row 2 ]: Customer Bifurcation ─── Dead Stock (90 Days) ─── Stock Valuation                │
+│            (Frames/Lenses/Both)     (Count + % Total Stock)  (Category Asset Distribution)  │
+│                                                                                             │
+│ [ Row 3 ]: Return Rate ──────────── Sales Bifurcation ────── Low Stock Alerts               │
+│            (% Products Returned)    (5 Interactive Tabs)     (Compliant / Restock Action)   │
+│                                                                                             │
+│ [ Row 4 ]: Retention Rate ────────────────────────────────── Recent Transactions            │
+│            (Repeat Customers vs Total)                       (High-Density Live Table)      │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Date Range Scoping**:
+   - Store staff select a time window using the top-right date selector (`Today`, `Yesterday`, `Last 7 Days`, `This Month`, `This Quarter`, `Last 12 Months`, `Year to Date`, `All Time`).
+   - Server Component queries parallelized live database aggregates and delivers all bifurcation slices in a single round-trip.
+2. **Instant 5-Dimension Sales Exploration**:
+   - Staff click between `By Lenses`, `By Frames`, `By Brands`, `By Gender`, and `By Age` tabs on the Sales Bifurcation card.
+   - Donut chart and legend update in `0ms` client-side with exact unit counts and percentage contributions.
+3. **Dead Stock & Stock Inward Navigation**:
+   - Clicking `View all` on the Dead Stock card opens `/shop/inventory?filter=dead-stock` to review slow-moving stock.
+   - Clicking `View stock` on Low Stock Alerts opens `/shop/inventory?filter=low-stock` for immediate stock replenishing.
+4. **Recent Transactions Inspection**:
+   - Clicking `View Customers` or `View Invoices` routes staff to `/shop/orders` for order tracking, fulfillment, and digital receipt generation.
+
+---
+
+## 10. High-Speed "Enter-as-Tab" Keyboard Form Navigation Flow
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│ Active Input    │───>│ Next Focusable  │───>│ Submit / Action │───>│ Save / Form      │
+│ [Enter]         │    │ Control (Auto-  │    │ Primary Button  │    │ Execution        │
+│                 │    │ Selected Text)  │    │ [Enter]         │    │                  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+```
+
+1. **Continuous Touch-Type Ingestion**:
+   - Staff types customer details, inventory specifications, or prescription readings and presses `Enter`.
+   - The focus instantly advances to the next logical field (`input`, `select`, `[contenteditable]`), automatically highlighting all text inside the target element so the user can immediately overwrite or accept the value without backspacing.
+2. **Reverse Navigation (`Shift+Enter`)**:
+   - Pressing `Shift+Enter` shifts focus backward to the preceding field, allowing rapid back-and-forth data verification without touching the mouse.
+3. **Multiline Textarea Context (`Ctrl+Enter` / `Cmd+Enter`)**:
+   - While entering clinical complaint notes, patient medical history, or internal remarks in `<textarea>`, pressing `Enter` creates a new line.
+   - Pressing `Ctrl+Enter` or `Cmd+Enter` advances focus to the subsequent input element.
+4. **Instant Action Execution**:
+   - When the cursor reaches the final primary action button (`[data-enter-submit="true"]` or `type="submit"`), pressing `Enter` initiates validation and executes the form submission handler seamlessly.
+

@@ -676,7 +676,6 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                         <Input
                           type="number"
                           step="0.01"
-                          placeholder={`e.g. 500 (Max ₹${balanceDueNum.toFixed(2)})`}
                           value={partialAmount}
                           onChange={(e) => setPartialAmount(e.target.value)}
                           disabled={isInvoicePending}
@@ -721,7 +720,6 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                           Payment Reference / Txn ID
                         </label>
                         <Input
-                          placeholder="e.g. UPI/12345 (optional)"
                           value={paymentReference}
                           onChange={(e) => setPaymentReference(e.target.value)}
                           disabled={isInvoicePending}
@@ -741,7 +739,7 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                             Recording Payment...
                           </>
                         ) : (
-                          "Record Payment & Generate Receipt"
+                          "Record Payment & Issue Receipt"
                         )}
                       </Button>
                     </div>
@@ -758,7 +756,6 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                           <Input
                             type="number"
                             step="0.01"
-                            placeholder="0.00"
                             value={settleAmountReceived}
                             onChange={(e) => handleSettleAmountChange(e.target.value)}
                             disabled={isInvoicePending}
@@ -773,7 +770,6 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                           <Input
                             type="number"
                             step="0.01"
-                            placeholder="0.00"
                             value={settleDiscount}
                             onChange={(e) => handleSettleDiscountChange(e.target.value)}
                             disabled={isInvoicePending}
@@ -817,7 +813,6 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                           Payment Reference / Txn ID
                         </label>
                         <Input
-                          placeholder="e.g. UPI/12345 (optional)"
                           value={paymentReference}
                           onChange={(e) => setPaymentReference(e.target.value)}
                           disabled={isInvoicePending}
@@ -873,7 +868,6 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                           Payment Reference
                         </label>
                         <Input
-                          placeholder="Enter reference ID (optional)"
                           value={paymentReference}
                           onChange={(e) => setPaymentReference(e.target.value)}
                           disabled={isInvoicePending}
@@ -1136,7 +1130,6 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
                 <input
                   type="tel"
                   required
-                  placeholder="e.g. 917416106064"
                   value={inputPhone}
                   onChange={(e) => setInputPhone(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500 focus:bg-white transition-all"

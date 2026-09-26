@@ -14,6 +14,8 @@ This document details the functional, non-functional, and compliance requirement
 - POS billing must support items from 4 categories (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`).
 - Automated GST calculation (12% / 18%) and HSN mapping (`9004` / `9001`).
 - Support for advance partial deposits (`PARTIALLY_PAID`) and tracking remaining balance in 'Pending Receivables'.
+- Standardized `Book Order` workflow: Form submission always generates an official optical **Order Form** (`/shop/receipts/[id]`) embedding the patient's optical prescription (Distance & Near SPH, CYL, AXIS, ADD, PD, Doctor, Lens Type) and immediately routes the user to the Order Form view for printing or WhatsApp delivery.
+- Dues Settlement & Dual Document Access: Partial payments register orders with pending balance, unlocking the final Tax Invoice upon full dues settlement; full payments generate both Order Form and Tax Invoice simultaneously. Both documents remain permanently linked, accessible, and toggleable in the Orders Table (`/shop/orders`).
 - Dedicated 4-stage CSV Bulk Invoices Import Wizard (`/shop/invoices/import`) supporting historical sales ingestion, external bill number preservation or series auto-generation, automatic patient profile matching/registration, and payment receipt ledger synchronization.
 - Multi-dashboard inward triggers across `/shop/customers` (`Add Bulk Invoices (CSV)`) and `/shop/orders` (`Invoices & Sales` -> `Import Invoices (CSV)`).
 
@@ -49,6 +51,32 @@ This document details the functional, non-functional, and compliance requirement
 - Offline data must be isolated strictly per `shopId` for `SHOP_MANAGER` roles using Dexie IndexedDB to prevent cross-shop data leakage, while `OWNER` accounts maintain multi-branch data caching across all physical outlets in their organization.
 - Offline invoices and all entity CRUD operations (patients, inventory, appointments, orders, returns) must be operable offline and auto-synced with idempotency upon network recovery.
 - The web app must be installable as a standalone PWA across desktop and mobile devices, caching both Shop and Owner view suites.
+
+### FR-9: High-Density Optical Store Dashboard & Multi-Dimensional Category Analytics
+- The dashboard (`/shop/dashboard`) must present a non-stretching, high-density layout designed for standard laptop screens without vertical scroll fatigue.
+- Must display 5 KPI cards (Total Revenue, Sales Invoices, Accounts Receivable, Active Customers, Total Stores) with comparative growth percentages.
+- Must feature pure SVG interactive Donut charts for Customer Bifurcation (Only Frame, Only Lens, Both Frame & Lens), Stock Valuation (Category Asset Distribution), and Return / Retention rates.
+- Must provide instant 0ms client-side switching across 5 sales dimensions: `By Lenses`, `By Frames`, `By Brands`, `By Gender`, and `By Age`.
+- Must track 90-day Dead Stock and Low Stock Alerts with direct inward links.
+- Must render a live high-density Recent Transactions ledger with item summary strings and soft status badges.
+
+### FR-10: Industrial-Grade "Enter-as-Tab" Keyboard Form Navigation
+- Seamless Enter-as-Tab progression across all data-entry forms (POS Invoices, Patient Registration & Edit, Add/Edit Frame/Lens/Contact Lens/Accessory, Purchase Inwarding, Sales Returns, Prescriptions, Orders, Appointments, Vendors).
+- Auto-selection of field text on focus advance for immediate overwriting without backspacing.
+- Safe reverse navigation on `Shift+Enter`.
+- Gated textarea multiline entry on standard `Enter` and form advance on `Ctrl+Enter` / `Cmd+Enter`.
+- Protected autocomplete popovers to prevent accidental jumps during suggestion selection.
+- Automatic form execution on submission triggers (`[data-enter-submit="true"]`, `type="submit"`).
+### FR-11: Customer GSTIN & B2B Tax Compliance
+- Customer profiles support optional 15-character uppercase GSTIN registration numbers (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$`).
+- Form support across POS Billing (`/shop/invoices/new`) and Patient Registration/Edit (`/shop/patients/new`) with strict alphanumeric uppercase input constraints.
+- Customer GSTIN is indexed for zero-latency lookups and synchronized across Dexie IndexedDB offline caching, CSV bulk customer imports, and printed Tax Invoices / Order Forms under `BILL TO`.
+
+### FR-12: Orders Table Direct Action Toolbar & Multi-Template WhatsApp Dispatcher
+- Direct 1-click icon buttons under `DOCUMENTS` (Order Form and Tax Invoice) and `ACTION` (WhatsApp and Edit) eliminating cumbersome nested dropdowns.
+- WhatsApp multi-template contextual popover supporting 5 optical message actions (Send Order Form, Send Tax Invoice, Send Clinical Eye Prescription with OD/OS powers & PD, Order Ready for Pickup, and Outstanding Payment Reminder).
+- Dedicated Shop Settings WhatsApp Customizer supporting 7 customizable message templates with clinical optometry token variables (`re_sph`, `re_cyl`, `re_axis`, `re_add`, `le_sph`, `le_cyl`, `le_axis`, `le_add`, `pd`, `doctor_name`, `order_form_url`) and live smartphone preview.
+- Low-stress, high-density industrial table styling adhering to Linear/Stripe design standards with silky hairline dividers (`divide-y divide-slate-100/80`) and soft HSL status badges.
 
 ---
 

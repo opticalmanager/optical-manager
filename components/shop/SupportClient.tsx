@@ -436,7 +436,6 @@ export default function SupportClient({ initialName = "", initialEmail = "" }: S
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Enter your name"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
@@ -448,7 +447,6 @@ export default function SupportClient({ initialName = "", initialEmail = "" }: S
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@clinic.com"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
@@ -462,7 +460,6 @@ export default function SupportClient({ initialName = "", initialEmail = "" }: S
                     required
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Brief issue title"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
@@ -490,7 +487,6 @@ export default function SupportClient({ initialName = "", initialEmail = "" }: S
                   required
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Describe your issue or request in detail..."
                   className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb] resize-none"
                 />
               </div>

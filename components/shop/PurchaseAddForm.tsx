@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BillScanDrawer } from "@/components/shop/BillScanDrawer";
 import type { ExtractedBillData } from "@/types/bill-scan";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 export interface PurchaseTableRow {
   id: string; // temporary row key
@@ -799,7 +800,10 @@ export function PurchaseAddForm({
   };
 
   return (
-    <div className="space-y-4 pb-12 select-none text-slate-800 max-w-[1440px] mx-auto">
+    <div
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="space-y-4 pb-12 select-none text-slate-800 max-w-[1440px] mx-auto"
+    >
       {/* Top Header Card (SS1 style) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -926,7 +930,6 @@ export function PurchaseAddForm({
             </label>
             <Input
               type="text"
-              placeholder="e.g. 122 or INV-9901"
               value={purchaseNumber}
               onChange={(e) => setPurchaseNumber(e.target.value)}
               className="h-10 border-slate-200/90 text-xs font-bold text-slate-800 shadow-2xs"
@@ -980,7 +983,6 @@ export function PurchaseAddForm({
                           type="text"
                           data-row={index}
                           data-col={0}
-                          placeholder="e.g. FRM001"
                           value={row.productCode}
                           onChange={(e) => handleCodeChange(index, e.target.value)}
                           onKeyDown={(e) => handleCellKeyDown(e, index, 0)}
@@ -1084,7 +1086,6 @@ export function PurchaseAddForm({
                         min={0}
                         data-row={index}
                         data-col={2}
-                        placeholder="0.00"
                         value={row.unitPrice || ""}
                         onChange={(e) =>
                           updateRow(index, {
@@ -1102,7 +1103,6 @@ export function PurchaseAddForm({
                         type="text"
                         data-row={index}
                         data-col={3}
-                        placeholder="HSN"
                         value={row.hsnCode}
                         onChange={(e) => updateRow(index, { hsnCode: e.target.value })}
                         onKeyDown={(e) => handleCellKeyDown(e, index, 3)}
@@ -1138,7 +1138,6 @@ export function PurchaseAddForm({
                         min={0}
                         data-row={index}
                         data-col={5}
-                        placeholder="0.00"
                         value={row.purchasePrice || ""}
                         onChange={(e) =>
                           updateRow(index, {
@@ -1157,7 +1156,6 @@ export function PurchaseAddForm({
                         min={1}
                         data-row={index}
                         data-col={6}
-                        placeholder="Qty"
                         value={row.quantity}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -1185,7 +1183,6 @@ export function PurchaseAddForm({
                         min={0}
                         data-row={index}
                         data-col={7}
-                        placeholder="0.00"
                         value={row.retailPrice || ""}
                         onChange={(e) =>
                           updateRow(index, {
@@ -1283,7 +1280,6 @@ export function PurchaseAddForm({
               <Input
                 type="number"
                 step="0.01"
-                placeholder="0.00"
                 value={roundOff || ""}
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
                 className="w-28 h-7 text-right text-xs font-bold border-blue-200 bg-white"
@@ -1322,6 +1318,7 @@ export function PurchaseAddForm({
 
         <Button
           type="button"
+          data-enter-submit="true"
           disabled={isPending}
           onClick={handleAddPurchase}
           className="h-10 px-6 rounded-xl bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"

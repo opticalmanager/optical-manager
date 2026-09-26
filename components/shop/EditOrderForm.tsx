@@ -9,6 +9,7 @@ import { updateFullOrderAction, deleteOrderAction } from "@/actions/order.action
 import type { OrderForEditData } from "@/services/order.service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 import {
   ArrowLeft,
   Search,
@@ -494,7 +495,7 @@ export function EditOrderForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} onKeyDown={(e) => handleEnterKeyNavigation(e)} className="space-y-6">
       {/* Soft-deleted Notification Banner */}
       {initialData.order.deletedAt && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
@@ -1195,7 +1196,7 @@ export function EditOrderForm({
                   )}
                 </div>
                 <p className="text-[10px] text-slate-500 font-semibold mt-1">
-                  Collect partial advance. Regenerates updated Payment Receipt.
+                  Collect partial advance. Regenerates updated Order Form.
                 </p>
               </button>
             </div>

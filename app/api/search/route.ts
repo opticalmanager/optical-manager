@@ -57,7 +57,8 @@ export async function GET(request: Request) {
           or(
             ilike(customers.fullName, `%${query}%`),
             ilike(customers.phone, `%${query}%`),
-            ilike(customers.registrationId, `%${query}%`)
+            ilike(customers.registrationId, `%${query}%`),
+            ilike(customers.gstin, `%${query}%`)
           )
         )
       : and(
@@ -65,7 +66,8 @@ export async function GET(request: Request) {
           or(
             ilike(customers.fullName, `%${query}%`),
             ilike(customers.phone, `%${query}%`),
-            ilike(customers.registrationId, `%${query}%`)
+            ilike(customers.registrationId, `%${query}%`),
+            ilike(customers.gstin, `%${query}%`)
           )
         );
 
@@ -82,6 +84,7 @@ export async function GET(request: Request) {
         gender: customers.gender,
         bloodGroup: customers.bloodGroup,
         referredBy: customers.referredBy,
+        gstin: customers.gstin,
         address: customers.address,
         city: customers.city,
         state: customers.state,

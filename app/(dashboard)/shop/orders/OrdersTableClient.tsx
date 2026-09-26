@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock, Search } from "lucide-react";
+import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock, Search, FileText } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { SKUDetailsDropdown } from "./SKUDetailsDropdown";
 import { QuickEditModal } from "./QuickEditModal";
+import { OrdersWhatsAppAction } from "@/components/shop/OrdersWhatsAppAction";
 import { OrderItem } from "@/services/order.service";
 import { offlineDB } from "@/lib/offline/db";
 
@@ -22,155 +23,100 @@ interface OrdersTableClientProps {
   canEditOrders?: boolean;
 }
 
-function ReceiptsDropdown({
+function OrderDocumentsAction({
   order,
   isFullyPaid,
 }: {
   order: OrderItem;
   isFullyPaid: boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [showMoreReceipts, setShowMoreReceipts] = useState(false);
   const receiptsList = order.receipts || [];
 
-  // Sort receipts chronologically (oldest first -> Receipt 1, Receipt 2)
+  // Sort receipts chronologically (oldest first -> Order Form, Receipt 2, etc.)
   const chronologicalReceipts = [...receiptsList].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
-  const latestReceipt = receiptsList[0] || null;
+  const primaryReceipt = chronologicalReceipts[0] || (order.receiptId ? { id: order.receiptId } : null);
 
-  // Primary URL for single click with offline support
+  // URLs for documents with offline support
   const invoiceTargetUrl = order.invoiceId.startsWith("off-")
     ? `/shop/invoices/offline/${order.invoiceId}`
     : `/shop/invoices/${order.invoiceId}`;
 
-  const primaryUrl = isFullyPaid
-    ? invoiceTargetUrl
-    : latestReceipt
-    ? `/shop/receipts/${latestReceipt.id}`
-    : order.receiptId
-    ? `/shop/receipts/${order.receiptId}`
-    : invoiceTargetUrl;
+  const orderFormUrl = primaryReceipt ? `/shop/receipts/${primaryReceipt.id}` : invoiceTargetUrl;
 
-  const hasDocuments = isFullyPaid || receiptsList.length > 0;
+  const extraReceipts = chronologicalReceipts.slice(1);
 
   return (
-    <div className="relative inline-flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-      {/* Primary Icon Link */}
+    <div className="relative inline-flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {/* 1. Direct Order Form Icon */}
       <Link
-        href={primaryUrl}
-        className={`p-1.5 rounded-lg flex items-center gap-1 transition-all ${
-          isFullyPaid
-            ? "text-emerald-600 hover:bg-emerald-50"
-            : "text-[#0a52c3] hover:bg-blue-50"
-        }`}
-        title={isFullyPaid ? "View Final Tax Invoice" : "View Payment Receipt"}
+        href={orderFormUrl}
+        className="h-7 w-7 rounded-lg flex items-center justify-center text-[#0a52c3] bg-blue-50/80 hover:bg-blue-100 hover:text-blue-900 border border-blue-200/60 shadow-xs transition-all hover:scale-105"
+        title="View Order Form (Rx & Booking)"
       >
-        {isFullyPaid ? (
-          <FileCheck className="h-4 w-4 shrink-0" />
-        ) : (
-          <Receipt className="h-4 w-4 shrink-0" />
-        )}
+        <Receipt className="h-3.5 w-3.5" />
       </Link>
 
-      {/* Dropdown Toggle Button (Only for partially paid orders with receipts) */}
-      {!isFullyPaid && receiptsList.length > 0 && (
+      {/* 2. Direct Tax Invoice Icon - Rendered ONLY when invoice is generated (upon full payment / settlement) */}
+      {isFullyPaid && (
+        <Link
+          href={invoiceTargetUrl}
+          className="h-7 w-7 rounded-lg flex items-center justify-center text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 hover:text-emerald-900 border border-emerald-200/60 shadow-xs transition-all hover:scale-105"
+          title="View Tax Invoice (Paid in Full)"
+        >
+          <FileCheck className="h-3.5 w-3.5" />
+        </Link>
+      )}
+
+      {/* 3. Multi-installment Receipts Trigger (if extra payment installments exist) */}
+      {extraReceipts.length > 0 && (
         <div className="relative">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setIsOpen(!isOpen);
+              setShowMoreReceipts(!showMoreReceipts);
             }}
-            className={`p-1 rounded-md transition-all cursor-pointer border ${
-              isOpen
-                ? "bg-[#0a52c3] text-white border-[#0a52c3]"
-                : "bg-slate-50 text-slate-500 hover:text-slate-900 border-slate-200 hover:bg-slate-100"
-            }`}
-            title="View invoice & payment receipts list"
+            className="h-6 px-1.5 rounded-md text-[9px] font-extrabold bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200/80 transition-all cursor-pointer"
+            title={`${extraReceipts.length} additional installment receipt(s)`}
           >
-            <ChevronDown className="h-3 w-3" />
+            +{extraReceipts.length}
           </button>
 
-          {/* Popover Menu */}
-          {isOpen && (
+          {showMoreReceipts && (
             <>
-              {/* Invisible overlay backdrop */}
               <div
                 className="fixed inset-0 z-40"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsOpen(false);
+                  setShowMoreReceipts(false);
                 }}
               />
-
               <div
-                className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl border border-slate-200/90 shadow-xl p-2.5 z-50 animate-in fade-in-50 zoom-in-95 text-left"
+                className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl border border-slate-200 shadow-xl p-2 z-50 animate-in fade-in-50 zoom-in-95 text-left"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 mb-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <Receipt className="h-3 w-3 text-[#0a52c3]" />
-                    Order Documents
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-500">
-                    {order.orderNumber}
-                  </span>
+                <div className="pb-1 border-b border-slate-100 mb-1.5 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>Installment Receipts</span>
+                  <span>{order.orderNumber}</span>
                 </div>
-
-                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
-                  {/* Tax Invoice Item (if Fully Paid) */}
-                  {isFullyPaid && (
-                    <Link
-                      href={invoiceTargetUrl}
-                      className="block p-2 rounded-lg bg-emerald-50/60 hover:bg-emerald-100/60 border border-emerald-150 transition-all group/inv"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-emerald-800 flex items-center gap-1 group-hover/inv:underline">
-                          <FileCheck className="h-3.5 w-3.5 text-emerald-600" /> Tax Invoice
-                        </span>
-                        <span className="font-extrabold text-xs text-emerald-700">
-                          {formatCurrency(parseFloat(order.total))}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[9px] font-semibold text-emerald-600/80 mt-1">
-                        <span>
-                          {new Date(order.createdAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </span>
-                        <span className="uppercase font-bold text-emerald-700">PAID IN FULL</span>
-                      </div>
-                    </Link>
-                  )}
-
-                  {/* Receipt Items (Receipt 1, Receipt 2, etc.) */}
-                  {chronologicalReceipts.map((r, idx) => (
+                <div className="space-y-1">
+                  {extraReceipts.map((r, idx) => (
                     <Link
                       key={r.id}
                       href={`/shop/receipts/${r.id}`}
-                      className="block p-2 rounded-lg bg-slate-50/70 hover:bg-blue-50/60 border border-slate-100 hover:border-blue-150 transition-all group/rcp"
+                      className="block p-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-[#0a52c3] text-xs font-semibold transition-colors"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-[#0a52c3] group-hover/rcp:underline flex items-center gap-1">
-                          <Receipt className="h-3.5 w-3.5 text-[#0a52c3]" />
-                          Receipt {idx + 1}
-                        </span>
-                        <span className="font-extrabold text-xs text-slate-900">
-                          {formatCurrency(parseFloat(r.amountPaid))}
-                        </span>
+                        <span>Receipt #{idx + 2}</span>
+                        <span className="font-extrabold">{formatCurrency(parseFloat(r.amountPaid))}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[9px] font-semibold text-slate-400 mt-1">
-                        <span>
-                          {new Date(r.createdAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </span>
-                        <span className="uppercase text-slate-500 font-bold">{r.paymentMethod}</span>
+                      <div className="text-[9px] text-slate-400 flex items-center justify-between">
+                        <span>{new Date(r.createdAt).toLocaleDateString()}</span>
+                        <span className="uppercase">{r.paymentMethod}</span>
                       </div>
                     </Link>
                   ))}
@@ -330,7 +276,7 @@ export function OrdersTableClient({
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-left border-collapse">
           <thead>
-            <tr className="text-[10px] font-bold text-slate-500 uppercase bg-[#F3F6FA] border-b border-[#E4E9F0] tracking-wider">
+            <tr className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50/70 border-b border-slate-100 tracking-wider">
               <th className="px-4 py-2.5">Order ID</th>
               <th className="px-4 py-2.5">Customer</th>
               <th className="px-4 py-2.5">Date</th>
@@ -338,11 +284,11 @@ export function OrdersTableClient({
               <th className="px-4 py-2.5">Amount</th>
               <th className="px-4 py-2.5 text-center">Payment Status</th>
               <th className="px-4 py-2.5 text-center">Delivery Status</th>
-              <th className="px-4 py-2.5 text-center">Invoice / Receipts</th>
+              <th className="px-4 py-2.5 text-center">Documents</th>
               <th className="px-4 py-2.5 text-center">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E4E9F0] bg-white">
+          <tbody className="divide-y divide-slate-100/80 bg-white">
             {ordersList.length > 0 ? (
               ordersList.map((order) => {
                 const itemsCount = order.skus.reduce((sum, s) => sum + s.quantity, 0);
@@ -357,10 +303,10 @@ export function OrdersTableClient({
                   <tr
                     key={order.id}
                     onClick={() => handleRowClick(order)}
-                    className="group hover:bg-[#F8FAFC] transition-colors align-middle cursor-pointer"
+                    className="group hover:bg-slate-50/60 transition-colors align-middle cursor-pointer"
                   >
                     {/* Order ID */}
-                    <td className="px-4 py-2.5 font-bold text-slate-900 text-xs">
+                    <td className="px-4 py-2.5 font-bold text-slate-800 text-xs group-hover:text-[#0a52c3] transition-colors">
                       {order.orderNumber}
                     </td>
 
@@ -368,14 +314,14 @@ export function OrdersTableClient({
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2.5">
                         {/* Circle Avatar badge */}
-                        <div className="h-7 w-7 rounded-full bg-blue-100 text-[#2563eb] flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
+                        <div className="h-7 w-7 rounded-full bg-blue-50 text-[#0a52c3] border border-blue-100 flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
                           {order.customerName.substring(0, 2)}
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs leading-tight">
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 text-xs leading-tight truncate">
                             {order.customerName}
                           </p>
-                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5 truncate">
                             {order.categoryText}
                           </p>
                         </div>
@@ -383,7 +329,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Date */}
-                    <td className="px-4 py-2.5 font-semibold text-slate-600 text-xs">
+                    <td className="px-4 py-2.5 font-medium text-slate-500 text-xs">
                       {new Date(order.createdAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -406,12 +352,12 @@ export function OrdersTableClient({
 
                     {/* Payment Status */}
                     <td className="px-4 py-2.5 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                         isFullyPaid
-                          ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                           : parseFloat(order.amountPaid) > 0
-                          ? "bg-amber-50 text-amber-600 border-amber-100"
-                          : "bg-rose-50 text-rose-600 border-rose-100"
+                          ? "bg-amber-50 text-amber-700 border-amber-200/60"
+                          : "bg-rose-50 text-rose-700 border-rose-200/60"
                       }`}>
                         {isFullyPaid ? "PAID" : "PARTIALLY PAID"}
                       </span>
@@ -419,53 +365,57 @@ export function OrdersTableClient({
 
                     {/* Delivery Status */}
                     <td className="px-4 py-2.5 text-center space-y-0.5">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                         order.fulfillmentStatus === "DELIVERED"
-                          ? "bg-slate-100 text-slate-600 border-slate-200"
+                          ? "bg-slate-50 text-slate-600 border-slate-200/70"
                           : order.isRescheduled
-                          ? "bg-amber-50 text-amber-600 border-amber-100"
-                          : "bg-blue-50 text-[#2563eb] border-blue-100"
+                          ? "bg-amber-50 text-amber-700 border-amber-200/60"
+                          : "bg-blue-50 text-[#0a52c3] border-blue-200/60"
                       }`}>
                         {order.fulfillmentStatus === "DELIVERED"
                           ? "DELIVERED"
                           : order.fulfillmentStatus === "PROCESSING"
-                          ? (order.isRescheduled ? "In Processing (Delayed)" : "UNDER PROCESSING")
+                          ? (order.isRescheduled ? "Processing (Delayed)" : "PROCESSING")
                           : order.fulfillmentStatus.replace("_", " ")}
                       </span>
                       {isDelayed && (
                         <div className="block">
-                          <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase bg-rose-50 text-rose-600 border border-rose-100">
+                          <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase bg-rose-50 text-rose-600 border border-rose-200/60">
                             DELAYED
                           </span>
                         </div>
                       )}
                     </td>
 
-                    {/* Invoice/Receipt Download/Print link with Dropdown */}
+                    {/* Documents: Direct Order Form & Tax Invoice Icons */}
                     <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                      <ReceiptsDropdown order={order} isFullyPaid={isFullyPaid} />
+                      <OrderDocumentsAction order={order} isFullyPaid={isFullyPaid} />
                     </td>
 
-                    {/* Order Edit Action Button */}
+                    {/* Action: Direct WhatsApp & Edit Icons */}
                     <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                      {canEditOrders ? (
-                        <Link
-                          href={`/shop/orders/${order.id}/edit`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 hover:text-amber-900 border border-amber-200/90 rounded-lg transition-all shadow-xs hover:scale-[1.02] active:scale-[0.98]"
-                          title="Edit Order, Products & Billing"
-                        >
-                          <Pencil className="h-3 w-3 text-amber-600" />
-                          <span>Edit</span>
-                        </Link>
-                      ) : (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-slate-350 bg-slate-50 border border-slate-200/60 rounded-md cursor-not-allowed select-none"
-                          title="Permission required to edit orders"
-                        >
-                          <Lock className="h-2.5 w-2.5 text-slate-350" />
-                          <span>Locked</span>
-                        </span>
-                      )}
+                      <div className="inline-flex items-center justify-center gap-1.5">
+                        {/* WhatsApp Multi-Message Popover Trigger */}
+                        <OrdersWhatsAppAction order={order} />
+
+                        {/* Quick Edit Icon */}
+                        {canEditOrders ? (
+                          <Link
+                            href={`/shop/orders/${order.id}/edit`}
+                            className="h-7 w-7 rounded-lg flex items-center justify-center text-amber-700 bg-amber-50/80 hover:bg-amber-100 hover:text-amber-900 border border-amber-200/70 shadow-xs transition-all hover:scale-105"
+                            title="Edit Order, Products & Billing"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Link>
+                        ) : (
+                          <span
+                            className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-350 bg-slate-50 border border-slate-200/60 cursor-not-allowed select-none"
+                            title="Permission required to edit orders"
+                          >
+                            <Lock className="h-3 w-3" />
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

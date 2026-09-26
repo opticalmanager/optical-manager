@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { CategoryItem } from "@/services/category.service";
 import { InventoryAddCategoryTabs } from "@/components/shop/InventoryAddCategoryTabs";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface AddAccessoryItemFormProps {
   shopId: string;
@@ -250,7 +251,11 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-slate-800">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="space-y-6 text-slate-800"
+    >
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -358,7 +363,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                   </div>
                   <Input
                     type="text"
-                    placeholder="e.g., ACC-CASE-01"
                     className={`h-11 font-mono font-medium uppercase ${
                       isCodeDuplicate 
                         ? "border-rose-500 focus-visible:ring-rose-200 bg-rose-50/20" 
@@ -380,7 +384,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Bausch & Lomb Renu Multi-purpose Solution"
                     className="h-11 border-slate-200 bg-white"
                     {...register("productName")}
                   />
@@ -412,7 +415,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., Bausch + Lomb, Generic"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -441,7 +443,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                       </label>
                       <Input
                         type="text"
-                        placeholder="e.g., Led Clip Light, Nosepad Plier"
                         className="h-10 border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-semibold"
                         {...register("customType")}
                       />
@@ -455,7 +456,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., 120ml, 60ml, Standard Size"
                     className="h-11 border-slate-200"
                     {...register("sizeVolume")}
                   />
@@ -468,7 +468,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g., Matte Black, Floral Print"
                   className="h-11 border-slate-200"
                   {...register("colorPattern")}
                 />
@@ -499,7 +498,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("costPrice")}
                     />
@@ -515,7 +513,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("price")}
                     />
@@ -594,7 +591,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter supplier or vendor name"
                     className="h-11 border-slate-200"
                     {...register("vendorName")}
                   />
@@ -606,7 +602,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. A1-R4-B2"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -670,7 +665,6 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g., PI-2024-001"
                   className="h-11 border-slate-200"
                   {...register("purchaseInvoiceNo")}
                 />
@@ -728,9 +722,8 @@ export function AddAccessoryItemForm({ shopId, categoryDefaults, categories }: A
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
-                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
+                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400" : "border-slate-200"}`}
                   {...register("batchNumber")}
                 />
               </div>

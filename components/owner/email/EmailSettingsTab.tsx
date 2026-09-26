@@ -142,7 +142,6 @@ export function EmailSettingsTab({ emailConfig, shops, onDisconnect }: EmailSett
                         rows={3}
                         value={signatureText}
                         onChange={(e) => setSignatureText(e.target.value)}
-                        placeholder="e.g. Vision Care Optics • Narsapur Branch • Phone: +91 98765 43210"
                         className="w-full text-xs p-2 border border-slate-200 bg-white rounded-md outline-none font-sans"
                       />
                       <button

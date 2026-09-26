@@ -107,7 +107,6 @@ export default function DemoRequestModal({ isOpen, onClose }: DemoRequestModalPr
                     required
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
-                    placeholder="e.g. Sarita Vihar Optics"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
@@ -122,7 +121,6 @@ export default function DemoRequestModal({ isOpen, onClose }: DemoRequestModalPr
                     required
                     value={ownerName}
                     onChange={(e) => setOwnerName(e.target.value)}
-                    placeholder="Your Full Name"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
@@ -139,7 +137,6 @@ export default function DemoRequestModal({ isOpen, onClose }: DemoRequestModalPr
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 98765 43210"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
@@ -154,7 +151,6 @@ export default function DemoRequestModal({ isOpen, onClose }: DemoRequestModalPr
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="owner@store.com"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
@@ -169,7 +165,6 @@ export default function DemoRequestModal({ isOpen, onClose }: DemoRequestModalPr
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="New Delhi, Delhi"
                   className="w-full pl-9 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2563eb]"
                 />
               </div>

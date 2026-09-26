@@ -369,7 +369,6 @@ export function AppointmentPageBuilder({
                 <input
                   type="text"
                   autoFocus
-                  placeholder="e.g. Eyewear Repair & Adjustment"
                   value={newOptionText}
                   onChange={(e) => setNewOptionText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddPurposeOption()}
@@ -558,7 +557,6 @@ export function AppointmentPageBuilder({
                       <input
                         disabled
                         type="text"
-                        placeholder="Enter your full name"
                         className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-medium bg-white text-slate-400"
                       />
                     </div>
@@ -575,7 +573,6 @@ export function AppointmentPageBuilder({
                       <input
                         disabled
                         type="tel"
-                        placeholder="Enter your phone number"
                         className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-medium bg-white text-slate-400"
                       />
                     </div>
@@ -592,7 +589,6 @@ export function AppointmentPageBuilder({
                       <input
                         disabled
                         type="text"
-                        placeholder="Select date and time"
                         className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-medium bg-white text-slate-400"
                       />
                       <Calendar className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
@@ -652,7 +648,6 @@ export function AppointmentPageBuilder({
                     <textarea
                       disabled
                       rows={3}
-                      placeholder="Enter any specific requests or notes for your visit..."
                       className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-medium bg-white text-slate-400 resize-none"
                     ></textarea>
                   </div>

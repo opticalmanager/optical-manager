@@ -7,6 +7,7 @@ import { createShopAppointmentAction } from "@/actions/appointment.actions";
 import { offlineDB } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { useOffline } from "@/components/providers/OfflineProvider";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
@@ -247,7 +248,7 @@ export function NewAppointmentModal({ isOpen, initialDate, onClose, onSuccess }:
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} onKeyDown={(e) => handleEnterKeyNavigation(e)} className="p-6 space-y-4">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-100 text-xs font-bold text-rose-600">
               {errorMsg}

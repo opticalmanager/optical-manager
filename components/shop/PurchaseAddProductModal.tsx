@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LensPowerMatrix } from "./LensPowerMatrix";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 export interface ProductModalData {
   inventoryId?: string | null;
@@ -824,6 +825,7 @@ export function PurchaseAddProductModal({
         <form
           id="purchase-product-modal-form"
           onSubmit={handleSubmit}
+          onKeyDown={(e) => handleEnterKeyNavigation(e)}
           className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs"
         >
           {/* Card 1: Essential Identification */}
@@ -843,7 +845,6 @@ export function PurchaseAddProductModal({
                   <Input
                     type="text"
                     required
-                    placeholder="e.g. RB-2132 or vendor catalog code"
                     value={productCode}
                     onChange={(e) => setProductCode(e.target.value.toUpperCase())}
                     className={`h-8 border-slate-200 font-mono text-xs ${
@@ -879,7 +880,6 @@ export function PurchaseAddProductModal({
                 <Input
                   type="text"
                   required
-                  placeholder="e.g. Ray-Ban Wayfarer Classic"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="h-8 border-slate-200 text-xs font-semibold text-slate-800"
@@ -893,7 +893,6 @@ export function PurchaseAddProductModal({
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g. Ray-Ban, Essilor"
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
                   className="h-8 border-slate-200 text-xs"
@@ -976,7 +975,6 @@ export function PurchaseAddProductModal({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Matte Black"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
                     className="h-8 border-slate-200 text-xs"
@@ -990,7 +988,6 @@ export function PurchaseAddProductModal({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 52-18-140"
                     value={size}
                     onChange={(e) => setSize(e.target.value)}
                     className="h-8 border-slate-200 text-xs"
@@ -1081,7 +1078,6 @@ export function PurchaseAddProductModal({
                     </label>
                     <Input
                       type="text"
-                      placeholder="e.g. -2.00 / -0.50"
                       value={stockPower}
                       onChange={(e) => setStockPower(e.target.value)}
                       className="h-8 border-slate-200 text-xs"
@@ -1159,14 +1155,12 @@ export function PurchaseAddProductModal({
                   <div className="flex items-center gap-1.5">
                     <Input
                       type="text"
-                      placeholder="BC 8.6"
                       value={baseCurve}
                       onChange={(e) => setBaseCurve(e.target.value)}
                       className="h-8 border-slate-200 text-xs w-1/2"
                     />
                     <Input
                       type="text"
-                      placeholder="DIA 14.2"
                       value={diameter}
                       onChange={(e) => setDiameter(e.target.value)}
                       className="h-8 border-slate-200 text-xs w-1/2"
@@ -1181,7 +1175,6 @@ export function PurchaseAddProductModal({
                   </label>
                   <Input
                     type="text"
-                    placeholder="Clear / Tint"
                     value={contactColor}
                     onChange={(e) => setContactColor(e.target.value)}
                     className="h-8 border-slate-200 text-xs"
@@ -1195,7 +1188,6 @@ export function PurchaseAddProductModal({
                   </label>
                   <Input
                     type="text"
-                    placeholder="-2.50"
                     value={sphere}
                     onChange={(e) => setSphere(e.target.value)}
                     className="h-8 border-slate-200 text-xs"
@@ -1234,7 +1226,6 @@ export function PurchaseAddProductModal({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 60ml, Standard, 15x15 cm"
                     value={sizeVolume}
                     onChange={(e) => setSizeVolume(e.target.value)}
                     className="h-8 border-slate-200 text-xs"
@@ -1264,7 +1255,6 @@ export function PurchaseAddProductModal({
                 </label>
                 <Input
                   type="text"
-                  placeholder="90049000"
                   value={hsnCode}
                   onChange={(e) => setHsnCode(e.target.value)}
                   className="h-8 border-slate-200 text-xs font-mono bg-white"
@@ -1293,7 +1283,6 @@ export function PurchaseAddProductModal({
                 <Input
                   type="number"
                   step="0.01"
-                  placeholder="0.00"
                   value={purchaseRs || ""}
                   onChange={(e) =>
                     setPurchaseRs(Math.max(0, parseFloat(e.target.value) || 0))
@@ -1326,7 +1315,6 @@ export function PurchaseAddProductModal({
                 <Input
                   type="number"
                   step="0.01"
-                  placeholder="0.00"
                   value={retailPrice || ""}
                   onChange={(e) =>
                     setRetailPrice(Math.max(0, parseFloat(e.target.value) || 0))

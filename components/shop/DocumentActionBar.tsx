@@ -54,7 +54,7 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!";
 
     const defaultReceiptTemplate =
-      "Dear {{customer_name}},\n\nThank you for your payment at {{shop_name}}! Here is your payment receipt {{receipt_number}}.\n\n*Receipt Summary:*\n• Receipt Slip #: {{receipt_number}}\n• Amount Received: {{amount_paid}}\n• Remaining Balance: {{balance_due}}\n• Payment Mode: {{payment_method}}\n\nView and download your digital receipt & bill here: {{invoice_url}}\n\nThank you for visiting!";
+      "Dear {{customer_name}},\n\nThank you for placing your order at {{shop_name}}! Here is your optical Order Form {{receipt_number}}.\n\n*Order Summary:*\n• Order Form #: {{receipt_number}}\n• Amount Paid: {{amount_paid}}\n• Remaining Balance: {{balance_due}}\n• Payment Mode: {{payment_method}}\n• Est. Delivery: {{estimated_delivery}}\n\nView and download your Order Form & prescription details here: {{invoice_url}}\n\nThank you for visiting!";
 
     const templateText = templateConfig?.template || (isInvoice ? defaultInvoiceTemplate : defaultReceiptTemplate);
 
@@ -159,10 +159,10 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
     <div className="flex flex-wrap gap-3.5 print:hidden mb-6 items-center">
       <Button
         variant="outline"
-        onClick={() => router.push("/shop/invoices")}
+        onClick={() => router.push(isInvoice ? "/shop/invoices" : "/shop/orders")}
         className="h-11 px-5 font-bold text-slate-700 hover:bg-slate-50 border-slate-200 rounded-xl flex items-center gap-2 cursor-pointer bg-white"
       >
-        <ArrowLeft className="h-4 w-4 text-slate-500" /> Back to Invoices
+        <ArrowLeft className="h-4 w-4 text-slate-500" /> {isInvoice ? "Back to Invoices" : "Back to Orders"}
       </Button>
 
       <Button
@@ -173,7 +173,7 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
             : "bg-[#0a52c3] hover:bg-[#004bb5] shadow-[#0a52c3]/10 hover:shadow-[#0a52c3]/20"
         }`}
       >
-        <Printer className="h-4 w-4" /> Print {documentType}
+        <Printer className="h-4 w-4" /> Print {isInvoice ? "Invoice" : "Order Form"}
       </Button>
 
       {data && (
@@ -233,7 +233,6 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
                   <input
                     type="tel"
                     required
-                    placeholder="e.g. 917416106064"
                     value={inputPhone}
                     onChange={(e) => setInputPhone(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500 focus:bg-white transition-all"

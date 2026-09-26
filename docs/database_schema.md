@@ -235,7 +235,17 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 | `dateOfBirth` | `date` | NULLABLE | Patient date of birth |
 | `gender` | `gender` | NULLABLE | Patient gender |
 | `bloodGroup` | `blood_group` | NULLABLE | Patient blood group |
+| `referredBy` | `varchar(255)` | NULLABLE | Referring doctor or contact |
+| `gstin` | `varchar(20)` | NULLABLE, INDEXED | 15-character customer GSTIN tax number |
+| `address` | `text` | NULLABLE | Street address |
+| `city` | `varchar(100)` | NULLABLE | City / Town |
+| `state` | `varchar(100)` | NULLABLE | State / Province |
+| `pincode` | `varchar(20)` | NULLABLE | 6-digit postal code |
 | `storeCredit` | `decimal(10,2)` | NOT NULL, DEFAULT 0.00, INDEXED | Accumulated store credit balance |
+| `chiefComplaint` | `text` | NULLABLE | Clinical chief eye complaints |
+| `familyHistory` | `text` | NULLABLE | Ocular/medical family history |
+| `systemicIllness` | `text` | NULLABLE | Hypertension, diabetes, etc. |
+| `allergies` | `text` | NULLABLE | Known drug/material allergies |
 | `notes` | `text` | NULLABLE | Clinical & general customer remarks |
 | `createdAt` | `timestamp` | NOT NULL, defaultNow() | Patient registration timestamp |
 | `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last profile modification timestamp |

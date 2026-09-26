@@ -26,6 +26,7 @@ import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface EditFrameItemFormProps {
   initialData: any;
@@ -220,7 +221,11 @@ export function EditFrameItemForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="space-y-6"
+    >
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -355,7 +360,6 @@ export function EditFrameItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Ray-Ban"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -369,7 +373,6 @@ export function EditFrameItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. RX5154"
                     className="h-11 border-slate-200"
                     {...register("modelNumber")}
                   />
@@ -381,7 +384,6 @@ export function EditFrameItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 2000"
                     className="h-11 border-slate-200"
                     {...register("colorCode")}
                   />
@@ -393,7 +395,6 @@ export function EditFrameItemForm({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. 52-18-140"
                     className="h-11 border-slate-200"
                     {...register("size")}
                   />

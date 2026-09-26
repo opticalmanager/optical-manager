@@ -214,9 +214,8 @@ export function EmailPortalClient({
                   type="email"
                   value={emailAddress}
                   onChange={(e) => setEmailAddress(e.target.value)}
-                  placeholder="e.g. yourstore@gmail.com"
                   required
-                  className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] font-medium text-slate-800 transition-all placeholder:text-slate-400"
+                  className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] font-medium text-slate-800 transition-all"
                 />
               </div>
 
@@ -228,10 +227,9 @@ export function EmailPortalClient({
                   type="password"
                   value={appPassword}
                   onChange={(e) => setAppPassword(e.target.value)}
-                  placeholder="e.g. abcd efgh ijkl mnop"
                   required
                   maxLength={20}
-                  className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] font-mono text-slate-800 tracking-wider transition-all placeholder:text-slate-400 placeholder:font-sans"
+                  className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] font-mono text-slate-800 tracking-wider transition-all"
                 />
                 <p className="text-[10px] text-slate-400 font-medium">Your credentials will be encrypted with AES-256 before storing.</p>
               </div>
@@ -244,8 +242,7 @@ export function EmailPortalClient({
                   type="text"
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
-                  placeholder={organization?.name || "e.g. Vision Care Optics"}
-                  className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] font-medium text-slate-800 transition-all placeholder:text-slate-400"
+                  className="w-full border border-slate-200 bg-white px-3 py-2 text-xs rounded-lg outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] font-medium text-slate-800 transition-all"
                 />
                 <p className="text-[10px] text-slate-400 font-medium">Patients see: "[Shop Name] via {senderName || organization?.name || 'Optical Manager'}"</p>
               </div>

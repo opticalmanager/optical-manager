@@ -398,7 +398,6 @@ export function DocumentSeriesSettings({
                     type="text"
                     value={invConfig.prefix}
                     onChange={(e) => handlePrefixChange(e.target.value, setInvConfig)}
-                    placeholder="e.g. INV or OM"
                     maxLength={8}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                   />
@@ -455,7 +454,6 @@ export function DocumentSeriesSettings({
                   value={invConfig.nextNumber ?? ""}
                   onChange={(e) => handleNumericInput(e.target.value, "nextNumber", setInvConfig)}
                   onBlur={() => handleNumericBlur("nextNumber", setInvConfig, 1)}
-                  placeholder="e.g. 1051"
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 />
                 <p className="text-[10px] text-slate-400">Continue directly from past software</p>
@@ -492,7 +490,6 @@ export function DocumentSeriesSettings({
                       suffix: e.target.value.toUpperCase().replace(/[^A-Z0-9\-_/]/g, ""),
                     }))
                   }
-                  placeholder="e.g. /RET or -A"
                   maxLength={6}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 />
@@ -574,7 +571,6 @@ export function DocumentSeriesSettings({
                   type="text"
                   value={custConfig.prefix}
                   onChange={(e) => handlePrefixChange(e.target.value, setCustConfig)}
-                  placeholder="e.g. OP or PAT or CUST"
                   maxLength={8}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 />
@@ -630,7 +626,6 @@ export function DocumentSeriesSettings({
                   value={custConfig.nextNumber ?? ""}
                   onChange={(e) => handleNumericInput(e.target.value, "nextNumber", setCustConfig)}
                   onBlur={() => handleNumericBlur("nextNumber", setCustConfig, 1)}
-                  placeholder="e.g. 5001"
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 />
                 <p className="text-[10px] text-slate-400">Continue your patient registration counter</p>
@@ -667,7 +662,6 @@ export function DocumentSeriesSettings({
                       suffix: e.target.value.toUpperCase().replace(/[^A-Z0-9\-_/]/g, ""),
                     }))
                   }
-                  placeholder="e.g. /P or -VIP"
                   maxLength={6}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 />
@@ -746,7 +740,6 @@ export function DocumentSeriesSettings({
                       type="text"
                       value={ordConfig.prefix}
                       onChange={(e) => handlePrefixChange(e.target.value, setOrdConfig)}
-                      placeholder="e.g. ORD or JOB"
                       maxLength={8}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600"
                     />
@@ -802,7 +795,6 @@ export function DocumentSeriesSettings({
                       value={ordConfig.nextNumber ?? ""}
                       onChange={(e) => handleNumericInput(e.target.value, "nextNumber", setOrdConfig)}
                       onBlur={() => handleNumericBlur("nextNumber", setOrdConfig, 1)}
-                      placeholder="e.g. 501"
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600"
                     />
                     <p className="text-[10px] text-slate-400">Order serial start</p>
@@ -838,7 +830,6 @@ export function DocumentSeriesSettings({
                           suffix: e.target.value.toUpperCase().replace(/[^A-Z0-9\-_/]/g, ""),
                         }))
                       }
-                      placeholder="e.g. -LAB"
                       maxLength={6}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600"
                     />

@@ -36,7 +36,18 @@
 - **Cross-Printer Output**: Supports both single continuous thermal roll printers and multi-grid A4/A5 sheet printing with zero layout reflows.
 
 ### 4. POS Billing, Eye Prescriptions & Dues Management
-- **Single-Screen High-Density POS Billing (`/shop/invoices/new`)**: Ultra-compact SaaS interface engineered for laptop viewport fit without vertical fatigue. Features a minimal inline header, compact `h-8` form controls, real-time customer search with 0ms local hydration, and streamlined bottom action placement (`[ Save Draft ]` and `[ Create Invoice ]` / `[ Generate Receipt ]`).
+- **Single-Screen High-Density POS Billing (`/shop/invoices/new`)**: Ultra-compact SaaS interface engineered for laptop viewport fit without vertical fatigue. Features a minimal inline header, compact `h-8` form controls, real-time customer search with 0ms local hydration, and streamlined bottom action placement (`[ Save Draft ]` and `[ Book Order ]`).
+- **Standardized Order Booking & Order Form Workflow**: Clicking `Book Order` always generates an official optical **Order Form** (`/shop/receipts/[id]`) that embeds the patient's optical prescription (Distance & Near SPH, CYL, AXIS, ADD, PD, Doctor, Lens Type) and routes immediately to the Order Form view with top action buttons (Print Order Form, Back to Orders, Send on WhatsApp). In partial payment scenarios, the order remains pending dues and unlocks the final Tax Invoice upon full settlement; in full payment scenarios, both the Order Form and final Tax Invoice are generated simultaneously, with dual document access cleanly maintained in the Orders Table (`/shop/orders`).
+- **Orders Table Direct Action Toolbar & Low-Stress Industrial UI**: The Orders Table (`/shop/orders`) features silky hairline dividers (`divide-y divide-slate-100/80`), subtle headers, and a zero-dropdown direct action toolbar:
+  - **Direct Documents Access (`DOCUMENTS`)**: Side-by-side 1-click icon buttons for **Order Form** (blue `Receipt` icon) and **Tax Invoice** (emerald `FileCheck` icon, with dues alert indicator if unpaid), plus a subtle `+N` badge for multi-installment receipts.
+  - **Direct Actions (`ACTION`)**: Side-by-side 1-click icon buttons for **WhatsApp** (emerald brand icon) and **Edit** (amber `Pencil` icon).
+- **Interactive Multi-Template WhatsApp Dispatcher**: Clicking the WhatsApp icon on any order row presents a high-density popover card offering 5 dedicated optical message dispatches:
+  - 📋 *Send Order Form*: Booking confirmation with amounts paid, remaining balance, and digital Order Form link.
+  - 🧾 *Send Tax Invoice*: Digital bill PDF link with payment settlement status.
+  - 👁️ *Send Eye Prescription*: Clinical optometry refraction details (OD/OS sphere, cylinder, axis, add, vision, PD, doctor).
+  - 📦 *Ready for Pickup*: Alerting that spectacles/lenses are ready in-store.
+  - 💰 *Payment Reminder*: Highlighted dues notification when `balanceDue > 0` with payment link.
+  - *Shop Settings Customizer*: 7 customizable WhatsApp templates (`order_form_sent`, `invoice_sent`, `prescription_sent`, `payment_reminder`, `order_complete`, `delivery_sent`, `delivery_delay`) with optometry variable insertion chips (`{{re_sph}}`, `{{le_sph}}`, `{{pd}}`, `{{doctor_name}}`, `{{order_form_url}}`) and live smartphone preview.
 - **GST Billing Engine & Dual Editable Taxes**: Automated CGST/SGST/IGST tax calculation (12% for spectacles/lenses, 18% for solutions), HSN code mapping, dual discounts (% & ₹), bi-directional editable CGST/SGST/IGST (₹ amount and % percentage inputs per item row), and salesperson attribution ("Sold By").
 - **Zero-Latency Product Search & Autocomplete**: Instant search querying product name, code, SKU, brand, and model across IndexedDB (0ms) and cloud API with un-clipped suggestion dropdowns and live stock counts.
 - **Clinical Eye Prescriptions & Smart Industrial Refraction**: Pixel-perfect clinical prescription card format featuring 8-column high-density layout (`EYE / TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`), category tabs (`Spect(s) Rx`, `CL Rx`, `Distance`, `Near`), auto-generated Rx numbering (`Rx #PR-XXXX`), highlighted ADD diopter columns, smart optometry datalists (0.25D steps, Snellen V/N, Monocular PD 25-40mm), bilateral ADD auto-sync, monocular PD auto-split, doctor attribution, and automated zero-latency syncing upon invoice/patient creation.
@@ -129,4 +140,11 @@ Optical Manager features a production-grade, zero-latency, high-density **Optica
 - **Dynamic Date Range Controls**: Sticky top-right date selector with presets (`Today`, `Yesterday`, `Last 7 Days`, `This Month`, `This Quarter`, `Last 12 Months`, `Year to Date`, `All Time`).
 - **Zero Mock Data & 100% Live Aggregations**: All numbers, slices, and tables query Neon PostgreSQL tables (`invoices`, `invoice_items`, `customers`, `inventory`, `sales_returns`, `stock_movements`, `shops`) via Drizzle ORM in parallel.
 
+---
 
+## 7. Industrial-Grade "Enter-as-Tab" Keyboard Form Navigation Architecture
+- **Zero-Latency Keyboard Progression**: Built for rapid touch typing during billing, inventory ingestion, purchase inwarding, and clinical refraction entry. Pressing `Enter` in any field instantly shifts focus to the next logical interactive control while automatically highlighting/selecting text for quick overwriting.
+- **Bi-Directional Support (`Shift+Enter`)**: Pressing `Shift+Enter` shifts focus backward to the previous active field.
+- **Multiline Textarea Protection**: Native `<textarea>` elements preserve multi-line typing on standard `Enter` (useful for medical history and notes) while supporting `Ctrl+Enter` or `Cmd+Enter` to advance navigation.
+- **Smart Autocomplete Gating**: When dropdown lists or search suggestion popovers are active, `Enter` selects the highlighted item without erroneously advancing the form.
+- **Universal Production Coverage**: Integrated across all core store workflows including `NewInvoiceForm`, `PatientRegistrationForm`, `Add/EditFrameItemForm`, `Add/EditLensItemForm`, `Add/EditContactLensItemForm`, `Add/EditAccessoryItemForm`, `AddGeneralItemForm`, `PurchaseAddForm`, `PurchaseAddProductModal`, `NewReturnForm`, `AddPrescriptionModal`, `EditOrderForm`, `NewAppointmentModal`, and `PurchaseVendorCombobox`.

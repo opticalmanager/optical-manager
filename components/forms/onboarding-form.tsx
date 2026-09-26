@@ -64,7 +64,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     defaultValue={defaultOrgName} 
                     required 
                     className="pl-9"
-                    placeholder="E.g. Vision Care Inc."
                   />
                 </div>
               </div>
@@ -78,7 +77,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     name="orgEmail" 
                     type="email" 
                     className="pl-9"
-                    placeholder="contact@visioncare.com"
                   />
                 </div>
               </div>
@@ -92,7 +90,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     name="orgPhone" 
                     type="tel" 
                     className="pl-9"
-                    placeholder="+1 (555) 000-0000"
                   />
                 </div>
               </div>
@@ -105,7 +102,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     id="orgAddress" 
                     name="orgAddress" 
                     className="pl-9"
-                    placeholder="123 Main St, City"
                   />
                 </div>
               </div>
@@ -129,7 +125,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     name="shopName" 
                     required 
                     className="pl-9"
-                    placeholder="E.g. Downtown Branch"
                   />
                 </div>
               </div>
@@ -143,7 +138,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     name="shopEmail" 
                     type="email" 
                     className="pl-9"
-                    placeholder="downtown@visioncare.com"
                   />
                 </div>
               </div>
@@ -157,7 +151,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     name="shopPhone" 
                     type="tel" 
                     className="pl-9"
-                    placeholder="+1 (555) 111-1111"
                   />
                 </div>
               </div>
@@ -170,7 +163,6 @@ export function OnboardingForm({ defaultOrgName }: { defaultOrgName: string }) {
                     id="shopAddress" 
                     name="shopAddress" 
                     className="pl-9"
-                    placeholder="456 Market St, City"
                   />
                 </div>
               </div>

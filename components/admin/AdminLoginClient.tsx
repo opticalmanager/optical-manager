@@ -113,8 +113,7 @@ export default function AdminLoginClient() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="gauravtiwari8178@gmail.com"
-                className="w-full pl-10 pr-4 py-2.5 bg-[#070b13] border border-slate-800 rounded-xl text-xs font-medium text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-[#070b13] border border-slate-800 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
               />
             </div>
           </div>
@@ -131,8 +130,7 @@ export default function AdminLoginClient() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••••••"
-                className="w-full pl-10 pr-10 py-2.5 bg-[#070b13] border border-slate-800 rounded-xl text-xs font-medium text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                className="w-full pl-10 pr-10 py-2.5 bg-[#070b13] border border-slate-800 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
               />
               <button
                 type="button"

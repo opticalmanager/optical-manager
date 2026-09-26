@@ -9,6 +9,7 @@ import { X, Eye, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { offlineDB } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface AddPrescriptionModalProps {
   isOpen: boolean;
@@ -217,7 +218,11 @@ export function AddPrescriptionModal({
         </div>
 
         {/* Modal Form Content */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 space-y-4 flex-1 text-xs">
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => handleEnterKeyNavigation(e)}
+          className="overflow-y-auto p-4 space-y-4 flex-1 text-xs"
+        >
           <ClinicalPrescriptionCard
             values={rxValues}
             onChange={(updated) => setRxValues(updated)}

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { ClinicalAutocompleteInput } from "@/components/ui/ClinicalAutocompleteInput";
 import { ClinicalPrescriptionCard } from "./ClinicalPrescriptionCard";
 import { useOffline } from "@/components/providers/OfflineProvider";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 import {
   searchCustomersOffline,
   searchInventoryOffline,
@@ -228,6 +229,7 @@ export function NewInvoiceForm() {
   };
   const [gender, setGender] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
+  const [gstin, setGstin] = useState("");
   const [referredBy, setReferredBy] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -601,6 +603,7 @@ export function NewInvoiceForm() {
       setGender(targetPatient.gender || "");
       setBloodGroup(targetPatient.bloodGroup || "");
       setReferredBy(targetPatient.referredBy || "");
+      setGstin(targetPatient.gstin || "");
       setAddress(targetPatient.address || "");
       setCity(targetPatient.city || "");
       setState(targetPatient.state || "");
@@ -656,6 +659,7 @@ export function NewInvoiceForm() {
         if (customer.city) setCity(customer.city);
         if (customer.state) setState(customer.state);
         if (customer.pincode) setPincode(customer.pincode);
+        if (customer.gstin) setGstin(customer.gstin);
         if (customer.registrationId) setRegId(customer.registrationId);
 
         // Auto-fill Section 02
@@ -1269,6 +1273,7 @@ export function NewInvoiceForm() {
     setGender("");
     setBloodGroup("");
     setReferredBy("");
+    setGstin("");
     setAddress("");
     setCity("");
     setState("");
@@ -1355,6 +1360,7 @@ export function NewInvoiceForm() {
         dob,
         age,
         gender,
+        gstin,
         address,
         city,
         state,
@@ -1443,7 +1449,7 @@ export function NewInvoiceForm() {
     }
 
     setIsPending(true);
-    const savingToast = toast.loading("Processing transaction ledger and printing invoice...");
+    const savingToast = toast.loading("Processing order booking and generating Order Form...");
 
     try {
       const payload = {
@@ -1464,6 +1470,7 @@ export function NewInvoiceForm() {
           familyHistory: familyHistory || undefined,
           systemicIllness: systemicIllness || undefined,
           allergies: allergies || undefined,
+          gstin: gstin.trim().toUpperCase() || undefined,
         },
         prescriptionEnabled: true,
         prescriptionType: {
@@ -1574,14 +1581,15 @@ export function NewInvoiceForm() {
         const targetReceiptId = res.data?.receiptId || res.data?.receipt?.id;
 
         if (res.success && (targetInvoiceId || targetReceiptId)) {
-          toast.success(res.message || "Transaction success! Invoice compiled.", { id: savingToast });
+          toast.success(res.message || "Order booked and Order Form generated successfully.", { id: savingToast });
           setIsPending(false);
-          if (paymentType === "PARTIAL" && targetReceiptId) {
+          // In all cases, navigate directly to the generated Order Form
+          if (targetReceiptId) {
             router.push(`/shop/receipts/${targetReceiptId}`);
           } else if (targetInvoiceId) {
             router.push(`/shop/invoices/${targetInvoiceId}`);
           } else {
-            router.push(`/shop/invoices`);
+            router.push(`/shop/orders`);
           }
         } else {
           toast.error(res.message || "Failed to process patient invoice transaction.", {
@@ -1619,6 +1627,7 @@ export function NewInvoiceForm() {
   return (
     <form
       onSubmit={handleSubmitInvoice}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
       className="max-w-[1440px] mx-auto space-y-2 pb-6 select-none animate-fade-in text-slate-800"
     >
       {/* Compact Top Header Row */}
@@ -1768,8 +1777,8 @@ export function NewInvoiceForm() {
             </div>
           </div>
 
-          {/* Row 2: DATE OF BIRTH, AGE (YRS), GENDER, EMAIL */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {/* Row 2: DATE OF BIRTH, AGE (YRS), GENDER, EMAIL, GSTIN */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             {/* DATE OF BIRTH */}
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
@@ -1839,6 +1848,24 @@ export function NewInvoiceForm() {
                   className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />
                 <Mail className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* GST NUMBER (GSTIN) */}
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                GST NUMBER (GSTIN)
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={15}
+                  placeholder="07AAAAA0000A1Z5"
+                  value={gstin}
+                  onChange={(e) => setGstin(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 15))}
+                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                />
+                <Building className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
           </div>
@@ -2824,15 +2851,15 @@ export function NewInvoiceForm() {
               disabled={isPending}
               className="w-2/3 h-10 bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-[0.99] text-xs"
             >
-              {paymentType === "PARTIAL" ? (
+              {isPending ? (
                 <>
-                  <ReceiptText className="h-4 w-4" />
-                  <span>{isPending ? "Generating..." : "Generate Receipt"}</span>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Booking Order...</span>
                 </>
               ) : (
                 <>
-                  <Check className="h-4 w-4" />
-                  <span>{isPending ? "Creating..." : "Create Invoice"}</span>
+                  <ReceiptText className="h-4 w-4" />
+                  <span>Book Order</span>
                 </>
               )}
             </Button>

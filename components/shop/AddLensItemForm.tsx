@@ -28,6 +28,7 @@ import { ImageUpload } from "@/components/ui/image-upload";
 import { LensPowerMatrix } from "@/components/shop/LensPowerMatrix";
 import { CategoryItem } from "@/services/category.service";
 import { InventoryAddCategoryTabs } from "@/components/shop/InventoryAddCategoryTabs";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface AddLensItemFormProps {
   shopId: string;
@@ -230,7 +231,11 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={(e) => handleEnterKeyNavigation(e)}
+      className="space-y-6"
+    >
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -331,7 +336,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </div>
                   <Input
                     type="text"
-                    placeholder="e.g. LNS-CR39-156"
                     className={`h-11 border-slate-200 bg-white font-mono font-semibold ${
                       isCodeDuplicate ? "border-rose-500 focus-visible:ring-rose-200" : ""
                     }`}
@@ -357,7 +361,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Crizal Prevencia 1.56 Spherical"
                     className="h-11 border-slate-200 bg-white"
                     {...register("productName")}
                   />
@@ -392,7 +395,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Essilor"
                     className="h-11 border-slate-200"
                     {...register("brand")}
                   />
@@ -455,7 +457,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </label>
                   <Input
                     type="number"
-                    placeholder="e.g. 70"
                     className="h-11 border-slate-200 font-semibold"
                     {...register("blankDiameter")}
                   />
@@ -472,7 +473,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </label>
                   <Input
                     type="text"
-                    placeholder="Auto-synced from matrix or e.g. -4.00 to +4.00"
                     className="h-11 border-slate-200 font-semibold text-slate-800"
                     {...register("stockPower")}
                   />
@@ -564,7 +564,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("costPrice")}
                     />
@@ -580,7 +579,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0.00"
                       className="h-11 pl-7 border-slate-200 font-semibold"
                       {...register("price")}
                     />
@@ -659,7 +657,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter supplier or vendor name"
                     className="h-11 border-slate-200"
                     {...register("vendorName")}
                   />
@@ -671,7 +668,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. A2-R1"
                     className="h-11 border-slate-200"
                     {...register("rackLocation")}
                   />
@@ -685,7 +681,6 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter purchase invoice number"
                     className="h-11 border-slate-200"
                     {...register("purchaseInvoiceNo")}
                   />
@@ -800,9 +795,8 @@ export function AddLensItemForm({ shopId, categoryDefaults, categories }: AddLen
                 </label>
                 <Input
                   type="text"
-                  placeholder={requiresExpiry ? "Enter batch number" : "N/A"}
                   disabled={!requiresExpiry}
-                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400 placeholder-slate-300" : "border-slate-200"}`}
+                  className={`h-11 ${!requiresExpiry ? "bg-slate-50 border-dashed text-slate-400" : "border-slate-200"}`}
                   {...register("batchNumber")}
                 />
               </div>

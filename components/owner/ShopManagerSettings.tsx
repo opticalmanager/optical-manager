@@ -567,7 +567,6 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
                   className="w-full border border-slate-200 bg-white px-3 py-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-medium text-slate-800"
                 />
               </div>
@@ -580,7 +579,6 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter new password"
                   className="w-full border border-slate-200 bg-white px-3 py-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-medium text-slate-800"
                 />
               </div>
@@ -639,7 +637,6 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
                   type="email"
                   value={createEmail}
                   onChange={(e) => setCreateEmail(e.target.value)}
-                  placeholder="e.g. manager@shop.com"
                   className="w-full border border-slate-200 bg-white px-3 py-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-medium text-slate-800"
                   required
                 />
@@ -653,7 +650,6 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
                   type="password"
                   value={createPassword}
                   onChange={(e) => setCreatePassword(e.target.value)}
-                  placeholder="Min. 8 characters"
                   className="w-full border border-slate-200 bg-white px-3 py-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-medium text-slate-800"
                   required
                 />
@@ -667,7 +663,6 @@ export function ShopManagerSettings({ initialShops }: ShopManagerSettingsProps) 
                   type="password"
                   value={createConfirmPassword}
                   onChange={(e) => setCreateConfirmPassword(e.target.value)}
-                  placeholder="Re-enter password"
                   className="w-full border border-slate-200 bg-white px-3 py-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-medium text-slate-800"
                   required
                 />

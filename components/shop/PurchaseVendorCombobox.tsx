@@ -18,6 +18,7 @@ import { createVendorAction } from "@/actions/purchase.actions";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 
 interface PurchaseVendorComboboxProps {
   vendors: Vendor[];
@@ -295,7 +296,7 @@ export function PurchaseVendorCombobox({
             </div>
 
             {/* Modal Form Body */}
-            <form onSubmit={handleCreateVendor} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleCreateVendor} onKeyDown={(e) => handleEnterKeyNavigation(e)} className="p-5 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
@@ -304,7 +305,6 @@ export function PurchaseVendorCombobox({
                   <Input
                     type="text"
                     required
-                    placeholder="e.g. Aborn Industries Ltd"
                     value={newVendorData.name}
                     onChange={(e) =>
                       setNewVendorData({ ...newVendorData, name: e.target.value })
@@ -319,7 +319,6 @@ export function PurchaseVendorCombobox({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Rahul Sharma"
                     value={newVendorData.contactPerson}
                     onChange={(e) =>
                       setNewVendorData({
@@ -339,7 +338,6 @@ export function PurchaseVendorCombobox({
                     type="tel"
                     inputMode="numeric"
                     maxLength={10}
-                    placeholder="9876543210"
                     value={newVendorData.phone}
                     onChange={(e) =>
                       setNewVendorData({
@@ -358,7 +356,6 @@ export function PurchaseVendorCombobox({
                   <Input
                     type="text"
                     maxLength={15}
-                    placeholder="e.g. 07AAAAA0000A1Z5"
                     value={newVendorData.gstin}
                     onChange={(e) =>
                       setNewVendorData({
@@ -376,7 +373,6 @@ export function PurchaseVendorCombobox({
                   </label>
                   <Input
                     type="email"
-                    placeholder="supplier@example.com"
                     value={newVendorData.email}
                     onChange={(e) =>
                       setNewVendorData({
@@ -394,7 +390,6 @@ export function PurchaseVendorCombobox({
                   </label>
                   <Input
                     type="text"
-                    placeholder="Street, Industrial Area"
                     value={newVendorData.address}
                     onChange={(e) =>
                       setNewVendorData({
@@ -412,7 +407,6 @@ export function PurchaseVendorCombobox({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. New Delhi"
                     value={newVendorData.city}
                     onChange={(e) =>
                       setNewVendorData({ ...newVendorData, city: e.target.value })
@@ -427,7 +421,6 @@ export function PurchaseVendorCombobox({
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g. Delhi, Maharashtra"
                     value={newVendorData.state}
                     onChange={(e) =>
                       setNewVendorData({ ...newVendorData, state: e.target.value })

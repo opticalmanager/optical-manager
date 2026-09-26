@@ -97,6 +97,7 @@ export async function registerPatientAction(
           systemicIllness: data.customer.systemicIllness || null,
           allergies: data.customer.allergies || null,
           notes: data.customer.notes || null,
+          gstin: data.customer.gstin || null,
         })
         .returning();
 
@@ -285,6 +286,7 @@ export async function registerPatientAndInvoiceAction(
             systemicIllness: data.customer.systemicIllness || null,
             allergies: data.customer.allergies || null,
             notes: data.customer.notes || null,
+            gstin: data.customer.gstin || null,
             updatedAt: new Date(),
           })
           .where(
@@ -324,6 +326,7 @@ export async function registerPatientAndInvoiceAction(
             systemicIllness: data.customer.systemicIllness || null,
             allergies: data.customer.allergies || null,
             notes: data.customer.notes || null,
+            gstin: data.customer.gstin || null,
           })
           .returning();
         customerRecord = newCustomer;
@@ -511,33 +514,28 @@ export async function registerPatientAndInvoiceAction(
         })
         .returning();
 
-      // Create Receipt if amountPaid > 0
-      let receiptId: string | null = null;
-      let receiptRecord: any = null;
-      if ((data.amountPaid || 0) > 0) {
-        const receiptNumber = await generateReceiptNumber(shopId, tx);
-        const [receipt] = await tx
-          .insert(receipts)
-          .values({
-            shopId,
-            organizationId: user.organizationId!,
-            invoiceId: invoice.id,
-            receiptNumber,
-            amountPaid: Number(data.amountPaid || 0).toFixed(2),
-            balanceDue: Number(data.balanceDue || 0).toFixed(2),
-            paymentMethod: data.paymentMethod,
-            transactionId: data.paymentMethod === "UPI" || data.paymentMethod === "BANK_TRANSFER"
-              ? `${Math.floor(10000 + Math.random() * 90000)}-PRECISION-X${Math.floor(100 + Math.random() * 899)}`
-              : null,
-            createdAt: invoiceTimestamp,
-            updatedAt: invoiceTimestamp,
-          })
-          .returning();
-        receiptId = receipt.id;
-        receiptRecord = receipt;
-      }
+      // Always generate an Order Form (Receipt) for every booked order
+      const receiptNumber = await generateReceiptNumber(shopId, tx);
+      const [receiptRecord] = await tx
+        .insert(receipts)
+        .values({
+          shopId,
+          organizationId: user.organizationId!,
+          invoiceId: invoice.id,
+          receiptNumber,
+          amountPaid: Number(data.amountPaid || 0).toFixed(2),
+          balanceDue: Number(data.balanceDue || 0).toFixed(2),
+          paymentMethod: data.paymentMethod,
+          transactionId: data.paymentMethod === "UPI" || data.paymentMethod === "BANK_TRANSFER"
+            ? `${Math.floor(10000 + Math.random() * 90000)}-PRECISION-X${Math.floor(100 + Math.random() * 899)}`
+            : null,
+          createdAt: invoiceTimestamp,
+          updatedAt: invoiceTimestamp,
+        })
+        .returning();
+      const receiptId = receiptRecord.id;
 
-      // Create Order linking invoice and receipt
+      // Create Order linking invoice and receipt (Order Form)
       const orderNumber = await generateOrderNumber(shopId, tx, invoice.invoiceNumber);
       const [order] = await tx
         .insert(orders)
@@ -626,7 +624,7 @@ export async function registerPatientAndInvoiceAction(
 
     return {
       success: true,
-      message: "Patient registered and invoice generated successfully.",
+      message: "Order booked and Order Form generated successfully.",
       data: {
         invoiceId: result.invoice.id,
         invoiceNumber: result.invoice.invoiceNumber,
@@ -795,6 +793,7 @@ export async function updatePatientAction(
           systemicIllness: data.customer.systemicIllness || null,
           allergies: data.customer.allergies || null,
           notes: data.customer.notes || null,
+          gstin: data.customer.gstin || null,
           updatedAt: new Date(),
         })
         .where(

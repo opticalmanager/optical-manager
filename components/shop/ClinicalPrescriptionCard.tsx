@@ -279,7 +279,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-sph-options"
-                    placeholder="+0.50"
                     value={values.rightSphere || ""}
                     onChange={(e) => updateField("rightSphere", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("rightSphere", e.target.value)}
@@ -295,7 +294,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-cyl-options"
-                    placeholder="-0.25"
                     value={values.rightCylinder || ""}
                     onChange={(e) => updateField("rightCylinder", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("rightCylinder", e.target.value)}
@@ -311,7 +309,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-axis-options"
-                    placeholder="180"
                     value={values.rightAxis || ""}
                     onChange={(e) => updateField("rightAxis", e.target.value)}
                     onBlur={(e) => handleBlurAxis("rightAxis", e.target.value)}
@@ -329,7 +326,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-add-options"
-                    placeholder="+1.50"
                     value={values.rightAdd || ""}
                     onChange={(e) => updateField("rightAdd", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("rightAdd", e.target.value)}
@@ -345,7 +341,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-vn-options"
-                    placeholder="6/6"
                     value={values.rightNv || ""}
                     onChange={(e) => updateField("rightNv", e.target.value)}
                     className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
@@ -360,7 +355,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-pd-options"
-                    placeholder="31.5"
                     value={values.pdRight || ""}
                     onChange={(e) => updateField("pdRight", e.target.value)}
                     className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
@@ -375,7 +369,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-cadd-options"
-                    placeholder="-"
                     value={values.caddRight || ""}
                     onChange={(e) => updateField("caddRight", e.target.value)}
                     className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
@@ -401,7 +394,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-sph-options"
-                    placeholder="+0.50"
                     value={values.leftSphere || ""}
                     onChange={(e) => updateField("leftSphere", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("leftSphere", e.target.value)}
@@ -417,7 +409,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-cyl-options"
-                    placeholder="-0.50"
                     value={values.leftCylinder || ""}
                     onChange={(e) => updateField("leftCylinder", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("leftCylinder", e.target.value)}
@@ -433,7 +424,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-axis-options"
-                    placeholder="175"
                     value={values.leftAxis || ""}
                     onChange={(e) => updateField("leftAxis", e.target.value)}
                     onBlur={(e) => handleBlurAxis("leftAxis", e.target.value)}
@@ -451,7 +441,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-add-options"
-                    placeholder="+1.50"
                     value={values.leftAdd || ""}
                     onChange={(e) => updateField("leftAdd", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("leftAdd", e.target.value)}
@@ -467,7 +456,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-vn-options"
-                    placeholder="6/9"
                     value={values.leftNv || ""}
                     onChange={(e) => updateField("leftNv", e.target.value)}
                     className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
@@ -482,7 +470,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-pd-options"
-                    placeholder="31.5"
                     value={values.pdLeft || ""}
                     onChange={(e) => updateField("pdLeft", e.target.value)}
                     className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
@@ -497,7 +484,6 @@ export function ClinicalPrescriptionCard({
                   <input
                     type="text"
                     list="clinical-cadd-options"
-                    placeholder="-"
                     value={values.caddLeft || ""}
                     onChange={(e) => updateField("caddLeft", e.target.value)}
                     className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
@@ -552,7 +538,6 @@ export function ClinicalPrescriptionCard({
                 <input
                   type="text"
                   list="clinical-doctors-list"
-                  placeholder="Dr. Sarah Jenkins (Optometrist)"
                   value={values.doctorName || ""}
                   onChange={(e) => updateField("doctorName", e.target.value)}
                   className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
