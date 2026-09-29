@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/drizzle";
 import { customers, shops, invoices, prescriptions, customerCreditLedger, orders, invoiceItems, inventory, receipts } from "@/db/schema";
-import { eq, and, ilike, or, sql, desc, inArray, isNull } from "drizzle-orm";
+import { eq, ne, and, ilike, or, sql, desc, inArray, isNull } from "drizzle-orm";
 import type { Customer, NewCustomer } from "@/types";
 import type { OrderItem, SKUDetail, ReceiptItem } from "@/services/order.service";
 import {
@@ -187,6 +187,13 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
       pendingDues: sql`sum(${invoices.balanceDue})`.as("pending_dues"),
     })
     .from(invoices)
+    .where(
+      and(
+        eq(invoices.shopId, shopId),
+        isNull(invoices.deletedAt),
+        ne(invoices.status, "CANCELLED")
+      )
+    )
     .groupBy(invoices.customerId)
     .as("inv_agg");
 
@@ -197,6 +204,7 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
       latestDoctorName: sql`(array_agg(${prescriptions.doctorName} order by ${prescriptions.createdAt} desc))[1]`.as("latest_doctor_name"),
     })
     .from(prescriptions)
+    .where(eq(prescriptions.shopId, shopId))
     .groupBy(prescriptions.customerId)
     .as("rx_agg");
 
@@ -307,6 +315,7 @@ export async function getCustomerOrders(
       amountPaid: invoices.amountPaid,
       balanceDue: invoices.balanceDue,
       paymentMethod: invoices.paymentMethod,
+      status: invoices.status,
       fulfillmentStatus: invoices.fulfillmentStatus,
       estimatedDelivery: invoices.estimatedDelivery,
       isRescheduled: invoices.isRescheduled,
@@ -325,6 +334,7 @@ export async function getCustomerOrders(
         eq(invoices.customerId, customerId),
         eq(invoices.organizationId, organizationId),
         isNull(invoices.deletedAt),
+        ne(invoices.status, "CANCELLED"),
         sql`(${orders.deletedAt} IS NULL OR ${orders.id} IS NULL)`
       )
     )
@@ -499,16 +509,19 @@ export async function getCustomerProfileData(
   const activeInvoices = customerInvoices.filter(
     (inv) => !inv.deletedAt && inv.status !== "CANCELLED"
   );
+  const activeOrders = customerOrders.filter(
+    (ord) => ord.status !== "CANCELLED"
+  );
 
-  const pendingDues = customerOrders.length > 0
-    ? customerOrders.reduce((sum, ord) => sum + (parseFloat(ord.balanceDue) || 0), 0)
+  const pendingDues = activeOrders.length > 0
+    ? activeOrders.reduce((sum, ord) => sum + (parseFloat(ord.balanceDue) || 0), 0)
     : activeInvoices.reduce((sum, inv) => sum + Number(inv.balanceDue || 0), 0);
 
-  const totalOrderValue = customerOrders.length > 0
-    ? customerOrders.reduce((sum, ord) => sum + (parseFloat(ord.total) || 0), 0)
+  const totalOrderValue = activeOrders.length > 0
+    ? activeOrders.reduce((sum, ord) => sum + (parseFloat(ord.total) || 0), 0)
     : activeInvoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0);
 
-  const totalOrdersCount = customerOrders.length || activeInvoices.length;
+  const totalOrdersCount = activeOrders.length || activeInvoices.length;
 
   const dates = [
     new Date(customer.createdAt),

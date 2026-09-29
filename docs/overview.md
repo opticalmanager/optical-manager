@@ -54,6 +54,12 @@
 - **Public Shareable Invoices**: Generates secure public digital invoice view links (`/share/invoice/[id]`) with printable PDF support.
 - **Sales Returns & Store Credit Management**: Flexible merchandise returns supporting Cash Refunds (with real-time revenue deduction) and Store Credit issuance (added to customer profile and tracked in immutable credit ledgers), official printable Return Receipts / Credit Notes, and seamless store credit redemption on new invoices.
 - **4-Stage CSV Bulk Invoices Ingestion Wizard (`/shop/invoices/import`)**: Production-grade historical sales onboarding wizard with 0ms client-side customer matching by 10-digit phone, automatic patient profile creation with auto-sequenced registration IDs (`OP-shopNum-YYYY-NNNN`), external legacy bill number preservation (`INV-2023-01`, `BILL-1049`, etc.) or series generation (`generateBatchInvoiceNumbers`), multi-item bill grouping, inline spreadsheet editing, and atomic database commits across `invoices`, `invoiceItems`, `orders`, and `receipts`.
+- **Shop Interface Data Integrity & Strict Logical Calculations**:
+  - *Precise Payment Badging*: Orders Table strictly differentiates between `PAID` (balanceDue $\le 0$), `PARTIALLY PAID` (balanceDue $> 0$ and amountPaid $> 0$), and `UNPAID` (amountPaid $= 0$).
+  - *Customer Dues Isolation*: Customer dashboard and profile aggregates strictly filter out soft-deleted and `CANCELLED` invoices and scope by `shopId`, eliminating phantom dues from cancelled bills or cross-shop transactions.
+  - *Harmonized Revenue & Collections*: Financial KPIs define Revenue as total billed sales across valid invoices in the period, Collections as actual cash inflow (`amountPaid`), and Accounts Receivable as active outstanding dues (`balanceDue`), maintaining mathematical harmony ($Revenue = Collections + Receivables$).
+  - *Chronological Prescription Ordering*: Prescriptions query in descending order (`createdAt DESC`), ensuring index `[0]` consistently refers to the customer's latest clinical refraction test across printing, profile, and WhatsApp templates.
+  - *Guaranteed Order Form Receipt Linking*: Every booked order (online or offline sync) generates an official booking receipt record linked via `orders.receiptId`, and full order edits maintain and update this receipt without receipt loss or null reference crashes.
 - **Multi-Dashboard Inward Triggers**: Direct access via the high-density action dropdowns on the Customers directory (`/shop/customers` -> `Add Bulk Invoices (CSV)`) and Orders management hub (`/shop/orders` -> `Invoices & Sales` -> `Import Invoices (CSV)`).
 
 ### 5. Purchases, Inward Supply & 4-Step Bulk CSV Ingestion Architecture
@@ -117,28 +123,40 @@ Optical Manager includes a complete, high-density Inward Supply & Purchases modu
 
 ---
 
-## 6. High-Density Optical Store Dashboard Architecture (`/shop/dashboard`)
+## 6. Dashboard Architecture: Owner Enterprise Portal vs Store Overview
 
-Optical Manager features a production-grade, zero-latency, high-density **Optical Dashboard** designed specifically for standard laptop viewports to eliminate vertical scrolling fatigue while providing 100% live database insights:
-- **5 Top-Row KPI Metrics Grid**:
-  - *Total Revenue*: Net collected revenue with live comparative growth percentage (`↑ %`) vs baseline time window.
+Optical Manager provides two specialized, role-tailored dashboard experiences engineered to provide zero-latency database insights without vertical scroll fatigue:
+
+### A. Store Manager Daily Overview Dashboard (`/shop/dashboard`)
+Designed specifically for in-store branch staff, optometrists, and counter managers focusing on daily operational tasks:
+- **Today's Queue & Store Operations (`StoreOverviewClient`)**: Scoped to the individual branch outlet (`shopId`), defaulting to a `"24h"` daily window.
+- **Priority Action Center**: Instant alerts on urgent tasks—low stock reorders, delivery deadlines, and pending partial payment collections.
+- **Today's Patient Visits & Appointments**: Live appointment schedule, patient contact numbers, visit purpose (consultation, refraction, frame selection), and status toggles.
+- **Delivery Fulfillment Tracking**: Real-time counter of Ready for Pickup orders and Delayed deliveries requiring customer communication.
+- **Recent In-Store Activity Feed**: Chronological ledger of the latest invoices, stock movements, and customer communications.
+
+### B. Owner Multi-Branch Enterprise Analytics Dashboard (`/owner`)
+Designed for System Owners and C-level optical executives managing multi-branch retail networks (`OwnerDashboardClient`):
+- **Universal Multi-Branch / Outlet Scope Selector**: Integrated header control allowing owners to toggle telemetry between `All Branches (Combined Chain)` and any specific individual store outlet (`shopId`), re-querying all database aggregations dynamically with zero latency.
+- **5 Top-Row Enterprise KPI Metrics Grid (Fully Responsive)**:
+  - *Total Revenue*: Net collected revenue across outlets with comparative growth badge (`+X%` / `-X%`) vs baseline time window.
   - *Sales Invoices*: Total invoice slips generated with volume growth indicator.
-  - *Accounts Receivable*: Outstanding customer balances due with comparative growth rate.
+  - *Accounts Receivable*: Outstanding customer balances due with inverted direction-aware growth indicator (green when receivables decrease).
   - *Active Customers*: Distinct customer count transacting within the active date range.
-  - *Total Stores*: Total active branches connected under the organization hierarchy.
+  - *Total Stores*: Total active branches connected under the organization hierarchy with `Chain Network` pill badge.
 - **Row 2 Analytics (3 Columns)**:
-  - *Customer Bifurcation*: High-density pure SVG donut breakdown categorizing customers into `🟣 Only Frame`, `🔵 Only Lense`, and `🟢 Both Frame & Lense` with exact counts and percentages.
-  - *Dead Stock (90 Days)*: Real-time identification of inventory items with active positive stock that have had zero sales or stock movements in the past 90 days, showing item count and percentage of total stock.
-  - *Stock Valuation*: Asset value distribution across optical inventory categories (`Frames`, `Lenses`, `Contact Lenses`, `Sunglasses`, `Accessories`, `Solutions`, `Other`) with interactive SVG donut visualization.
+  - *Customer Bifurcation*: High-density pure SVG donut breakdown categorizing customers into `🟣 Only Frame`, `🔵 Only Lens`, and `🟢 Both Frame & Lens` with exact counts and percentages, accurately omitting non-optical accessories.
+  - *Dead Stock (90 Days)*: Real-time identification of inventory items with active positive stock that have had zero sales or stock movements in the past 90 days, showing item count and percentage of total catalog.
+  - *Stock Valuation*: Asset value distribution across optical inventory categories (`Frames`, `Lenses`, `Contact Lenses`, `Sunglasses`, `Accessories`, `Solutions`, `Other`) with interactive SVG donut visualization and clean category distribution legend.
 - **Row 3 Analytics (3 Columns)**:
   - *Return Rate*: Radial gauge visualizing merchandise return percentage alongside total sales, returned items, and net return rate.
   - *Sales Bifurcation (5 Dynamic Tabs)*: Instant `0ms` client-side switcher breaking down sales by `By Lenses` (Single Vision, Bifocal, Progressive, Other), `By Frames` (Full Rim, Half Rim, Rimless, Sunglasses, Other), `By Brands` (top brands + other), `By Gender` (Male, Female, Unisex, Other), and `By Age` (<18, 18-35, 36-55, 55+, Unspecified).
-  - *Low Stock Alerts*: Clean state badge when stock is fully compliant, or compact actionable list of items below threshold with direct restock links to `/shop/inventory`.
+  - *Low Stock Alerts*: Clean state badge when stock is fully compliant, or compact actionable list of items below threshold across all branches.
 - **Row 4 Analytics (2 Columns)**:
   - *Retention Rate (1/3 Col)*: Donut gauge showing repeat customer percentage alongside total customers and returning customer counts.
-  - *Recent Transactions Table (2/3 Col)*: High-density live ledger displaying recent invoices with formatted timestamps, patient name, item summary strings (e.g. `1 × Ray-Ban Frame`, `2 × Single Vision Lenses`), total bill amount, and soft HSL status pills (`✓ Completed`, `Partial`, `Pending`).
-- **Dynamic Date Range Controls**: Sticky top-right date selector with presets (`Today`, `Yesterday`, `Last 7 Days`, `This Month`, `This Quarter`, `Last 12 Months`, `Year to Date`, `All Time`).
-- **Zero Mock Data & 100% Live Aggregations**: All numbers, slices, and tables query Neon PostgreSQL tables (`invoices`, `invoice_items`, `customers`, `inventory`, `sales_returns`, `stock_movements`, `shops`) via Drizzle ORM in parallel.
+  - *Recent Transactions Table (2/3 Col)*: High-density live ledger displaying recent invoices with formatted timestamps, patient name, item summary strings (e.g. `1 × Ray-Ban Frame`, `2 × Single Vision Lenses`), total bill amount, and soft HSL status pills (`✓ Completed`, `Partial`, `Pending`), featuring responsive horizontal scrolling for mobile devices.
+- **Dynamic Multi-Window Timeframe Controls**: Sticky top-right date selector with presets (`Today`, `Yesterday`, `Last 7 Days`, `This Month`, `This Quarter`, `Last 12 Months`, `Year to Date`, `All Time`), seamlessly routing to `/owner?timeframe=...` while maintaining the active outlet scope.
+- **Zero Mock Data & 100% Live Aggregations**: All numbers, slices, and tables query Neon PostgreSQL tables (`invoices`, `invoice_items`, `customers`, `inventory`, `sales_returns`, `stock_movements`, `shops`) via Drizzle ORM in parallel. Empty states display genuine zero indicators and clean empty rings rather than placeholder/mock data.
 
 ---
 

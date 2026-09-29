@@ -297,7 +297,14 @@ export function OrdersTableClient({
                   order.estimatedDelivery &&
                   order.estimatedDelivery < new Date().toISOString().split("T")[0];
 
-                const isFullyPaid = parseFloat(order.balanceDue) === 0;
+                const isFullyPaid = parseFloat(order.balanceDue || "0") <= 0;
+                const isPartiallyPaid = !isFullyPaid && parseFloat(order.amountPaid || "0") > 0;
+                const paymentLabel = isFullyPaid ? "PAID" : isPartiallyPaid ? "PARTIALLY PAID" : "UNPAID";
+                const paymentBadgeClass = isFullyPaid
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
+                  : isPartiallyPaid
+                  ? "bg-amber-50 text-amber-700 border-amber-200/60"
+                  : "bg-rose-50 text-rose-700 border-rose-200/60";
 
                 return (
                   <tr
@@ -352,14 +359,8 @@ export function OrdersTableClient({
 
                     {/* Payment Status */}
                     <td className="px-4 py-2.5 text-center">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                        isFullyPaid
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-                          : parseFloat(order.amountPaid) > 0
-                          ? "bg-amber-50 text-amber-700 border-amber-200/60"
-                          : "bg-rose-50 text-rose-700 border-rose-200/60"
-                      }`}>
-                        {isFullyPaid ? "PAID" : "PARTIALLY PAID"}
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${paymentBadgeClass}`}>
+                        {paymentLabel}
                       </span>
                     </td>
 

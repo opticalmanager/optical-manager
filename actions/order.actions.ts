@@ -889,6 +889,10 @@ export async function updateFullOrderAction(
       estimatedDeliveryDate = d;
     }
 
+    // Resolve target shop and customer safely from order or existingInvoice
+    const targetShopId = order?.shopId || existingInvoice.shopId;
+    const targetCustomerId = order?.customerId || existingInvoice.customerId;
+
     // Run within atomic database transaction
     await db.transaction(async (tx) => {
       // 1. Inventory Stock Re-balancing
@@ -941,7 +945,7 @@ export async function updateFullOrderAction(
           if (inv) {
             await tx.insert(stockMovements).values({
               inventoryId: invId,
-              shopId: order.shopId,
+              shopId: targetShopId,
               organizationId: user.organizationId!,
               movementType: "SOLD",
               quantityChange: -delta,
@@ -975,7 +979,7 @@ export async function updateFullOrderAction(
           if (inv) {
             await tx.insert(stockMovements).values({
               inventoryId: invId,
-              shopId: order.shopId,
+              shopId: targetShopId,
               organizationId: user.organizationId!,
               movementType: "ADJUSTMENT",
               quantityChange: restockQty,
@@ -1005,36 +1009,33 @@ export async function updateFullOrderAction(
           pincode: payload.customer.pincode ? payload.customer.pincode.trim() : null,
           updatedAt: new Date(),
         })
-        .where(eq(customers.id, order.customerId));
+        .where(eq(customers.id, targetCustomerId));
 
       // 3. Delete previous receipts for this invoice (replacing with updated data)
       await tx.delete(receipts).where(eq(receipts.invoiceId, existingInvoice.id));
 
-      // 4. Generate new receipt if partial payment
-      let newReceiptId: string | null = null;
-      if (payload.paymentType === "PARTIAL" && finalAmountPaid > 0) {
-        const receiptNumber = await generateReceiptNumber(order.shopId, tx);
-        const [receiptRecord] = await tx
-          .insert(receipts)
-          .values({
-            shopId: order.shopId,
-            organizationId: user.organizationId!,
-            invoiceId: existingInvoice.id,
-            receiptNumber,
-            amountPaid: finalAmountPaid.toFixed(2),
-            balanceDue: finalBalanceDue.toFixed(2),
-            paymentMethod: payload.paymentMethod,
-            transactionId:
-              payload.paymentMethod === "UPI" || payload.paymentMethod === "BANK_TRANSFER"
-                ? `TXN-EDIT-${Math.floor(10000 + Math.random() * 90000)}`
-                : null,
-            createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
-            updatedAt: new Date(),
-          })
-          .returning();
+      // 4. Always generate Order Form Receipt so document link and booking history remain intact
+      const receiptNumber = await generateReceiptNumber(targetShopId, tx);
+      const [receiptRecord] = await tx
+        .insert(receipts)
+        .values({
+          shopId: targetShopId,
+          organizationId: user.organizationId!,
+          invoiceId: existingInvoice.id,
+          receiptNumber,
+          amountPaid: finalAmountPaid.toFixed(2),
+          balanceDue: finalBalanceDue.toFixed(2),
+          paymentMethod: payload.paymentMethod,
+          transactionId:
+            payload.paymentMethod === "UPI" || payload.paymentMethod === "BANK_TRANSFER"
+              ? `TXN-EDIT-${Math.floor(10000 + Math.random() * 90000)}`
+              : null,
+          createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
 
-        newReceiptId = receiptRecord.id;
-      }
+      const newReceiptId = receiptRecord.id;
 
       // 5. Update Invoice record
       await tx
@@ -1077,7 +1078,7 @@ export async function updateFullOrderAction(
         await tx.insert(invoiceItems).values({
           invoiceId: existingInvoice.id,
           inventoryId: item.inventoryId || null,
-          shopId: order.shopId,
+          shopId: targetShopId,
           organizationId: user.organizationId!,
           description: item.description,
           quantity: item.quantity,

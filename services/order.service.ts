@@ -41,6 +41,7 @@ export interface OrderItem {
   amountPaid: string;
   balanceDue: string;
   paymentMethod: string | null;
+  status?: string;
   fulfillmentStatus: string;
   estimatedDelivery: string | null;
   isRescheduled: boolean;

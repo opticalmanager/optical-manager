@@ -16,22 +16,29 @@ import {
   AlertTriangle,
   Layers,
   ArrowUpRight,
-  Sparkles,
+  ArrowDownRight,
   Store,
   Wallet,
-  ShoppingBag,
-  Clock,
   ArrowRight,
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { DashboardData } from "@/services/dashboard.service";
 import DashboardDonut from "./DashboardDonut";
 
-interface OpticalDashboardClientProps {
+export interface ShopOption {
+  id: string;
+  name: string;
+  slug?: string | null;
+  isActive?: boolean;
+}
+
+interface OwnerDashboardClientProps {
   data: DashboardData;
   userName?: string;
   shopName?: string;
   currentTimeframe?: string;
+  currentShopId?: string;
+  shops?: ShopOption[];
 }
 
 const timeframeOptions = [
@@ -39,38 +46,30 @@ const timeframeOptions = [
   { value: "yesterday", label: "Yesterday" },
   { value: "7d", label: "Last 7 Days" },
   { value: "30d", label: "This Month" },
-  { value: "90d", label: "This Quarter (Apr 1 - Jun 30)" },
+  { value: "90d", label: "This Quarter (90 Days)" },
   { value: "12m", label: "Last 12 Months" },
   { value: "ytd", label: "Year to Date" },
   { value: "all", label: "All Time" },
 ];
 
-export default function OpticalDashboardClient({
+export default function OwnerDashboardClient({
   data,
-  userName = "User",
-  shopName = "Vision Plus Outlet",
+  userName = "Owner",
+  shopName = "Optical Network",
   currentTimeframe = "90d",
-}: OpticalDashboardClientProps) {
+  currentShopId = "all",
+  shops = [],
+}: OwnerDashboardClientProps) {
   const router = useRouter();
 
   // Date range picker dropdown state
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [shopPickerOpen, setShopPickerOpen] = useState(false);
 
   // Sales Bifurcation active tab: "lenses" | "frames" | "brands" | "gender" | "age"
   const [bifurcationTab, setBifurcationTab] = useState<
     "lenses" | "frames" | "brands" | "gender" | "age"
   >("lenses");
-
-  // Filter dropdown state for sub-cards
-  const [customerFilter, setCustomerFilter] = useState("This Month");
-  const [returnFilter, setReturnFilter] = useState("This Month");
-  const [salesFilter, setSalesFilter] = useState("This Month");
-  const [retentionFilter, setRetentionFilter] = useState("This Month");
-
-  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
-  const [returnDropdownOpen, setReturnDropdownOpen] = useState(false);
-  const [salesDropdownOpen, setSalesDropdownOpen] = useState(false);
-  const [retentionDropdownOpen, setRetentionDropdownOpen] = useState(false);
 
   // Extract optical KPIs with safe fallbacks
   const kpis = data?.opticalKPIs || {
@@ -82,7 +81,7 @@ export default function OpticalDashboardClient({
     accountsReceivableGrowth: 0,
     activeCustomersCount: 0,
     activeCustomersGrowth: 0,
-    totalStoresCount: 1,
+    totalStoresCount: shops.length || 1,
     totalStoresGrowth: 0,
     collections: data?.kpis?.collections || 0,
     pendingOrders: data?.kpis?.pendingOrders || 0,
@@ -108,24 +107,27 @@ export default function OpticalDashboardClient({
     totalCustomers: 0,
   };
 
-  // Customer Donut Slices
-  const customerDonutData = [
-    {
-      name: "Only Frame",
-      value: customerBifurcation.onlyFrame,
-      color: "#8B5CF6", // Purple
-    },
-    {
-      name: "Only Lense",
-      value: customerBifurcation.onlyLens,
-      color: "#06B6D4", // Cyan
-    },
-    {
-      name: "Both Frame & Lense",
-      value: customerBifurcation.bothFrameAndLens,
-      color: "#10B981", // Emerald
-    },
-  ];
+  // Customer Donut Slices (only populate if customers exist)
+  const customerDonutData =
+    customerBifurcation.totalCustomers > 0
+      ? [
+          {
+            name: "Only Frame",
+            value: customerBifurcation.onlyFrame,
+            color: "#8B5CF6", // Purple
+          },
+          {
+            name: "Only Lens",
+            value: customerBifurcation.onlyLens,
+            color: "#06B6D4", // Cyan
+          },
+          {
+            name: "Both Frame & Lens",
+            value: customerBifurcation.bothFrameAndLens,
+            color: "#10B981", // Emerald
+          },
+        ]
+      : [];
 
   // Extract Dead Stock
   const deadStock = data?.deadStock || {
@@ -138,17 +140,17 @@ export default function OpticalDashboardClient({
   const stockValuation = data?.stockValuation || {
     totalValue: 0,
     totalUnits: 0,
-    categories: [
-      { category: "FRAME", label: "Frames", value: 0, count: 0, percentage: 0, color: "#3B82F6" },
-      { category: "LENS", label: "Lenses", value: 0, count: 0, percentage: 0, color: "#8B5CF6" },
-    ],
+    categories: [],
   };
 
-  const stockValuationDonutData = stockValuation.categories.map((c) => ({
-    name: c.label,
-    value: c.value,
-    color: c.color,
-  }));
+  const stockValuationDonutData =
+    stockValuation.totalValue > 0
+      ? stockValuation.categories.map((c) => ({
+          name: c.label,
+          value: c.value,
+          color: c.color,
+        }))
+      : [];
 
   // Extract Return Rate
   const returnRate = data?.returnRate || {
@@ -157,60 +159,26 @@ export default function OpticalDashboardClient({
     returnRatePercent: 0,
   };
 
-  const returnRateDonutData = [
-    { name: "Returned", value: returnRate.returnRatePercent, color: "#EF4444" },
-    { name: "Kept", value: Math.max(0, 100 - returnRate.returnRatePercent), color: "#E2E8F0" },
-  ];
+  const returnRateDonutData =
+    returnRate.totalSales > 0
+      ? [
+          { name: "Returned", value: returnRate.returnedItems, color: "#EF4444" },
+          {
+            name: "Kept",
+            value: Math.max(0, returnRate.totalSales - returnRate.returnedItems),
+            color: "#10B981",
+          },
+        ]
+      : [];
 
   // Extract Sales Bifurcation
   const salesBifurcation = data?.salesBifurcation || {
     totalSalesAmount: 0,
-    byLenses: {
-      slices: [
-        { name: "Single Vision", count: 0, amount: 0, percentage: 0, color: "#3B82F6" },
-        { name: "Bifocal", count: 0, amount: 0, percentage: 0, color: "#8B5CF6" },
-        { name: "Progressive", count: 0, amount: 0, percentage: 0, color: "#10B981" },
-        { name: "Other", count: 0, amount: 0, percentage: 0, color: "#F59E0B" },
-      ],
-      total: 0,
-    },
-    byFrames: {
-      slices: [
-        { name: "Full Rim", count: 0, amount: 0, percentage: 0, color: "#3B82F6" },
-        { name: "Half Rim", count: 0, amount: 0, percentage: 0, color: "#8B5CF6" },
-        { name: "Rimless", count: 0, amount: 0, percentage: 0, color: "#06B6D4" },
-        { name: "Sunglasses", count: 0, amount: 0, percentage: 0, color: "#F59E0B" },
-        { name: "Other", count: 0, amount: 0, percentage: 0, color: "#64748B" },
-      ],
-      total: 0,
-    },
-    byBrands: {
-      slices: [
-        { name: "Ray-Ban", count: 0, amount: 0, percentage: 0, color: "#3B82F6" },
-        { name: "Oakley", count: 0, amount: 0, percentage: 0, color: "#8B5CF6" },
-        { name: "Titan", count: 0, amount: 0, percentage: 0, color: "#06B6D4" },
-        { name: "Other", count: 0, amount: 0, percentage: 0, color: "#64748B" },
-      ],
-      total: 0,
-    },
-    byGender: {
-      slices: [
-        { name: "Male", count: 0, amount: 0, percentage: 0, color: "#3B82F6" },
-        { name: "Female", count: 0, amount: 0, percentage: 0, color: "#EC4899" },
-        { name: "Unisex", count: 0, amount: 0, percentage: 0, color: "#8B5CF6" },
-        { name: "Other", count: 0, amount: 0, percentage: 0, color: "#64748B" },
-      ],
-      total: 0,
-    },
-    byAge: {
-      slices: [
-        { name: "Kids (<18)", count: 0, amount: 0, percentage: 0, color: "#06B6D4" },
-        { name: "Young Adults (18-35)", count: 0, amount: 0, percentage: 0, color: "#3B82F6" },
-        { name: "Middle Age (36-55)", count: 0, amount: 0, percentage: 0, color: "#8B5CF6" },
-        { name: "Seniors (55+)", count: 0, amount: 0, percentage: 0, color: "#F59E0B" },
-      ],
-      total: 0,
-    },
+    byLenses: { slices: [], total: 0 },
+    byFrames: { slices: [], total: 0 },
+    byBrands: { slices: [], total: 0 },
+    byGender: { slices: [], total: 0 },
+    byAge: { slices: [], total: 0 },
   };
 
   const getActiveBifurcationData = () => {
@@ -231,11 +199,20 @@ export default function OpticalDashboardClient({
   };
 
   const activeBifurcation = getActiveBifurcationData();
-  const salesDonutData = activeBifurcation.slices.map((s) => ({
-    name: s.name,
-    value: s.count > 0 ? s.count : s.amount,
-    color: s.color,
-  }));
+  const hasActiveSalesData =
+    activeBifurcation &&
+    activeBifurcation.slices &&
+    activeBifurcation.slices.some((s) => s.count > 0 || s.amount > 0);
+
+  const salesDonutData = hasActiveSalesData
+    ? activeBifurcation.slices
+        .filter((s) => s.count > 0 || s.amount > 0)
+        .map((s) => ({
+          name: s.name,
+          value: s.count > 0 ? s.count : s.amount,
+          color: s.color,
+        }))
+    : [];
 
   // Extract Retention Rate
   const retentionRate = data?.retentionRate || {
@@ -244,10 +221,17 @@ export default function OpticalDashboardClient({
     retentionRatePercent: 0,
   };
 
-  const retentionDonutData = [
-    { name: "Returning", value: retentionRate.retentionRatePercent, color: "#3B82F6" },
-    { name: "Single Visit", value: Math.max(0, 100 - retentionRate.retentionRatePercent), color: "#E2E8F0" },
-  ];
+  const retentionDonutData =
+    retentionRate.totalCustomers > 0
+      ? [
+          { name: "Returning", value: retentionRate.returningCustomers, color: "#3B82F6" },
+          {
+            name: "Single Visit",
+            value: Math.max(0, retentionRate.totalCustomers - retentionRate.returningCustomers),
+            color: "#94A3B8",
+          },
+        ]
+      : [];
 
   // Extract Low Stock Summary
   const lowStockSummary = data?.lowStockSummary || {
@@ -258,15 +242,21 @@ export default function OpticalDashboardClient({
   // Extract Recent Transactions
   const recentTransactions = data?.recentTransactions || [];
 
-  // Timeframe change handler
+  // Navigation handlers for timeframe and shop scope
   const handleTimeframeSelect = (val: string) => {
     setDatePickerOpen(false);
-    router.push(`/shop/dashboard?timeframe=${val}`);
+    const shopQuery = currentShopId && currentShopId !== "all" ? `&shopId=${currentShopId}` : "";
+    router.push(`/owner?timeframe=${val}${shopQuery}`);
+  };
+
+  const handleShopSelect = (val: string) => {
+    setShopPickerOpen(false);
+    const timeframeQuery = currentTimeframe ? `timeframe=${currentTimeframe}&` : "";
+    router.push(`/owner?${timeframeQuery}shopId=${val}`);
   };
 
   const selectedTimeframeLabel =
-    timeframeOptions.find((opt) => opt.value === currentTimeframe)?.label ||
-    "Apr 1, 2026 - Jun 30, 2026";
+    timeframeOptions.find((opt) => opt.value === currentTimeframe)?.label || "Last 90 Days";
 
   // Dynamic Greeting based on current hour
   const getGreeting = () => {
@@ -276,12 +266,47 @@ export default function OpticalDashboardClient({
     return "Good evening";
   };
 
+  // Growth Badge renderer
+  const renderGrowthBadge = (growth: number, invertGood: boolean = false) => {
+    const isPositive = growth > 0;
+    const isZero = growth === 0;
+    const isGood = invertGood ? !isPositive : isPositive;
+
+    const colorClass = isZero
+      ? "bg-slate-50 text-slate-500 border-slate-200/80"
+      : isGood
+      ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+      : "bg-rose-50 text-rose-600 border-rose-100";
+
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold border tracking-tight",
+          colorClass
+        )}
+      >
+        {isPositive ? (
+          <ArrowUpRight className="h-3 w-3" />
+        ) : !isZero ? (
+          <ArrowDownRight className="h-3 w-3" />
+        ) : null}
+        {isPositive ? `+${growth}%` : `${growth}%`}
+      </span>
+    );
+  };
+
+  const selectedShopObj = shops.find((s) => s.id === currentShopId);
+  const selectedShopLabel =
+    currentShopId === "all"
+      ? `All Branches (${shops.length})`
+      : selectedShopObj?.name || "Selected Branch";
+
   return (
     <div className="space-y-3.5 select-none max-w-[1440px] mx-auto pb-8">
       {/* ========================================================================= */}
-      {/* TOP HEADER SECTION */}
+      {/* TOP HEADER SECTION (Responsive stack on mobile, inline on desktop) */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 shadow-2xs">
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 shadow-2xs">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
             <span>
@@ -290,70 +315,147 @@ export default function OpticalDashboardClient({
             <span className="text-xl">👋</span>
           </h1>
           <p className="text-xs font-medium text-slate-500 mt-1">
-            Here's your multi-shop business performance report today.
+            Real-time multi-branch performance overview for <span className="font-semibold text-slate-700">{shopName}</span>.
           </p>
         </div>
 
-        {/* Date Range Picker Dropdown */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setDatePickerOpen(!datePickerOpen)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-xs font-bold text-slate-700 shadow-2xs transition-all cursor-pointer hover:bg-slate-50/50"
-          >
-            <Calendar className="h-4 w-4 text-slate-400" />
-            <span>{selectedTimeframeLabel}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400 ml-1" />
-          </button>
+        {/* Dropdown controls (Outlet Scope + Timeframe) */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Branch / Outlet Selector */}
+          {shops && shops.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShopPickerOpen(!shopPickerOpen);
+                  setDatePickerOpen(false);
+                }}
+                className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-xs font-bold text-slate-700 shadow-2xs transition-all cursor-pointer hover:bg-slate-50/50"
+              >
+                <Store className="h-4 w-4 text-[#2563EB]" />
+                <span className="truncate max-w-[130px] sm:max-w-[190px]">
+                  {selectedShopLabel}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400 ml-0.5 shrink-0" />
+              </button>
 
-          {datePickerOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40 bg-transparent"
-                onClick={() => setDatePickerOpen(false)}
-              />
-              <div className="absolute right-0 top-full mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-left animate-in fade-in-50 zoom-in-95">
-                <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                  Select Timeframe
-                </div>
-                {timeframeOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleTimeframeSelect(opt.value)}
-                    className={cn(
-                      "w-full px-3.5 py-2 text-xs font-semibold text-left transition-colors flex items-center justify-between cursor-pointer",
-                      currentTimeframe === opt.value
-                        ? "bg-blue-50/80 text-[#2563EB] font-bold"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    )}
-                  >
-                    <span>{opt.label}</span>
-                    {currentTimeframe === opt.value && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </>
+              {shopPickerOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40 bg-transparent"
+                    onClick={() => setShopPickerOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-left animate-in fade-in-50 zoom-in-95">
+                    <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100 flex items-center justify-between">
+                      <span>Outlet Scope</span>
+                      <span className="text-[9px] text-[#2563EB] lowercase font-normal">
+                        {shops.length} branches
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleShopSelect("all")}
+                      className={cn(
+                        "w-full px-3.5 py-2 text-xs font-semibold text-left transition-colors flex items-center justify-between cursor-pointer",
+                        currentShopId === "all"
+                          ? "bg-blue-50/80 text-[#2563EB] font-bold"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Store className="h-3.5 w-3.5 text-[#2563EB] shrink-0" />
+                        <span className="truncate font-bold">All Branches (Combined Chain)</span>
+                      </div>
+                      {currentShopId === "all" && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB] shrink-0" />
+                      )}
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    {shops.map((shop) => (
+                      <button
+                        key={shop.id}
+                        type="button"
+                        onClick={() => handleShopSelect(shop.id)}
+                        className={cn(
+                          "w-full px-3.5 py-2 text-xs font-semibold text-left transition-colors flex items-center justify-between cursor-pointer",
+                          currentShopId === shop.id
+                            ? "bg-blue-50/80 text-[#2563EB] font-bold"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        )}
+                      >
+                        <span className="truncate">{shop.name}</span>
+                        {currentShopId === shop.id && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB] shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
+
+          {/* Date Range Picker Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setDatePickerOpen(!datePickerOpen);
+                setShopPickerOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-xs font-bold text-slate-700 shadow-2xs transition-all cursor-pointer hover:bg-slate-50/50"
+            >
+              <Calendar className="h-4 w-4 text-slate-400" />
+              <span>{selectedTimeframeLabel}</span>
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400 ml-0.5 shrink-0" />
+            </button>
+
+            {datePickerOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-transparent"
+                  onClick={() => setDatePickerOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-left animate-in fade-in-50 zoom-in-95">
+                  <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                    Select Timeframe
+                  </div>
+                  {timeframeOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleTimeframeSelect(opt.value)}
+                      className={cn(
+                        "w-full px-3.5 py-2 text-xs font-semibold text-left transition-colors flex items-center justify-between cursor-pointer",
+                        currentTimeframe === opt.value
+                          ? "bg-blue-50/80 text-[#2563EB] font-bold"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      )}
+                    >
+                      <span>{opt.label}</span>
+                      {currentTimeframe === opt.value && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* ROW 1: 5 KPI CARDS GRID (High-Density & Proportional) */}
+      {/* ROW 1: 5 KPI CARDS GRID (Universal multi-breakpoint responsive grid) */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Card 1: TOTAL REVENUE */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between shadow-2xs hover:shadow-xs transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
               ₹
             </div>
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-50/80 border border-emerald-100/80 text-[10px] font-extrabold text-emerald-600">
-              <ArrowUpRight className="h-3 w-3" />
-              {kpis.revenueGrowth >= 0 ? `${kpis.revenueGrowth}%` : `${kpis.revenueGrowth}%`}
-            </span>
+            {renderGrowthBadge(kpis.revenueGrowth)}
           </div>
           <div className="mt-3">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
@@ -363,7 +465,7 @@ export default function OpticalDashboardClient({
               {formatCurrency(kpis.revenue)}
             </div>
             <p className="text-[11px] font-medium text-slate-400 mt-1">
-              Collected cash payments
+              Gross billed sales in period
             </p>
           </div>
         </div>
@@ -374,12 +476,7 @@ export default function OpticalDashboardClient({
             <div className="h-8 w-8 rounded-xl bg-blue-50 text-[#2563EB] flex items-center justify-center">
               <Receipt className="h-4 w-4" />
             </div>
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-blue-50/80 border border-blue-100/80 text-[10px] font-extrabold text-[#2563EB]">
-              <ArrowUpRight className="h-3 w-3" />
-              {kpis.salesInvoicesGrowth >= 0
-                ? `${kpis.salesInvoicesGrowth}%`
-                : `${kpis.salesInvoicesGrowth}%`}
-            </span>
+            {renderGrowthBadge(kpis.salesInvoicesGrowth)}
           </div>
           <div className="mt-3">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
@@ -389,7 +486,7 @@ export default function OpticalDashboardClient({
               {kpis.salesInvoicesCount}
             </div>
             <p className="text-[11px] font-medium text-slate-400 mt-1">
-              Created invoice slips
+              Total orders booked
             </p>
           </div>
         </div>
@@ -400,12 +497,7 @@ export default function OpticalDashboardClient({
             <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
               <Wallet className="h-4 w-4" />
             </div>
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-50/80 border border-amber-100/80 text-[10px] font-extrabold text-amber-600">
-              <ArrowUpRight className="h-3 w-3" />
-              {kpis.accountsReceivableGrowth >= 0
-                ? `${kpis.accountsReceivableGrowth}%`
-                : `${kpis.accountsReceivableGrowth}%`}
-            </span>
+            {renderGrowthBadge(kpis.accountsReceivableGrowth, true)}
           </div>
           <div className="mt-3">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
@@ -426,12 +518,7 @@ export default function OpticalDashboardClient({
             <div className="h-8 w-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
               <Users className="h-4 w-4" />
             </div>
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-cyan-50/80 border border-cyan-100/80 text-[10px] font-extrabold text-cyan-600">
-              <ArrowUpRight className="h-3 w-3" />
-              {kpis.activeCustomersGrowth >= 0
-                ? `${kpis.activeCustomersGrowth}%`
-                : `${kpis.activeCustomersGrowth}%`}
-            </span>
+            {renderGrowthBadge(kpis.activeCustomersGrowth)}
           </div>
           <div className="mt-3">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
@@ -441,7 +528,7 @@ export default function OpticalDashboardClient({
               {kpis.activeCustomersCount}
             </div>
             <p className="text-[11px] font-medium text-slate-400 mt-1">
-              Registered base cross-branch
+              Transacted in active period
             </p>
           </div>
         </div>
@@ -452,9 +539,9 @@ export default function OpticalDashboardClient({
             <div className="h-8 w-8 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
               <Store className="h-4 w-4" />
             </div>
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-pink-50/80 border border-pink-100/80 text-[10px] font-extrabold text-pink-600">
-              <ArrowUpRight className="h-3 w-3" />
-              {kpis.totalStoresGrowth}%
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50/80 border border-blue-100/80 text-[10px] font-extrabold text-[#2563EB]">
+              <Building2 className="h-3 w-3" />
+              Chain Network
             </span>
           </div>
           <div className="mt-3">
@@ -465,7 +552,7 @@ export default function OpticalDashboardClient({
               {kpis.totalStoresCount}
             </div>
             <p className="text-[11px] font-medium text-slate-400 mt-1">
-              Your connected branches
+              Active operating branches
             </p>
           </div>
         </div>
@@ -474,7 +561,7 @@ export default function OpticalDashboardClient({
       {/* ========================================================================= */}
       {/* ROW 2: 3 COLUMNS (Customer Bifurcation, Dead Stock, Stock Valuation) */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {/* Card 1: Customer Bifurcation */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between mb-2">
@@ -484,46 +571,16 @@ export default function OpticalDashboardClient({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Customer Bifurcation</h3>
-                <p className="text-[11px] font-medium text-slate-400">By purchase type</p>
+                <p className="text-[11px] font-medium text-slate-400">By optical product type</p>
               </div>
             </div>
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setCustomerDropdownOpen(!customerDropdownOpen)}
-                className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                {customerFilter} <ChevronDown className="h-3 w-3 text-slate-400" />
-              </button>
-
-              {customerDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40 bg-transparent"
-                    onClick={() => setCustomerDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50 text-left">
-                    {["This Month", "This Quarter", "All Time"].map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => {
-                          setCustomerFilter(opt);
-                          setCustomerDropdownOpen(false);
-                        }}
-                        className="w-full px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-left cursor-pointer"
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <span className="px-2.5 py-0.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-500">
+              {selectedTimeframeLabel}
+            </span>
           </div>
 
-          <div className="flex items-center justify-between gap-3 py-2 flex-1">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 flex-1">
             <div className="shrink-0">
               <DashboardDonut
                 data={customerDonutData}
@@ -534,48 +591,57 @@ export default function OpticalDashboardClient({
               />
             </div>
 
-            <div className="space-y-2.5 text-xs font-semibold flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6] shrink-0" />
-                  <span className="text-slate-600 text-xs font-medium">Only Frame</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-bold text-slate-900">{customerBifurcation.onlyFrame}</span>{" "}
-                  <span className="text-slate-400 text-[11px]">
-                    ({customerBifurcation.onlyFramePercent}%)
-                  </span>
-                </div>
+            {customerBifurcation.totalCustomers === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center p-3 text-slate-400 flex-1">
+                <p className="text-xs font-semibold text-slate-500">No customer sales recorded</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  No optical orders found in this timeframe
+                </p>
               </div>
+            ) : (
+              <div className="space-y-2.5 text-xs font-semibold flex-1 w-full pl-0 sm:pl-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6] shrink-0" />
+                    <span className="text-slate-600 text-xs font-medium">Only Frame</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-slate-900">{customerBifurcation.onlyFrame}</span>{" "}
+                    <span className="text-slate-400 text-[10px]">
+                      ({customerBifurcation.onlyFramePercent}%)
+                    </span>
+                  </div>
+                </div>
 
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#06B6D4] shrink-0" />
-                  <span className="text-slate-600 text-xs font-medium">Only Lense</span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#06B6D4] shrink-0" />
+                    <span className="text-slate-600 text-xs font-medium">Only Lens</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-slate-900">{customerBifurcation.onlyLens}</span>{" "}
+                    <span className="text-slate-400 text-[10px]">
+                      ({customerBifurcation.onlyLensPercent}%)
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="font-bold text-slate-900">{customerBifurcation.onlyLens}</span>{" "}
-                  <span className="text-slate-400 text-[11px]">
-                    ({customerBifurcation.onlyLensPercent}%)
-                  </span>
-                </div>
-              </div>
 
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] shrink-0" />
-                  <span className="text-slate-600 text-xs font-medium">Both Frame & Lense</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-bold text-slate-900">
-                    {customerBifurcation.bothFrameAndLens}
-                  </span>{" "}
-                  <span className="text-slate-400 text-[11px]">
-                    ({customerBifurcation.bothFrameAndLensPercent}%)
-                  </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] shrink-0" />
+                    <span className="text-slate-600 text-xs font-medium">Both Frame & Lens</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-slate-900">
+                      {customerBifurcation.bothFrameAndLens}
+                    </span>{" "}
+                    <span className="text-slate-400 text-[10px]">
+                      ({customerBifurcation.bothFrameAndLensPercent}%)
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -589,7 +655,7 @@ export default function OpticalDashboardClient({
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Dead Stock</h3>
                 <p className="text-[11px] font-medium text-slate-400">
-                  Items not moved in last 90 days
+                  Items with zero movement in 90+ days
                 </p>
               </div>
             </div>
@@ -609,17 +675,24 @@ export default function OpticalDashboardClient({
             <div className="text-3xl font-black text-slate-900 tracking-tight">
               {deadStock.count}
             </div>
-            <p className="text-xs font-medium text-slate-400 mt-0.5">Dead stock items</p>
+            <p className="text-xs font-medium text-slate-400 mt-0.5">Dormant inventory items</p>
             <div className="mt-3">
-              <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold">
-                {deadStock.percentageOfTotal}% of total stock
+              <span
+                className={cn(
+                  "inline-block px-3 py-1 rounded-full text-[11px] font-bold border",
+                  deadStock.count === 0
+                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    : "bg-amber-50 text-amber-600 border-amber-100"
+                )}
+              >
+                {deadStock.percentageOfTotal}% of total catalog ({deadStock.totalItems} items)
               </span>
             </div>
           </div>
         </div>
 
         {/* Card 3: Stock Valuation */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-2xs md:col-span-2 lg:col-span-1">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
@@ -632,17 +705,50 @@ export default function OpticalDashboardClient({
                 </p>
               </div>
             </div>
+
+            <span className="px-2.5 py-0.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-500">
+              {stockValuation.totalUnits} Units
+            </span>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-3 flex-1">
-            <DashboardDonut
-              data={stockValuationDonutData}
-              size={135}
-              thickness={15}
-              centerPrimary={formatCurrency(stockValuation.totalValue)}
-              centerSecondary="TOTAL VALUE"
-              centerPrimaryClass="text-base font-black text-slate-900"
-            />
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 flex-1">
+            <div className="shrink-0">
+              <DashboardDonut
+                data={stockValuationDonutData}
+                size={120}
+                thickness={14}
+                centerPrimary={formatCurrency(stockValuation.totalValue)}
+                centerSecondary="TOTAL VALUE"
+                centerPrimaryClass="text-xs font-black text-slate-900"
+              />
+            </div>
+
+            {stockValuation.categories.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center p-3 text-slate-400 flex-1">
+                <p className="text-xs font-semibold text-slate-500">No stock in inventory</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Add inventory products to track asset distribution
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 text-xs font-semibold flex-1 w-full pl-0 sm:pl-2">
+                {stockValuation.categories.slice(0, 4).map((cat) => (
+                  <div key={cat.category} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: cat.color }}
+                      />
+                      <span className="text-slate-600 text-xs font-medium truncate">{cat.label}</span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-slate-900">{formatCurrency(cat.value)}</span>{" "}
+                      <span className="text-slate-400 text-[10px]">({cat.percentage}%)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -651,7 +757,7 @@ export default function OpticalDashboardClient({
       {/* ROW 3: 3 COLUMNS (Return Rate, Sales Bifurcation, Low Stock Alerts) */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-        {/* Card 1: Return Rate (Col-span 3 or 4) */}
+        {/* Card 1: Return Rate (Col-span 4) */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-2xs lg:col-span-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2.5">
@@ -660,46 +766,16 @@ export default function OpticalDashboardClient({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Return Rate</h3>
-                <p className="text-[11px] font-medium text-slate-400">% of products returned</p>
+                <p className="text-[11px] font-medium text-slate-400">% of sold products returned</p>
               </div>
             </div>
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setReturnDropdownOpen(!returnDropdownOpen)}
-                className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                {returnFilter} <ChevronDown className="h-3 w-3 text-slate-400" />
-              </button>
-
-              {returnDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40 bg-transparent"
-                    onClick={() => setReturnDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50 text-left">
-                    {["This Month", "This Quarter", "All Time"].map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => {
-                          setReturnFilter(opt);
-                          setReturnDropdownOpen(false);
-                        }}
-                        className="w-full px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-left cursor-pointer"
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <span className="px-2.5 py-0.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-500">
+              {selectedTimeframeLabel}
+            </span>
           </div>
 
-          <div className="flex items-center justify-between gap-3 py-2 flex-1">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 flex-1">
             <div className="shrink-0">
               <DashboardDonut
                 data={returnRateDonutData}
@@ -711,14 +787,14 @@ export default function OpticalDashboardClient({
               />
             </div>
 
-            <div className="space-y-2 text-xs font-medium text-slate-500 flex-1 pl-2">
-              <div>
+            <div className="space-y-2 text-xs font-medium text-slate-500 flex-1 w-full pl-0 sm:pl-2">
+              <div className="flex items-center justify-between sm:block">
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">
                   Total Sales
                 </span>
                 <span className="font-bold text-slate-900 text-sm">{returnRate.totalSales}</span>
               </div>
-              <div>
+              <div className="flex items-center justify-between sm:block">
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">
                   Returned Items
                 </span>
@@ -726,11 +802,16 @@ export default function OpticalDashboardClient({
                   {returnRate.returnedItems}
                 </span>
               </div>
-              <div>
+              <div className="flex items-center justify-between sm:block">
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">
                   Return Rate
                 </span>
-                <span className="font-bold text-emerald-600 text-xs">
+                <span
+                  className={cn(
+                    "font-bold text-xs",
+                    returnRate.returnRatePercent === 0 ? "text-emerald-600" : "text-rose-600"
+                  )}
+                >
                   {returnRate.returnRatePercent}%
                 </span>
               </div>
@@ -748,48 +829,18 @@ export default function OpticalDashboardClient({
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Sales Bifurcation</h3>
                 <p className="text-[11px] font-medium text-slate-400">
-                  Breakdown by different categories
+                  Breakdown by category & demographics
                 </p>
               </div>
             </div>
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setSalesDropdownOpen(!salesDropdownOpen)}
-                className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                {salesFilter} <ChevronDown className="h-3 w-3 text-slate-400" />
-              </button>
-
-              {salesDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40 bg-transparent"
-                    onClick={() => setSalesDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50 text-left">
-                    {["This Month", "This Quarter", "All Time"].map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => {
-                          setSalesFilter(opt);
-                          setSalesDropdownOpen(false);
-                        }}
-                        className="w-full px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-left cursor-pointer"
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <span className="px-2.5 py-0.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-500">
+              {selectedTimeframeLabel}
+            </span>
           </div>
 
-          {/* 5 Tab buttons */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100/70 rounded-xl my-1.5 overflow-x-auto">
+          {/* 5 Tab buttons with smooth horizontal scroll for mobile */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100/70 rounded-xl my-1.5 overflow-x-auto scrollbar-none flex-nowrap">
             {[
               { id: "lenses", label: "By Lenses" },
               { id: "frames", label: "By Frames" },
@@ -802,7 +853,7 @@ export default function OpticalDashboardClient({
                 type="button"
                 onClick={() => setBifurcationTab(tab.id as any)}
                 className={cn(
-                  "flex-1 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap text-center",
+                  "flex-1 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap text-center shrink-0",
                   bifurcationTab === tab.id
                     ? "bg-[#2563EB] text-white shadow-2xs"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -814,7 +865,7 @@ export default function OpticalDashboardClient({
           </div>
 
           {/* Donut and Dynamic Legend */}
-          <div className="flex items-center justify-between gap-3 py-1 flex-1">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-1 flex-1">
             <div className="shrink-0">
               <DashboardDonut
                 data={salesDonutData}
@@ -826,23 +877,35 @@ export default function OpticalDashboardClient({
               />
             </div>
 
-            <div className="space-y-1.5 text-xs font-medium flex-1 pl-2">
-              {activeBifurcation.slices.map((slice) => (
-                <div key={slice.name} className="flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="h-2 w-2 rounded-full shrink-0"
-                      style={{ backgroundColor: slice.color }}
-                    />
-                    <span className="text-slate-600 text-xs truncate">{slice.name}</span>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-bold text-slate-900">{slice.count}</span>{" "}
-                    <span className="text-slate-400 text-[10px]">({slice.percentage}%)</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {!hasActiveSalesData ? (
+              <div className="flex flex-col items-center justify-center text-center p-3 text-slate-400 flex-1">
+                <p className="text-xs font-semibold text-slate-500">No category sales</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  No products sold under this tab in timeframe
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 text-xs font-medium flex-1 w-full pl-0 sm:pl-2">
+                {activeBifurcation.slices
+                  .filter((slice) => slice.count > 0 || slice.amount > 0)
+                  .slice(0, 5)
+                  .map((slice) => (
+                    <div key={slice.name} className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: slice.color }}
+                        />
+                        <span className="text-slate-600 text-xs truncate">{slice.name}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bold text-slate-900">{slice.count}</span>{" "}
+                        <span className="text-slate-400 text-[10px]">({slice.percentage}%)</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -918,47 +981,17 @@ export default function OpticalDashboardClient({
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Retention Rate</h3>
                 <p className="text-[11px] font-medium text-slate-400">
-                  Repeat customers coming back to store
+                  Repeat customers returning across chain
                 </p>
               </div>
             </div>
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setRetentionDropdownOpen(!retentionDropdownOpen)}
-                className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                {retentionFilter} <ChevronDown className="h-3 w-3 text-slate-400" />
-              </button>
-
-              {retentionDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40 bg-transparent"
-                    onClick={() => setRetentionDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50 text-left">
-                    {["This Month", "This Quarter", "All Time"].map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => {
-                          setRetentionFilter(opt);
-                          setRetentionDropdownOpen(false);
-                        }}
-                        className="w-full px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-left cursor-pointer"
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <span className="px-2.5 py-0.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[10px] font-bold text-slate-500">
+              {selectedTimeframeLabel}
+            </span>
           </div>
 
-          <div className="flex items-center justify-between gap-3 py-2 flex-1">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 flex-1">
             <div className="shrink-0">
               <DashboardDonut
                 data={retentionDonutData}
@@ -970,24 +1003,24 @@ export default function OpticalDashboardClient({
               />
             </div>
 
-            <div className="space-y-2 text-xs font-medium text-slate-500 flex-1 pl-2">
-              <div>
+            <div className="space-y-2 text-xs font-medium text-slate-500 flex-1 w-full pl-0 sm:pl-2">
+              <div className="flex items-center justify-between sm:block">
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">
-                  Total Customers
+                  Total Patients
                 </span>
                 <span className="font-bold text-slate-900 text-sm">
                   {retentionRate.totalCustomers}
                 </span>
               </div>
-              <div>
+              <div className="flex items-center justify-between sm:block">
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">
-                  Returning Customers
+                  Returning Patients
                 </span>
                 <span className="font-bold text-slate-900 text-sm">
                   {retentionRate.returningCustomers}
                 </span>
               </div>
-              <div>
+              <div className="flex items-center justify-between sm:block">
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">
                   Retention Rate
                 </span>
@@ -1013,12 +1046,12 @@ export default function OpticalDashboardClient({
               href="/shop/orders"
               className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-0.5"
             >
-              View Customers <ArrowRight className="h-3 w-3" />
+              View All Orders <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
 
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto flex-1 scrollbar-thin">
+            <table className="w-full text-left border-collapse min-w-[540px]">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <th className="py-2 px-3">DATE & TIME</th>
@@ -1059,7 +1092,7 @@ export default function OpticalDashboardClient({
                             "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide border",
                             tx.status === "PAID"
                               ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                              : tx.status === "PARTIALLY_PAID"
+                              : tx.status === "PARTIALLY_PAID" || tx.status === "PENDING"
                               ? "bg-amber-50 text-amber-600 border-amber-100"
                               : "bg-rose-50 text-rose-600 border-rose-100"
                           )}
@@ -1068,7 +1101,7 @@ export default function OpticalDashboardClient({
                             <>
                               <span className="text-[9px]">✓</span> Completed
                             </>
-                          ) : tx.status === "PARTIALLY_PAID" ? (
+                          ) : tx.status === "PARTIALLY_PAID" || tx.status === "PENDING" ? (
                             "Partial"
                           ) : (
                             tx.status
