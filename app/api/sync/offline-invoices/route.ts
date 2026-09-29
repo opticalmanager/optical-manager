@@ -321,23 +321,12 @@ export async function POST(request: Request) {
             }
           }
 
-          // Generate Order Record
-          const orderNumber = await generateOrderNumber(effectiveShopId, tx);
+          // Generate Order Form Receipt for every booked order
+          const receiptNumber = await generateReceiptNumber(effectiveShopId, tx);
           const effectiveDate = offlineCreatedAt ? new Date(offlineCreatedAt) : new Date();
-          await tx.insert(orders).values({
-            shopId: effectiveShopId,
-            organizationId,
-            customerId: customerId!,
-            invoiceId: invoice.id,
-            orderNumber,
-            createdAt: effectiveDate,
-            updatedAt: effectiveDate,
-          });
-
-          // Generate Receipt if payment was collected
-          if (amountPaid > 0) {
-            const receiptNumber = await generateReceiptNumber(effectiveShopId, tx);
-            await tx.insert(receipts).values({
+          const [receiptRecord] = await tx
+            .insert(receipts)
+            .values({
               shopId: effectiveShopId,
               organizationId,
               invoiceId: invoice.id,
@@ -347,8 +336,21 @@ export async function POST(request: Request) {
               paymentMethod: (data.paymentMethod as any) || "CASH",
               createdAt: effectiveDate,
               updatedAt: effectiveDate,
-            });
-          }
+            })
+            .returning();
+
+          // Generate Order Record linking invoice and receipt (Order Form)
+          const orderNumber = await generateOrderNumber(effectiveShopId, tx, invoice.invoiceNumber);
+          await tx.insert(orders).values({
+            shopId: effectiveShopId,
+            organizationId,
+            customerId: customerId!,
+            invoiceId: invoice.id,
+            receiptId: receiptRecord.id,
+            orderNumber,
+            createdAt: effectiveDate,
+            updatedAt: effectiveDate,
+          });
 
           return {
             serverInvoiceId: invoice.id,

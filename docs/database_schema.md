@@ -192,7 +192,7 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 | `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Multi-tenant organization ID |
 | `customerId` | `uuid` | FK -> `customers.id` (CASCADE) | Customer / patient reference |
 | `invoiceId` | `uuid` | FK -> `invoices.id` (CASCADE) | Linked tax invoice record |
-| `receiptId` | `uuid` | FK -> `receipts.id` (SET NULL) | Attached payment receipt (if partially paid) |
+| `receiptId` | `uuid` | FK -> `receipts.id` (SET NULL) | Attached booking receipt / Order Form identifier |
 | `orderNumber` | `varchar(50)` | NOT NULL, INDEXED | Sequential order number (`ORD-shop-YYYY-NNNN`) |
 | `createdAt` | `timestamp` | NOT NULL, defaultNow() | Order creation timestamp (strictly harmonized with `invoices.createdAt`) |
 | `updatedAt` | `timestamp` | NOT NULL, defaultNow() | Last modification timestamp |
@@ -201,6 +201,8 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 
 > [!NOTE]
 > **Order & Receipt Timestamp Harmonization**: `orders.createdAt` and `receipts.createdAt` are strictly synchronized with `invoices.createdAt` across all invoice creation, offline sync, and order edit workflows.
+> 
+> **Guaranteed Order Form Receipt Preservation**: Every booked order (online checkout or offline sync) generates an official booking receipt record linked via `orders.receiptId`. Full order edits maintain and regenerate this receipt with updated financials, ensuring the Order Form document link (`/shop/receipts/[id]`) is perpetually preserved without receipt loss.
 > 
 > **Customer Resolution on Shared Phone Numbers**: In retail optical clinics, family members frequently share a single mobile number. During invoice creation, if a matching phone number exists but the customer's full name differs, a distinct customer record is created for the new family member rather than mutating the existing profile. This guarantees historical orders retain authentic patient identities.
 

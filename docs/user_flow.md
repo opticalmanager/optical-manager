@@ -17,9 +17,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 2. **Organization Creation**: If no organization exists, owner is guided through `/onboarding` to set up their clinical organization profile.
 3. **Shop Outlet Configuration**: Owner adds store locations (`/owner/shops`) with store names, addresses, phone numbers, and GST details.
 4. **Manager Delegation**: Owner invites shop managers (`/owner/shop-managers`) and assigns them to specific store branches.
-5. **Multi-Shop Analytics & Reporting**:
-   - Owner accesses `/owner/analytics` or `/owner/reports` with a top Outlet Filter Context toolbar.
-   - Defaults to **All Outlets (Combined)** aggregated across all branches, or switches to isolate specific store locations (`?shopId=<uuid>`).
+5. **Multi-Shop Executive Dashboard & Reporting**:
+   - Owner lands on the main dashboard (`/owner`), displaying multi-store enterprise KPIs (Revenue growth, invoices count, receivables, active customers, total stores), customer bifurcation (Only Frame, Only Lens, Both), 90-day dead stock analysis, stock category valuation donut, return rates, 5-tab sales bifurcation (Lenses, Frames, Brands, Gender, Age), customer retention rates, and recent transactions across the business chain.
+   - Interactive timeframe picker (`?timeframe=...`) allows switching between Today, Yesterday, 7 Days, 30 Days, Quarter, 12 Months, YTD, and All Time.
+   - Accesses `/owner/analytics` or `/owner/reports` with a top Outlet Filter Context toolbar, defaulting to All Outlets or filtering by specific branch (`?shopId=<uuid>`).
 
 ---
 

@@ -17,7 +17,7 @@ import {
   frameDetails,
   lensDetails
 } from "@/db/schema";
-import { eq, and, or, ne, gte, lt, lte, sql, desc, sum, count, max, inArray } from "drizzle-orm";
+import { eq, and, or, ne, gte, lt, lte, sql, desc, sum, count, max, inArray, isNull } from "drizzle-orm";
 import { TimeframeType } from "./order.service";
 
 export interface OpticalDashboardKPIs extends DashboardKPIs {
@@ -408,14 +408,15 @@ export async function getDashboardData(
     prevPeriodInvoicesList,
     recent10InvoicesWithItems
   ] = await Promise.all([
-    // 1. Primary Revenue
+    // 1. Primary Revenue: All valid non-cancelled billed invoices in period
     db
       .select({ total: sum(invoices.total) })
       .from(invoices)
       .where(
         and(
           shopCond(invoices.shopId, invoices.organizationId),
-          eq(invoices.status, "PAID"),
+          ne(invoices.status, "CANCELLED"),
+          isNull(invoices.deletedAt),
           gte(invoices.createdAt, startDate),
           lte(invoices.createdAt, endDate)
         )
@@ -483,7 +484,7 @@ export async function getDashboardData(
         )
       ),
 
-    // 7. Pending Payments
+    // 7. Pending Payments (Accounts Receivable)
     db
       .select({ balance: sum(sql`${invoices.total} - ${invoices.amountPaid}`) })
       .from(invoices)
@@ -491,6 +492,7 @@ export async function getDashboardData(
         and(
           shopCond(invoices.shopId, invoices.organizationId),
           ne(invoices.status, "CANCELLED"),
+          isNull(invoices.deletedAt),
           ne(invoices.status, "PAID"),
           gte(invoices.createdAt, startDate),
           lte(invoices.createdAt, endDate)
@@ -504,6 +506,8 @@ export async function getDashboardData(
       .where(
         and(
           shopCond(invoices.shopId, invoices.organizationId),
+          ne(invoices.status, "CANCELLED"),
+          isNull(invoices.deletedAt),
           gte(invoices.createdAt, startDate),
           lte(invoices.createdAt, endDate)
         )
@@ -738,7 +742,8 @@ export async function getDashboardData(
       .where(
         and(
           shopCond(invoices.shopId, invoices.organizationId),
-          eq(invoices.status, "PAID"),
+          ne(invoices.status, "CANCELLED"),
+          isNull(invoices.deletedAt),
           gte(invoices.createdAt, prevStartDate),
           lte(invoices.createdAt, prevEndDate)
         )
@@ -752,6 +757,7 @@ export async function getDashboardData(
         and(
           shopCond(invoices.shopId, invoices.organizationId),
           ne(invoices.status, "CANCELLED"),
+          isNull(invoices.deletedAt),
           ne(invoices.status, "PAID"),
           gte(invoices.createdAt, prevStartDate),
           lte(invoices.createdAt, prevEndDate)
@@ -960,13 +966,16 @@ export async function getDashboardData(
 
   // Optical KPI calculations & growth rates
   const prevRevenueVal = prevPeriodInvoicesList
-    .filter((inv) => inv.status === "PAID")
     .reduce((acc, inv) => acc + Number(inv.total || 0), 0);
   const revenueGrowth = calcGrowth(revenueVal, prevRevenueVal);
 
   const salesInvoicesCount = recentInvoices.length;
   const prevSalesInvoicesCount = prevPeriodInvoicesList.length;
   const salesInvoicesGrowth = calcGrowth(salesInvoicesCount, prevSalesInvoicesCount);
+
+  const collectionsVal = recentInvoices
+    .filter((inv) => inv.status !== "CANCELLED" && !inv.deletedAt)
+    .reduce((acc, inv) => acc + Number(inv.amountPaid || 0), 0);
 
   const accountsReceivableVal = pendingPaymentsVal;
   const prevAccountsReceivable = prevPeriodInvoicesList
@@ -984,7 +993,7 @@ export async function getDashboardData(
 
   const opticalKPIs: OpticalDashboardKPIs = {
     revenue: revenueVal,
-    collections: Math.max(0, revenueVal - pendingPaymentsVal),
+    collections: collectionsVal,
     pendingOrders: pendingOrdersVal,
     readyForPickupOrders: readyForPickupOrdersVal,
     delayedOrders: delayedOrdersVal,
@@ -1040,7 +1049,6 @@ export async function getDashboardData(
     if (flags.hasFrame && !flags.hasLens) onlyFrame++;
     else if (!flags.hasFrame && flags.hasLens) onlyLens++;
     else if (flags.hasFrame && flags.hasLens) bothFrameAndLens++;
-    else onlyFrame++; // fallback for items categorized under general accessories
   });
 
   const totalBifurcationCustomers = onlyFrame + onlyLens + bothFrameAndLens;
@@ -1122,10 +1130,7 @@ export async function getDashboardData(
   const stockValuation: StockValuationData = {
     totalValue: totalValuationSum,
     totalUnits: totalUnitsSum,
-    categories: stockCategories.length > 0 ? stockCategories : [
-      { category: "FRAME", label: "Frames", value: 0, count: 0, percentage: 0, color: "#3B82F6" },
-      { category: "LENS", label: "Lenses", value: 0, count: 0, percentage: 0, color: "#8B5CF6" }
-    ],
+    categories: stockCategories,
   };
 
   // 4. Return Rate

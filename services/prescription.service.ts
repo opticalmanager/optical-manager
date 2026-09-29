@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/drizzle";
 import { prescriptions } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import type { Prescription, NewPrescription } from "@/types";
 
 /**
@@ -15,7 +15,7 @@ export async function getPrescriptionsByCustomer(
     .select()
     .from(prescriptions)
     .where(eq(prescriptions.customerId, customerId))
-    .orderBy(prescriptions.createdAt);
+    .orderBy(desc(prescriptions.createdAt));
 }
 
 /**
@@ -28,7 +28,7 @@ export async function getPrescriptionsByShop(
     .select()
     .from(prescriptions)
     .where(eq(prescriptions.shopId, shopId))
-    .orderBy(prescriptions.createdAt);
+    .orderBy(desc(prescriptions.createdAt));
 }
 
 /**

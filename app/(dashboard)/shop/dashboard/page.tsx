@@ -2,11 +2,11 @@ import { getCurrentUser } from "@/services/auth.service";
 import { getDashboardData, type DashboardData } from "@/services/dashboard.service";
 import { getShopById, getShopsByOrganization } from "@/services/shop.service";
 import { TimeframeType } from "@/services/order.service";
-import OpticalDashboardClient from "@/components/shop/dashboard/OpticalDashboardClient";
+import StoreOverviewClient from "@/components/shop/StoreOverviewClient";
 
 export const metadata = {
-  title: "Dashboard | Optical Manager",
-  description: "Optical Store dashboard showing performance metrics, customer bifurcation, and transactions.",
+  title: "Store Overview | Optical Manager",
+  description: "Store Overview dashboard showing appointments, orders, priority actions, and stock alerts.",
 };
 
 interface PageProps {
@@ -42,7 +42,7 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
   }
 
   const params = await searchParams;
-  const timeframe = (params.timeframe || "90d") as TimeframeType;
+  const timeframe = (params.timeframe || "24h") as TimeframeType;
 
   let data: DashboardData = {
     kpis: {
@@ -82,7 +82,7 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
     );
     const results = await Promise.race([
       Promise.all([
-        getDashboardData(shopId, timeframe, user.organizationId),
+        getDashboardData(shopId, timeframe),
         getShopById(shopId, user.organizationId),
       ]),
       timeoutPromise,
@@ -93,20 +93,5 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
     console.warn("[ShopDashboardPage] Failed to fetch dashboard data (offline/timeout fallback):", err);
   }
 
-  // Extract first name for friendly greeting
-  const firstName = user.fullName
-    ? user.fullName.trim().split(" ")[0]
-    : user.email
-    ? user.email.split("@")[0]
-    : "User";
-
-  return (
-    <OpticalDashboardClient
-      data={data}
-      userName={firstName}
-      shopName={shop?.name || "Vision Plus Outlet"}
-      currentTimeframe={timeframe}
-    />
-  );
+  return <StoreOverviewClient data={data} shopName={shop?.name || "Vision Plus Outlet"} />;
 }
-

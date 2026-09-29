@@ -127,14 +127,22 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         try {
           const rxRes = await getCustomerPrescriptionsAction(order.customerId);
           if (rxRes.success && rxRes.data && rxRes.data.length > 0) {
-            prescriptionData = rxRes.data[rxRes.data.length - 1]; // latest prescription
+            prescriptionData = rxRes.data[0]; // latest prescription (sorted DESC)
           }
         } catch {}
       }
 
       // Format template variables
       const invoiceUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/share/invoice/${order.invoiceId}`;
-      const primaryReceiptId = order.receipts?.[0]?.id || order.receiptId || order.invoiceId;
+
+      // Determine the primary booking receipt (Order Form) chronologically
+      const receiptsList = order.receipts || [];
+      const chronologicalReceipts = [...receiptsList].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      const bookingReceipt = chronologicalReceipts[0] || (order.receiptId ? { id: order.receiptId, receiptNumber: order.orderNumber } : null);
+      const primaryReceiptId = bookingReceipt?.id || order.receiptId || order.invoiceId;
+      const primaryReceiptNumber = (bookingReceipt as any)?.receiptNumber || order.receipts?.[0]?.receiptNumber || order.orderNumber || "ORDER FORM";
       const orderFormUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/shop/receipts/${primaryReceiptId}`;
 
       const parsedText = parseWhatsAppTemplate(templateText, {
@@ -143,7 +151,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         phone: shopData?.phone || "+91 74161 06064",
         order_number: order.orderNumber || "",
         invoice_number: order.invoiceNumber || "",
-        receipt_number: order.receipts?.[0]?.receiptNumber || order.orderNumber || "ORDER FORM",
+        receipt_number: primaryReceiptNumber,
         amount: formatCurrency(parseFloat(order.total)),
         amount_paid: formatCurrency(parseFloat(order.amountPaid || "0")),
         balance_due: formatCurrency(parseFloat(order.balanceDue || "0")),
