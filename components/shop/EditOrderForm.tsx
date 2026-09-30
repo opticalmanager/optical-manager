@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { safeParseDate, safeToISODate, safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { updateFullOrderAction, deleteOrderAction } from "@/actions/order.actions";
 import type { OrderForEditData } from "@/services/order.service";
 import { Input } from "@/components/ui/input";
@@ -100,8 +101,8 @@ export interface EditableLineItem {
   isSearching: boolean;
 }
 
-function formatDateTimeLocal(d: Date = new Date()): string {
-  const dateObj = new Date(d);
+function formatDateTimeLocal(d: Date | string = new Date()): string {
+  const dateObj = safeParseDate(d) || new Date();
   const year = dateObj.getFullYear();
   const month = String(dateObj.getMonth() + 1).padStart(2, "0");
   const day = String(dateObj.getDate()).padStart(2, "0");
@@ -237,9 +238,10 @@ export function EditOrderForm({
   // Delivery preset handler
   const handleDeliveryPreset = (days: number, label: string) => {
     setDeliveryPreset(label);
-    const d = new Date(billingDateTime);
-    d.setDate(d.getDate() + days);
-    setEstimatedDelivery(d.toISOString().split("T")[0]);
+    const base = safeParseDate(billingDateTime) || new Date();
+    const d = new Date(base.getTime() + days * 86400000);
+    const isoDate = safeToISODate(d) || new Date().toISOString().split("T")[0];
+    setEstimatedDelivery(isoDate);
     if (days > 0 && fulfillmentStatus === "DELIVERED") {
       setFulfillmentStatus("PROCESSING");
     } else if (days === 0) {
@@ -1376,7 +1378,7 @@ export function EditOrderForm({
         {initialData.history.length > 0 ? (
           <div className="divide-y divide-slate-100">
             {initialData.history.map((record) => {
-              const dateStr = new Date(record.createdAt).toLocaleDateString("en-IN", {
+              const dateStr = safeFormatDateLocale(record.createdAt, "—", {
                 day: "2-digit",
                 month: "short",
                 year: "numeric",
@@ -1424,7 +1426,7 @@ export function EditOrderForm({
             </p>
             <p className="text-[11px]">
               Created on{" "}
-              {new Date(initialData.order.createdAt).toLocaleDateString("en-IN", {
+              {safeFormatDateLocale(initialData.order.createdAt, "—", {
                 day: "2-digit",
                 month: "short",
                 year: "numeric",

@@ -7,7 +7,9 @@ import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { getCustomerPrescriptionsAction } from "@/actions/prescription.actions";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { parseWhatsAppTemplate, openWhatsAppChat, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
+import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
 import { formatCurrency } from "@/lib/utils";
+import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { toast } from "sonner";
 import { 
   Send, 
@@ -105,21 +107,11 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         return;
       }
 
-      // 3. Fallback Templates
-      const fallbacks: Record<string, string> = {
-        order_form_sent:
-          "Dear {{customer_name}},\n\nThank you for booking your optical order with {{shop_name}}!\n\n*Order Booking Details:*\n• Order Form #: {{receipt_number}}\n• Amount Paid: {{amount_paid}}\n• Remaining Dues: {{balance_due}}\n• Expected Delivery: {{estimated_delivery}}\n\nAccess your digital Order Form & optical prescription details here:\n{{order_form_url}}\n\nThank you for trusting us with your vision!",
-        invoice_sent:
-          "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!",
-        prescription_sent:
-          "Dear {{customer_name}},\n\nHere are your clinical eye prescription details from {{shop_name}}:\n\n*Right Eye (OD):*\n• SPH: {{re_sph}} | CYL: {{re_cyl}} | AXIS: {{re_axis}} | ADD: {{re_add}}\n\n*Left Eye (OS):*\n• SPH: {{le_sph}} | CYL: {{le_cyl}} | AXIS: {{le_axis}} | ADD: {{le_add}}\n\n• P.D.: {{pd}} mm\n• Prescribed By: {{doctor_name}}\n\nView your full optical records & digital card here: {{invoice_url}}\n\nWarm regards,\n{{shop_name}}",
-        payment_reminder:
-          "Dear {{customer_name}},\n\nThis is a gentle payment reminder from {{shop_name}} regarding your order {{order_number}}.\n\n*Pending Balance:* {{balance_due}}\n*Total Amount:* {{amount}}\n*Amount Paid So Far:* {{amount_paid}}\n\nYou can view your order summary and pay online here: {{invoice_url}}\n\nFeel free to reach out to us at {{phone}} if you have any questions!",
-        order_complete:
-          "Hi {{customer_name}},\n\nYour spectacles/lenses order under order number {{order_number}} is ready for pickup/delivery at {{shop_name}}!\n\nFeel free to visit us or contact us at {{phone}}.",
-      };
-
-      const templateText = templateConfig?.template || fallbacks[templateKey] || fallbacks.order_form_sent;
+      // 3. Resolve Template Text with Industrial Optical Default Fallback
+      const templateText = getWhatsAppTemplateText(
+        templateKey,
+        shopData?.settings?.whatsappTemplates || shopData?.whatsappTemplates
+      );
 
       // 4. If prescription template, resolve customer optical prescription
       let prescriptionData: any = null;
@@ -149,6 +141,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         customer_name: order.customerName || "Valued Customer",
         shop_name: shopData?.name || "Clarity Eyecare",
         phone: shopData?.phone || "+91 74161 06064",
+        shop_address: shopData?.address || "",
         order_number: order.orderNumber || "",
         invoice_number: order.invoiceNumber || "",
         receipt_number: primaryReceiptNumber,
@@ -157,7 +150,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         balance_due: formatCurrency(parseFloat(order.balanceDue || "0")),
         payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
         fulfillment_status: order.fulfillmentStatus ? order.fulfillmentStatus.replace("_", " ") : "PROCESSING",
-        estimated_delivery: order.estimatedDelivery ? new Date(order.estimatedDelivery).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "N/A",
+        estimated_delivery: safeFormatDateLocale(order.estimatedDelivery, "N/A"),
         invoice_url: invoiceUrl,
         order_form_url: orderFormUrl,
         re_sph: prescriptionData?.rightSphere ? String(prescriptionData.rightSphere) : "0.00",

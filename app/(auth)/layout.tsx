@@ -13,7 +13,7 @@ export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
-}) {
+}) {z``
   const user = await getCurrentUser();
 
   if (user) {

@@ -6,6 +6,7 @@ import { offlineDB, type OfflineQueuedInvoice } from "@/lib/offline/db";
 import { useOffline } from "@/components/providers/OfflineProvider";
 import { Printer, ArrowLeft, Plus, CheckCircle, Clock, RefreshCw } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 
 interface OfflineInvoiceViewProps {
   queueId: string;
@@ -155,7 +156,7 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
               )}
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Created on {new Date(record.createdAt).toLocaleString()}
+              Created on {safeFormatDateLocale(record.createdAt, "—", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
             </p>
           </div>
         </div>
@@ -213,7 +214,7 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
               Invoice No: <span className="text-slate-900">{record.serverInvoiceNumber || record.offlineInvoiceNumber}</span>
             </p>
             <p className="text-xs text-slate-500">
-              Date: <span className="text-slate-900">{new Date(record.createdAt).toLocaleDateString()}</span>
+              Date: <span className="text-slate-900">{safeFormatDateLocale(record.createdAt, "—")}</span>
             </p>
           </div>
           <div className="text-right">

@@ -8,6 +8,7 @@ import { sendShopEmail } from "@/services/email.service";
 import { revalidatePath } from "next/cache";
 import { generateReceiptNumber, generateOrderNumber } from "@/services/receipt.service";
 import { canUserEditOrders, canUserDeleteOrders } from "@/utils/permissions";
+import { safeParseDate, safeToISODate } from "@/lib/invoice-helpers";
 
 export type ActionResponse = {
   success: boolean;
@@ -879,14 +880,13 @@ export async function updateFullOrderAction(
 
     // Determine estimated delivery date
     let estimatedDeliveryDate: Date | null = null;
-    const baseDate = payload.createdAt ? new Date(payload.createdAt) : new Date(existingInvoice.createdAt);
+    const baseDate = safeParseDate(payload.createdAt) || safeParseDate(existingInvoice.createdAt) || new Date();
 
     if (payload.estimatedDelivery) {
-      estimatedDeliveryDate = new Date(payload.estimatedDelivery);
+      estimatedDeliveryDate = safeParseDate(payload.estimatedDelivery);
     } else if (payload.deliveryDays !== undefined) {
-      const d = new Date(baseDate);
-      d.setDate(d.getDate() + (payload.deliveryDays || 0));
-      estimatedDeliveryDate = d;
+      const d = new Date(baseDate.getTime() + (payload.deliveryDays || 0) * 86400000);
+      estimatedDeliveryDate = isNaN(d.getTime()) ? baseDate : d;
     }
 
     // Resolve target shop and customer safely from order or existingInvoice
@@ -1030,7 +1030,7 @@ export async function updateFullOrderAction(
             payload.paymentMethod === "UPI" || payload.paymentMethod === "BANK_TRANSFER"
               ? `TXN-EDIT-${Math.floor(10000 + Math.random() * 90000)}`
               : null,
-          createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
+          createdAt: safeParseDate(payload.createdAt) || new Date(),
           updatedAt: new Date(),
         })
         .returning();
@@ -1052,16 +1052,14 @@ export async function updateFullOrderAction(
           status: finalInvoiceStatus,
           paymentMethod: payload.paymentMethod,
           fulfillmentStatus: payload.fulfillmentStatus || existingInvoice.fulfillmentStatus,
-          estimatedDelivery: estimatedDeliveryDate
-            ? estimatedDeliveryDate.toISOString().split("T")[0]
-            : null,
+          estimatedDelivery: safeToISODate(estimatedDeliveryDate),
           soldBy: payload.soldBy !== undefined ? (payload.soldBy || null) : existingInvoice.soldBy,
           notes: payload.notes !== undefined ? (payload.notes || null) : existingInvoice.notes,
           specialInstructions:
             payload.specialInstructions !== undefined
               ? (payload.specialInstructions || null)
               : existingInvoice.specialInstructions,
-          createdAt: payload.createdAt ? new Date(payload.createdAt) : existingInvoice.createdAt,
+          createdAt: safeParseDate(payload.createdAt) || safeParseDate(existingInvoice.createdAt) || new Date(),
           updatedAt: new Date(),
         })
         .where(eq(invoices.id, existingInvoice.id));
@@ -1071,7 +1069,7 @@ export async function updateFullOrderAction(
         .delete(invoiceItems)
         .where(eq(invoiceItems.invoiceId, existingInvoice.id));
 
-      const invoiceItemDate = payload.createdAt ? new Date(payload.createdAt) : new Date();
+      const invoiceItemDate = safeParseDate(payload.createdAt) || new Date();
 
       for (const item of payload.items) {
         const itemSubtotal = item.quantity * item.unitPrice;

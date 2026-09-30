@@ -19,6 +19,9 @@ import {
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate, openWhatsAppChat, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
+import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
+import { formatCurrency } from "@/lib/utils";
+import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { offlineDB } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
@@ -152,27 +155,24 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         return;
       }
 
-      const fallbacks = {
-        invoice_sent: "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!",
-        order_complete: "Hi {{customer_name}},\n\nYour spectacles/lenses order under order number {{order_number}} is ready for pickup/delivery at {{shop_name}}!\n\nFeel free to visit us or contact us at {{phone}}.",
-        delivery_sent: "Hello {{customer_name}},\n\nYour spectacles/lenses order {{order_number}} from {{shop_name}} is in progress.\n\nExpected delivery date: {{estimated_delivery}}.\n\nFeel free to contact us at {{phone}}.",
-        delivery_delay: "Dear {{customer_name}},\n\nWe regret to inform you that your spectacles/lenses order {{order_number}} from {{shop_name}} has been delayed.\n\nThe revised expected delivery date is: {{estimated_delivery}}.\n\nWe apologize for the inconvenience. Feel free to contact us at {{phone}}."
-      };
-
-      const templateText = templateConfig?.template || fallbacks[key];
+      const templateText = getWhatsAppTemplateText(
+        key,
+        shopData?.settings?.whatsappTemplates || shopData?.whatsappTemplates
+      );
 
       const parsedText = parseWhatsAppTemplate(templateText, {
         customer_name: order.customerName || "Valued Customer",
         shop_name: shopData?.name || "Clarity Eyecare",
         phone: shopData?.phone || "+91 74161 06064",
+        shop_address: shopData?.address || "",
         order_number: order.orderNumber || "",
         invoice_number: order.invoiceNumber || "",
-        amount: `Rs. ${order.total}`,
-        amount_paid: `Rs. ${order.amountPaid || "0.00"}`,
-        balance_due: `Rs. ${order.balanceDue || "0.00"}`,
-        payment_method: order.paymentMethod || "N/A",
-        fulfillment_status: fulfillmentStatus,
-        estimated_delivery: estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString() : "N/A",
+        amount: formatCurrency(parseFloat(order.total)),
+        amount_paid: formatCurrency(parseFloat(order.amountPaid || "0")),
+        balance_due: formatCurrency(parseFloat(order.balanceDue || "0")),
+        payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
+        fulfillment_status: fulfillmentStatus ? fulfillmentStatus.replace("_", " ") : "PROCESSING",
+        estimated_delivery: safeFormatDateLocale(estimatedDelivery, "N/A"),
         invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`
       });
 

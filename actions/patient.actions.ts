@@ -10,6 +10,7 @@ import { decrementInventoryStock } from "@/services/inventory.service";
 import { generateInvoiceNumber } from "@/services/invoice.service";
 import { generateOrderNumber, generateReceiptNumber } from "@/services/receipt.service";
 import { patientVisitSchema } from "@/utils/validators";
+import { safeParseDate, safeToISODate } from "@/lib/invoice-helpers";
 import { revalidatePath } from "next/cache";
 
 export type ActionResponse = {
@@ -333,8 +334,8 @@ export async function registerPatientAndInvoiceAction(
         customerId = newCustomer.id;
       }
 
-      const invoiceTimestamp = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
-      const invoiceDateStr = invoiceTimestamp.toISOString().split("T")[0];
+      const invoiceTimestamp = safeParseDate(data.invoiceDate) || new Date();
+      const invoiceDateStr = safeToISODate(invoiceTimestamp) || new Date().toISOString().split("T")[0];
 
       // 3. Save Prescriptions if enabled
       if (data.prescriptionEnabled) {
@@ -366,11 +367,11 @@ export async function registerPatientAndInvoiceAction(
             doctorName: data.doctorName || null,
             partyName: data.partyName || null,
             frameName: data.frameName || null,
-            estimatedDelivery: data.estimatedDelivery || null,
+            estimatedDelivery: safeToISODate(data.estimatedDelivery),
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: data.prescribedAt || invoiceDateStr,
+            prescribedAt: safeToISODate(data.prescribedAt) || invoiceDateStr,
             createdAt: invoiceTimestamp,
             updatedAt: invoiceTimestamp,
           });
@@ -404,11 +405,11 @@ export async function registerPatientAndInvoiceAction(
             doctorName: data.doctorName || null,
             partyName: data.partyName || null,
             frameName: data.frameName || null,
-            estimatedDelivery: data.estimatedDelivery || null,
+            estimatedDelivery: safeToISODate(data.estimatedDelivery),
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: data.prescribedAt || invoiceDateStr,
+            prescribedAt: safeToISODate(data.prescribedAt) || invoiceDateStr,
             createdAt: invoiceTimestamp,
             updatedAt: invoiceTimestamp,
           });
@@ -437,12 +438,11 @@ export async function registerPatientAndInvoiceAction(
       let fulfillmentStatus: "DELIVERED" | "PROCESSING" = "DELIVERED";
 
       if (data.deliveryDays > 0) {
-        const targetDate = new Date(invoiceTimestamp);
-        targetDate.setDate(targetDate.getDate() + data.deliveryDays);
-        estimatedDeliveryDate = targetDate;
+        const targetDate = new Date(invoiceTimestamp.getTime() + data.deliveryDays * 86400000);
+        estimatedDeliveryDate = isNaN(targetDate.getTime()) ? invoiceTimestamp : targetDate;
         fulfillmentStatus = "PROCESSING";
       } else {
-        estimatedDeliveryDate = new Date(invoiceTimestamp);
+        estimatedDeliveryDate = invoiceTimestamp;
         fulfillmentStatus = "DELIVERED";
       }
 
@@ -503,7 +503,7 @@ export async function registerPatientAndInvoiceAction(
           status: (data.balanceDue || 0) > 0 ? "PENDING" : "PAID",
           paymentMethod: data.paymentMethod,
           fulfillmentStatus,
-          estimatedDelivery: estimatedDeliveryDate ? estimatedDeliveryDate.toISOString().split("T")[0] : null,
+          estimatedDelivery: safeToISODate(estimatedDeliveryDate),
           amountPaid: Number(data.amountPaid || 0).toFixed(2),
           balanceDue: Number(data.balanceDue || 0).toFixed(2),
           notes: data.notes || null,
