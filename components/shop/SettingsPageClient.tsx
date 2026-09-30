@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
 import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
+import { DEFAULT_WHATSAPP_TEMPLATES } from "@/utils/whatsapp-templates";
 import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
 import { DocumentSeriesSettings } from "@/components/shop/DocumentSeriesSettings";
 import { generateShopPairingKeyAction, checkDesktopAssistantStatusAction, triggerDesktopAssistantDisconnectAction } from "@/actions/desktop-wa.actions";
@@ -111,36 +112,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   const [loyaltyValue, setLoyaltyValue] = useState<number>(shop?.settings?.loyaltyRedeemValue || 1);
 
   // 5. WhatsApp Customizer state
-  const DEFAULT_WHATSAPP_TEMPLATES = {
-    order_form_sent: {
-      enabled: true,
-      template: "Dear {{customer_name}},\n\nThank you for booking your optical order with {{shop_name}}!\n\n*Order Booking Details:*\n• Order Form #: {{receipt_number}}\n• Amount Paid: {{amount_paid}}\n• Remaining Dues: {{balance_due}}\n• Expected Delivery: {{estimated_delivery}}\n\nAccess your digital Order Form & optical prescription details here:\n{{order_form_url}}\n\nThank you for trusting us with your vision!",
-    },
-    invoice_sent: {
-      enabled: true,
-      template: "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!",
-    },
-    prescription_sent: {
-      enabled: true,
-      template: "Dear {{customer_name}},\n\nHere are your clinical eye prescription details from {{shop_name}}:\n\n*Right Eye (OD):*\n• SPH: {{re_sph}} | CYL: {{re_cyl}} | AXIS: {{re_axis}} | ADD: {{re_add}}\n\n*Left Eye (OS):*\n• SPH: {{le_sph}} | CYL: {{le_cyl}} | AXIS: {{le_axis}} | ADD: {{le_add}}\n\n• P.D.: {{pd}} mm\n• Prescribed By: {{doctor_name}}\n\nView your full optical records & digital card here: {{invoice_url}}\n\nWarm regards,\n{{shop_name}}",
-    },
-    payment_reminder: {
-      enabled: true,
-      template: "Dear {{customer_name}},\n\nThis is a gentle payment reminder from {{shop_name}} regarding your order {{order_number}}.\n\n*Pending Balance:* {{balance_due}}\n*Total Amount:* {{amount}}\n*Amount Paid So Far:* {{amount_paid}}\n\nYou can view your order summary and pay online here: {{invoice_url}}\n\nFeel free to reach out to us at {{phone}} if you have any questions!",
-    },
-    order_complete: {
-      enabled: true,
-      template: "Hi {{customer_name}},\n\nYour spectacles/lenses order under order number {{order_number}} is ready for pickup/delivery at {{shop_name}}!\n\nFeel free to visit us or contact us at {{phone}}.",
-    },
-    delivery_sent: {
-      enabled: false,
-      template: "Hello {{customer_name}},\n\nYour spectacles/lenses order {{order_number}} from {{shop_name}} is in progress.\n\nExpected delivery date: {{estimated_delivery}}.\n\nFeel free to contact us at {{phone}}.",
-    },
-    delivery_delay: {
-      enabled: false,
-      template: "Dear {{customer_name}},\n\nWe regret to inform you that your spectacles/lenses order {{order_number}} from {{shop_name}} has been delayed.\n\nThe revised expected delivery date is: {{estimated_delivery}}.\n\nWe apologize for the inconvenience. Feel free to contact us at {{phone}}.",
-    },
-  };
   const [whatsappTemplates, setWhatsappTemplates] = useState<any>(shop?.settings?.whatsappTemplates || DEFAULT_WHATSAPP_TEMPLATES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("order_form_sent");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1220,25 +1191,47 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                             </span>
                             <p className="text-[9px] text-slate-400 font-bold uppercase">Configure status and content</p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setWhatsappTemplates({
-                                ...whatsappTemplates,
-                                [selectedTemplateId]: {
-                                  ...whatsappTemplates[selectedTemplateId],
-                                  enabled: !whatsappTemplates[selectedTemplateId]?.enabled
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const rec = DEFAULT_WHATSAPP_TEMPLATES[selectedTemplateId];
+                                if (rec) {
+                                  setWhatsappTemplates({
+                                    ...whatsappTemplates,
+                                    [selectedTemplateId]: {
+                                      ...whatsappTemplates[selectedTemplateId],
+                                      template: rec.template,
+                                    },
+                                  });
+                                  toast.success(`Reset "${rec.label}" to recommended template.`);
                                 }
-                              });
-                            }}
-                            className={`text-[9px] font-black uppercase px-3 py-1.5 border rounded-xl transition-all cursor-pointer ${
-                              whatsappTemplates[selectedTemplateId]?.enabled
-                                ? "bg-emerald-50 border-emerald-250 text-emerald-750 font-extrabold"
-                                : "bg-slate-100 border-slate-200 text-slate-500"
-                            }`}
-                          >
-                            {whatsappTemplates[selectedTemplateId]?.enabled ? "Trigger Active" : "Trigger Inactive"}
-                          </button>
+                              }}
+                              className="text-[9px] font-black uppercase px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl transition-all cursor-pointer shadow-2xs"
+                              title="Reset this template to the recommended optical industry copy"
+                            >
+                              Reset
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWhatsappTemplates({
+                                  ...whatsappTemplates,
+                                  [selectedTemplateId]: {
+                                    ...whatsappTemplates[selectedTemplateId],
+                                    enabled: !whatsappTemplates[selectedTemplateId]?.enabled
+                                  }
+                                });
+                              }}
+                              className={`text-[9px] font-black uppercase px-3 py-1.5 border rounded-xl transition-all cursor-pointer ${
+                                whatsappTemplates[selectedTemplateId]?.enabled
+                                  ? "bg-emerald-50 border-emerald-250 text-emerald-750 font-extrabold"
+                                  : "bg-slate-100 border-slate-200 text-slate-500"
+                              }`}
+                            >
+                              {whatsappTemplates[selectedTemplateId]?.enabled ? "Trigger Active" : "Trigger Inactive"}
+                            </button>
+                          </div>
                         </div>
 
                         <div className="space-y-2">

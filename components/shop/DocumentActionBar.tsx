@@ -7,6 +7,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
 import { parseWhatsAppTemplate, openWhatsAppChat, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
+import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
+import { formatCurrency } from "@/lib/utils";
+import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 
 interface DocumentActionBarProps {
@@ -40,9 +43,11 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
   const triggerWhatsAppRedirect = async (phoneNumber: string) => {
     if (!data) return;
 
-    // 1. Resolve template from shop settings (with robust default fallback)
-    const templateKey = isInvoice ? "invoice_sent" : "receipt_sent";
-    const templateConfig = data.shop?.settings?.whatsappTemplates?.[templateKey];
+    // 1. Resolve template from shop settings (with robust industrial optical default fallback)
+    const templateKey = isInvoice ? "invoice_sent" : "order_form_sent";
+    const templateConfig =
+      data.shop?.settings?.whatsappTemplates?.[templateKey] ||
+      data.shop?.settings?.whatsappTemplates?.["receipt_sent"];
     const isEnabled = templateConfig?.enabled ?? true;
 
     if (!isEnabled) {
@@ -50,30 +55,31 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       return;
     }
 
-    const defaultInvoiceTemplate = 
-      "Dear {{customer_name}},\n\nThank you for choosing {{shop_name}}! Your invoice {{invoice_number}} is ready.\n\n*Invoice Summary:*\n• Total Amount: {{amount}}\n• Amount Paid: {{amount_paid}}\n• Balance Due: {{balance_due}}\n• Payment Method: {{payment_method}}\n• Delivery Status: {{fulfillment_status}}\n\nView and download your digital PDF bill here: {{invoice_url}}\n\nHave a great day!";
-
-    const defaultReceiptTemplate =
-      "Dear {{customer_name}},\n\nThank you for placing your order at {{shop_name}}! Here is your optical Order Form {{receipt_number}}.\n\n*Order Summary:*\n• Order Form #: {{receipt_number}}\n• Amount Paid: {{amount_paid}}\n• Remaining Balance: {{balance_due}}\n• Payment Mode: {{payment_method}}\n• Est. Delivery: {{estimated_delivery}}\n\nView and download your Order Form & prescription details here: {{invoice_url}}\n\nThank you for visiting!";
-
-    const templateText = templateConfig?.template || (isInvoice ? defaultInvoiceTemplate : defaultReceiptTemplate);
+    const templateText = getWhatsAppTemplateText(
+      templateKey,
+      data.shop?.settings?.whatsappTemplates
+    );
 
     const invoiceUrl = `${window.location.origin}/share/invoice/${data.invoice?.id}`;
+    const orderFormUrl = `${window.location.origin}/shop/receipts/${data.receipt?.id || data.invoice?.id}`;
 
     // 2. Parse template with variables
     const formattedMessage = parseWhatsAppTemplate(templateText, {
       customer_name: data.customer?.fullName || "Valued Customer",
       shop_name: data.shop?.name || "Clarity Eyecare",
       phone: data.shop?.phone || "",
+      shop_address: data.shop?.address || "",
       invoice_number: data.invoice?.invoiceNumber || "",
       receipt_number: data.receipt?.receiptNumber || data.invoice?.invoiceNumber || "",
-      amount: `Rs. ${data.invoice?.total || 0}`,
-      amount_paid: `Rs. ${data.receipt?.amountPaid ?? data.invoice?.amountPaid ?? 0}`,
-      balance_due: `Rs. ${data.invoice?.balanceDue || 0}`,
-      payment_method: data.receipt?.paymentMethod || data.invoice?.paymentMethod || "N/A",
+      order_number: data.order?.orderNumber || data.invoice?.invoiceNumber || "",
+      amount: formatCurrency(parseFloat(data.invoice?.total || "0")),
+      amount_paid: formatCurrency(parseFloat(data.receipt?.amountPaid ?? data.invoice?.amountPaid ?? "0")),
+      balance_due: formatCurrency(parseFloat(data.invoice?.balanceDue || "0")),
+      payment_method: data.receipt?.paymentMethod || data.invoice?.paymentMethod || "CASH",
       fulfillment_status: data.invoice?.fulfillmentStatus || "PROCESSING",
-      estimated_delivery: data.invoice?.estimatedDelivery ? new Date(data.invoice.estimatedDelivery).toLocaleDateString() : "N/A",
+      estimated_delivery: safeFormatDateLocale(data.invoice?.estimatedDelivery, "N/A"),
       invoice_url: invoiceUrl,
+      order_form_url: orderFormUrl,
     });
 
     setIsSendingWhatsApp(true);

@@ -22,12 +22,17 @@ export default async function PublicInvoicePage({
   }
 
   return (
-    <div className="bg-slate-100 min-h-screen py-8 px-4 flex flex-col items-center gap-8 print:bg-white print:py-0 print:px-0 font-sans text-black">
+    <div className="bg-slate-100 min-h-screen py-3 px-2 sm:py-6 sm:px-4 md:py-8 flex flex-col items-center gap-4 sm:gap-6 md:gap-8 print:bg-white print:py-0 print:px-0 font-sans text-black max-w-full overflow-x-hidden">
       {/* Public Action Header */}
-      <div className="flex gap-4 print:hidden items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-sm max-w-4xl w-full justify-between">
+      <div className="flex flex-col sm:flex-row gap-3 print:hidden items-stretch sm:items-center bg-white p-3.5 sm:p-4 border border-slate-200/90 rounded-2xl shadow-xs max-w-4xl w-full justify-between">
         <div className="space-y-0.5">
-          <h1 className="text-xs font-black uppercase text-slate-800 tracking-wider">Tax Invoice</h1>
-          <p className="text-[10px] text-slate-400 font-bold uppercase">Invoice No: {data.invoice?.invoiceNumber}</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xs font-black uppercase text-slate-800 tracking-wider">Tax Invoice</h1>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+              {data.shop?.name || "Optical Store"}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 font-semibold">Invoice No: <span className="font-bold text-slate-800">{data.invoice?.invoiceNumber}</span></p>
         </div>
         <PrintButton />
       </div>

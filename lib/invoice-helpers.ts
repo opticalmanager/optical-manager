@@ -91,20 +91,118 @@ export function convertNumberToWords(num: number): string {
   return result;
 }
 
-export function formatDateDMY(date: Date | string | null | undefined): string {
-  if (!date) return "";
-  const d = typeof date === "string" ? new Date(date) : date;
-  if (isNaN(d.getTime())) return "";
+export function safeParseDate(
+  date: Date | string | number | null | undefined
+): Date | null {
+  if (date === null || date === undefined || date === "") return null;
+
+  if (date instanceof Date) {
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof date === "number") {
+    const d = new Date(date);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  if (typeof date === "string") {
+    const trimmed = date.trim();
+    if (!trimmed || trimmed === "N/A" || trimmed === "null" || trimmed === "undefined" || trimmed === "Invalid Date") {
+      return null;
+    }
+
+    // 1. Try standard ISO / Date constructor
+    let d = new Date(trimmed);
+    if (!isNaN(d.getTime())) return d;
+
+    // 2. Try DD/MM/YYYY or DD-MM-YYYY (Indian optical billing standard)
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(.*)$/);
+    if (ddmmyyyy) {
+      const day = parseInt(ddmmyyyy[1], 10);
+      const month = parseInt(ddmmyyyy[2], 10) - 1;
+      const year = parseInt(ddmmyyyy[3], 10);
+      const rest = ddmmyyyy[4]?.trim();
+      if (rest) {
+        d = new Date(`${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")} ${rest}`);
+      } else {
+        d = new Date(year, month, day);
+      }
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // 3. Try YYYY-MM-DD or YYYY/MM/DD without time
+    const yyyymmdd = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (yyyymmdd) {
+      const year = parseInt(yyyymmdd[1], 10);
+      const month = parseInt(yyyymmdd[2], 10) - 1;
+      const day = parseInt(yyyymmdd[3], 10);
+      d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+
+  return null;
+}
+
+export function safeToISODate(
+  date: Date | string | number | null | undefined,
+  fallback: string | null = null
+): string | null {
+  const d = safeParseDate(date);
+  if (!d) return fallback;
+  try {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  } catch {
+    return fallback;
+  }
+}
+
+export function safeToISOTimestamp(
+  date: Date | string | number | null | undefined,
+  fallback: string | null = null
+): string | null {
+  const d = safeParseDate(date);
+  if (!d) return fallback;
+  try {
+    return d.toISOString();
+  } catch {
+    return fallback;
+  }
+}
+
+export function safeFormatDateLocale(
+  date: Date | string | number | null | undefined,
+  fallback = "N/A",
+  options: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }
+): string {
+  const d = safeParseDate(date);
+  if (!d) return fallback;
+  try {
+    return d.toLocaleDateString("en-IN", options);
+  } catch {
+    return fallback;
+  }
+}
+
+export function formatDateDMY(date: Date | string | number | null | undefined): string {
+  const d = safeParseDate(date);
+  if (!d) return "";
   const day = d.getDate().toString().padStart(2, "0");
   const month = (d.getMonth() + 1).toString().padStart(2, "0");
   const year = d.getFullYear().toString().slice(-2);
   return `${day}/${month}/${year}`;
 }
 
-export function formatDateDMonthY(date: Date | string | null | undefined): string {
-  if (!date) return "";
-  const d = typeof date === "string" ? new Date(date) : date;
-  if (isNaN(d.getTime())) return "";
+export function formatDateDMonthY(date: Date | string | number | null | undefined): string {
+  const d = safeParseDate(date);
+  if (!d) return "";
   const day = d.getDate();
   const monthNames = [
     "Jan",
@@ -140,24 +238,31 @@ export function formatDecimal(val: number | string | null | undefined): string {
   });
 }
 
-export function formatReceiptDate(date: Date | string | null | undefined): string {
-  if (!date) return "";
-  const d = typeof date === "string" ? new Date(date) : date;
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).toUpperCase();
+export function formatReceiptDate(date: Date | string | number | null | undefined): string {
+  const d = safeParseDate(date);
+  if (!d) return "";
+  try {
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).toUpperCase();
+  } catch {
+    return "";
+  }
 }
 
-export function formatReceiptTime(date: Date | string | null | undefined): string {
-  if (!date) return "";
-  const d = typeof date === "string" ? new Date(date) : date;
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+export function formatReceiptTime(date: Date | string | number | null | undefined): string {
+  const d = safeParseDate(date);
+  if (!d) return "";
+  try {
+    return d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return "";
+  }
 }
+

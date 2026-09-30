@@ -36,6 +36,12 @@ import {
 import { enqueueOfflineInvoice } from "@/lib/offline/invoice-queue";
 import { offlineDB } from "@/lib/offline/db";
 import {
+  safeParseDate,
+  safeToISODate,
+  safeToISOTimestamp,
+  safeFormatDateLocale,
+} from "@/lib/invoice-helpers";
+import {
   ChevronDown,
   ReceiptText,
   RotateCcw,
@@ -78,10 +84,7 @@ interface PastRxGroup {
 }
 
 const formatRxDate = (dateVal: string | Date | null | undefined) => {
-  if (!dateVal) return "Unknown Date";
-  const d = typeof dateVal === "string" ? new Date(dateVal) : dateVal;
-  if (isNaN(d.getTime())) return String(dateVal);
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return safeFormatDateLocale(dateVal, "Unknown Date");
 };
 
 const INDIAN_STATES = [
@@ -148,12 +151,13 @@ interface LineItem {
   isSearching: boolean;
 }
 
-function formatDateTimeLocal(d: Date = new Date()): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
+function formatDateTimeLocal(d: Date | string = new Date()): string {
+  const dateObj = safeParseDate(d) || new Date();
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  const hours = String(dateObj.getHours()).padStart(2, "0");
+  const minutes = String(dateObj.getMinutes()).padStart(2, "0");
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
@@ -198,17 +202,15 @@ export function NewInvoiceForm() {
   };
 
   const isBackdated = (() => {
-    if (!invoiceDateTime) return false;
-    const selected = new Date(invoiceDateTime).getTime();
-    const now = Date.now();
-    return selected < now - 60000;
+    const d = safeParseDate(invoiceDateTime);
+    if (!d) return false;
+    return d.getTime() < Date.now() - 60000;
   })();
 
   const isFutureDate = (() => {
-    if (!invoiceDateTime) return false;
-    const selected = new Date(invoiceDateTime).getTime();
-    const now = Date.now();
-    return selected > now + 60000;
+    const d = safeParseDate(invoiceDateTime);
+    if (!d) return false;
+    return d.getTime() > Date.now() + 60000;
   })();
 
   const handleDobChange = (dobVal: string) => {
@@ -673,7 +675,7 @@ export function NewInvoiceForm() {
         const groupsMap = new Map<string, PastRxGroup>();
 
         for (const p of rawPrescriptions) {
-          const dateKey = p.prescribedAt ? String(p.prescribedAt) : new Date(p.createdAt).toISOString().split("T")[0];
+          const dateKey = safeToISODate(p.prescribedAt) || safeToISODate(p.createdAt) || new Date().toISOString().split("T")[0];
           const groupKey = p.rxNumber ? `${p.rxNumber}_${dateKey}` : (p.id || dateKey);
           const doc = p.prescribedBy || p.doctorName || "Optometrist";
 
@@ -700,7 +702,7 @@ export function NewInvoiceForm() {
         // Fallback if rawPrescriptions was empty but distance/nearPrescription exists
         if (groups.length === 0 && (distancePrescription || nearPrescription)) {
           const p = distancePrescription || nearPrescription;
-          const dateKey = p.prescribedAt ? String(p.prescribedAt) : new Date(p.createdAt).toISOString().split("T")[0];
+          const dateKey = safeToISODate(p.prescribedAt) || safeToISODate(p.createdAt) || new Date().toISOString().split("T")[0];
           const groupKey = p.rxNumber ? `${p.rxNumber}_${dateKey}` : (p.id || dateKey);
           const doc = p.prescribedBy || p.doctorName || "Optometrist";
           groups.push({
@@ -1546,7 +1548,7 @@ export function NewInvoiceForm() {
         notes: invoiceNotes || undefined,
         soldBy: soldBy.trim() || undefined,
         deliveryDays: deliveryDays === "" ? 0 : deliveryDays,
-        invoiceDate: invoiceDateTime || undefined,
+        invoiceDate: safeToISOTimestamp(invoiceDateTime) || new Date().toISOString(),
       };
 
       // Offline mode submission: if device is offline, write directly to offline queue
