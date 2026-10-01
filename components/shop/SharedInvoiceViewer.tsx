@@ -33,56 +33,57 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
 
   const [scale, setScale] = useState<number>(1);
   const [fitScale, setFitScale] = useState<number>(1);
+  const [docHeight, setDocHeight] = useState<number>(2300);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [contentHeight, setContentHeight] = useState<number>(0);
-  const [contentWidth, setContentWidth] = useState<number>(794);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const touchStartDistRef = useRef<number | null>(null);
   const touchStartScaleRef = useRef<number>(1);
   const lastTapRef = useRef<number>(0);
+  const hasUserZoomedRef = useRef<boolean>(false);
 
-  // Measure content element unscaled dimensions using ResizeObserver
+  // Measure unscaled document height from fixed 794px canvas
   useEffect(() => {
-    if (!contentRef.current) return;
-    const el = contentRef.current;
-    const updateDimensions = () => {
-      if (el) {
-        setContentWidth(el.offsetWidth || 794);
-        setContentHeight(el.offsetHeight || 1122);
+    const measureHeight = () => {
+      if (contentRef.current) {
+        const h = contentRef.current.offsetHeight;
+        if (h > 200) {
+          setDocHeight(h);
+        }
       }
     };
-    updateDimensions();
-
-    const observer = new ResizeObserver(() => {
-      updateDimensions();
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    measureHeight();
+    const t1 = setTimeout(measureHeight, 100);
+    const t2 = setTimeout(measureHeight, 400);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [data, mode]);
 
   // Auto-calculate fit scale on mount and on resize
   const calculateFitScale = useCallback(() => {
     if (typeof window === "undefined") return;
     const screenWidth = window.innerWidth;
     const isSmallScreen = screenWidth < 850;
-    setIsMobile(isSmallScreen);
 
-    // Standard A4 width in CSS pixels is ~794px (210mm at 96 DPI)
+    // Standard A4 width in standard CSS pixels
     const a4WidthPx = 794;
+    // Mobile leaves 16px total horizontal margins (8px each side)
     const availableWidth = Math.max(280, screenWidth - (isSmallScreen ? 16 : 48));
     const calculatedFit = Number((availableWidth / a4WidthPx).toFixed(3));
 
     setFitScale(calculatedFit);
 
-    // On mobile screens, default initial view to fit-to-width so the entire A4 sheet is visible
-    if (isSmallScreen) {
-      setScale(calculatedFit);
-    } else {
-      setScale(1);
+    // If user hasn't explicitly chosen custom zoom, auto-adjust scale
+    if (!hasUserZoomedRef.current) {
+      if (isSmallScreen) {
+        setScale(calculatedFit);
+      } else {
+        setScale(1);
+      }
     }
   }, []);
 
@@ -101,6 +102,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
       );
       touchStartDistRef.current = dist;
       touchStartScaleRef.current = scale;
+      hasUserZoomedRef.current = true;
     }
   };
 
@@ -111,7 +113,8 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
         e.touches[0].clientY - e.touches[1].clientY
       );
       const ratio = currentDist / touchStartDistRef.current;
-      const newScale = Math.min(2.5, Math.max(0.35, touchStartScaleRef.current * ratio));
+      const minScale = Math.min(fitScale * 0.7, 0.3);
+      const newScale = Math.min(2.5, Math.max(minScale, touchStartScaleRef.current * ratio));
       setScale(Number(newScale.toFixed(2)));
     }
   };
@@ -125,16 +128,33 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
     if (e.touches.length === 0) {
       const now = Date.now();
       if (now - lastTapRef.current < 300) {
+        hasUserZoomedRef.current = true;
         setScale((prev) => (Math.abs(prev - 1) < 0.08 ? fitScale : 1));
       }
       lastTapRef.current = now;
     }
   };
 
-  const zoomIn = () => setScale((prev) => Math.min(2.5, Number((prev + 0.15).toFixed(2))));
-  const zoomOut = () => setScale((prev) => Math.max(0.35, Number((prev - 0.15).toFixed(2))));
-  const resetToFit = () => setScale(fitScale);
-  const resetTo100 = () => setScale(1);
+  const zoomIn = () => {
+    hasUserZoomedRef.current = true;
+    setScale((prev) => Math.min(2.5, Number((prev + 0.15).toFixed(2))));
+  };
+
+  const zoomOut = () => {
+    hasUserZoomedRef.current = true;
+    const minScale = Math.min(fitScale * 0.7, 0.3);
+    setScale((prev) => Math.max(minScale, Number((prev - 0.15).toFixed(2))));
+  };
+
+  const resetToFit = () => {
+    hasUserZoomedRef.current = false;
+    setScale(fitScale);
+  };
+
+  const resetTo100 = () => {
+    hasUserZoomedRef.current = true;
+    setScale(1);
+  };
 
   // Print with customized document title for default save name
   const handlePrint = () => {
@@ -159,7 +179,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
     const currentScale = scale;
     if (currentScale !== 1) {
       setScale(1);
-      await new Promise((r) => setTimeout(r, 60));
+      await new Promise((r) => setTimeout(r, 80));
     }
 
     try {
@@ -184,6 +204,8 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
           useCORS: true,
           logging: false,
           scrollY: 0,
+          scrollX: 0,
+          windowWidth: 794,
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["avoid-all", "css", "legacy"] },
@@ -206,6 +228,8 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
       setIsDownloading(false);
     }
   };
+
+  const isZoomedBeyondFit = scale > fitScale + 0.02;
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -333,27 +357,37 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="w-full flex justify-center overflow-x-auto overflow-y-visible py-2 px-1 sm:px-4 touch-pan-x touch-pan-y"
+        className="w-full overflow-x-auto overflow-y-visible py-2 px-1 sm:px-4"
         style={{
           WebkitOverflowScrolling: "touch",
         }}
       >
-        {/* Dynamic sizer container matching exact scaled dimensions */}
+        {/* Dynamic Sizer Stage: sized precisely to scaled dimensions */}
         <div
           style={{
-            width: contentWidth ? `${contentWidth * scale}px` : "auto",
-            height: contentHeight ? `${contentHeight * scale}px` : "auto",
-            minWidth: contentWidth ? `${contentWidth * scale}px` : "auto",
+            width: `${Math.round(794 * scale)}px`,
+            minWidth: `${Math.round(794 * scale)}px`,
+            height: `${Math.round(docHeight * scale)}px`,
+            position: "relative",
+            marginLeft: isZoomedBeyondFit ? "0" : "auto",
+            marginRight: isZoomedBeyondFit ? "0" : "auto",
           }}
-          className="relative transition-all duration-75 flex justify-center items-start print:w-auto print:h-auto print:min-w-0"
+          className="print:w-auto print:h-auto print:min-w-0"
         >
+          {/* Rigid 794px Document Canvas: scaled from top-left */}
           <div
             ref={contentRef}
-            className="origin-top-left transition-transform duration-75 ease-out print:transform-none"
             style={{
+              width: "794px",
+              minWidth: "794px",
+              maxWidth: "794px",
               transform: `scale(${scale})`,
               transformOrigin: "top left",
+              position: "absolute",
+              top: 0,
+              left: 0,
             }}
+            className="print:static print:transform-none print:w-auto print:min-w-0 print:max-w-none"
           >
             <InvoiceDocument data={data} mode={mode} />
           </div>
