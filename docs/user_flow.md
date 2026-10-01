@@ -44,11 +44,15 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - 8-column optometry grid (`EYE/TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`) for Right (`• RE (OD)`) and Left (`• LE (OS)`) eyes.
    - Smart industrial logic: highlighted ADD column, bilateral ADD diopter auto-sync, monocular PD auto-split (`31.5mm / 31.5mm`), lens design selection (`Single Vision`, `Bifocal`, `Progressive`, `Blue-cut`, etc.), and doctor attribution.
    - **Zero-Latency Reactive Syncing**: Removed manual "Apply to Job" button; all prescription data continuously updates form state and commits automatically when saving bills or patients.
-3. **Line Item Assembly & Pricing Controls**:
-   - Manager adds optical inventory items (spectacle frame, anti-reflective lenses, contact lenses, accessories) from `/shop/invoices/new` via live search autocomplete or barcode scanner.
-   - **Enhanced Product Search & Autocomplete**: Instant search across product names, frame models, brands, SKUs, and product codes (`productName`, `productCode`, `name`, `sku`, `brand`, `model`) with instant 0ms IndexedDB local lookup and debounced cloud enrichment, rendering non-clipped suggestion cards with live stock counts and selling prices.
-   - **Dual Discount Synchronization**: Supports discount entry in percentage (`DISC %`) and in Rupees (`DISC ₹`) with real-time bi-directional recalculation.
-   - **Dual Editable GST Controls (₹ & %)**: CGST, SGST, and IGST are completely editable per row with dual ₹ amount and % percentage inputs. Editing amount auto-calculates percentage and vice versa, reactively updating line totals, tax aggregates, and invoice grand totals smoothly without schema or calculation errors.
+3. **Line Item Assembly & Pricing Controls (11-Column ERP Ledger Grid)**:
+   - Manager adds optical inventory items (spectacle frames, lenses, contact lenses, accessories) from `/shop/invoices/new` via live search autocomplete or barcode scanner.
+   - **Column 1 — Product Search & Autocomplete**: Instant search across product names, frame models, brands, SKUs, and product codes (`productName`, `productCode`, `name`, `sku`, `brand`, `model`) with instant 0ms IndexedDB local lookup and debounced cloud enrichment, showing SKU/barcode badge chips.
+   - **Column 2 — Category Auto-Suggest & GST Fill**: Dynamic category combobox/dropdown pre-loaded with defaults (`Frames`, `Lenses`, `Sunglasses`, `Contact Lenses`, `Accessories`, `Solutions`, `Reading Glasses`, `General`) and organization-configured custom categories. Selecting a category automatically sets `cgstPercent`, `sgstPercent`, and `igstPercent` per organization tax settings.
+   - **Column 3 — Item Description**: Displays item details with clamped width (`max-w-[150px]`) and tooltip hover to prevent vertical table row enlargement.
+   - **Columns 4 & 5 — Qty & Price (₹)**: Centered integer input for quantity and right-aligned decimal input for unit price.
+   - **Columns 6 & 7 — Dual Discount Synchronization**: Supports discount entry in Rupees (`DISC ₹`) and percentage (`DISC %`) with real-time bi-directional recalculation.
+   - **Columns 8, 9 & 10 — Single-Value Rupee Taxes (CGST, SGST, IGST)**: Displays the calculated tax amount in Rupees (`₹X.XX`) with subtle rate percentage badges (`(Y%)`), keeping the table 100% horizontally visible on standard laptop viewports.
+   - **Column 11 — Line Total**: Real-time calculated line total reflecting quantity, price, discounts, and applicable GST.
 4. **Checkout, Delivery Date & Payment**:
    - **Salesperson Attribution ("Sold By")**: Staff can record the name of the sales representative who completed the order, stamped permanently into the invoice database and printed on tax invoices and payment receipts.
    - **Expected Delivery Scheduling**: Selects or enters estimated dispatch date with zero default assumptions. Supports interactive calendar picker (`showPicker()`), dynamic day interval readout (`X Days (DD MMM YYYY)`), and quick preset pills (`0D Today`, `3D`, `7D`, `✕ Clear`).

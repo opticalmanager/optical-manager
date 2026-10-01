@@ -105,6 +105,13 @@ export const db = drizzle(client, { schema });
 - `globalThis.__postgresClient` singleton prevents connection leaks across Next.js Hot Module Replacement (HMR) reloads, eliminating `(EMAXCONN) max client connections reached` errors.
 - `DIRECT_DATABASE_URL` (`port 5432`) is used for schema migrations via `drizzle-kit`.
 
+### 3.1 POS Line Item Ledger & Tax Computation Architecture (`NewInvoiceForm.tsx`)
+The POS billing engine features an 11-column high-density ERP ledger grid designed for standard laptop displays (zero horizontal scrollbars):
+- **Category Tax Synchronization**: Categories loaded from Dexie.js local storage (`cached_product_categories`) and server action (`getOrganizationCategoriesAction()`). Selecting or changing an item's category immediately updates `cgstPercent`, `sgstPercent`, and `igstPercent` per organization tax settings, recalculating taxable value and taxes in 0ms without server roundtrips.
+- **Bi-Directional Discount & Price Engine**: Computes row totals reactively from `unitPrice`, `quantity`, `discountPercent`, `discountAmount`, `cgstPercent`, `sgstPercent`, and `igstPercent`.
+- **Single-Value Rupee Tax Columns**: Tax columns render consolidated Rupee values (`₹X.XX`) with rate badges (`(Y%)`), saving >110px and avoiding dual-input column bloat.
+- **Strict Input Constraints**: Numerical enforcement via `inputMode="numeric"` / `inputMode="decimal"` and clean integer/decimal parsing.
+
 ### 4. PWA & Offline-First Storage Architecture (`lib/offline/`)
 
 Optical Manager implements an enterprise-grade client-side offline layer allowing POS checkout, patient onboarding, appointment scheduling, dues settlement, and full shop operations to survive network drops without interruption:
