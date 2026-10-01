@@ -37,19 +37,39 @@ export async function createInvoiceAction(
     };
   }
 
-  try {
-    await createInvoice({
-      ...validatedFields.data,
-      invoiceNumber: await generateInvoiceNumber(shopId),
-      shopId,
-      organizationId: user.organizationId,
-    });
+  let attempts = 0;
+  const maxAttempts = 3;
 
-    revalidatePath("/shop/invoices");
-    return { success: true, message: "Invoice created successfully." };
-  } catch (error) {
-    return { success: false, message: "Failed to create invoice." };
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const generatedInvoiceNumber = await generateInvoiceNumber(shopId);
+      await createInvoice({
+        ...validatedFields.data,
+        invoiceNumber: generatedInvoiceNumber,
+        shopId,
+        organizationId: user.organizationId,
+      });
+
+      revalidatePath("/shop/invoices");
+      return { success: true, message: "Invoice created successfully." };
+    } catch (error: any) {
+      const isUniqueViolation =
+        error?.code === "23505" ||
+        (typeof error?.message === "string" &&
+          (error.message.includes("invoices_org_invoice_num_unique") ||
+           error.message.includes("unique constraint") ||
+           error.message.includes("duplicate key value")));
+
+      if (isUniqueViolation && attempts < maxAttempts) {
+        console.warn(`[createInvoiceAction] Concurrency unique constraint detected, retrying (attempt ${attempts + 1}/${maxAttempts})...`);
+        await new Promise((resolve) => setTimeout(resolve, 50 * attempts));
+        continue;
+      }
+      return { success: false, message: error.message || "Failed to create invoice." };
+    }
   }
+  return { success: false, message: "Failed to create invoice after retries." };
 }
 
 /**

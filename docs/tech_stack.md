@@ -75,3 +75,12 @@ Optical Manager adheres to a unified enterprise color scheme and design rules ac
 | **Dexie.js** | `^4.0.11` | High-performance IndexedDB wrapper providing type-safe client-side databases. |
 | **Service Worker** | Native Browser API | Client-side asset precaching, offline navigation fallback, and background sync. |
 | **Web App Manifest** | Next.js 16 Native | Standalone desktop/mobile installation support across Windows, macOS, Android, and iOS. |
+
+---
+
+## Testing & Quality Assurance
+
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| **Node.js Test Runner** | Native (`node:test`, `node:assert/strict`) | Built-in zero-dependency unit and integration test runner. |
+| **TSX** | `^4.22.4` | TypeScript execution runner for running type-safe tests and seed scripts with `.env` injection. |

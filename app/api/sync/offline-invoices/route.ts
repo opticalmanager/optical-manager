@@ -150,7 +150,7 @@ export async function POST(request: Request) {
               customerId = phoneCust.id;
             } else {
               // Create customer
-              const registrationId = await generateRegistrationId(effectiveShopId);
+              const registrationId = await generateRegistrationId(effectiveShopId, tx);
               const [newCust] = await tx
                 .insert(customers)
                 .values({
@@ -227,7 +227,7 @@ export async function POST(request: Request) {
           }
 
           // Generate official sequential invoice number
-          const serverInvoiceNumber = await generateInvoiceNumber(effectiveShopId);
+          const serverInvoiceNumber = await generateInvoiceNumber(effectiveShopId, tx);
 
           // Calculate subtotal & tax
           let subtotal = 0;

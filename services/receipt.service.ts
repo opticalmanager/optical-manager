@@ -13,8 +13,12 @@ import {
 /**
  * Generate a sequential receipt number in the format PPS-shopNum-YYYY-NNNN.
  */
+/**
+ * Generate a sequential receipt number in the format PPS-shopNum-YYYY-NNNN.
+ * Uses numerical length sorting and org-scoped anti-collision to prevent duplicate key violations.
+ */
 export async function generateReceiptNumber(shopId: string, tx: any = db): Promise<string> {
-  const [shop] = await tx
+  const [shop] = await (tx || db)
     .select({
       organizationId: shops.organizationId,
     })
@@ -27,7 +31,7 @@ export async function generateReceiptNumber(shopId: string, tx: any = db): Promi
   }
 
   // Determine shop sequence number within the organization
-  const orgShops = await tx
+  const orgShops = await (tx || db)
     .select({ id: shops.id })
     .from(shops)
     .where(eq(shops.organizationId, shop.organizationId))
@@ -37,46 +41,80 @@ export async function generateReceiptNumber(shopId: string, tx: any = db): Promi
   const shopNum = shopIndex !== -1 ? shopIndex + 1 : 1;
 
   const currentYear = new Date().getFullYear().toString();
-  const pattern = `PPS-${shopNum}-${currentYear}-%`;
+  const seriesPrefix = `PPS-${shopNum}-${currentYear}-`;
 
-  const [lastReceipt] = await tx
+  // Sort by string length DESC, then receiptNumber DESC to guarantee highest numerical serials first
+  const candidateReceipts = await (tx || db)
     .select({
       receiptNumber: receipts.receiptNumber,
     })
     .from(receipts)
     .where(
       and(
-        eq(receipts.shopId, shopId),
-        ilike(receipts.receiptNumber, pattern)
+        eq(receipts.organizationId, shop.organizationId),
+        ilike(receipts.receiptNumber, `${seriesPrefix}%`)
       )
     )
-    .orderBy(sql`receipt_number DESC`)
-    .limit(1);
+    .orderBy(
+      sql`length(${receipts.receiptNumber}) DESC`,
+      desc(receipts.receiptNumber)
+    )
+    .limit(50);
 
-  let nextSerial = 1;
-  if (lastReceipt?.receiptNumber) {
-    const parts = lastReceipt.receiptNumber.split("-");
-    if (parts.length === 4) {
-      const lastSerial = parseInt(parts[3], 10);
-      if (!isNaN(lastSerial)) {
-        nextSerial = lastSerial + 1;
+  let maxDbSerial: number | null = null;
+  for (const rcpt of candidateReceipts) {
+    if (rcpt?.receiptNumber) {
+      const parts = rcpt.receiptNumber.split("-");
+      if (parts.length >= 4) {
+        const lastSerial = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastSerial)) {
+          if (maxDbSerial === null || lastSerial > maxDbSerial) {
+            maxDbSerial = lastSerial;
+          }
+        }
       }
     }
   }
 
-  const paddedSerial = nextSerial.toString().padStart(4, "0");
-  return `PPS-${shopNum}-${currentYear}-${paddedSerial}`;
+  let nextSerial = maxDbSerial !== null ? maxDbSerial + 1 : 1;
+  let candidateNumber = `PPS-${shopNum}-${currentYear}-${nextSerial.toString().padStart(4, "0")}`;
+
+  // Collision probe against database
+  let probes = 0;
+  while (probes < 100) {
+    const [existing] = await (tx || db)
+      .select({ id: receipts.id })
+      .from(receipts)
+      .where(
+        and(
+          eq(receipts.organizationId, shop.organizationId),
+          eq(receipts.receiptNumber, candidateNumber)
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      break;
+    }
+
+    nextSerial++;
+    candidateNumber = `PPS-${shopNum}-${currentYear}-${nextSerial.toString().padStart(4, "0")}`;
+    probes++;
+  }
+
+  return candidateNumber;
 }
 
 /**
  * Generate a sequential order number supporting custom series or standard ORD-shopNum-YYYY-NNNN.
+ * Uses numerical length sorting and org-scoped anti-collision to prevent duplicate key violations.
  */
 export async function generateOrderNumber(
   shopId: string,
   tx: any = db,
   invoiceNumber?: string
 ): Promise<string> {
-  const [shop] = await tx
+  const [shop] = await (tx || db)
     .select({
       organizationId: shops.organizationId,
       settings: shops.settings,
@@ -102,7 +140,7 @@ export async function generateOrderNumber(
     : DEFAULT_DOCUMENT_SERIES.order;
 
   // Determine shop sequence number within the organization
-  const orgShops = await tx
+  const orgShops = await (tx || db)
     .select({ id: shops.id })
     .from(shops)
     .where(eq(shops.organizationId, shop.organizationId))
@@ -114,38 +152,75 @@ export async function generateOrderNumber(
   const now = new Date();
   const seriesPrefix = buildSeriesPrefix(config, shopNum, now);
 
-  const [lastOrder] = await tx
+  // Sort by string length DESC, then orderNumber DESC to guarantee highest numerical values first
+  const candidateOrders = await (tx || db)
     .select({
       orderNumber: orders.orderNumber,
     })
     .from(orders)
     .where(
       and(
-        eq(orders.shopId, shopId),
+        eq(orders.organizationId, shop.organizationId),
         ilike(orders.orderNumber, `${seriesPrefix}%`)
       )
     )
-    .orderBy(desc(orders.createdAt), desc(orders.orderNumber))
-    .limit(1);
+    .orderBy(
+      sql`length(${orders.orderNumber}) DESC`,
+      desc(orders.orderNumber)
+    )
+    .limit(50);
 
-  // Extract last serial from DB if exists
-  let lastDbSerial: number | null = null;
-  if (lastOrder?.orderNumber) {
-    lastDbSerial = extractTrailingSerial(lastOrder.orderNumber, seriesPrefix);
+  // Extract true maximum serial from DB
+  let maxDbSerial: number | null = null;
+  for (const ord of candidateOrders) {
+    if (ord?.orderNumber) {
+      const parsed = extractTrailingSerial(ord.orderNumber, seriesPrefix);
+      if (parsed !== null) {
+        if (maxDbSerial === null || parsed > maxDbSerial) {
+          maxDbSerial = parsed;
+        }
+      }
+    }
   }
 
-  // Anti-collision safeguard: ensure next number is at least lastDbSerial + 1
+  // Anti-collision safeguard: ensure next number is at least maxDbSerial + 1
   const configuredNext =
     typeof config.nextNumber === "number" && config.nextNumber > 0
       ? config.nextNumber
       : 1;
 
-  const nextSerial =
-    lastDbSerial !== null
-      ? Math.max(configuredNext, lastDbSerial + 1)
+  let nextSerial =
+    maxDbSerial !== null
+      ? Math.max(configuredNext, maxDbSerial + 1)
       : configuredNext;
 
-  return formatDocumentNumber(config, nextSerial, shopNum, now);
+  let formattedNumber = formatDocumentNumber(config, nextSerial, shopNum, now);
+
+  // Proactive anti-collision probe: verify that candidate orderNumber does NOT exist
+  // anywhere in this organization. If it does, increment serial until a guaranteed unique number is found.
+  let collisionProbes = 0;
+  while (collisionProbes < 100) {
+    const [existing] = await (tx || db)
+      .select({ id: orders.id })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.organizationId, shop.organizationId),
+          eq(orders.orderNumber, formattedNumber)
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      break;
+    }
+
+    nextSerial++;
+    formattedNumber = formatDocumentNumber(config, nextSerial, shopNum, now);
+    collisionProbes++;
+  }
+
+  return formattedNumber;
 }
 
 /**
