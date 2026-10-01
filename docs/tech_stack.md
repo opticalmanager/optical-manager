@@ -76,6 +76,13 @@ Optical Manager adheres to a unified enterprise color scheme and design rules ac
 | **Service Worker** | Native Browser API | Client-side asset precaching, offline navigation fallback, and background sync. |
 | **Web App Manifest** | Next.js 16 Native | Standalone desktop/mobile installation support across Windows, macOS, Android, and iOS. |
 
+## Document Generation & PDF Export
+
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| **html2pdf.js** | `^0.10.3` | Client-side HTML-to-canvas-to-PDF rendering engine for high-resolution A4 tax invoices and receipts. |
+| **CSS Paged Media** | Native (`@page`, `@media print`) | Pixel-perfect print-ready formatting with strict 210mm x 297mm bounds, zero bleed margins, and clean multi-page pagination. |
+
 ---
 
 ## Testing & Quality Assurance

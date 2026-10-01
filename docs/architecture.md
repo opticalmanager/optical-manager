@@ -294,3 +294,28 @@ Optical Manager features an offline-first architecture designed for uninterrupte
    - When offline or upon network drop, transactions write to `offline_invoices_queue` with client UUIDs (`OFF-2026-XXXX`) and mutations write to `offline_mutations_queue`.
    - Automatically synchronizes queued mutations and invoices via `/api/sync/offline-mutations` and `/api/sync/offline-invoices` upon reconnect with idempotent conflict handling.
 
+---
+
+## 9. 📄 Responsive A4 Document Rendering & PDF Generation (`/share/invoice/[id]`)
+
+Optical Manager renders official tax invoices and receipts as authentic A4 physical documents (`210mm x 297mm`) accessible directly across both desktop and mobile viewports with zero layout shifts or separate simplified mobile views.
+
+### Architectural Highlights:
+1. **Direct Authentic A4 Rendering (`components/shop/InvoiceDocument.tsx`)**:
+   - Renders the exact legal GST Tax Invoice layout conforming to Indian GST specifications (Tax Summary table by category, SAC/HSN codes, buyer/seller details, lens prescriptions).
+   - Eliminates redundant card-based mobile summaries in favor of the actual legal document.
+
+2. **Touch-Responsive Pinch-to-Zoom & Pan Viewer (`components/shop/SharedInvoiceViewer.tsx`)**:
+   - **Auto-Fit Viewport Scaling**: On mount and window resize, calculates screen width relative to A4 (794px). On mobile devices, automatically scales the document (e.g. 0.46x on ~390px screens) so the full A4 sheet fits horizontally with comfortable padding.
+   - **Multi-Touch Gestures**: Listens to 2-finger touch events (`touchstart`, `touchmove`, `touchend`) to calculate real-time hypotenuse distances, enabling fluid pinch-to-zoom (0.35x to 2.5x).
+   - **Double-Tap Quick Toggle**: Double tapping seamlessly toggles between fit-to-screen and 100% full scale.
+   - **Interactive Quick Zoom Toolbar**: Floating sticky controls for Zoom In (`+`), Zoom Out (`-`), Zoom percentage pill, `Fit`, and `100%`.
+   - **Dynamic Sizer Geometry**: Parent container measures unscaled document dimensions via `ResizeObserver` and adjusts parent bounds dynamically (`width: contentWidth * scale`, `height: contentHeight * scale`), eliminating phantom vertical scrolling or clipping.
+
+3. **High-Resolution PDF Download & Print**:
+   - **Client-Side High-Res Export**: Uses `html2pdf.js` with `html2canvas` 2x scale and jsPDF A4 portrait specifications.
+   - **Automatic Scale Reset During Export**: Temporarily un-zooms the document during canvas capture to guarantee pristine vector-like 300 DPI resolution, then restores user zoom scale seamlessly.
+   - **Standardized Enterprise File Naming**: Generated PDF files are strictly formatted as `[Organization_Or_Store_Name]_[Invoice_Number].pdf` (e.g. `Eye_Care_Opticals_INV-2026-0042.pdf`).
+   - **Native Print Integration**: `handlePrint()` updates `document.title` to the standardized filename before calling `window.print()`, so browser "Save as PDF" dialogs also pre-populate the exact standardized file name. In `@media print`, all transforms and zoom controls are bypassed for 100% physical A4 printing.
+
+
