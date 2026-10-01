@@ -65,11 +65,11 @@ The codebase cleanly separates mutation handling from data fetching:
   - `inventory.service.ts`: Low stock query logic and SKU CRUD.
   - `email.service.ts`: Nodemailer Gmail SMTP client with 3-tier rate limiting and AES-256 password encryption.
   - `email-trigger.service.ts`: Non-blocking fire-and-forget event trigger service for automated email dispatches.
-  - `invoice.service.ts`: Sequential invoice generation (`generateInvoiceNumber`) using store-specific document series templates, financial year formats, and safe anti-collision math `max(configuredNext, lastDbSerial + 1)`.
-  - `customer.service.ts`: Profile aggregations, lifetime order values, clinical history grouping, store credit ledgers, and sequential registration ID generation (`generateRegistrationId`).
-  - `receipt.service.ts`: Sequential receipt and order number generation (`generateOrderNumber`) supporting independent job series or synchronized invoice matching (`matchInvoice`).
+  - `invoice.service.ts`: Sequential invoice generation (`generateInvoiceNumber`) using store-specific document series templates, financial year formats, numerical length-first sorting (`sql'length(invoice_number) DESC', invoice_number DESC`), active organization-scoped collision probing, and transaction-level retry protection against unique constraint collisions.
+  - `customer.service.ts`: Profile aggregations, lifetime order values, clinical history grouping, store credit ledgers, and sequential registration ID generation (`generateRegistrationId`) with numerical length sorting and proactive collision probing.
+  - `receipt.service.ts`: Sequential receipt (`generateReceiptNumber`) and order number generation (`generateOrderNumber`) supporting numerical length sorting, active collision probing, and synchronized invoice matching (`matchInvoice`).
   - `order.service.ts`: Order fulfillment telemetry, payment balancing, and customer order history.
-- **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`) and invalidates Next.js cache using `revalidatePath`. Example: `updateShopDocumentSeriesAction` for per-branch series customization.
+- **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`), concurrency retry loops (handling Postgres `23505` conflicts gracefully), and invalidates Next.js cache using `revalidatePath`. Example: `registerPatientAndInvoiceAction` and `updateShopDocumentSeriesAction`.
 - **Utility Layer (`utils/document-series.ts`)**: Pure TypeScript helper routines for formatting document numbers, calculating Indian financial years (`getIndianFinancialYear`), and extracting trailing serial integers (`extractTrailingSerial`).
 
 ### 3. Database Connection & Pooling (`lib/drizzle.ts`)

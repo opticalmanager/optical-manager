@@ -70,19 +70,26 @@ export async function registerPatientAction(
 
     const data = validation.data;
 
-    // Start transaction
-    const result = await db.transaction(async (tx) => {
-      // 1. Generate sequential Registration ID
-      const registrationId = await generateRegistrationId(shopId);
+    // Start transaction with concurrency collision retry protection
+    let attempts = 0;
+    const maxAttempts = 3;
+    let result: any;
 
-      // 2. Insert Customer
-      const [customer] = await tx
-        .insert(customers)
-        .values({
-          shopId,
-          organizationId: user.organizationId!,
-          registrationId,
-          fullName: data.customer.fullName,
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        result = await db.transaction(async (tx) => {
+          // 1. Generate sequential Registration ID
+          const registrationId = await generateRegistrationId(shopId, tx);
+
+          // 2. Insert Customer
+          const [customer] = await tx
+            .insert(customers)
+            .values({
+              shopId,
+              organizationId: user.organizationId!,
+              registrationId,
+              fullName: data.customer.fullName,
           email: data.customer.email || null,
           phone: data.customer.phone,
           dateOfBirth: data.customer.dateOfBirth || null,
@@ -181,6 +188,23 @@ export async function registerPatientAction(
 
       return customer;
     });
+    break; // Success
+  } catch (txErr: any) {
+    const isUniqueViolation =
+      txErr?.code === "23505" ||
+      (typeof txErr?.message === "string" &&
+        (txErr.message.includes("customers_org_reg_id_unique") ||
+         txErr.message.includes("unique constraint") ||
+         txErr.message.includes("duplicate key value")));
+
+    if (isUniqueViolation && attempts < maxAttempts) {
+      console.warn(`[registerPatientVisitAction] Registration ID collision detected, retrying (attempt ${attempts + 1}/${maxAttempts})...`);
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempts));
+      continue;
+    }
+    throw txErr;
+  }
+}
 
     revalidatePath("/shop/dashboard");
     revalidatePath("/shop/analytics");
@@ -236,8 +260,15 @@ export async function registerPatientAndInvoiceAction(
       };
     }
 
-    // Start transaction
-    const result = await db.transaction(async (tx) => {
+    // Start transaction with concurrency collision retry protection
+    let attempts = 0;
+    const maxAttempts = 3;
+    let result: any;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        result = await db.transaction(async (tx) => {
       let customerId = data.customer.id && isUuid(data.customer.id) ? data.customer.id : undefined;
       let customerRecord: any;
 
@@ -304,7 +335,7 @@ export async function registerPatientAndInvoiceAction(
         customerRecord = updatedCustomer;
       } else {
         // Insert: Generate sequential Registration ID and insert new Customer
-        const registrationId = await generateRegistrationId(shopId);
+        const registrationId = await generateRegistrationId(shopId, tx);
         const [newCustomer] = await tx
           .insert(customers)
           .values({
@@ -431,7 +462,7 @@ export async function registerPatientAndInvoiceAction(
       );
       const totalVal = subtotalVal - discountVal + taxVal;
 
-      const invoiceNumber = await generateInvoiceNumber(shopId);
+      const invoiceNumber = await generateInvoiceNumber(shopId, tx);
 
       // Compute estimated delivery date and fulfillment status based on deliveryDays
       let estimatedDeliveryDate: Date | null = null;
@@ -593,6 +624,24 @@ export async function registerPatientAndInvoiceAction(
 
       return { customer: customerRecord, invoice, order, receipt: receiptRecord };
     });
+    break; // Successfully completed transaction
+  } catch (txErr: any) {
+    const isUniqueViolation =
+      txErr?.code === "23505" ||
+      (typeof txErr?.message === "string" &&
+        (txErr.message.includes("invoices_org_invoice_num_unique") ||
+         txErr.message.includes("customers_org_reg_id_unique") ||
+         txErr.message.includes("unique constraint") ||
+         txErr.message.includes("duplicate key value")));
+
+    if (isUniqueViolation && attempts < maxAttempts) {
+      console.warn(`[registerPatientAndInvoiceAction] Concurrency unique constraint detected, retrying (attempt ${attempts + 1}/${maxAttempts})...`);
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempts));
+      continue;
+    }
+    throw txErr;
+  }
+}
 
     revalidatePath("/shop/dashboard");
     revalidatePath("/shop/analytics");

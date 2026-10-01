@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/drizzle";
 import { invoices, shops } from "@/db/schema";
-import { eq, and, ilike, desc } from "drizzle-orm";
+import { eq, and, ilike, desc, sql } from "drizzle-orm";
 import type { Invoice, NewInvoice } from "@/types";
 import {
   DEFAULT_DOCUMENT_SERIES,
@@ -13,10 +13,14 @@ import {
 
 /**
  * Generate a sequential invoice number supporting custom series or standard INV-shopNum-YYYY-NNNN.
+ * Uses numerical length sorting and org-scoped anti-collision to prevent duplicate key violations.
  */
-export async function generateInvoiceNumber(shopId: string): Promise<string> {
+export async function generateInvoiceNumber(
+  shopId: string,
+  tx: any = db
+): Promise<string> {
   // Fetch current shop organizationId and custom settings
-  const [shop] = await db
+  const [shop] = await (tx || db)
     .select({
       organizationId: shops.organizationId,
       settings: shops.settings,
@@ -30,13 +34,13 @@ export async function generateInvoiceNumber(shopId: string): Promise<string> {
   }
 
   // Determine shop sequence number within the organization
-  const orgShops = await db
+  const orgShops = await (tx || db)
     .select({ id: shops.id })
     .from(shops)
     .where(eq(shops.organizationId, shop.organizationId))
     .orderBy(shops.createdAt);
 
-  const shopIndex = orgShops.findIndex((s) => s.id === shopId);
+  const shopIndex = orgShops.findIndex((s: any) => s.id === shopId);
   const shopNum = shopIndex !== -1 ? shopIndex + 1 : 1;
 
   // Retrieve custom configuration or fall back to standard default
@@ -48,39 +52,78 @@ export async function generateInvoiceNumber(shopId: string): Promise<string> {
   const now = new Date();
   const seriesPrefix = buildSeriesPrefix(config, shopNum, now);
 
-  // Query most recent invoice matching this series prefix
-  const [lastInvoice] = await db
+  // Robust maximum serial search:
+  // Sort by string length DESC, then invoiceNumber DESC to guarantee highest numerical
+  // values appear first regardless of any future-dated or back-dated createdAt timestamps.
+  const candidateInvoices = await (tx || db)
     .select({
       invoiceNumber: invoices.invoiceNumber,
     })
     .from(invoices)
     .where(
       and(
-        eq(invoices.shopId, shopId),
+        eq(invoices.organizationId, shop.organizationId),
         ilike(invoices.invoiceNumber, `${seriesPrefix}%`)
       )
     )
-    .orderBy(desc(invoices.createdAt), desc(invoices.invoiceNumber))
-    .limit(1);
+    .orderBy(
+      sql`length(${invoices.invoiceNumber}) DESC`,
+      desc(invoices.invoiceNumber)
+    )
+    .limit(50);
 
-  // Extract last serial from DB if exists
-  let lastDbSerial: number | null = null;
-  if (lastInvoice?.invoiceNumber) {
-    lastDbSerial = extractTrailingSerial(lastInvoice.invoiceNumber, seriesPrefix);
+  // Extract the true maximum numerical serial from DB
+  let maxDbSerial: number | null = null;
+  for (const inv of candidateInvoices) {
+    if (inv?.invoiceNumber) {
+      const parsed = extractTrailingSerial(inv.invoiceNumber, seriesPrefix);
+      if (parsed !== null) {
+        if (maxDbSerial === null || parsed > maxDbSerial) {
+          maxDbSerial = parsed;
+        }
+      }
+    }
   }
 
-  // Anti-collision safeguard: ensure next number is at least lastDbSerial + 1
+  // Anti-collision safeguard: ensure next number is at least maxDbSerial + 1
   const configuredNext =
     typeof config.nextNumber === "number" && config.nextNumber > 0
       ? config.nextNumber
       : 1;
 
-  const nextSerial =
-    lastDbSerial !== null
-      ? Math.max(configuredNext, lastDbSerial + 1)
+  let nextSerial =
+    maxDbSerial !== null
+      ? Math.max(configuredNext, maxDbSerial + 1)
       : configuredNext;
 
-  return formatDocumentNumber(config, nextSerial, shopNum, now);
+  let formattedNumber = formatDocumentNumber(config, nextSerial, shopNum, now);
+
+  // Proactive anti-collision probe: verify that candidate number does NOT exist
+  // anywhere in this organization. If it does (e.g. legacy/imported gaps),
+  // increment serial until a guaranteed unique number is found.
+  let collisionProbes = 0;
+  while (collisionProbes < 100) {
+    const [existing] = await (tx || db)
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.organizationId, shop.organizationId),
+          eq(invoices.invoiceNumber, formattedNumber)
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      break;
+    }
+
+    nextSerial++;
+    formattedNumber = formatDocumentNumber(config, nextSerial, shopNum, now);
+    collisionProbes++;
+  }
+
+  return formattedNumber;
 }
 
 /**
@@ -93,7 +136,7 @@ export async function generateBatchInvoiceNumbers(
 ): Promise<string[]> {
   if (count <= 0) return [];
 
-  const [shop] = await tx
+  const [shop] = await (tx || db)
     .select({
       organizationId: shops.organizationId,
       settings: shops.settings,
@@ -106,7 +149,7 @@ export async function generateBatchInvoiceNumbers(
     throw new Error(`Shop with ID ${shopId} not found.`);
   }
 
-  const orgShops = await tx
+  const orgShops = await (tx || db)
     .select({ id: shops.id })
     .from(shops)
     .where(eq(shops.organizationId, shop.organizationId))
@@ -123,23 +166,33 @@ export async function generateBatchInvoiceNumbers(
   const now = new Date();
   const seriesPrefix = buildSeriesPrefix(config, shopNum, now);
 
-  const [lastInvoice] = await tx
+  const candidateInvoices = await (tx || db)
     .select({
       invoiceNumber: invoices.invoiceNumber,
     })
     .from(invoices)
     .where(
       and(
-        eq(invoices.shopId, shopId),
+        eq(invoices.organizationId, shop.organizationId),
         ilike(invoices.invoiceNumber, `${seriesPrefix}%`)
       )
     )
-    .orderBy(desc(invoices.createdAt), desc(invoices.invoiceNumber))
-    .limit(1);
+    .orderBy(
+      sql`length(${invoices.invoiceNumber}) DESC`,
+      desc(invoices.invoiceNumber)
+    )
+    .limit(50);
 
-  let lastDbSerial: number | null = null;
-  if (lastInvoice?.invoiceNumber) {
-    lastDbSerial = extractTrailingSerial(lastInvoice.invoiceNumber, seriesPrefix);
+  let maxDbSerial: number | null = null;
+  for (const inv of candidateInvoices) {
+    if (inv?.invoiceNumber) {
+      const parsed = extractTrailingSerial(inv.invoiceNumber, seriesPrefix);
+      if (parsed !== null) {
+        if (maxDbSerial === null || parsed > maxDbSerial) {
+          maxDbSerial = parsed;
+        }
+      }
+    }
   }
 
   const configuredNext =
@@ -147,16 +200,40 @@ export async function generateBatchInvoiceNumbers(
       ? config.nextNumber
       : 1;
 
-  let startSerial =
-    lastDbSerial !== null
-      ? Math.max(configuredNext, lastDbSerial + 1)
+  let currentSerial =
+    maxDbSerial !== null
+      ? Math.max(configuredNext, maxDbSerial + 1)
       : configuredNext;
 
   const invoiceNumbers: string[] = [];
   for (let i = 0; i < count; i++) {
-    invoiceNumbers.push(
-      formatDocumentNumber(config, startSerial + i, shopNum, now)
-    );
+    let formattedNumber = formatDocumentNumber(config, currentSerial, shopNum, now);
+
+    // Collision check per batch item
+    let probes = 0;
+    while (probes < 100) {
+      const [existing] = await (tx || db)
+        .select({ id: invoices.id })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.organizationId, shop.organizationId),
+            eq(invoices.invoiceNumber, formattedNumber)
+          )
+        )
+        .limit(1);
+
+      if (!existing && !invoiceNumbers.includes(formattedNumber)) {
+        break;
+      }
+
+      currentSerial++;
+      formattedNumber = formatDocumentNumber(config, currentSerial, shopNum, now);
+      probes++;
+    }
+
+    invoiceNumbers.push(formattedNumber);
+    currentSerial++;
   }
 
   return invoiceNumbers;
@@ -209,8 +286,8 @@ export async function getInvoiceById(
 /**
  * Create a new invoice.
  */
-export async function createInvoice(data: NewInvoice): Promise<Invoice> {
-  const [invoice] = await db.insert(invoices).values(data).returning();
+export async function createInvoice(data: NewInvoice, tx: any = db): Promise<Invoice> {
+  const [invoice] = await (tx || db).insert(invoices).values(data).returning();
   return invoice;
 }
 
