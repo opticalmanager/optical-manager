@@ -260,10 +260,10 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
         {/* ========================================================================= */}
         <div
           id="invoice-print-area"
-          className="flex flex-col gap-8 print:gap-0 items-center w-full"
+          className="flex flex-col gap-8 print:gap-0 items-center w-[794px] max-w-[794px] print:w-auto print:max-w-none"
         >
           {/* ================= PAGE 1 ================= */}
-          <div className="w-[210mm] h-[297mm] bg-white border border-slate-200 shadow-xl p-[12mm] flex flex-col justify-between print:border-none print:shadow-none print:p-[12mm] print-page shrink-0">
+          <div className="w-[794px] min-h-[1123px] max-w-[794px] bg-white border border-slate-200 shadow-xl p-[12mm] flex flex-col justify-between print:w-[210mm] print:h-[297mm] print:border-none print:shadow-none print:p-[12mm] print-page shrink-0">
             <div className="flex-1 flex flex-col">
               {/* Header Block */}
               <div className="flex justify-between items-start border-b border-black pb-2.5">
@@ -789,7 +789,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
           </div>
 
           {/* ================= PAGE 2 ================= */}
-          <div className="w-[210mm] h-[297mm] bg-white border border-slate-200 shadow-xl p-[12mm] flex flex-col justify-between print:border-none print:shadow-none print:p-[12mm] print-page">
+          <div className="w-[794px] min-h-[1123px] max-w-[794px] bg-white border border-slate-200 shadow-xl p-[12mm] flex flex-col justify-between print:w-[210mm] print:h-[297mm] print:border-none print:shadow-none print:p-[12mm] print-page shrink-0">
             <div className="flex-1 flex flex-col">
               {/* Header Block (Branding Duplicate) */}
               <div className="flex justify-between items-start border-b border-black pb-2.5">
@@ -1012,7 +1012,10 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
         />
 
         {/* Receipt Paper Card Container */}
-        <div className="print-container bg-white border border-slate-200 shadow-md rounded-xl p-8 max-w-[800px] w-full flex flex-col gap-6 text-[10px] leading-tight select-none">
+        <div
+          id="invoice-print-area"
+          className="print-container bg-white border border-slate-200 shadow-md rounded-xl p-8 w-[794px] max-w-[794px] flex flex-col gap-6 text-[10px] leading-tight select-none print:w-auto print:max-w-none"
+        >
           {/* HEADER SECTION */}
           <div className="flex justify-between items-start gap-4">
             {/* Logo & Company info */}
