@@ -106,11 +106,12 @@ export const db = drizzle(client, { schema });
 - `DIRECT_DATABASE_URL` (`port 5432`) is used for schema migrations via `drizzle-kit`.
 
 ### 3.1 POS Line Item Ledger & Tax Computation Architecture (`NewInvoiceForm.tsx`)
-The POS billing engine features an 11-column high-density ERP ledger grid designed for standard laptop displays (zero horizontal scrollbars):
-- **Category Tax Synchronization**: Categories loaded from Dexie.js local storage (`cached_product_categories`) and server action (`getOrganizationCategoriesAction()`). Selecting or changing an item's category immediately updates `cgstPercent`, `sgstPercent`, and `igstPercent` per organization tax settings, recalculating taxable value and taxes in 0ms without server roundtrips.
-- **Bi-Directional Discount & Price Engine**: Computes row totals reactively from `unitPrice`, `quantity`, `discountPercent`, `discountAmount`, `cgstPercent`, `sgstPercent`, and `igstPercent`.
-- **Single-Value Rupee Tax Columns**: Tax columns render consolidated Rupee values (`₹X.XX`) with rate badges (`(Y%)`), saving >110px and avoiding dual-input column bloat.
-- **Strict Input Constraints**: Numerical enforcement via `inputMode="numeric"` / `inputMode="decimal"` and clean integer/decimal parsing.
+The POS billing engine features an 11-column high-density ERP ledger grid designed for multi-device responsiveness and seamless tax compliance:
+- **State-Aware Automated GST Engine**: Dynamically calculates whether an order is Intra-State (CGST + SGST) or Inter-State (IGST) by comparing the patient's state against the store's state (extracted from settings, address, or GSTIN state code). If patient state is missing or identical to the store state, CGST + SGST is applied by default. If patient state differs, IGST is applied. Live re-balancing recomputes line item tax splits in 0ms when the patient state is modified.
+- **Bi-Directional Dual-Editable Tax Ledger**: CGST, SGST, and IGST fields are completely editable per row item. Both the calculated Rupee amount (`amount`) and rate (`percent`) feature bi-directional reactivity (changing percent recalculates amount, and changing amount recalculates percent). No currency glyphs (`₹`) appear inside input fields, preventing visual clutter and typing obstructions.
+- **Separation of Item Code & Description**: The Product Search column cleanly displays the search input and exclusively the active item code badge (Barcode, Product Code, or SKU). Product name, brand, model, and clinical specifications are formatted into the Item Description column with `title` hover tooltips to avoid text clipping.
+- **Bi-Directional Discount & Price Engine**: Computes row totals reactively from `unitPrice`, `quantity`, `discountPercent`, `discountAmount`, `cgstPercent`, `sgstPercent`, and `igstPercent`. Discount percentage is strictly clamped between 0% and 100%, and discount amount cannot exceed line subtotal.
+- **Strict Input Constraints & Multi-Device Responsiveness**: Numerical enforcement via `inputMode="numeric"` / `inputMode="decimal"` and clean integer/decimal parsing. The table wrapper enforces `min-w-[1280px]` with horizontal scrolling, guaranteeing that no columns or input texts become clipped on smaller viewports.
 
 ### 4. PWA & Offline-First Storage Architecture (`lib/offline/`)
 

@@ -128,6 +128,59 @@ const INDIAN_STATES = [
   "Puducherry"
 ];
 
+const GSTIN_STATE_MAP: Record<string, string> = {
+  "01": "Jammu and Kashmir",
+  "02": "Himachal Pradesh",
+  "03": "Punjab",
+  "04": "Chandigarh",
+  "05": "Uttarakhand",
+  "06": "Haryana",
+  "07": "Delhi",
+  "08": "Rajasthan",
+  "09": "Uttar Pradesh",
+  "10": "Bihar",
+  "11": "Sikkim",
+  "12": "Arunachal Pradesh",
+  "13": "Nagaland",
+  "14": "Manipur",
+  "15": "Mizoram",
+  "16": "Tripura",
+  "17": "Meghalaya",
+  "18": "Assam",
+  "19": "West Bengal",
+  "20": "Jharkhand",
+  "21": "Odisha",
+  "22": "Chhattisgarh",
+  "23": "Madhya Pradesh",
+  "24": "Gujarat",
+  "26": "Dadra and Nagar Haveli and Daman and Diu",
+  "27": "Maharashtra",
+  "29": "Karnataka",
+  "30": "Goa",
+  "31": "Lakshadweep",
+  "32": "Kerala",
+  "33": "Tamil Nadu",
+  "34": "Puducherry",
+  "35": "Andaman and Nicobar Islands",
+  "36": "Telangana",
+  "37": "Andhra Pradesh",
+  "38": "Ladakh",
+};
+
+/**
+ * Returns true only if customer state is present, shop state is present, and they differ.
+ * If customer state is missing/empty, or same as store state, defaults to false (Intra-State: CGST + SGST).
+ */
+function checkIsInterState(customerState: string, storeState: string): boolean {
+  if (!customerState || !customerState.trim()) {
+    return false;
+  }
+  if (!storeState || !storeState.trim()) {
+    return false;
+  }
+  return customerState.trim().toLowerCase() !== storeState.trim().toLowerCase();
+}
+
 const DEFAULT_CATEGORIES = [
   { id: "cat-frames", name: "Frames", code: "FRAMES", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9003" },
   { id: "cat-sunglasses", name: "Sunglasses", code: "SUNGLASSES", cgstPercent: "9.00", sgstPercent: "9.00", igstPercent: "18.00", hsnCode: "9004" },
@@ -338,6 +391,69 @@ export function NewInvoiceForm() {
     loadCategories();
   }, [isOnline]);
 
+  // Store/Shop State for Intra-State vs Inter-State GST Determination
+  const [shopState, setShopState] = useState<string>("");
+  const isInterState = checkIsInterState(state, shopState);
+  const prevInterStateRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    async function loadStoreState() {
+      try {
+        let foundState = "";
+        const currentShopId = shopId || (await offlineDB.getCurrentShopId());
+        if (currentShopId) {
+          const shopProfile = await offlineDB.cached_shop_profile.get(currentShopId);
+          if (shopProfile) {
+            if (shopProfile.settings?.state) {
+              foundState = String(shopProfile.settings.state).trim();
+            } else if (shopProfile.gstNumber && shopProfile.gstNumber.trim().length >= 2) {
+              const prefix = shopProfile.gstNumber.trim().substring(0, 2);
+              foundState = GSTIN_STATE_MAP[prefix] || "";
+            } else if (shopProfile.address) {
+              const addrLower = shopProfile.address.toLowerCase();
+              const matched = INDIAN_STATES.find((st) => addrLower.includes(st.toLowerCase()));
+              if (matched) foundState = matched;
+            }
+          }
+        }
+
+        if (!foundState) {
+          const orgs = await offlineDB.cached_organization.toArray();
+          if (orgs.length > 0) {
+            const org = orgs[0];
+            if (org.shops && Array.isArray(org.shops)) {
+              const currentShop = org.shops.find((s) => s.id === currentShopId) || org.shops[0];
+              if (currentShop) {
+                if (currentShop.settings?.state) {
+                  foundState = String(currentShop.settings.state).trim();
+                } else if (currentShop.gstin && currentShop.gstin.trim().length >= 2) {
+                  const prefix = currentShop.gstin.trim().substring(0, 2);
+                  foundState = GSTIN_STATE_MAP[prefix] || "";
+                } else if (currentShop.address) {
+                  const addrLower = currentShop.address.toLowerCase();
+                  const matched = INDIAN_STATES.find((st) => addrLower.includes(st.toLowerCase()));
+                  if (matched) foundState = matched;
+                }
+              }
+            }
+            if (!foundState && org.address) {
+              const addrLower = org.address.toLowerCase();
+              const matched = INDIAN_STATES.find((st) => addrLower.includes(st.toLowerCase()));
+              if (matched) foundState = matched;
+            }
+          }
+        }
+
+        if (foundState) {
+          setShopState(foundState);
+        }
+      } catch (err) {
+        console.warn("Could not determine store state:", err);
+      }
+    }
+    loadStoreState();
+  }, [shopId]);
+
   // Section 04: Product Selection (Order Line Items)
   const [lineItems, setLineItems] = useState<LineItem[]>([
     {
@@ -366,6 +482,52 @@ export function NewInvoiceForm() {
       isSearching: false,
     },
   ]);
+
+  // Re-adjust GST distribution when inter-state mode changes (patient state changed)
+  useEffect(() => {
+    if (prevInterStateRef.current !== isInterState) {
+      prevInterStateRef.current = isInterState;
+      setLineItems((prev) =>
+        prev.map((item) => {
+          const qty = item.quantity === "" || isNaN(item.quantity as number) ? 0 : (item.quantity as number);
+          const price = isNaN(item.unitPrice) ? 0 : item.unitPrice;
+          const lineSubtotal = qty * price;
+          const discAmt = item.discountAmount || 0;
+          const taxableSubtotal = Number(Math.max(0, lineSubtotal - discAmt).toFixed(2));
+
+          const totalGstPct = Number(((item.cgstPercent || 0) + (item.sgstPercent || 0) + (item.igstPercent || 0)).toFixed(2));
+
+          let newCgstPct = 0;
+          let newSgstPct = 0;
+          let newIgstPct = 0;
+
+          if (isInterState) {
+            newIgstPct = totalGstPct;
+          } else {
+            newCgstPct = Number((totalGstPct / 2).toFixed(2));
+            newSgstPct = Number((totalGstPct / 2).toFixed(2));
+          }
+
+          const newCgstAmt = Number((taxableSubtotal * (newCgstPct / 100)).toFixed(2));
+          const newSgstAmt = Number((taxableSubtotal * (newSgstPct / 100)).toFixed(2));
+          const newIgstAmt = Number((taxableSubtotal * (newIgstPct / 100)).toFixed(2));
+          const newRowTotal = Number((taxableSubtotal + newCgstAmt + newSgstAmt + newIgstAmt).toFixed(2));
+
+          return {
+            ...item,
+            cgstPercent: newCgstPct,
+            cgstAmount: newCgstAmt,
+            sgstPercent: newSgstPct,
+            sgstAmount: newSgstAmt,
+            igstPercent: newIgstPct,
+            igstAmount: newIgstAmt,
+            taxableSubtotal,
+            rowTotal: newRowTotal,
+          };
+        })
+      );
+    }
+  }, [isInterState]);
 
   // Timers for row search debouncing
   const searchTimeouts = useRef<{ [key: number]: NodeJS.Timeout }>({});
@@ -1034,12 +1196,19 @@ export function NewInvoiceForm() {
   // Add Item Table Actions
   const handleAddRow = () => {
     setDropdownTarget(null);
+    const defaultCat = categoriesList.find((c) => c.name.toLowerCase() === "frames") || DEFAULT_CATEGORIES[0];
+    const catTotalGst = parseFloat(defaultCat.igstPercent) || 
+      ((parseFloat(defaultCat.cgstPercent) || 0) + (parseFloat(defaultCat.sgstPercent) || 0)) || 12;
+    const defaultCgst = isInterState ? 0 : (parseFloat(defaultCat.cgstPercent) || Number((catTotalGst / 2).toFixed(2)));
+    const defaultSgst = isInterState ? 0 : (parseFloat(defaultCat.sgstPercent) || Number((catTotalGst / 2).toFixed(2)));
+    const defaultIgst = isInterState ? catTotalGst : 0;
+
     setLineItems([
       ...lineItems,
       {
         inventoryId: null,
         description: "",
-        category: "Frames",
+        category: defaultCat.name || "Frames",
         barcode: "",
         productCode: "",
         sku: "",
@@ -1047,11 +1216,11 @@ export function NewInvoiceForm() {
         unitPrice: 0,
         discountPercent: 0,
         discountAmount: 0,
-        cgstPercent: 6,
+        cgstPercent: defaultCgst,
         cgstAmount: 0,
-        sgstPercent: 6,
+        sgstPercent: defaultSgst,
         sgstAmount: 0,
-        igstPercent: 0,
+        igstPercent: defaultIgst,
         igstAmount: 0,
         taxableSubtotal: 0,
         rowTotal: 0,
@@ -1082,7 +1251,7 @@ export function NewInvoiceForm() {
       if (idx === index) {
         const merged = { ...item, ...fields };
 
-        // If category changed without explicit tax rates, auto-fill GST rates from category
+        // If category changed without explicit tax rates, auto-fill GST rates from category adhering to inter-state/intra-state logic
         if (
           fields.category !== undefined &&
           fields.cgstPercent === undefined &&
@@ -1093,9 +1262,21 @@ export function NewInvoiceForm() {
             (c) => c.name.toLowerCase() === (fields.category || "").toLowerCase()
           );
           if (matched) {
-            merged.cgstPercent = parseFloat(matched.cgstPercent) || 0;
-            merged.sgstPercent = parseFloat(matched.sgstPercent) || 0;
-            merged.igstPercent = parseFloat(matched.igstPercent) || 0;
+            const catTotalGst = parseFloat(matched.igstPercent) || 
+              ((parseFloat(matched.cgstPercent) || 0) + (parseFloat(matched.sgstPercent) || 0)) || 0;
+            if (isInterState) {
+              merged.cgstPercent = 0;
+              merged.cgstAmount = 0;
+              merged.sgstPercent = 0;
+              merged.sgstAmount = 0;
+              merged.igstPercent = catTotalGst;
+            } else {
+              const half = Number((catTotalGst / 2).toFixed(2));
+              merged.cgstPercent = parseFloat(matched.cgstPercent) || half;
+              merged.sgstPercent = parseFloat(matched.sgstPercent) || half;
+              merged.igstPercent = 0;
+              merged.igstAmount = 0;
+            }
           }
         }
 
@@ -1104,18 +1285,23 @@ export function NewInvoiceForm() {
         const price = isNaN(merged.unitPrice) ? 0 : merged.unitPrice;
         const lineSubtotal = qty * price;
 
-        // Bi-directional Discount calculations:
+        // Bi-directional Discount calculations (strictly clamped so discount percentage is never > 100%):
         if (fields.discountAmount !== undefined) {
-          const discAmt = Math.max(0, fields.discountAmount || 0);
+          const rawAmt = Math.max(0, fields.discountAmount || 0);
+          // If lineSubtotal > 0, discount amount cannot exceed lineSubtotal, ensuring discount percentage is never > 100%
+          const discAmt = lineSubtotal > 0 ? Math.min(lineSubtotal, rawAmt) : rawAmt;
           merged.discountAmount = discAmt;
           merged.discountPercent = lineSubtotal > 0 ? Number(Math.min(100, (discAmt / lineSubtotal) * 100).toFixed(2)) : 0;
         } else if (fields.discountPercent !== undefined) {
+          // Strictly cap discount percentage at 100%
           const discPct = Math.min(100, Math.max(0, fields.discountPercent || 0));
           merged.discountPercent = discPct;
           merged.discountAmount = Number(((lineSubtotal * discPct) / 100).toFixed(2));
         } else {
-          // If price or quantity changed, recompute discountAmount based on existing discountPercent
-          merged.discountAmount = Number((lineSubtotal * ((merged.discountPercent || 0) / 100)).toFixed(2));
+          // If price or quantity changed, recompute discountAmount based on existing discountPercent (capped at 100%)
+          const discPct = Math.min(100, Math.max(0, merged.discountPercent || 0));
+          merged.discountPercent = discPct;
+          merged.discountAmount = Number(((lineSubtotal * discPct) / 100).toFixed(2));
         }
 
         merged.taxableSubtotal = Number(Math.max(0, lineSubtotal - merged.discountAmount).toFixed(2));
@@ -1198,23 +1384,35 @@ export function NewInvoiceForm() {
     const prodName = product.name || product.productName || "Product";
     const prodCode = product.productCode || product.sku || "";
     const barcodeVal = product.barcode || prodCode;
+    const availableCode = barcodeVal || prodCode || product.sku || "";
     const catName = product.category || "Frames";
     const maxStock = parseInt(product.quantity ?? product.stockQuantity, 10) || 0;
 
-    let cgst = parseFloat(product.cgstPercent) || 0;
-    let sgst = parseFloat(product.sgstPercent) || 0;
-    let igst = parseFloat(product.igstPercent) || 0;
+    const descParts: string[] = [];
+    if (prodName) descParts.push(prodName);
+    if (product.brand) descParts.push(product.brand);
+    if (product.model) descParts.push(product.model);
+    const formattedDescription = descParts.join(" • ") || prodName;
 
-    if (cgst === 0 && sgst === 0 && igst === 0) {
+    let totalGst = parseFloat(product.igstPercent) || 0;
+    if (totalGst === 0 && (parseFloat(product.cgstPercent) > 0 || parseFloat(product.sgstPercent) > 0)) {
+      totalGst = (parseFloat(product.cgstPercent) || 0) + (parseFloat(product.sgstPercent) || 0);
+    }
+    if (totalGst === 0) {
       const matchedCat = categoriesList.find(
-        (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code.toLowerCase() === catName.toLowerCase()
+        (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
       );
       if (matchedCat) {
-        cgst = parseFloat(matchedCat.cgstPercent) || 0;
-        sgst = parseFloat(matchedCat.sgstPercent) || 0;
-        igst = parseFloat(matchedCat.igstPercent) || 0;
+        totalGst = parseFloat(matchedCat.igstPercent) || 
+          ((parseFloat(matchedCat.cgstPercent) || 0) + (parseFloat(matchedCat.sgstPercent) || 0)) || 12;
+      } else {
+        totalGst = 12;
       }
     }
+
+    const cgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
+    const sgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
+    const igst = isInterState ? totalGst : 0;
 
     if (maxStock <= 0) {
       toast.error(`Out of stock! "${prodName}" has 0 units available.`);
@@ -1222,7 +1420,7 @@ export function NewInvoiceForm() {
 
     const initialLineItem = {
       inventoryId: product.id,
-      description: prodName,
+      description: formattedDescription,
       category: catName,
       barcode: barcodeVal,
       productCode: prodCode,
@@ -1240,7 +1438,7 @@ export function NewInvoiceForm() {
       taxableSubtotal: price,
       rowTotal: price * (1 + (cgst + sgst + igst) / 100),
       maxQty: maxStock,
-      searchQuery: prodName,
+      searchQuery: availableCode || prodName,
       suggestions: [],
       showDropdown: false,
       isSearching: false,
@@ -1313,22 +1511,34 @@ export function NewInvoiceForm() {
     const prodName = product.name || product.productName || "Product";
     const prodCode = product.productCode || product.sku || "";
     const barcodeVal = product.barcode || prodCode;
+    const availableCode = barcodeVal || prodCode || product.sku || "";
     const catName = product.category || "Frames";
 
-    let cgst = parseFloat(product.cgstPercent) || 0;
-    let sgst = parseFloat(product.sgstPercent) || 0;
-    let igst = parseFloat(product.igstPercent) || 0;
+    const descParts: string[] = [];
+    if (prodName) descParts.push(prodName);
+    if (product.brand) descParts.push(product.brand);
+    if (product.model) descParts.push(product.model);
+    const formattedDescription = descParts.join(" • ") || prodName;
 
-    if (cgst === 0 && sgst === 0 && igst === 0) {
+    let totalGst = parseFloat(product.igstPercent) || 0;
+    if (totalGst === 0 && (parseFloat(product.cgstPercent) > 0 || parseFloat(product.sgstPercent) > 0)) {
+      totalGst = (parseFloat(product.cgstPercent) || 0) + (parseFloat(product.sgstPercent) || 0);
+    }
+    if (totalGst === 0) {
       const matchedCat = categoriesList.find(
-        (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code.toLowerCase() === catName.toLowerCase()
+        (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
       );
       if (matchedCat) {
-        cgst = parseFloat(matchedCat.cgstPercent) || 0;
-        sgst = parseFloat(matchedCat.sgstPercent) || 0;
-        igst = parseFloat(matchedCat.igstPercent) || 0;
+        totalGst = parseFloat(matchedCat.igstPercent) || 
+          ((parseFloat(matchedCat.cgstPercent) || 0) + (parseFloat(matchedCat.sgstPercent) || 0)) || 12;
+      } else {
+        totalGst = 12;
       }
     }
+
+    const cgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
+    const sgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
+    const igst = isInterState ? totalGst : 0;
 
     if (maxStock <= 0) {
       toast.error(`Out of stock! "${prodName}" has 0 units available.`);
@@ -1336,7 +1546,7 @@ export function NewInvoiceForm() {
 
     updateLineItem(index, {
       inventoryId: product.id,
-      description: prodName,
+      description: formattedDescription,
       category: catName,
       barcode: barcodeVal,
       productCode: prodCode,
@@ -1346,7 +1556,7 @@ export function NewInvoiceForm() {
       sgstPercent: sgst,
       igstPercent: igst,
       maxQty: maxStock,
-      searchQuery: prodName,
+      searchQuery: availableCode || prodName,
       suggestions: [],
       showDropdown: false,
     });
@@ -1430,14 +1640,17 @@ export function NewInvoiceForm() {
       {
         inventoryId: null,
         description: "",
+        category: "Frames",
+        barcode: "",
+        productCode: "",
         sku: "",
         quantity: 1,
         unitPrice: 0,
         discountPercent: 0,
         discountAmount: 0,
-        cgstPercent: 0,
+        cgstPercent: 6,
         cgstAmount: 0,
-        sgstPercent: 0,
+        sgstPercent: 6,
         sgstAmount: 0,
         igstPercent: 0,
         igstAmount: 0,
@@ -2197,82 +2410,123 @@ export function NewInvoiceForm() {
       />
 
       {/* SECTION 3: PRODUCT SELECTION */}
-      <div className="bg-white border border-slate-200/90 rounded-xl shadow-2xs overflow-hidden">
-        <div className="py-2 px-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+      <div className="bg-white border border-slate-300 rounded-xl shadow-2xs overflow-hidden">
+        <div className="py-2.5 px-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-[#2563eb]" />
             <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
               PRODUCT SELECTION
             </h2>
           </div>
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 text-[#2563eb] border border-blue-200/80">
-            {lineItems.length} {lineItems.length === 1 ? "Item" : "Items"}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${
+                isInterState
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              }`}
+              title={
+                isInterState
+                  ? `Inter-State Supply (IGST applied): Customer State "${state}" differs from Store State "${shopState || "Store"}"`
+                  : `Intra-State Supply (CGST + SGST applied): ${
+                      state ? `Customer State "${state}" matches Store State "${shopState || state}"` : "Default Intra-State (State not specified)"
+                    }`
+              }
+            >
+              {isInterState ? "Inter-State (IGST)" : "Intra-State (CGST + SGST)"}
+            </span>
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 text-[#2563eb] border border-blue-200/80">
+              {lineItems.length} {lineItems.length === 1 ? "Item" : "Items"}
+            </span>
+          </div>
         </div>
 
         <div className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse divide-y divide-slate-200">
+          <div className="overflow-hidden">
+            <table className="w-full text-left text-xs border-collapse border-b border-slate-200" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '4%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '5%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '2%' }} />
+              </colgroup>
               <thead>
-                <tr className="bg-slate-100/90 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 border-b border-slate-200 divide-x divide-slate-200">
-                  <th className="py-2 px-2.5 min-w-[190px] w-[20%]">Product Search</th>
-                  <th className="py-2 px-2 min-w-[130px] w-[13%]">Category</th>
-                  <th className="py-2 px-2 min-w-[160px] w-[16%]">Item Description</th>
-                  <th className="py-2 px-1 text-center min-w-[48px] w-[5%]">Qty</th>
-                  <th className="py-2 px-2 text-right min-w-[80px] w-[8%]">Price (₹)</th>
-                  <th className="py-2 px-1.5 text-right min-w-[75px] w-[7%]">Disc (₹)</th>
-                  <th className="py-2 px-1 text-center min-w-[60px] w-[6%]">Disc (%)</th>
-                  <th className="py-2 px-1.5 text-right min-w-[68px] w-[7%]">CGST (₹)</th>
-                  <th className="py-2 px-1.5 text-right min-w-[68px] w-[7%]">SGST (₹)</th>
-                  <th className="py-2 px-1.5 text-right min-w-[68px] w-[7%]">IGST (₹)</th>
-                  <th className="py-2 px-2 text-right min-w-[85px] w-[8%]">Total (₹)</th>
-                  <th className="py-2 px-1 text-center min-w-[36px] w-[3%]"></th>
+                <tr className="bg-slate-800 text-slate-100 text-[10px] font-bold uppercase tracking-wider border-b-2 border-slate-900">
+                  <th className="py-2 px-1.5 border-r border-slate-700">Product</th>
+                  <th className="py-2 px-1 border-r border-slate-700">Category</th>
+                  <th className="py-2 px-1 border-r border-slate-700">Description</th>
+                  <th className="py-2 px-0.5 text-center border-r border-slate-700">Qty</th>
+                  <th className="py-2 px-1 text-right border-r border-slate-700">Price</th>
+                  <th className="py-2 px-1 text-right border-r border-slate-700">Disc ₹</th>
+                  <th className="py-2 px-0.5 text-center border-r border-slate-700">D%</th>
+                  <th className="py-2 px-1 text-right border-r border-slate-700">CGST</th>
+                  <th className="py-2 px-1 text-right border-r border-slate-700">SGST</th>
+                  <th className="py-2 px-1 text-right border-r border-slate-700">IGST</th>
+                  <th className="py-2 px-1 text-right border-r border-slate-700">Total</th>
+                  <th className="py-2 px-0"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="bg-white">
                 {lineItems.map((item, index) => {
                   const codeOrBarcode = item.barcode || item.productCode || item.sku;
                   return (
-                    <tr key={index} className="hover:bg-blue-50/20 transition-colors divide-x divide-slate-100 group">
-                      {/* 1. Product Search & Barcode/Code */}
-                      <td className="p-1 relative product-autocomplete-cell align-top">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            data-product-search-index={index}
-                            value={item.searchQuery || item.description}
-                            onChange={(e) => {
-                              handleRowSearchChange(index, e.target.value);
-                              updateDropdownCoords(index);
-                            }}
-                            onFocus={() => {
-                              updateDropdownCoords(index);
-                              if (item.suggestions.length > 0) {
-                                const updated = [...lineItems];
-                                updated[index].showDropdown = true;
-                                setLineItems(updated);
-                              }
-                            }}
-                            placeholder="Search name / scan barcode..."
-                            className="w-full bg-transparent hover:bg-slate-50/70 focus:bg-white border border-transparent focus:border-[#2563eb] rounded-md px-2 py-1 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 transition-all"
-                          />
-                          {item.isSearching && (
-                            <Loader2 className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-[#2563eb] animate-spin pointer-events-none" />
+                    <tr
+                      key={index}
+                      className="hover:bg-blue-50/20 transition-colors group"
+                    >
+                      {/* 1. Product Search */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative product-autocomplete-cell transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb] overflow-hidden">
+                        <div className="relative flex flex-col justify-center min-h-[40px] px-1.5 py-1">
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              data-product-search-index={index}
+                              value={item.searchQuery || ""}
+                              onChange={(e) => {
+                                handleRowSearchChange(index, e.target.value);
+                                updateDropdownCoords(index);
+                              }}
+                              onFocus={() => {
+                                updateDropdownCoords(index);
+                                if (item.suggestions.length > 0) {
+                                  const updated = [...lineItems];
+                                  updated[index].showDropdown = true;
+                                  setLineItems(updated);
+                                }
+                              }}
+                              placeholder="Search code..."
+                              title={item.searchQuery || "Search by code or product..."}
+                              className="w-full bg-transparent border-0 rounded-none text-[11px] font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0 p-0 truncate"
+                            />
+                            {item.isSearching && (
+                              <Loader2 className="h-3 w-3 text-[#2563eb] animate-spin shrink-0 ml-0.5" />
+                            )}
+                          </div>
+                          {codeOrBarcode && codeOrBarcode !== "N/A" && (
+                            <div className="flex items-center mt-0.5 overflow-hidden">
+                              <span
+                                className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-blue-700 bg-blue-50 px-1 py-px rounded border border-blue-200/80 truncate max-w-full"
+                                title={`Code: ${codeOrBarcode}`}
+                              >
+                                <Barcode className="h-2 w-2 shrink-0 text-blue-600" />
+                                <span className="truncate">{codeOrBarcode}</span>
+                              </span>
+                            </div>
                           )}
                         </div>
-                        {codeOrBarcode && codeOrBarcode !== "N/A" && (
-                          <div className="mt-0.5 px-1 flex items-center gap-1">
-                            <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200/80">
-                              <Barcode className="h-2.5 w-2.5 text-slate-400" />
-                              {codeOrBarcode}
-                            </span>
-                          </div>
-                        )}
                       </td>
 
-                      {/* 2. Category Combobox / Auto-suggest & GST auto-fill */}
-                      <td className="p-1 align-top">
-                        <div className="relative">
+                      {/* 2. Category */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb] overflow-hidden">
+                        <div className="relative flex items-center min-h-[40px] px-1 py-1">
                           <select
                             value={item.category || "Frames"}
                             onChange={(e) => {
@@ -2281,60 +2535,80 @@ export function NewInvoiceForm() {
                                 (c) => c.name.toLowerCase() === selectedCatName.toLowerCase()
                               );
                               if (matchedCat) {
-                                updateLineItem(index, {
-                                  category: matchedCat.name,
-                                  cgstPercent: parseFloat(matchedCat.cgstPercent) || 0,
-                                  sgstPercent: parseFloat(matchedCat.sgstPercent) || 0,
-                                  igstPercent: parseFloat(matchedCat.igstPercent) || 0,
-                                });
+                                const catTotalGst = parseFloat(matchedCat.igstPercent) || 
+                                  ((parseFloat(matchedCat.cgstPercent) || 0) + (parseFloat(matchedCat.sgstPercent) || 0)) || 0;
+                                if (isInterState) {
+                                  updateLineItem(index, {
+                                    category: matchedCat.name,
+                                    cgstPercent: 0,
+                                    cgstAmount: 0,
+                                    sgstPercent: 0,
+                                    sgstAmount: 0,
+                                    igstPercent: catTotalGst,
+                                  });
+                                } else {
+                                  const half = Number((catTotalGst / 2).toFixed(2));
+                                  updateLineItem(index, {
+                                    category: matchedCat.name,
+                                    cgstPercent: parseFloat(matchedCat.cgstPercent) || half,
+                                    sgstPercent: parseFloat(matchedCat.sgstPercent) || half,
+                                    igstPercent: 0,
+                                    igstAmount: 0,
+                                  });
+                                }
                               } else {
                                 updateLineItem(index, { category: selectedCatName });
                               }
                             }}
-                            className="w-full bg-transparent hover:bg-slate-50/70 focus:bg-white border border-transparent focus:border-[#2563eb] rounded-md px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 cursor-pointer transition-all appearance-none pr-6"
+                            title={item.category || "Frames"}
+                            className="w-full bg-transparent border-0 rounded-none text-[11px] font-semibold text-slate-800 focus:outline-none focus:ring-0 cursor-pointer appearance-none pr-4 p-0 truncate"
                           >
                             {categoriesList.map((cat) => (
                               <option key={cat.id || cat.code} value={cat.name}>
-                                {cat.name} ({Number(cat.cgstPercent || 0) + Number(cat.sgstPercent || 0)}% GST)
+                                {cat.name}
                               </option>
                             ))}
                           </select>
-                          <ChevronDown className="absolute right-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                          <ChevronDown className="absolute right-0.5 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
                         </div>
                       </td>
 
-                      {/* 3. Item Description (Smart clamped with hover title) */}
-                      <td className="p-1 align-top">
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => updateLineItem(index, { description: e.target.value })}
-                          placeholder="Item name / specs..."
-                          title={item.description}
-                          className="w-full bg-transparent hover:bg-slate-50/70 focus:bg-white border border-transparent focus:border-[#2563eb] rounded-md px-2 py-1 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 truncate transition-all"
-                        />
+                      {/* 3. Item Description */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb] overflow-hidden">
+                        <div className="flex items-center min-h-[40px] px-1.5 py-1">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => updateLineItem(index, { description: e.target.value })}
+                            placeholder="Name, brand, model..."
+                            title={item.description || "Enter item name, brand, model & specs"}
+                            className="w-full bg-transparent border-0 rounded-none text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0 p-0 truncate"
+                          />
+                        </div>
                       </td>
 
                       {/* 4. Quantity */}
-                      <td className="p-1 text-center align-top">
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min="1"
-                          value={item.quantity === "" || isNaN(item.quantity as number) ? "" : item.quantity}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            updateLineItem(index, { quantity: val === "" ? "" : Math.max(1, parseInt(val, 10)) });
-                          }}
-                          placeholder="1"
-                          className="w-full text-center py-1 bg-transparent hover:bg-slate-50/70 focus:bg-white border border-transparent focus:border-[#2563eb] rounded-md font-bold text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 transition-all"
-                        />
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex items-center justify-center min-h-[40px] px-0.5">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            value={item.quantity === "" || isNaN(item.quantity as number) ? "" : item.quantity}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, { quantity: val === "" ? "" : Math.max(1, parseInt(val, 10)) });
+                            }}
+                            placeholder="1"
+                            title={`Qty: ${item.quantity}`}
+                            className="w-full text-center bg-transparent border-0 rounded-none font-bold text-slate-800 text-[11px] focus:outline-none focus:ring-0 p-0"
+                          />
+                        </div>
                       </td>
 
-                      {/* 5. Unit Price (₹) */}
-                      <td className="p-1 align-top">
-                        <div className="relative">
-                          <span className="absolute left-1.5 top-1 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
+                      {/* 5. Price */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex items-center justify-end min-h-[40px] px-1">
                           <input
                             type="number"
                             inputMode="decimal"
@@ -2345,15 +2619,15 @@ export function NewInvoiceForm() {
                               updateLineItem(index, { unitPrice: Math.max(0, parseFloat(e.target.value) || 0) })
                             }
                             placeholder="0"
-                            className="w-full text-right bg-transparent hover:bg-slate-50/70 focus:bg-white border border-transparent focus:border-[#2563eb] rounded-md pl-4 pr-1.5 py-1 font-bold text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 transition-all"
+                            title={`Price: ₹${item.unitPrice}`}
+                            className="w-full text-right font-mono font-bold text-[11px] text-slate-800 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 p-0 tabular-nums"
                           />
                         </div>
                       </td>
 
-                      {/* 6. Discount (₹) */}
-                      <td className="p-1 align-top">
-                        <div className="relative">
-                          <span className="absolute left-1 top-1 text-slate-400 font-bold text-[10px] pointer-events-none">₹</span>
+                      {/* 6. Discount ₹ */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex items-center justify-end min-h-[40px] px-1">
                           <input
                             type="number"
                             inputMode="decimal"
@@ -2363,18 +2637,26 @@ export function NewInvoiceForm() {
                             value={item.discountAmount === 0 ? "" : item.discountAmount}
                             onChange={(e) => {
                               const val = e.target.value;
-                              updateLineItem(index, {
-                                discountAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
-                              });
+                              if (val === "") {
+                                updateLineItem(index, { discountAmount: 0 });
+                                return;
+                              }
+                              const parsed = parseFloat(val);
+                              if (!isNaN(parsed)) {
+                                const lineSubtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                                const clamped = lineSubtotal > 0 ? Math.min(lineSubtotal, Math.max(0, parsed)) : Math.max(0, parsed);
+                                updateLineItem(index, { discountAmount: clamped });
+                              }
                             }}
-                            className="w-full text-right py-1 bg-transparent hover:bg-slate-50/70 focus:bg-white border border-transparent focus:border-[#2563eb] rounded-md font-bold text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 pl-3.5 pr-1 transition-all"
+                            title={`Disc: ₹${item.discountAmount}`}
+                            className="w-full text-right font-mono font-bold text-[11px] text-slate-800 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 p-0 tabular-nums"
                           />
                         </div>
                       </td>
 
-                      {/* 7. Discount (%) */}
-                      <td className="p-1 text-center align-top">
-                        <div className="relative">
+                      {/* 7. Discount % */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex items-center justify-center min-h-[40px] px-0.5">
                           <input
                             type="number"
                             inputMode="decimal"
@@ -2385,67 +2667,158 @@ export function NewInvoiceForm() {
                             value={item.discountPercent === 0 ? "" : item.discountPercent}
                             onChange={(e) => {
                               const val = e.target.value;
-                              updateLineItem(index, {
-                                discountPercent: val === "" ? 0 : Math.min(100, Math.max(0, parseFloat(val) || 0)),
-                              });
+                              if (val === "") {
+                                updateLineItem(index, { discountPercent: 0 });
+                                return;
+                              }
+                              const parsed = parseFloat(val);
+                              if (!isNaN(parsed)) {
+                                const clamped = Math.min(100, Math.max(0, parsed));
+                                updateLineItem(index, { discountPercent: clamped });
+                              }
                             }}
-                            className="w-full text-center py-1 bg-transparent hover:bg-slate-50/70 focus:bg-white border border-transparent focus:border-[#2563eb] rounded-md font-bold text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 pr-3 transition-all"
+                            title={`Disc: ${item.discountPercent}%`}
+                            className="w-full text-center font-mono font-bold text-[11px] text-slate-800 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 p-0 tabular-nums"
                           />
-                          <span className="absolute right-1 top-1 text-slate-400 font-bold text-[9px] pointer-events-none">%</span>
                         </div>
                       </td>
 
-                      {/* 8. CGST (₹) */}
-                      <td className="py-1 px-1.5 text-right align-top">
-                        <div className="flex flex-col items-end justify-center">
-                          <span className="font-mono font-bold text-xs text-slate-800">
-                            ₹{item.cgstAmount.toFixed(2)}
-                          </span>
-                          <span className="text-[9px] font-semibold text-slate-400">
-                            ({item.cgstPercent}%)
-                          </span>
+                      {/* 8. CGST — amount top, rate% bottom */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex flex-col items-stretch justify-center min-h-[40px] px-1 py-0.5">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="any"
+                            min="0"
+                            placeholder="0"
+                            value={item.cgstAmount === 0 ? "" : item.cgstAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, { cgstAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0) });
+                            }}
+                            title={`CGST: ₹${item.cgstAmount.toFixed(2)}`}
+                            className="w-full text-right font-mono font-bold text-[11px] text-slate-800 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 p-0 tabular-nums"
+                          />
+                          <div className="flex items-center justify-end gap-px mt-px">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              max="100"
+                              step="any"
+                              placeholder="0"
+                              value={item.cgstPercent === 0 ? "" : item.cgstPercent}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateLineItem(index, { cgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0) });
+                              }}
+                              title={`CGST Rate: ${item.cgstPercent}%`}
+                              className="w-7 text-right font-mono font-medium text-[9px] text-slate-400 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 focus:text-slate-700 p-0 tabular-nums"
+                            />
+                            <span className="text-[9px] text-slate-400 font-medium select-none">%</span>
+                          </div>
                         </div>
                       </td>
 
-                      {/* 9. SGST (₹) */}
-                      <td className="py-1 px-1.5 text-right align-top">
-                        <div className="flex flex-col items-end justify-center">
-                          <span className="font-mono font-bold text-xs text-slate-800">
-                            ₹{item.sgstAmount.toFixed(2)}
-                          </span>
-                          <span className="text-[9px] font-semibold text-slate-400">
-                            ({item.sgstPercent}%)
-                          </span>
+                      {/* 9. SGST — amount top, rate% bottom */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex flex-col items-stretch justify-center min-h-[40px] px-1 py-0.5">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="any"
+                            min="0"
+                            placeholder="0"
+                            value={item.sgstAmount === 0 ? "" : item.sgstAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, { sgstAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0) });
+                            }}
+                            title={`SGST: ₹${item.sgstAmount.toFixed(2)}`}
+                            className="w-full text-right font-mono font-bold text-[11px] text-slate-800 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 p-0 tabular-nums"
+                          />
+                          <div className="flex items-center justify-end gap-px mt-px">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              max="100"
+                              step="any"
+                              placeholder="0"
+                              value={item.sgstPercent === 0 ? "" : item.sgstPercent}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateLineItem(index, { sgstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0) });
+                              }}
+                              title={`SGST Rate: ${item.sgstPercent}%`}
+                              className="w-7 text-right font-mono font-medium text-[9px] text-slate-400 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 focus:text-slate-700 p-0 tabular-nums"
+                            />
+                            <span className="text-[9px] text-slate-400 font-medium select-none">%</span>
+                          </div>
                         </div>
                       </td>
 
-                      {/* 10. IGST (₹) */}
-                      <td className="py-1 px-1.5 text-right align-top">
-                        <div className="flex flex-col items-end justify-center">
-                          <span className="font-mono font-bold text-xs text-slate-800">
-                            ₹{item.igstAmount.toFixed(2)}
-                          </span>
-                          <span className="text-[9px] font-semibold text-slate-400">
-                            ({item.igstPercent}%)
-                          </span>
+                      {/* 10. IGST — amount top, rate% bottom */}
+                      <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex flex-col items-stretch justify-center min-h-[40px] px-1 py-0.5">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="any"
+                            min="0"
+                            placeholder="0"
+                            value={item.igstAmount === 0 ? "" : item.igstAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, { igstAmount: val === "" ? 0 : Math.max(0, parseFloat(val) || 0) });
+                            }}
+                            title={`IGST: ₹${item.igstAmount.toFixed(2)}`}
+                            className="w-full text-right font-mono font-bold text-[11px] text-slate-800 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 p-0 tabular-nums"
+                          />
+                          <div className="flex items-center justify-end gap-px mt-px">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              max="100"
+                              step="any"
+                              placeholder="0"
+                              value={item.igstPercent === 0 ? "" : item.igstPercent}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateLineItem(index, { igstPercent: val === "" ? 0 : Math.max(0, parseFloat(val) || 0) });
+                              }}
+                              title={`IGST Rate: ${item.igstPercent}%`}
+                              className="w-7 text-right font-mono font-medium text-[9px] text-slate-400 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 focus:text-slate-700 p-0 tabular-nums"
+                            />
+                            <span className="text-[9px] text-slate-400 font-medium select-none">%</span>
+                          </div>
                         </div>
                       </td>
 
-                      {/* 11. Row Total (₹) */}
-                      <td className="py-1 px-2 text-right font-mono font-black text-slate-900 text-xs align-top">
-                        ₹{item.rowTotal.toFixed(2)}
-                      </td>
-
-                      {/* 12. Action (Delete) */}
-                      <td className="p-1 text-center align-top">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRow(index)}
-                          title="Delete item"
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
+                      {/* 11. Row Total */}
+                      <td className="border-r border-b border-slate-200 bg-slate-50/50 p-0 relative transition-colors">
+                        <div
+                          className="flex items-center justify-end min-h-[40px] px-1 font-mono font-black text-slate-900 text-[11px] tabular-nums truncate"
+                          title={`Total: ₹${item.rowTotal.toFixed(2)}`}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                          {item.rowTotal.toFixed(2)}
+                        </div>
+                      </td>
+
+                      {/* 12. Delete */}
+                      <td className="border-b border-slate-200 bg-white p-0 text-center align-middle">
+                        <div className="flex items-center justify-center min-h-[40px]">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRow(index)}
+                            title="Delete item row"
+                            className="p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer inline-flex items-center justify-center"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
