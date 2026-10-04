@@ -212,6 +212,7 @@ interface LineItem {
   taxableSubtotal: number;
   rowTotal: number;
   maxQty: number;
+  allowNegativeStock?: boolean;
 
   // Autocomplete states per row item
   searchQuery: string;
@@ -1414,8 +1415,21 @@ export function NewInvoiceForm() {
     const sgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
     const igst = isInterState ? totalGst : 0;
 
+    const matchedCat = categoriesList.find(
+      (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
+    );
+    const isNegAllowed = typeof product.allowNegativeStock === "boolean"
+      ? product.allowNegativeStock
+      : typeof matchedCat?.allowNegativeStock === "boolean"
+      ? matchedCat.allowNegativeStock
+      : true;
+
     if (maxStock <= 0) {
-      toast.error(`Out of stock! "${prodName}" has 0 units available.`);
+      if (isNegAllowed) {
+        toast.warning(`Backorder: "${prodName}" has ${maxStock} units in stock. It will be billed with negative inventory.`);
+      } else {
+        toast.error(`Out of stock! "${prodName}" has 0 units available.`);
+      }
     }
 
     const initialLineItem = {
@@ -1438,6 +1452,7 @@ export function NewInvoiceForm() {
       taxableSubtotal: price,
       rowTotal: price * (1 + (cgst + sgst + igst) / 100),
       maxQty: maxStock,
+      allowNegativeStock: isNegAllowed,
       searchQuery: availableCode || prodName,
       suggestions: [],
       showDropdown: false,
@@ -1539,9 +1554,21 @@ export function NewInvoiceForm() {
     const cgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
     const sgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
     const igst = isInterState ? totalGst : 0;
+    const matchedCat = categoriesList.find(
+      (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
+    );
+    const isNegAllowed = typeof product.allowNegativeStock === "boolean"
+      ? product.allowNegativeStock
+      : typeof matchedCat?.allowNegativeStock === "boolean"
+      ? matchedCat.allowNegativeStock
+      : true;
 
     if (maxStock <= 0) {
-      toast.error(`Out of stock! "${prodName}" has 0 units available.`);
+      if (isNegAllowed) {
+        toast.warning(`Backorder: "${prodName}" has ${maxStock} units in stock. It will be billed with negative inventory.`);
+      } else {
+        toast.error(`Out of stock! "${prodName}" has 0 units available.`);
+      }
     }
 
     updateLineItem(index, {
@@ -1556,6 +1583,7 @@ export function NewInvoiceForm() {
       sgstPercent: sgst,
       igstPercent: igst,
       maxQty: maxStock,
+      allowNegativeStock: isNegAllowed,
       searchQuery: availableCode || prodName,
       suggestions: [],
       showDropdown: false,
@@ -1766,7 +1794,8 @@ export function NewInvoiceForm() {
 
     // Verify stock bounds
     for (const item of lineItems) {
-      if (item.inventoryId && (item.quantity as number) > item.maxQty) {
+      const isNegAllowed = item.allowNegativeStock !== false;
+      if (item.inventoryId && !isNegAllowed && (item.quantity as number) > item.maxQty) {
         toast.error(
           `Out of stock! Billed count of ${item.quantity} for "${item.description || item.searchQuery}" exceeds available stock (${item.maxQty} left).`
         );
@@ -2050,17 +2079,43 @@ export function NewInvoiceForm() {
 
             {/* INVOICE DATE & TIME */}
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-                INVOICE DATE & TIME
-              </label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
+                  INVOICE DATE & TIME
+                </label>
+                {isFutureDate && (
+                  <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    Future Booking
+                  </span>
+                )}
+                {isBackdated && !isFutureDate && (
+                  <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
+                    Backdated
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <input
                   type="datetime-local"
                   value={invoiceDateTime}
                   onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className={`w-full h-8 pl-7 ${isCustomDate ? "pr-14" : "pr-2.5"} rounded-lg border text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 transition-all shadow-2xs ${
+                    isFutureDate
+                      ? "border-amber-300 bg-amber-50/20 focus:ring-amber-500/20 focus:border-amber-500"
+                      : "border-slate-200 bg-white focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+                  }`}
                 />
                 <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                {isCustomDate && (
+                  <button
+                    type="button"
+                    onClick={handleResetDateTimeToNow}
+                    title="Reset to current time"
+                    className="absolute right-1 top-1 h-6 px-1.5 text-[10px] font-extrabold text-[#2563eb] bg-blue-50 hover:bg-blue-100 rounded transition-colors cursor-pointer"
+                  >
+                    Now
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2518,6 +2573,22 @@ export function NewInvoiceForm() {
                               >
                                 <Barcode className="h-2 w-2 shrink-0 text-blue-600" />
                                 <span className="truncate">{codeOrBarcode}</span>
+                              </span>
+                            </div>
+                          )}
+                          {item.inventoryId && (item.maxQty <= 0 || (typeof item.quantity === "number" && item.quantity > item.maxQty)) && (
+                            <div className="flex items-center mt-0.5 overflow-hidden">
+                              <span
+                                className={`inline-flex items-center gap-0.5 text-[8.5px] font-bold px-1 py-px rounded truncate max-w-full ${
+                                  item.allowNegativeStock !== false
+                                    ? "text-amber-800 bg-amber-50 border border-amber-300"
+                                    : "text-rose-700 bg-rose-50 border border-rose-300"
+                                }`}
+                                title={item.allowNegativeStock !== false ? `Backorder: on-hand stock is ${item.maxQty}` : `Out of stock: available stock is ${item.maxQty}`}
+                              >
+                                {item.allowNegativeStock !== false
+                                  ? `⚠️ Backorder (${item.maxQty} on hand)`
+                                  : `🚫 Out of stock (${item.maxQty} left)`}
                               </span>
                             </div>
                           )}

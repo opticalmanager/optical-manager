@@ -20,7 +20,7 @@
 - **Role-Based Access Control (RBAC)**: Enforces role-based permissions (`SUPER_ADMIN`, `OWNER`, `SHOP_MANAGER`).
 
 ### 3. Specialized Optical Inventory Taxonomy, Barcode Designer & Lens Power Matrix
-- **Category-Specific Taxonomies & Dynamic Categories**: Built-in support for default categories (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SOLUTION`) and unlimited custom merchant-defined categories.
+- **Category-Specific Taxonomies & Dynamic Categories**: Built-in support for default categories (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SOLUTION`, `SUNGLASSES`) and unlimited custom merchant-defined categories.
 - **Dynamic Category & GST Rates Master Matrix**: Organizations can configure custom product categories (e.g. Sunglasses, Reading Glasses, Solutions) alongside defaults, customize HSN codes and GST percentages (`CGST`, `SGST`, `IGST`) with smart 50/50 split calculation in Settings (`/shop/settings`, `/owner/settings`), and auto-fill these tax rates during product ingestion (`/shop/inventory/add`) and filtering (`/shop/inventory`).
 - **Interactive Top-Right "+ Add Item" 3-Option Dropdown**: Store Inventory header features a hover/click dropdown with 3 dedicated ingestion pathways:
   - `Add Single`: Direct navigation to single-product ingestion (`/shop/inventory/add`).

@@ -134,6 +134,7 @@ export async function GET(request: Request) {
         quantity: inventory.quantity,
         stockQuantity: inventory.quantity,
         stock_quantity: inventory.quantity,
+        allowNegativeStock: inventory.allowNegativeStock,
         cgstPercent: inventory.cgstPercent,
         sgstPercent: inventory.sgstPercent,
         igstPercent: inventory.igstPercent,

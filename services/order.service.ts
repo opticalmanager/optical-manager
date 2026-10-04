@@ -486,6 +486,8 @@ export async function getOrdersDashboardData(params: {
           categoryText = "Contact Lens Consultation";
         } else if (primaryCategory === "ACCESSORY") {
           categoryText = "Accessories Purchase";
+        } else if (primaryCategory === "SUNGLASSES") {
+          categoryText = "Sunglasses Order";
         }
       }
 

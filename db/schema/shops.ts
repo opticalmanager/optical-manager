@@ -70,6 +70,7 @@ export const shops = pgTable("shops", {
     customerGroups?: string[];
     secondaryContacts?: Array<{ name: string; role: string; phone: string; email?: string }>;
     documentSeries?: DocumentSeriesSettings;
+    customization?: any;
   }>().default({}),
 
   createdAt: timestamp("created_at", { withTimezone: true })

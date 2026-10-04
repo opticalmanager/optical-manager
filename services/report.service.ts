@@ -444,7 +444,7 @@ export async function getInventoryReport(shopId: string, organizationId?: string
   const items: InventoryReportItem[] = rawItems.map((item) => {
     const qty = item.quantity || 0;
     const cost = parseFloat(item.costPrice || "0") || 0;
-    const price = parseFloat(item.price) || 0;
+    const price = parseFloat(item.price || "0") || 0;
 
     const costVal = qty * cost;
     const retailVal = qty * price;
@@ -889,7 +889,7 @@ export async function getDeadStockReport(shopId: string, organizationId?: string
   const items: DeadStockItem[] = rawItems.map((item) => {
     const qty = item.quantity || 0;
     const cost = parseFloat(item.costPrice || "0") || 0;
-    const price = parseFloat(item.price) || 0;
+    const price = parseFloat(item.price || "0") || 0;
     const val = qty * cost;
 
     totalDeadQuantity += qty;

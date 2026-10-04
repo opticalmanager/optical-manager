@@ -684,7 +684,7 @@ export async function getDashboardData(
         phone: customers.phone,
         totalSpent: sum(invoices.total),
         ordersCount: count(invoices.id),
-        lastVisitDate: max(invoices.createdAt),
+        lastVisitDate: sql<Date | string>`max(${invoices.createdAt}) filter (where ${invoices.createdAt} <= NOW())`,
       })
       .from(invoices)
       .leftJoin(customers, eq(invoices.customerId, customers.id))
@@ -1085,6 +1085,7 @@ export async function getDashboardData(
     CONTACT_LENS: { value: 0, count: 0 },
     ACCESSORY: { value: 0, count: 0 },
     SOLUTION: { value: 0, count: 0 },
+    SUNGLASSES: { value: 0, count: 0 },
     OTHER: { value: 0, count: 0 },
   };
 
@@ -1113,6 +1114,7 @@ export async function getDashboardData(
     CONTACT_LENS: { label: "Contact Lenses", color: "#06B6D4" },
     ACCESSORY: { label: "Accessories", color: "#10B981" },
     SOLUTION: { label: "Solutions", color: "#EC4899" },
+    SUNGLASSES: { label: "Sunglasses", color: "#D97706" },
     OTHER: { label: "Other", color: "#64748B" },
   };
 

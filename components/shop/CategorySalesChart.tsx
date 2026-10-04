@@ -20,6 +20,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; fill: string; border: string
   CONTACT_LENS: { bg: "bg-amber-500", fill: "#f59e0b", border: "border-amber-500" },
   ACCESSORY: { bg: "bg-purple-500", fill: "#a855f7", border: "border-purple-500" },
   SOLUTION: { bg: "bg-sky-500", fill: "#0ea5e9", border: "border-sky-500" },
+  SUNGLASSES: { bg: "bg-amber-600", fill: "#d97706", border: "border-amber-600" },
   UNASSIGNED: { bg: "bg-slate-400", fill: "#94a3b8", border: "border-slate-400" },
 };
 

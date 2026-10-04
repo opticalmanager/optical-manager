@@ -25,7 +25,7 @@ interface InventoryItem {
   brand: string | null;
   model: string | null;
   sku: string | null;
-  price: string;
+  price: string | null;
 }
 
 interface BarcodeDesignerModalProps {

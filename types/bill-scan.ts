@@ -17,7 +17,7 @@ export interface ExtractedBillItem {
   id: string; // generated client-side id
   productName: string;
   productCode?: string;
-  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION";
+  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION" | "SUNGLASSES";
   hsnCode?: string;
   quantity: number;
   unitPrice: number; // rate or unit amount

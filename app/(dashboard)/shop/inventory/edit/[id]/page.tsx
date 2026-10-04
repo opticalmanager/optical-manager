@@ -5,6 +5,7 @@ import {
   getLensItemDetails, 
   getContactLensItemDetails, 
   getAccessoryItemDetails, 
+  getSunglassItemDetails,
   getInventoryItemById,
   getStockMovements
 } from "@/services/inventory.service";
@@ -12,6 +13,7 @@ import { EditFrameItemForm } from "@/components/shop/EditFrameItemForm";
 import { EditLensItemForm } from "@/components/shop/EditLensItemForm";
 import { EditContactLensItemForm } from "@/components/shop/EditContactLensItemForm";
 import { EditAccessoryItemForm } from "@/components/shop/EditAccessoryItemForm";
+import { EditSunglassItemForm } from "@/components/shop/EditSunglassItemForm";
 import { StockLedger } from "@/components/shop/StockLedger";
 
 import { hasModulePermission } from "@/utils/permissions";
@@ -76,6 +78,8 @@ export default async function EditItemPage({ params }: PageProps) {
       itemDetailsPromise = getContactLensItemDetails(id, user.organizationId);
     } else if (baseItem.category === "ACCESSORY") {
       itemDetailsPromise = getAccessoryItemDetails(id, user.organizationId);
+    } else if (baseItem.category === "SUNGLASSES") {
+      itemDetailsPromise = getSunglassItemDetails(id, user.organizationId);
     } else {
       itemDetailsPromise = getFrameItemDetails(id, user.organizationId);
     }
@@ -133,6 +137,19 @@ export default async function EditItemPage({ params }: PageProps) {
     return (
       <div className="max-w-6xl mx-auto space-y-6">
         <EditAccessoryItemForm 
+          initialData={itemDetails} 
+          shopId={user.shopId} 
+          itemId={id} 
+        />
+        <StockLedger movements={movements} inventoryItem={itemDetails} />
+      </div>
+    );
+  }
+
+  if (baseItem.category === "SUNGLASSES") {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <EditSunglassItemForm 
           initialData={itemDetails} 
           shopId={user.shopId} 
           itemId={id} 

@@ -71,7 +71,7 @@ export default async function BulkPurchaseImportPage() {
     productCode: item.productCode || null,
     name: item.productName || item.name,
     category: item.category,
-    price: item.price,
+    price: item.price || "0.00",
     costPrice: item.costPrice || null,
     quantity: item.quantity,
     brand: item.brand || null,

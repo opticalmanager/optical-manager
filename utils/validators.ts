@@ -205,6 +205,17 @@ export const prescriptionRowSchema = z.object({
 
 // --- Inventory Schemas ---
 
+export const allowNegativeStockField = z
+  .preprocess(
+    (val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      if (val === "inherit" || val === null || val === "" || val === undefined) return null;
+      return val;
+    },
+    z.boolean().nullable().optional()
+  );
+
 export const inventorySchema = z.object({
   productCode: z.string().min(1, "Product code is required.").max(100).trim(),
   productName: z.string().min(2, "Product name is required.").max(255).trim(),
@@ -217,6 +228,7 @@ export const inventorySchema = z.object({
   costPrice: z.string().optional().nullable().or(z.literal("")),
   quantity: z.coerce.number().int().min(0, "Quantity cannot be negative."),
   minQuantity: z.coerce.number().int().min(0).default(5),
+  allowNegativeStock: allowNegativeStockField,
 });
 
 export const generalItemSchema = z.object({
@@ -240,6 +252,7 @@ export const generalItemSchema = z.object({
   
   quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   requiresExpiryTracking: z.boolean().default(false),
   batchNumber: z.string().optional().nullable().or(z.literal("")),
   expiryDate: z.string().optional().nullable().or(z.literal("")),
@@ -268,6 +281,7 @@ export const frameItemSchema = z.object({
   
   quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   requiresExpiryTracking: z.boolean().default(false),
   batchNumber: z.string().optional().nullable().or(z.literal("")),
   expiryDate: z.string().optional().nullable().or(z.literal("")),
@@ -308,6 +322,7 @@ export const editFrameItemSchema = z.object({
   // Stock Refill controls
   addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   
   imageUrl: z.string().optional().nullable().or(z.literal("")),
   
@@ -317,6 +332,83 @@ export const editFrameItemSchema = z.object({
   material: z.string().optional().nullable().or(z.literal("")),
   frameShape: z.string().optional().nullable().or(z.literal("")),
   targetDemographic: z.string().optional().nullable().or(z.literal("")),
+});
+
+export const sunglassItemSchema = z.object({
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
+  brand: z.string().optional().nullable().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().nullable().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().nullable().or(z.literal("")),
+  rackLocation: z.string().optional().nullable().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().nullable().or(z.literal("")),
+  inwardDate: z.string().optional().nullable().or(z.literal("")),
+  
+  quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().nullable().or(z.literal("")),
+  expiryDate: z.string().optional().nullable().or(z.literal("")),
+  
+  imageUrl: z.string().optional().nullable().or(z.literal("")),
+  
+  modelNumber: z.string().optional().nullable().or(z.literal("")),
+  frameShape: z.string().optional().nullable().or(z.literal("")),
+  frameColor: z.string().optional().nullable().or(z.literal("")),
+  lensColor: z.string().optional().nullable().or(z.literal("")),
+  size: z.string().optional().nullable().or(z.literal("")),
+  gender: z.string().optional().nullable().or(z.literal("")),
+  isPolarized: z.boolean().default(false),
+  uvProtection: z.string().optional().nullable().or(z.literal("")),
+});
+
+export const editSunglassItemSchema = z.object({
+  productCode: z.string().min(1, "Product code is required.").max(100).trim(),
+  productName: z.string().min(2, "Product name is required.").max(255).trim(),
+  name: z.string().optional().nullable().or(z.literal("")),
+  brand: z.string().optional().nullable().or(z.literal("")),
+  
+  costPrice: z.coerce.number().min(0, "Acquisition cost must be positive.").default(0),
+  price: z.coerce.number().min(0.01, "Selling retail price is required."),
+  hsnCode: z.string().optional().nullable().or(z.literal("")),
+  cgstPercent: z.coerce.number().min(0).max(100).default(0),
+  sgstPercent: z.coerce.number().min(0).max(100).default(0),
+  igstPercent: z.coerce.number().min(0).max(100).default(0),
+  vendorName: z.string().optional().nullable().or(z.literal("")),
+  rackLocation: z.string().optional().nullable().or(z.literal("")),
+  
+  purchaseInvoiceNo: z.string().optional().nullable().or(z.literal("")),
+  inwardDate: z.string().optional().nullable().or(z.literal("")),
+  
+  // Expiry controls
+  requiresExpiryTracking: z.boolean().default(false),
+  batchNumber: z.string().optional().nullable().or(z.literal("")),
+  expiryDate: z.string().optional().nullable().or(z.literal("")),
+  
+  // Stock Refill controls
+  addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
+  minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
+  
+  imageUrl: z.string().optional().nullable().or(z.literal("")),
+  
+  modelNumber: z.string().optional().nullable().or(z.literal("")),
+  frameShape: z.string().optional().nullable().or(z.literal("")),
+  frameColor: z.string().optional().nullable().or(z.literal("")),
+  lensColor: z.string().optional().nullable().or(z.literal("")),
+  size: z.string().optional().nullable().or(z.literal("")),
+  gender: z.string().optional().nullable().or(z.literal("")),
+  isPolarized: z.boolean().default(false),
+  uvProtection: z.string().optional().nullable().or(z.literal("")),
 });
 
 export const lensItemSchema = z.object({
@@ -339,6 +431,7 @@ export const lensItemSchema = z.object({
   
   quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   requiresExpiryTracking: z.boolean().default(false),
   batchNumber: z.string().optional().nullable().or(z.literal("")),
   expiryDate: z.string().optional().nullable().or(z.literal("")),
@@ -388,6 +481,7 @@ export const editLensItemSchema = z.object({
   // Stock Refill controls
   addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   
   imageUrl: z.string().optional().nullable().or(z.literal("")),
   
@@ -428,6 +522,7 @@ export const contactLensItemSchema = z.object({
   
   quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   requiresExpiryTracking: z.boolean().default(false),
   batchNumber: z.string().optional().nullable().or(z.literal("")),
   expiryDate: z.string().optional().nullable().or(z.literal("")),
@@ -470,6 +565,7 @@ export const editContactLensItemSchema = z.object({
   
   addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   
   imageUrl: z.string().optional().nullable().or(z.literal("")),
   
@@ -504,6 +600,7 @@ export const accessoryItemSchema = z.object({
   
   quantity: z.coerce.number().int().min(0, "Initial unit count cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   requiresExpiryTracking: z.boolean().default(false),
   batchNumber: z.string().optional().nullable().or(z.literal("")),
   expiryDate: z.string().optional().nullable().or(z.literal("")),
@@ -539,6 +636,7 @@ export const editAccessoryItemSchema = z.object({
   
   addStockQuantity: z.coerce.number().int().min(0, "Added units cannot be negative.").default(0),
   minQuantity: z.coerce.number().int().min(0, "Low stock threshold cannot be negative.").default(5),
+  allowNegativeStock: allowNegativeStockField,
   
   imageUrl: z.string().optional().nullable().or(z.literal("")),
   

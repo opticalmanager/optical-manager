@@ -510,7 +510,7 @@ export function PurchaseAddProductModal({
   // Build smart snapshot details summary based on category
   const buildDetailsSummary = () => {
     const cat = selectedCategoryCode.toUpperCase();
-    if (cat === "FRAME") {
+    if (cat === "FRAME" || cat === "SUNGLASSES") {
       return [
         brand.trim(),
         frameShape,
@@ -913,8 +913,8 @@ export function PurchaseAddProductModal({
               </span>
             </div>
 
-            {/* 1. FRAME SPECS */}
-            {activeCategoryCode === "FRAME" && (
+            {/* 1. FRAME & SUNGLASSES SPECS */}
+            {(activeCategoryCode === "FRAME" || activeCategoryCode === "SUNGLASSES") && (
               <div className="grid grid-cols-12 gap-2.5">
                 {/* Frame Shape */}
                 <div className="col-span-6 sm:col-span-3">

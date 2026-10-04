@@ -334,8 +334,9 @@ export function BulkPurchaseImportClient({
       const rawRetail = retailIdx !== -1 && csvRow[retailIdx] ? parseFloat(csvRow[retailIdx]) : rawCost;
 
       let rawCat = catIdx !== -1 && csvRow[catIdx] ? csvRow[catIdx].trim().toUpperCase() : "FRAME";
-      if (!["FRAME", "LENS", "CONTACT_LENS", "ACCESSORY", "SOLUTION"].includes(rawCat)) {
-        if (rawCat.includes("LENS") && !rawCat.includes("CONTACT")) rawCat = "LENS";
+      if (!["FRAME", "LENS", "CONTACT_LENS", "ACCESSORY", "SOLUTION", "SUNGLASSES"].includes(rawCat)) {
+        if (rawCat.includes("SUNGLASS") || rawCat.includes("SHADE")) rawCat = "SUNGLASSES";
+        else if (rawCat.includes("LENS") && !rawCat.includes("CONTACT")) rawCat = "LENS";
         else if (rawCat.includes("CONTACT")) rawCat = "CONTACT_LENS";
         else if (rawCat.includes("SOL")) rawCat = "SOLUTION";
         else if (rawCat.includes("ACC") || rawCat.includes("CASE")) rawCat = "ACCESSORY";
@@ -706,7 +707,7 @@ export function BulkPurchaseImportClient({
                   <strong>Product Code / Barcode</strong> is checked against your store catalog. Existing codes will refill stock; new codes will create brand-new items automatically.
                 </li>
                 <li>
-                  Supported categories: <code>FRAME</code>, <code>LENS</code>, <code>CONTACT_LENS</code>, <code>ACCESSORY</code>, <code>SOLUTION</code>.
+                  Supported categories: <code>FRAME</code>, <code>SUNGLASSES</code>, <code>LENS</code>, <code>CONTACT_LENS</code>, <code>ACCESSORY</code>, <code>SOLUTION</code>.
                 </li>
                 <li>
                   GST rates (e.g. 12% for spectacles/lenses, 18% for solutions) are split into CGST/SGST (or IGST) automatically.
@@ -1115,6 +1116,7 @@ export function BulkPurchaseImportClient({
                               className="w-full h-8 px-2 rounded-lg text-xs font-bold outline-none border border-slate-200 bg-white text-slate-700 cursor-pointer"
                             >
                               <option value="FRAME">Frame</option>
+                              <option value="SUNGLASSES">Sunglasses</option>
                               <option value="LENS">Lens</option>
                               <option value="CONTACT_LENS">Contact Lens</option>
                               <option value="ACCESSORY">Accessory</option>
@@ -1546,8 +1548,8 @@ export function BulkPurchaseImportClient({
                 </div>
               </div>
 
-              {/* FRAME specifics */}
-              {activeSpecsRow.category === "FRAME" && (
+              {/* FRAME & SUNGLASSES specifics */}
+              {(activeSpecsRow.category === "FRAME" || activeSpecsRow.category === "SUNGLASSES") && (
                 <div className="pt-2 border-t border-slate-100 space-y-2.5">
                   <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Frame Dimensions &amp; Style

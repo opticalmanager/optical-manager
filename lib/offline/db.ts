@@ -36,7 +36,8 @@ export interface CachedInventory {
   brand: string | null;
   model: string | null;
   sku: string | null;
-  price: string;
+  price: string | null;
+  costPrice?: string | null;
   quantity: number;
   isActive: boolean;
   cgstPercent: string;
@@ -231,11 +232,16 @@ export interface CachedProductCategory {
   id: string;
   organizationId: string;
   name: string;
+  printName?: string | null;
   code: string;
   hsnCode: string | null;
   cgstPercent: string;
   sgstPercent: string;
   igstPercent: string;
+  isStockable?: boolean;
+  defaultSaleDiscount?: string;
+  defaultPurchaseDiscount?: string;
+  allowNegativeStock?: boolean;
   isSystem: boolean;
   isActive: boolean;
   displayOrder: number;

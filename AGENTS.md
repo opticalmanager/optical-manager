@@ -48,3 +48,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 13. **Strict Input Field Typing & Datatype Enforcement**:
     - When creating or updating any input field, always ensure that only valid datatypes and strict input constraints are permitted (e.g. numeric-only restrictions for mobile numbers with 10-digit regional formatting and `onKeyPress`/`inputMode` restrictions, proper date controls for dates, structured email formatters). Never permit arbitrary string entry in fields requiring specific data formats.
 
+14. **Strict Real Data & Zero Mock Data Policy**:
+    - Never use hardcoded mock/fake data, placeholder dummy arrays, or simulated stub responses in components, services, or actions. All code deployed to the codebase must strictly integrate with authentic production database queries, live schema models, multi-tenant organization contexts, and real API/server actions to ensure immediate production readiness without risk of shipping dummy data.
+
