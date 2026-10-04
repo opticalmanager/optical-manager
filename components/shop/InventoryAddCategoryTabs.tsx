@@ -21,12 +21,7 @@ export function InventoryAddCategoryTabs({
   return (
     <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60 w-full overflow-x-auto">
       {categories.map((cat) => {
-        const isActive =
-          normalizedActive === cat.code.toUpperCase() ||
-          (normalizedActive === "FRAME" && cat.code === "FRAME") ||
-          (normalizedActive === "LENS" && cat.code === "LENS") ||
-          (normalizedActive === "CONTACT_LENS" && cat.code === "CONTACT_LENS") ||
-          (normalizedActive === "ACCESSORY" && cat.code === "ACCESSORY");
+        const isActive = normalizedActive === cat.code.toUpperCase();
 
         return (
           <button
@@ -35,7 +30,7 @@ export function InventoryAddCategoryTabs({
             onClick={() => router.push(`/shop/inventory/add?category=${cat.code.toLowerCase()}`)}
             className={`px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               isActive
-                ? "bg-indigo-600 text-white shadow-xs"
+                ? "bg-[#2563eb] text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-200/70 bg-transparent hover:text-slate-900"
             }`}
           >

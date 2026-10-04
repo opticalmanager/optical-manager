@@ -12,7 +12,7 @@ CREATE TYPE demo_request_status AS ENUM ('PENDING', 'CONTACTED', 'DEMO_SCHEDULED
 CREATE TYPE gender AS ENUM ('MALE', 'FEMALE', 'OTHER');
 CREATE TYPE blood_group AS ENUM ('A_POSITIVE', 'A_NEGATIVE', 'B_POSITIVE', 'B_NEGATIVE', 'AB_POSITIVE', 'AB_NEGATIVE', 'O_POSITIVE', 'O_NEGATIVE');
 CREATE TYPE prescription_type AS ENUM ('DISTANCE', 'NEAR');
-CREATE TYPE inventory_category AS ENUM ('FRAME', 'LENS', 'CONTACT_LENS', 'ACCESSORY', 'SOLUTION');
+CREATE TYPE inventory_category AS ENUM ('FRAME', 'LENS', 'CONTACT_LENS', 'ACCESSORY', 'SOLUTION', 'SUNGLASSES');
 CREATE TYPE invoice_status AS ENUM ('DRAFT', 'PENDING', 'PAID', 'CANCELLED');
 CREATE TYPE payment_method AS ENUM ('CASH', 'CARD', 'UPI', 'BANK_TRANSFER');
 CREATE TYPE fulfillment_status AS ENUM ('PROCESSING', 'READY', 'DELIVERED', 'ON_HOLD');
@@ -359,10 +359,11 @@ Base entity for all stock items across all categories (Frames, Lenses, Contact L
 | `brand` | `varchar(100)` | NULLABLE, INDEXED | Manufacturer or designer brand |
 | `model` | `varchar(100)` | NULLABLE | Model number or code |
 | `sku` | `varchar(100)` | NULLABLE, INDEXED | Barcode / SKU string (synchronized with productCode) |
-| `price` | `decimal(10,2)` | NOT NULL | Retail selling price |
+| `price` | `decimal(10,2)` | NULLABLE | Retail selling price (null for catalog items awaiting price assignment) |
 | `costPrice` | `decimal(10,2)` | NULLABLE | Purchase / acquisition cost price |
-| `quantity` | `integer` | NOT NULL, DEFAULT 0 | Current on-hand stock count |
+| `quantity` | `integer` | NOT NULL, DEFAULT 0 | Current on-hand stock count (permits negative values when backordering is enabled) |
 | `minQuantity` | `integer` | NOT NULL, DEFAULT 5 | Low-stock threshold trigger level |
+| `allowNegativeStock` | `boolean` | NULLABLE | 3-way negative inventory override (`null`: inherit from category, `true`: always allow, `false`: disallow) |
 | `isActive` | `boolean` | NOT NULL, DEFAULT true | Active status toggle |
 | `imageUrl` | `text` | NULLABLE | Cloudinary / Supabase storage image URL |
 | `hsnCode` | `varchar(20)` | NULLABLE | Harmonized System of Nomenclature code for GST |
@@ -385,6 +386,7 @@ Base entity for all stock items across all categories (Frames, Lenses, Contact L
 
 #### Category Extension Tables
 - `frames`: Dimensions (`frameWidth`, `bridgeWidth`, `templeLength`, `lensHeight`), shape, material, color, rim type, gender.
+- `sunglass_details` (`db/schema/sunglass-details.ts`): Sunglasses specifications (`inventoryId` unique FK -> `inventory.id`, `modelNumber`, `frameShape`, `frameColor`, `lensColor`, `size`, `gender`, `isPolarized`, `uvProtection`, `createdAt`, `updatedAt`).
 - `lenses`: Optical specifications (`lensType`, `lensMaterial`, `coating`, `index`, `tintColor`, `uvProtection`, `prescriptionRequirements`).
 - `contact_lenses`: Modality (`Daily Disposable`, `Weekly`, `Monthly`, `Yearly`), base curve, diameter, color, power grid (`sphere`, `cylinder`, `axis`, `addPower`), box quantity.
 - `accessories`: Accessory categorization (`type`, `sizeVolume`, `colorPattern`).
@@ -402,11 +404,16 @@ Stores default optical product categories and custom merchant-defined categories
 | `id` | `uuid` | PK, defaultRandom() | Category unique identifier |
 | `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization ID |
 | `name` | `varchar(100)` | NOT NULL | Human-readable category display name |
+| `printName` | `varchar(100)` | NULLABLE | Display name printed on customer invoices, tags, and thermal receipts |
 | `code` | `varchar(50)` | NOT NULL, INDEXED | Uppercase code identifier (e.g. `FRAME`, `LENS`, `SUNGLASSES`) |
 | `hsnCode` | `varchar(20)` | NULLABLE | Default Harmonized System of Nomenclature code |
 | `cgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 6.00 | Default Intra-state CGST percentage |
 | `sgstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 6.00 | Default Intra-state SGST percentage |
 | `igstPercent` | `decimal(5,2)` | NOT NULL, DEFAULT 12.00 | Default Inter-state IGST percentage |
+| `isStockable` | `boolean` | NOT NULL, DEFAULT true | Whether items in this category track physical stock (`true`) or represent service/lab charges (`false`) |
+| `defaultSaleDiscount` | `decimal(5,2)` | NOT NULL, DEFAULT 0.00 | Default selling discount percentage pre-filled at invoice checkout |
+| `defaultPurchaseDiscount` | `decimal(5,2)` | NOT NULL, DEFAULT 0.00 | Default vendor acquisition discount percentage pre-filled for inward POs |
+| `allowNegativeStock` | `boolean` | NOT NULL, DEFAULT true | Whether backordering / negative stock invoicing is permitted by default for this category |
 | `isSystem` | `boolean` | NOT NULL, DEFAULT false | Whether category is protected system default |
 | `isActive` | `boolean` | NOT NULL, DEFAULT true | Active status toggle |
 | `displayOrder` | `integer` | NOT NULL, DEFAULT 0 | Ordering sequence on Add Item and filter bars |

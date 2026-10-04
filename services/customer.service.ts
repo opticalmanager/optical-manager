@@ -224,7 +224,7 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
   const lastInvoiceSubquery = db
     .select({
       customerId: invoices.customerId,
-      maxInvoiceDate: sql`max(${invoices.createdAt})`.as("max_invoice_date"),
+      maxInvoiceDate: sql`max(${invoices.createdAt}) filter (where ${invoices.createdAt} <= NOW())`.as("max_invoice_date"),
       latestFulfillmentStatus: sql`(array_agg(${invoices.fulfillmentStatus} order by ${invoices.createdAt} desc))[1]`.as("latest_fulfillment_status"),
       pendingDues: sql`sum(${invoices.balanceDue})`.as("pending_dues"),
     })
@@ -242,7 +242,7 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
   const lastPrescriptionSubquery = db
     .select({
       customerId: prescriptions.customerId,
-      maxPrescriptionDate: sql`max(${prescriptions.createdAt})`.as("max_prescription_date"),
+      maxPrescriptionDate: sql`max(COALESCE(${prescriptions.prescribedAt}::timestamp, ${prescriptions.createdAt})) filter (where COALESCE(${prescriptions.prescribedAt}::timestamp, ${prescriptions.createdAt}) <= NOW())`.as("max_prescription_date"),
       latestDoctorName: sql`(array_agg(${prescriptions.doctorName} order by ${prescriptions.createdAt} desc))[1]`.as("latest_doctor_name"),
     })
     .from(prescriptions)
@@ -273,15 +273,20 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
     .where(eq(customers.shopId, shopId))
     .orderBy(desc(customers.createdAt));
 
+  const nowTime = Date.now();
+
   return results.map((row) => {
     // Determine last visit date as MAX(invoice date, prescription date, customer creation date)
+    // Strictly bounded to past/present (<= NOW()) so future bookings or future-dated records never show as last visit.
     const dates = [
       new Date(row.createdAt),
       row.maxInvoiceDate ? new Date(row.maxInvoiceDate as string) : null,
       row.maxPrescriptionDate ? new Date(row.maxPrescriptionDate as string) : null,
-    ].filter((d): d is Date => d !== null);
+    ].filter((d): d is Date => d !== null && !isNaN(d.getTime()) && d.getTime() <= nowTime);
 
-    const lastVisitDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+    const lastVisitDate = dates.length > 0
+      ? new Date(Math.max(...dates.map((d) => d.getTime())))
+      : new Date(row.createdAt);
 
     return {
       id: row.id,
@@ -565,12 +570,16 @@ export async function getCustomerProfileData(
 
   const totalOrdersCount = activeOrders.length || activeInvoices.length;
 
+  const nowTime = Date.now();
   const dates = [
     new Date(customer.createdAt),
     ...activeInvoices.map((inv) => new Date(inv.createdAt)),
-    ...customerPrescriptions.map((p) => new Date(p.createdAt)),
-  ];
-  const lastVisitDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+    ...customerPrescriptions.map((p) => new Date(p.prescribedAt || p.createdAt)),
+  ].filter((d): d is Date => !isNaN(d.getTime()) && d.getTime() <= nowTime);
+
+  const lastVisitDate = dates.length > 0
+    ? new Date(Math.max(...dates.map((d) => d.getTime())))
+    : new Date(customer.createdAt);
 
   const latestPrescription = customerPrescriptions[0] || null;
   const latestInvoice = customerOrders.length > 0

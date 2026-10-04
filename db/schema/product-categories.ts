@@ -17,13 +17,18 @@ export const productCategories = pgTable("product_categories", {
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 100 }).notNull(),
+  printName: varchar("print_name", { length: 100 }),
   code: varchar("code", { length: 50 }).notNull(),
   hsnCode: varchar("hsn_code", { length: 20 }),
   cgstPercent: decimal("cgst_percent", { precision: 5, scale: 2 }).notNull().default("6.00"),
   sgstPercent: decimal("sgst_percent", { precision: 5, scale: 2 }).notNull().default("6.00"),
   igstPercent: decimal("igst_percent", { precision: 5, scale: 2 }).notNull().default("12.00"),
+  isStockable: boolean("is_stockable").notNull().default(true),
+  defaultSaleDiscount: decimal("default_sale_discount", { precision: 5, scale: 2 }).notNull().default("0.00"),
+  defaultPurchaseDiscount: decimal("default_purchase_discount", { precision: 5, scale: 2 }).notNull().default("0.00"),
   isSystem: boolean("is_system").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  allowNegativeStock: boolean("allow_negative_stock").notNull().default(true),
   displayOrder: integer("display_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

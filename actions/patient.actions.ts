@@ -2,11 +2,11 @@
 
 import { db } from "@/lib/drizzle";
 import { eq, and, sql } from "drizzle-orm";
-import { customers, prescriptions, invoices, invoiceItems, orders, receipts, customerCreditLedger } from "@/db/schema";
+import { customers, prescriptions, invoices, invoiceItems, orders, receipts, customerCreditLedger, inventory } from "@/db/schema";
 import { getCurrentUser } from "@/services/auth.service";
 import { fireEmailTrigger } from "@/services/email-trigger.service";
 import { generateRegistrationId } from "@/services/customer.service";
-import { decrementInventoryStock } from "@/services/inventory.service";
+import { decrementInventoryStock, resolveNegativeStockPermission } from "@/services/inventory.service";
 import { generateInvoiceNumber } from "@/services/invoice.service";
 import { generateOrderNumber, generateReceiptNumber } from "@/services/receipt.service";
 import { patientVisitSchema } from "@/utils/validators";
@@ -368,6 +368,10 @@ export async function registerPatientAndInvoiceAction(
       const invoiceTimestamp = safeParseDate(data.invoiceDate) || new Date();
       const invoiceDateStr = safeToISODate(invoiceTimestamp) || new Date().toISOString().split("T")[0];
 
+      const nowMs = Date.now();
+      const rxCreatedAt = invoiceTimestamp.getTime() <= nowMs ? invoiceTimestamp : new Date();
+      const rxDateStr = safeToISODate(data.prescribedAt) || (invoiceTimestamp.getTime() <= nowMs ? invoiceDateStr : new Date().toISOString().split("T")[0]);
+
       // 3. Save Prescriptions if enabled
       if (data.prescriptionEnabled) {
         if (data.prescriptionType.distance && data.distancePrescription) {
@@ -402,9 +406,9 @@ export async function registerPatientAndInvoiceAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: safeToISODate(data.prescribedAt) || invoiceDateStr,
-            createdAt: invoiceTimestamp,
-            updatedAt: invoiceTimestamp,
+            prescribedAt: rxDateStr,
+            createdAt: rxCreatedAt,
+            updatedAt: rxCreatedAt,
           });
         }
 
@@ -440,9 +444,9 @@ export async function registerPatientAndInvoiceAction(
             specialInstructions: data.specialInstructions || null,
             notes: data.prescriptionNotes || null,
             prescribedBy: data.doctorName || null,
-            prescribedAt: safeToISODate(data.prescribedAt) || invoiceDateStr,
-            createdAt: invoiceTimestamp,
-            updatedAt: invoiceTimestamp,
+            prescribedAt: rxDateStr,
+            createdAt: rxCreatedAt,
+            updatedAt: rxCreatedAt,
           });
         }
       }
@@ -608,6 +612,34 @@ export async function registerPatientAndInvoiceAction(
 
         // Decrement stock atomically if it corresponds to a valid inventory product UUID
         if (validInventoryId) {
+          const [invItem] = await tx
+            .select({
+              id: inventory.id,
+              quantity: inventory.quantity,
+              name: inventory.name,
+              productName: inventory.productName,
+            })
+            .from(inventory)
+            .where(
+              and(
+                eq(inventory.id, validInventoryId),
+                eq(inventory.organizationId, user.organizationId!)
+              )
+            )
+            .limit(1);
+
+          if (invItem && invItem.quantity < item.quantity) {
+            const isAllowed = await resolveNegativeStockPermission(
+              validInventoryId,
+              user.organizationId!
+            );
+            if (!isAllowed) {
+              throw new Error(
+                `Out of stock: "${invItem.productName || invItem.name}" has only ${invItem.quantity} unit(s) available and negative inventory is disabled.`
+              );
+            }
+          }
+
           await decrementInventoryStock(
             validInventoryId,
             user.organizationId!,

@@ -65,18 +65,19 @@ export function generateInvoiceNumber(prefix = "INV"): string {
 }
 
 export function generateSKU(params: {
-  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION";
+  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION" | "SUNGLASSES";
   brand?: string;
   modelNumber?: string;
   colorCode?: string;
   sequentialNumber: number;
 }): string {
-  const prefixMap = {
+  const prefixMap: Record<string, string> = {
     FRAME: "FRM",
     LENS: "LNS",
     CONTACT_LENS: "CTL",
     ACCESSORY: "ACC",
     SOLUTION: "SOL",
+    SUNGLASSES: "SNG",
   };
   const prefix = prefixMap[params.category];
   const brand = (params.brand || "GEN")

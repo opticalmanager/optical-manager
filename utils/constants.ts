@@ -50,6 +50,7 @@ export const INVENTORY_CATEGORIES = {
   CONTACT_LENS: "CONTACT_LENS",
   ACCESSORY: "ACCESSORY",
   SOLUTION: "SOLUTION",
+  SUNGLASSES: "SUNGLASSES",
 } as const;
 
 /** Trial duration in days */

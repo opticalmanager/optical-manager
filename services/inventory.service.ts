@@ -7,8 +7,11 @@ import {
   lensDetails,
   contactLensDetails,
   accessoryDetails,
+  sunglassDetails,
   stockMovements,
   profiles,
+  productCategories,
+  organizations,
 } from "@/db/schema";
 import { eq, and, lte, or, ilike, sql, desc, ne } from "drizzle-orm";
 import type { InventoryItem, NewInventoryItem } from "@/types";
@@ -191,7 +194,7 @@ export async function decrementInventoryStock(
   const [item] = await client
     .update(inventory)
     .set({
-      quantity: sql`GREATEST(0, ${inventory.quantity} - ${qty})`,
+      quantity: sql`${inventory.quantity} - ${qty}`,
       updatedAt: new Date(),
     })
     .where(
@@ -203,6 +206,7 @@ export async function decrementInventoryStock(
     .returning();
 
   if (item) {
+    const isBackordered = item.quantity < 0;
     await recordStockMovement(
       {
         inventoryId: item.id,
@@ -215,7 +219,9 @@ export async function decrementInventoryStock(
         referenceNumber: referenceNumber || null,
         vendorParty: vendorParty || null,
         costPriceAtTime: item.costPrice || "0.00",
-        notes: "Stock debited via sale invoice.",
+        notes: isBackordered
+          ? "Stock debited via sale invoice (Backordered / Negative Stock)."
+          : "Stock debited via sale invoice.",
         performedBy: performedBy || null,
         createdAt: createdAt || undefined,
       },
@@ -224,6 +230,83 @@ export async function decrementInventoryStock(
   }
 
   return item;
+}
+
+/**
+ * 3-Tier Cascade Resolution for Negative Inventory Permission:
+ * 1. Item Level Override (inventory.allowNegativeStock: true | false)
+ * 2. Category Level Setting (product_categories.allowNegativeStock: default true)
+ * 3. Global Organization Customization (organizations.settings.customization.inventory.allow_negative_stock)
+ */
+export async function resolveNegativeStockPermission(
+  inventoryId: string,
+  organizationId: string
+): Promise<boolean> {
+  try {
+    // Level 1: Check Item Override
+    const [item] = await db
+      .select({
+        allowNegativeStock: inventory.allowNegativeStock,
+        category: inventory.category,
+      })
+      .from(inventory)
+      .where(and(eq(inventory.id, inventoryId), eq(inventory.organizationId, organizationId)))
+      .limit(1);
+
+    if (!item) return true;
+
+    if (typeof item.allowNegativeStock === "boolean") {
+      return item.allowNegativeStock;
+    }
+
+    // Level 2: Check Category Setting
+    if (item.category) {
+      const [cat] = await db
+        .select({
+          allowNegativeStock: productCategories.allowNegativeStock,
+        })
+        .from(productCategories)
+        .where(
+          and(
+            eq(productCategories.organizationId, organizationId),
+            or(
+              eq(productCategories.name, item.category),
+              eq(productCategories.code, item.category),
+              sql`LOWER(${productCategories.name}) = LOWER(${item.category})`,
+              sql`LOWER(${productCategories.code}) = LOWER(${item.category})`
+            )
+          )
+        )
+        .limit(1);
+
+      if (cat && typeof cat.allowNegativeStock === "boolean") {
+        return cat.allowNegativeStock;
+      }
+    }
+
+    // Level 3: Check Global Organization Customization
+    const [org] = await db
+      .select({
+        settings: organizations.settings,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+
+    const globalItems = (org?.settings as any)?.customization?.inventory?.items;
+    if (Array.isArray(globalItems)) {
+      const globalToggle = globalItems.find((i: any) => i.id === "allow_negative_stock");
+      if (globalToggle && typeof globalToggle.enabled === "boolean") {
+        return globalToggle.enabled;
+      }
+    }
+
+    // Default industry fallback: allow
+    return true;
+  } catch (err) {
+    console.error("Error resolving negative stock permission:", err);
+    return true;
+  }
 }
 
 
@@ -248,6 +331,7 @@ export async function getFrameItemDetails(
       costPrice: inventory.costPrice,
       quantity: inventory.quantity,
       minQuantity: inventory.minQuantity,
+      allowNegativeStock: inventory.allowNegativeStock,
       isActive: inventory.isActive,
       imageUrl: inventory.imageUrl,
       hsnCode: inventory.hsnCode,
@@ -304,6 +388,7 @@ export async function getLensItemDetails(
       costPrice: inventory.costPrice,
       quantity: inventory.quantity,
       minQuantity: inventory.minQuantity,
+      allowNegativeStock: inventory.allowNegativeStock,
       isActive: inventory.isActive,
       imageUrl: inventory.imageUrl,
       hsnCode: inventory.hsnCode,
@@ -366,6 +451,7 @@ export async function getContactLensItemDetails(
       costPrice: inventory.costPrice,
       quantity: inventory.quantity,
       minQuantity: inventory.minQuantity,
+      allowNegativeStock: inventory.allowNegativeStock,
       isActive: inventory.isActive,
       imageUrl: inventory.imageUrl,
       hsnCode: inventory.hsnCode,
@@ -425,6 +511,7 @@ export async function getAccessoryItemDetails(
       costPrice: inventory.costPrice,
       quantity: inventory.quantity,
       minQuantity: inventory.minQuantity,
+      allowNegativeStock: inventory.allowNegativeStock,
       isActive: inventory.isActive,
       imageUrl: inventory.imageUrl,
       hsnCode: inventory.hsnCode,
@@ -446,6 +533,65 @@ export async function getAccessoryItemDetails(
     })
     .from(inventory)
     .leftJoin(accessoryDetails, eq(inventory.id, accessoryDetails.inventoryId))
+    .where(
+      and(
+        eq(inventory.id, itemId),
+        eq(inventory.organizationId, organizationId)
+      )
+    )
+    .limit(1);
+
+  return item ?? null;
+}
+
+/**
+ * Get unified inventory item base details along with sunglasses-specific details.
+ */
+export async function getSunglassItemDetails(
+  itemId: string,
+  organizationId: string
+): Promise<any | null> {
+  const [item] = await db
+    .select({
+      id: inventory.id,
+      name: inventory.name,
+      productName: inventory.productName,
+      productCode: inventory.productCode,
+      category: inventory.category,
+      brand: inventory.brand,
+      model: inventory.model,
+      sku: inventory.sku,
+      price: inventory.price,
+      costPrice: inventory.costPrice,
+      quantity: inventory.quantity,
+      minQuantity: inventory.minQuantity,
+      allowNegativeStock: inventory.allowNegativeStock,
+      isActive: inventory.isActive,
+      imageUrl: inventory.imageUrl,
+      hsnCode: inventory.hsnCode,
+      cgstPercent: inventory.cgstPercent,
+      sgstPercent: inventory.sgstPercent,
+      igstPercent: inventory.igstPercent,
+      vendorName: inventory.vendorName,
+      rackLocation: inventory.rackLocation,
+      requiresExpiryTracking: inventory.requiresExpiryTracking,
+      batchNumber: inventory.batchNumber,
+      expiryDate: inventory.expiryDate,
+      purchaseInvoiceNo: inventory.purchaseInvoiceNo,
+      inwardDate: inventory.inwardDate,
+      createdAt: inventory.createdAt,
+      updatedAt: inventory.updatedAt,
+      modelNumber: sunglassDetails.modelNumber,
+      frameShape: sunglassDetails.frameShape,
+      frameColor: sunglassDetails.frameColor,
+      lensColor: sunglassDetails.lensColor,
+      size: sunglassDetails.size,
+      gender: sunglassDetails.gender,
+      isPolarized: sunglassDetails.isPolarized,
+      uvProtection: sunglassDetails.uvProtection,
+    })
+    .from(inventory)
+    .leftJoin(sunglassDetails, eq(inventory.id, sunglassDetails.inventoryId))
     .where(
       and(
         eq(inventory.id, itemId),

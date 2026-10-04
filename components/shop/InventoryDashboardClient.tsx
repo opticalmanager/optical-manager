@@ -38,11 +38,11 @@ interface InventoryItem {
   productCode?: string | null;
   productName?: string | null;
   name: string;
-  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION" | string;
+  category: "FRAME" | "LENS" | "CONTACT_LENS" | "ACCESSORY" | "SOLUTION" | "SUNGLASSES" | string;
   brand: string | null;
   model: string | null;
   sku: string | null;
-  price: string; // decimal is returned as string from drizzle
+  price: string | null; // decimal is returned as string from drizzle, null if unpriced
   costPrice?: string | null;
   quantity: number;
   minQuantity: number;
@@ -122,6 +122,7 @@ export function InventoryDashboardClient({
         { code: "LENS", name: "Lenses" },
         { code: "CONTACT_LENS", name: "Contacts" },
         { code: "ACCESSORY", name: "Accessories" },
+        { code: "SUNGLASSES", name: "Sunglasses" },
       ];
       for (const d of defaults) {
         seen.add(d.code);
@@ -251,6 +252,7 @@ export function InventoryDashboardClient({
       (i) => i.quantity > 0 && i.quantity <= i.minQuantity
     ).length;
     const outOfStockCount = itemsToCompute.filter((i) => i.quantity === 0).length;
+    const backorderedCount = itemsToCompute.filter((i) => i.quantity < 0).length;
     
     const inventoryCostValue = itemsToCompute.reduce(
       (sum, i) => sum + Number(i.costPrice || 0) * i.quantity,
@@ -266,6 +268,7 @@ export function InventoryDashboardClient({
       totalSkuCount,
       lowStockCount,
       outOfStockCount,
+      backorderedCount,
       inventoryCostValue,
       inventoryRetailValue
     };
@@ -285,6 +288,8 @@ export function InventoryDashboardClient({
       result = result.filter((item) => item.quantity > 0 && item.quantity <= item.minQuantity);
     } else if (filter === "out-of-stock") {
       result = result.filter((item) => item.quantity === 0);
+    } else if (filter === "backordered") {
+      result = result.filter((item) => item.quantity < 0);
     }
 
     // 3. Search query
@@ -349,6 +354,7 @@ export function InventoryDashboardClient({
     ];
 
     const getStockStatus = (qty: number, minQty: number) => {
+      if (qty < 0) return "Backordered";
       if (qty === 0) return "Out of Stock";
       if (qty <= minQty) return "Low Stock";
       return "In Stock";
@@ -363,6 +369,7 @@ export function InventoryDashboardClient({
         case "CONTACT_LENS": return "Contact Lens";
         case "ACCESSORY": return "Accessory";
         case "SOLUTION": return "Solution";
+        case "SUNGLASSES": return "Sunglasses";
         default: return cat;
       }
     };
@@ -564,6 +571,7 @@ export function InventoryDashboardClient({
             case "CONTACT_LENS": return "contact lenses";
             case "ACCESSORY": return "accessories";
             case "SOLUTION": return "solutions";
+            case "SUNGLASSES": return "sunglasses";
             default: return "catalog items";
           }
         };
@@ -578,6 +586,7 @@ export function InventoryDashboardClient({
             case "CONTACT_LENS": return "Contact Lens";
             case "ACCESSORY": return "Accessory";
             case "SOLUTION": return "Solution";
+            case "SUNGLASSES": return "Sunglasses";
             default: return "Inventory";
           }
         };
@@ -641,25 +650,46 @@ export function InventoryDashboardClient({
               </Card>
             </div>
 
-            {/* KPI 3: Out of Order */}
+            {/* KPI 3: Out of Stock & Backorders */}
             <div 
-              onClick={() => setFilter("out-of-stock")} 
+              onClick={() => setFilter(filter === "out-of-stock" ? "" : "out-of-stock")} 
               className="block transition-all cursor-pointer"
             >
               <Card className={`shadow-xs transition-all border p-4 rounded-xl flex flex-col justify-between min-h-[110px] ${
                 filter === "out-of-stock" 
                   ? "border-2 border-rose-500 bg-rose-50/20 shadow-md scale-[1.01]" 
+                  : filter === "backordered"
+                  ? "border-2 border-purple-500 bg-purple-50/20 shadow-md scale-[1.01]"
                   : "border-slate-200/80 hover:border-slate-300"
               }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Out of Stock
+                    Out of Stock / Backorders
                   </span>
-                  <MinusCircle className={`h-4 w-4 ${filter === "out-of-stock" ? "text-rose-600" : "text-slate-400"}`} />
+                  <MinusCircle className={`h-4 w-4 ${filter === "out-of-stock" ? "text-rose-600" : filter === "backordered" ? "text-purple-600" : "text-slate-400"}`} />
                 </div>
                 <div className="mt-2 space-y-0.5">
-                  <div className="text-2xl font-extrabold text-rose-600">
-                    {kpis.outOfStockCount}
+                  <div className="flex items-baseline justify-between">
+                    <div className="text-2xl font-extrabold text-rose-600">
+                      {kpis.outOfStockCount}
+                    </div>
+                    {kpis.backorderedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFilter(filter === "backordered" ? "" : "backordered");
+                        }}
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                          filter === "backordered"
+                            ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                            : "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                        }`}
+                        title="Filter backordered items"
+                      >
+                        ⚡ {kpis.backorderedCount} Backorder{kpis.backorderedCount > 1 ? "s" : ""}
+                      </button>
+                    )}
                   </div>
                   <span className={`text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider ${kpis.outOfStockCount > 0 ? "text-rose-600" : "text-slate-400"}`}>
                     🚫 {kpis.outOfStockCount > 0 ? `${categoryPlural} outages` : `No ${categoryPlural} outages`}
@@ -699,7 +729,7 @@ export function InventoryDashboardClient({
             onClick={() => setCategory("")}
             className={`h-9 px-4 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap ${
               !category
-                ? "bg-indigo-600 text-white"
+                ? "bg-[#2563eb] text-white"
                 : "text-slate-550 hover:bg-white hover:text-slate-800"
             }`}
           >
@@ -712,7 +742,7 @@ export function InventoryDashboardClient({
               onClick={() => setCategory(cat.code)}
               className={`h-9 px-4 font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap ${
                 category === cat.code
-                  ? "bg-indigo-600 text-white"
+                  ? "bg-[#2563eb] text-white"
                   : "text-slate-550 hover:bg-white hover:text-slate-800"
               }`}
             >
@@ -828,30 +858,38 @@ export function InventoryDashboardClient({
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       <div className="flex flex-col items-center gap-0.5">
-                        <Badge
-                          variant={
-                            item.quantity > item.minQuantity
-                              ? "info"
+                        {item.quantity < 0 ? (
+                          <span className="text-[9px] font-black uppercase tracking-wider py-0.5 px-2 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80">
+                            BACKORDERED
+                          </span>
+                        ) : (
+                          <Badge
+                            variant={
+                              item.quantity > item.minQuantity
+                                ? "info"
+                                : item.quantity > 0
+                                ? "neutral"
+                                : "danger"
+                            }
+                            className="text-[9px] font-bold py-0.5 px-2"
+                          >
+                            {item.quantity > item.minQuantity
+                              ? "IN STOCK"
                               : item.quantity > 0
-                              ? "neutral"
-                              : "danger"
-                          }
-                          className="text-[9px] font-bold py-0.5 px-2"
-                        >
-                          {item.quantity > item.minQuantity
-                            ? "IN STOCK"
-                            : item.quantity > 0
-                            ? "LOW STOCK"
-                            : "OUT OF STOCK"}
-                        </Badge>
+                              ? "LOW STOCK"
+                              : "OUT OF STOCK"}
+                          </Badge>
+                        )}
                         <span
                           className={`text-[11px] ${
-                            item.quantity > item.minQuantity
+                            item.quantity < 0
+                              ? "text-purple-600 font-extrabold"
+                              : item.quantity > item.minQuantity
                               ? "text-slate-400 font-medium"
                               : "text-rose-500 font-bold"
                           }`}
                         >
-                          {item.quantity} Units
+                          {item.quantity < 0 ? `${item.quantity} Units (Backorder)` : `${item.quantity} Units`}
                         </span>
                       </div>
                     </td>

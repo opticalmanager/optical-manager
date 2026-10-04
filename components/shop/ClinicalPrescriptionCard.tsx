@@ -567,6 +567,7 @@ export function ClinicalPrescriptionCard({
                 <input
                   type="date"
                   value={values.prescribedAt || new Date().toISOString().split("T")[0]}
+                  max={new Date().toISOString().split("T")[0]}
                   onChange={(e) => updateField("prescribedAt", e.target.value)}
                   className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />

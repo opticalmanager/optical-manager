@@ -21,6 +21,11 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Owner lands on the main dashboard (`/owner`), displaying multi-store enterprise KPIs (Revenue growth, invoices count, receivables, active customers, total stores), customer bifurcation (Only Frame, Only Lens, Both), 90-day dead stock analysis, stock category valuation donut, return rates, 5-tab sales bifurcation (Lenses, Frames, Brands, Gender, Age), customer retention rates, and recent transactions across the business chain.
    - Interactive timeframe picker (`?timeframe=...`) allows switching between Today, Yesterday, 7 Days, 30 Days, Quarter, 12 Months, YTD, and All Time.
    - Accesses `/owner/analytics` or `/owner/reports` with a top Outlet Filter Context toolbar, defaulting to All Outlets or filtering by specific branch (`?shopId=<uuid>`).
+6. **Store & Module Customization Suite (`/owner/settings/customization`)**:
+   - System Owner accesses the dedicated Customization suite via `/owner/settings` or deep-links directly via `?tab=<module>`.
+   - Two-pane responsive workspace allows navigating between all 8 modules (Dashboard, Inventory, Sales & Orders, Invoices, Vendors, Customers & Clinical, Appointments, Reports).
+   - Target Scope switcher allows toggling between Organization-wide defaults and branch-specific shop overrides.
+   - Real-time draft tracking and sticky save bar persist configurations to `organizations.settings.customization` or `shops.settings.customization`.
 
 ---
 

@@ -6,6 +6,7 @@ import {
   getOrganizationCategories,
   saveCategoryGstRates,
   createCustomCategory,
+  updateCategoryDetails,
   deleteCustomCategory,
   CategoryItem,
 } from "@/services/category.service";
@@ -46,10 +47,15 @@ export async function saveCategoryGstRatesAction(
   categoriesData: Array<{
     id: string;
     name?: string;
+    printName?: string | null;
     hsnCode?: string | null;
     cgstPercent: number | string;
     sgstPercent: number | string;
     igstPercent: number | string;
+    isStockable?: boolean;
+    defaultSaleDiscount?: number | string;
+    defaultPurchaseDiscount?: number | string;
+    allowNegativeStock?: boolean;
   }>
 ): Promise<CategoryActionResult> {
   try {
@@ -89,11 +95,17 @@ export async function createCategoryAction(
   prevState: any,
   formData: FormData | {
     name: string;
+    printName?: string;
     code?: string;
     hsnCode?: string;
     cgstPercent: number | string;
     sgstPercent: number | string;
     igstPercent: number | string;
+    isStockable?: boolean | string;
+    defaultSaleDiscount?: number | string;
+    defaultPurchaseDiscount?: number | string;
+    allowNegativeStock?: boolean | string;
+    applyToExistingProducts?: boolean | string;
   }
 ): Promise<CategoryActionResult> {
   try {
@@ -102,7 +114,7 @@ export async function createCategoryAction(
       return { success: false, message: "Unauthorized or missing organization context." };
     }
 
-    const raw = formData instanceof FormData
+    const raw: any = formData instanceof FormData
       ? Object.fromEntries(formData.entries())
       : formData;
 
@@ -115,18 +127,40 @@ export async function createCategoryAction(
       };
     }
 
+    const printName = raw.printName ? String(raw.printName).trim() : name;
     const hsnCode = raw.hsnCode ? String(raw.hsnCode).trim() : undefined;
     const cgstPercent = raw.cgstPercent !== undefined && raw.cgstPercent !== "" ? Number(raw.cgstPercent) : 6.0;
     const sgstPercent = raw.sgstPercent !== undefined && raw.sgstPercent !== "" ? Number(raw.sgstPercent) : 6.0;
     const igstPercent = raw.igstPercent !== undefined && raw.igstPercent !== "" ? Number(raw.igstPercent) : 12.0;
+    const isStockable = raw.isStockable !== undefined
+      ? raw.isStockable === "true" || raw.isStockable === true || raw.isStockable === "on"
+      : true;
+    const defaultSaleDiscount = raw.defaultSaleDiscount !== undefined && raw.defaultSaleDiscount !== ""
+      ? Number(raw.defaultSaleDiscount)
+      : 0.0;
+    const defaultPurchaseDiscount = raw.defaultPurchaseDiscount !== undefined && raw.defaultPurchaseDiscount !== ""
+      ? Number(raw.defaultPurchaseDiscount)
+      : 0.0;
+    const allowNegativeStock = raw.allowNegativeStock !== undefined
+      ? raw.allowNegativeStock === "true" || raw.allowNegativeStock === true || raw.allowNegativeStock === "on"
+      : true;
+    const applyToExistingProducts = raw.applyToExistingProducts !== undefined
+      ? raw.applyToExistingProducts === "true" || raw.applyToExistingProducts === true || raw.applyToExistingProducts === "on"
+      : false;
 
     const newCategory = await createCustomCategory(user.organizationId, {
       name,
+      printName,
       code: raw.code ? String(raw.code).trim() : undefined,
       hsnCode,
       cgstPercent,
       sgstPercent,
       igstPercent,
+      isStockable,
+      defaultSaleDiscount,
+      defaultPurchaseDiscount,
+      allowNegativeStock,
+      applyToExistingProducts,
     });
 
     revalidatePath("/shop/settings");
@@ -144,6 +178,57 @@ export async function createCategoryAction(
     return {
       success: false,
       message: err.message || "Failed to create category.",
+    };
+  }
+}
+
+/**
+ * Update an existing product category.
+ */
+export async function updateCategoryAction(
+  categoryId: string,
+  data: {
+    name?: string;
+    printName?: string;
+    code?: string;
+    hsnCode?: string;
+    cgstPercent?: number | string;
+    sgstPercent?: number | string;
+    igstPercent?: number | string;
+    isStockable?: boolean;
+    defaultSaleDiscount?: number | string;
+    defaultPurchaseDiscount?: number | string;
+    allowNegativeStock?: boolean;
+    applyToExistingProducts?: boolean;
+  }
+): Promise<CategoryActionResult> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized session." };
+    }
+
+    const updatedCategory = await updateCategoryDetails(
+      user.organizationId,
+      categoryId,
+      data
+    );
+
+    revalidatePath("/shop/settings");
+    revalidatePath("/owner/settings");
+    revalidatePath("/shop/inventory/add");
+    revalidatePath("/shop/inventory");
+
+    return {
+      success: true,
+      message: `Category "${updatedCategory.name}" updated successfully.`,
+      data: updatedCategory,
+    };
+  } catch (err: any) {
+    console.error("[updateCategoryAction] Error:", err);
+    return {
+      success: false,
+      message: err.message || "Failed to update category.",
     };
   }
 }

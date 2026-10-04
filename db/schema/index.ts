@@ -27,6 +27,7 @@ export { frameDetails } from "./frame-details";
 export { lensDetails } from "./lens-details";
 export { contactLensDetails } from "./contact-lens-details";
 export { accessoryDetails } from "./accessory-details";
+export { sunglassDetails } from "./sunglass-details";
 export {
   invoices,
   invoiceStatusEnum,

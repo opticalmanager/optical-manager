@@ -83,6 +83,12 @@ export function EditLensItemForm({
       isPhotochromic: initialData.isPhotochromic ?? false,
       addStockQuantity: 0,
       minQuantity: initialData.minQuantity || 5,
+      allowNegativeStock:
+        initialData.allowNegativeStock === null || initialData.allowNegativeStock === undefined
+          ? "inherit"
+          : initialData.allowNegativeStock === true
+          ? "allow"
+          : "disallow",
     },
   });
 
@@ -746,6 +752,26 @@ export function EditLensItemForm({
                     {errors.minQuantity.message as string}
                   </p>
                 )}
+              </div>
+
+              {/* Allow Negative Stock Control */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="space-y-0.5">
+                  <span className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    Negative Stock Invoicing
+                  </span>
+                  <span className="block text-[10px] text-slate-400 leading-normal">
+                    Permit order billing when on-hand stock drops to 0 or negative
+                  </span>
+                </div>
+                <select
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  {...register("allowNegativeStock")}
+                >
+                  <option value="inherit">Inherit from Category (Default)</option>
+                  <option value="allow">Always Allow (Backorders Permitted)</option>
+                  <option value="disallow">Do Not Allow (Block When Out of Stock)</option>
+                </select>
               </div>
 
               {/* Requires Expiry Tracking Toggle */}

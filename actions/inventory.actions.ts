@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/services/auth.service";
 import {
   frameItemSchema,
   editFrameItemSchema,
+  sunglassItemSchema,
+  editSunglassItemSchema,
   lensItemSchema,
   editLensItemSchema,
   contactLensItemSchema,
@@ -15,7 +17,7 @@ import {
   FormState
 } from "@/utils/validators";
 import { db } from "@/lib/drizzle";
-import { inventory, frameDetails, lensDetails, contactLensDetails, accessoryDetails } from "@/db/schema";
+import { inventory, frameDetails, lensDetails, contactLensDetails, accessoryDetails, sunglassDetails } from "@/db/schema";
 import { getNextSkuSequence } from "@/services/sku.service";
 import { generateSKU } from "@/lib/utils";
 import { deleteProductImage } from "@/lib/supabase/storage";
@@ -107,6 +109,7 @@ export async function createFrameItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           isActive: true,
           
           // Shared additions
@@ -235,6 +238,7 @@ export async function updateFrameItemAction(
           // Increment stock atomically
           quantity: sql`${inventory.quantity} + ${data.addStockQuantity}`,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,
           cgstPercent: data.cgstPercent.toString(),
@@ -420,6 +424,7 @@ export async function createLensItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           isActive: true,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,
@@ -561,6 +566,7 @@ export async function updateLensItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: sql`${inventory.quantity} + ${data.addStockQuantity}`,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,
           cgstPercent: data.cgstPercent.toString(),
@@ -691,6 +697,7 @@ export async function createContactLensItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           isActive: true,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,
@@ -817,6 +824,7 @@ export async function updateContactLensItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: sql`${inventory.quantity} + ${data.addStockQuantity}`,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,
           cgstPercent: data.cgstPercent.toString(),
@@ -944,6 +952,7 @@ export async function createAccessoryItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           isActive: true,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,
@@ -1064,6 +1073,7 @@ export async function updateAccessoryItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: sql`${inventory.quantity} + ${data.addStockQuantity}`,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,
           cgstPercent: data.cgstPercent.toString(),
@@ -1114,6 +1124,291 @@ export async function updateAccessoryItemAction(
     return { success: true, message: "Accessory item record updated successfully." };
   } catch (error: any) {
     console.error("Error updating accessory inventory item:", error);
+    return {
+      success: false,
+      message: error.message || "An unexpected error occurred while saving updates.",
+    };
+  }
+}
+
+/**
+ * Creates a new Sunglasses inventory item along with its specific sunglasses details.
+ * Performed within an atomic transaction.
+ */
+export async function createSunglassItemAction(
+  prevState: FormState,
+  formData: FormData | any
+): Promise<FormState> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.shopId || !user.organizationId) {
+      return { success: false, message: "Unauthorized or missing session details." };
+    }
+
+    const rawData = formData instanceof FormData 
+      ? Object.fromEntries(formData.entries())
+      : formData;
+
+    if (typeof rawData.requiresExpiryTracking === "string") {
+      rawData.requiresExpiryTracking = rawData.requiresExpiryTracking === "true" || rawData.requiresExpiryTracking === "on";
+    }
+    if (typeof rawData.isPolarized === "string") {
+      rawData.isPolarized = rawData.isPolarized === "true" || rawData.isPolarized === "on";
+    }
+
+    const validatedFields = sunglassItemSchema.safeParse(rawData);
+    if (!validatedFields.success) {
+      return formatInventoryValidationError(validatedFields.error);
+    }
+
+    const data = validatedFields.data;
+
+    // Verify productCode uniqueness within shop scope
+    const codeExists = await checkProductCodeExists(user.shopId, data.productCode);
+    if (codeExists) {
+      return {
+        success: false,
+        message: "Code already exists. Please choose a unique product code.",
+        errors: { productCode: ["Code already exists"] },
+      };
+    }
+
+    // Get sequential index and generate smart SKU
+    const seq = await getNextSkuSequence(user.shopId);
+    const skuCode = generateSKU({
+      category: "SUNGLASSES",
+      brand: data.brand || undefined,
+      modelNumber: data.modelNumber || undefined,
+      sequentialNumber: seq,
+    });
+
+    // Execute atomic transaction
+    await db.transaction(async (tx) => {
+      // 1. Create base inventory item record
+      const [newInv] = await tx
+        .insert(inventory)
+        .values({
+          shopId: user.shopId!,
+          organizationId: user.organizationId!,
+          name: data.productName || data.name || data.productCode,
+          productName: data.productName,
+          productCode: data.productCode,
+          category: "SUNGLASSES",
+          brand: data.brand || null,
+          model: data.modelNumber || null,
+          sku: data.productCode || skuCode,
+          price: data.price.toString(),
+          costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
+          quantity: data.quantity,
+          minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
+          isActive: true,
+          
+          imageUrl: data.imageUrl || null,
+          hsnCode: data.hsnCode || null,
+          cgstPercent: data.cgstPercent.toString(),
+          sgstPercent: data.sgstPercent.toString(),
+          igstPercent: data.igstPercent.toString(),
+          vendorName: data.vendorName || null,
+          rackLocation: data.rackLocation || null,
+          requiresExpiryTracking: data.requiresExpiryTracking,
+          batchNumber: data.requiresExpiryTracking ? (data.batchNumber || null) : null,
+          expiryDate: data.requiresExpiryTracking ? (data.expiryDate || null) : null,
+          purchaseInvoiceNo: data.purchaseInvoiceNo || null,
+          inwardDate: data.inwardDate || null,
+        })
+        .returning();
+
+      // 2. Create detailed sunglasses parameters mapping
+      await tx.insert(sunglassDetails).values({
+        inventoryId: newInv.id,
+        modelNumber: data.modelNumber || null,
+        frameShape: data.frameShape || null,
+        frameColor: data.frameColor || null,
+        lensColor: data.lensColor || null,
+        size: data.size || null,
+        gender: data.gender || null,
+        isPolarized: data.isPolarized ?? false,
+        uvProtection: data.uvProtection || null,
+      });
+
+      // 3. Log initial stock movement
+      if (data.quantity > 0) {
+        await recordStockMovement({
+          inventoryId: newInv.id,
+          shopId: user.shopId!,
+          organizationId: user.organizationId!,
+          movementType: "STOCK_IN",
+          quantityChange: data.quantity,
+          balanceAfter: data.quantity,
+          referenceType: "PURCHASE_INVOICE",
+          referenceNumber: data.purchaseInvoiceNo || null,
+          vendorParty: data.vendorName || null,
+          costPriceAtTime: data.costPrice ? data.costPrice.toString() : "0.00",
+          notes: "Initial inventory setup.",
+          performedBy: user.id,
+        }, tx);
+      }
+    });
+
+    revalidatePath("/shop/inventory");
+    return { success: true, message: "Sunglasses item record saved successfully." };
+  } catch (error: any) {
+    console.error("Error creating sunglasses inventory item:", error);
+    return {
+      success: false,
+      message: error.message || "An unexpected error occurred while saving.",
+    };
+  }
+}
+
+/**
+ * Updates an existing Sunglasses inventory item record.
+ */
+export async function updateSunglassItemAction(
+  itemId: string,
+  prevState: FormState,
+  formData: FormData | any
+): Promise<FormState> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized or missing session details." };
+    }
+
+    const rawData = formData instanceof FormData 
+      ? Object.fromEntries(formData.entries())
+      : formData;
+
+    if (typeof rawData.requiresExpiryTracking === "string") {
+      rawData.requiresExpiryTracking = rawData.requiresExpiryTracking === "true" || rawData.requiresExpiryTracking === "on";
+    }
+    if (typeof rawData.isPolarized === "string") {
+      rawData.isPolarized = rawData.isPolarized === "true" || rawData.isPolarized === "on";
+    }
+
+    const validatedFields = editSunglassItemSchema.safeParse(rawData);
+    if (!validatedFields.success) {
+      return formatInventoryValidationError(validatedFields.error);
+    }
+
+    const data = validatedFields.data;
+
+    // Verify productCode uniqueness within organization (excluding current item)
+    if (data.productCode) {
+      const codeExists = await checkProductCodeExists(user.shopId || user.organizationId, data.productCode, itemId);
+      if (codeExists) {
+        return {
+          success: false,
+          message: "Code already exists. Please choose a unique product code.",
+          errors: { productCode: ["Code already exists"] },
+        };
+      }
+    }
+
+    // Check if item exists and belongs to the organization
+    const [existing] = await db
+      .select({ id: inventory.id })
+      .from(inventory)
+      .where(
+        and(
+          eq(inventory.id, itemId),
+          eq(inventory.organizationId, user.organizationId)
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      return { success: false, message: "Item not found or unauthorized access." };
+    }
+
+    // Execute atomic transaction to update base and child tables
+    await db.transaction(async (tx) => {
+      // 1. Update base inventory
+      const [updatedInv] = await tx
+        .update(inventory)
+        .set({
+          name: data.productName || data.name || "Item",
+          productName: data.productName,
+          productCode: data.productCode,
+          sku: data.productCode || undefined,
+          brand: data.brand || null,
+          model: data.modelNumber || null,
+          price: data.price.toString(),
+          costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
+          quantity: sql`${inventory.quantity} + ${data.addStockQuantity}`,
+          minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
+          imageUrl: data.imageUrl || null,
+          hsnCode: data.hsnCode || null,
+          cgstPercent: data.cgstPercent.toString(),
+          sgstPercent: data.sgstPercent.toString(),
+          igstPercent: data.igstPercent.toString(),
+          vendorName: data.vendorName || null,
+          rackLocation: data.rackLocation || null,
+          requiresExpiryTracking: data.requiresExpiryTracking,
+          batchNumber: data.requiresExpiryTracking ? (data.batchNumber || null) : null,
+          expiryDate: data.requiresExpiryTracking ? (data.expiryDate || null) : null,
+          purchaseInvoiceNo: data.purchaseInvoiceNo || null,
+          inwardDate: data.inwardDate || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(inventory.id, itemId))
+        .returning();
+
+      // 2. Upsert sunglasses specific details
+      await tx
+        .insert(sunglassDetails)
+        .values({
+          inventoryId: itemId,
+          modelNumber: data.modelNumber || null,
+          frameShape: data.frameShape || null,
+          frameColor: data.frameColor || null,
+          lensColor: data.lensColor || null,
+          size: data.size || null,
+          gender: data.gender || null,
+          isPolarized: data.isPolarized ?? false,
+          uvProtection: data.uvProtection || null,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: sunglassDetails.inventoryId,
+          set: {
+            modelNumber: data.modelNumber || null,
+            frameShape: data.frameShape || null,
+            frameColor: data.frameColor || null,
+            lensColor: data.lensColor || null,
+            size: data.size || null,
+            gender: data.gender || null,
+            isPolarized: data.isPolarized ?? false,
+            uvProtection: data.uvProtection || null,
+            updatedAt: new Date(),
+          },
+        });
+
+      // 3. Log stock movement if quantity was added
+      if (data.addStockQuantity > 0 && updatedInv) {
+        await recordStockMovement({
+          inventoryId: updatedInv.id,
+          shopId: updatedInv.shopId,
+          organizationId: updatedInv.organizationId,
+          movementType: "STOCK_IN",
+          quantityChange: data.addStockQuantity,
+          balanceAfter: updatedInv.quantity,
+          referenceType: "PURCHASE_INVOICE",
+          referenceNumber: data.purchaseInvoiceNo || null,
+          vendorParty: data.vendorName || null,
+          costPriceAtTime: data.costPrice ? data.costPrice.toString() : "0.00",
+          notes: "Stock added via edit form.",
+          performedBy: user.id,
+        }, tx);
+      }
+    });
+
+    revalidatePath("/shop/inventory");
+    return { success: true, message: "Sunglasses item record updated successfully." };
+  } catch (error: any) {
+    console.error("Error updating sunglasses inventory item:", error);
     return {
       success: false,
       message: error.message || "An unexpected error occurred while saving updates.",
@@ -1294,6 +1589,7 @@ export async function createGeneralItemAction(
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
           minQuantity: data.minQuantity,
+          allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : null,
           isActive: true,
           imageUrl: data.imageUrl || null,
           hsnCode: data.hsnCode || null,

@@ -13,6 +13,7 @@ import {
   lensDetails,
   contactLensDetails,
   accessoryDetails,
+  sunglassDetails,
   prescriptions,
   salesReturns,
 } from "@/db/schema";
@@ -372,6 +373,18 @@ export async function POST(request: Request) {
                 type: payload.type || payload.accessoryType || "General",
                 sizeVolume: payload.sizeVolume || null,
                 colorPattern: payload.colorPattern || null,
+              });
+            } else if (cat === "SUNGLASSES") {
+              await tx.insert(sunglassDetails).values({
+                inventoryId: newInv.id,
+                modelNumber: modelNumber,
+                frameShape: payload.frameShape || null,
+                frameColor: payload.frameColor || null,
+                lensColor: payload.lensColor || null,
+                size: payload.size || null,
+                gender: payload.gender || null,
+                isPolarized: Boolean(payload.isPolarized),
+                uvProtection: payload.uvProtection || "UV400",
               });
             }
 

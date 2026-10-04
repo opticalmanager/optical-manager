@@ -66,7 +66,8 @@ The codebase cleanly separates mutation handling from data fetching:
   - `email.service.ts`: Nodemailer Gmail SMTP client with 3-tier rate limiting and AES-256 password encryption.
   - `email-trigger.service.ts`: Non-blocking fire-and-forget event trigger service for automated email dispatches.
   - `invoice.service.ts`: Sequential invoice generation (`generateInvoiceNumber`) using store-specific document series templates, financial year formats, numerical length-first sorting (`sql'length(invoice_number) DESC', invoice_number DESC`), active organization-scoped collision probing, and transaction-level retry protection against unique constraint collisions.
-  - `customer.service.ts`: Profile aggregations, lifetime order values, clinical history grouping, store credit ledgers, and sequential registration ID generation (`generateRegistrationId`) with numerical length sorting and proactive collision probing.
+  - `customer.service.ts`: Profile aggregations, lifetime order values, clinical history grouping, store credit ledgers, sequential registration ID generation (`generateRegistrationId`) with numerical length sorting and proactive collision probing, and strictly bounded temporal visit calculations (`max(...) <= NOW()`) ensuring future order/prescription bookings never inflate customer visit history.
+  - `customization.service.ts`: Organization-wide defaults and shop-level override configurations for the 8 core optical modules (Dashboard, Inventory, Sales & Orders, Invoices, Vendors & Purchases, Customers & Clinical, Appointments, Reports & Analytics) stored in JSONB settings.
   - `receipt.service.ts`: Sequential receipt (`generateReceiptNumber`) and order number generation (`generateOrderNumber`) supporting numerical length sorting, active collision probing, and synchronized invoice matching (`matchInvoice`).
   - `order.service.ts`: Order fulfillment telemetry, payment balancing, and customer order history.
 - **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`), concurrency retry loops (handling Postgres `23505` conflicts gracefully), and invalidates Next.js cache using `revalidatePath`. Example: `registerPatientAndInvoiceAction` and `updateShopDocumentSeriesAction`.
@@ -112,6 +113,34 @@ The POS billing engine features an 11-column high-density ERP ledger grid design
 - **Separation of Item Code & Description**: The Product Search column cleanly displays the search input and exclusively the active item code badge (Barcode, Product Code, or SKU). Product name, brand, model, and clinical specifications are formatted into the Item Description column with `title` hover tooltips to avoid text clipping.
 - **Bi-Directional Discount & Price Engine**: Computes row totals reactively from `unitPrice`, `quantity`, `discountPercent`, `discountAmount`, `cgstPercent`, `sgstPercent`, and `igstPercent`. Discount percentage is strictly clamped between 0% and 100%, and discount amount cannot exceed line subtotal.
 - **Strict Input Constraints & Multi-Device Responsiveness**: Numerical enforcement via `inputMode="numeric"` / `inputMode="decimal"` and clean integer/decimal parsing. The table wrapper enforces `min-w-[1280px]` with horizontal scrolling, guaranteeing that no columns or input texts become clipped on smaller viewports.
+
+### 3.2 Negative Inventory (Backordering) & Stock Movement Architecture
+Optical retail counters frequently book customer orders for frames or ophthalmic lenses that are physically present in clinic trays or en route from optical labs before the purchase inward receipt is formally registered. Optical Manager implements an industry-standard 3-tier backordering cascade:
+
+1. **3-Tier Cascade Permission Engine (`services/inventory.service.ts` -> `resolveNegativeStockPermission`)**:
+   - **Tier 1 (Item Override)**: `inventory.allowNegativeStock` (`null`: inherit from category, `true`: always allow, `false`: disallow). Configurable in all product edit and creation forms.
+   - **Tier 2 (Category Default)**: `product_categories.allowNegativeStock` (default `true` for all categories). Configurable per category in Category GST & HSN Master (`CategoryGstRatesSettings.tsx`) and Add Category modal.
+   - **Tier 3 (Organization Customization)**: Global store-wide fallback configured under `/owner/settings/customization?tab=inventory` (`allow_negative_stock` toggle).
+2. **Atomic Uncapped Stock Decrements**:
+   - Replaced restrictive `GREATEST(0, ...)` clamping in `decrementInventoryStock` with atomic SQL `quantity - qty`, enabling inventory counts to transition into negative numbers (`0 - 1 = -1`) without data loss or blocking.
+3. **Audit Trail & Stock Ledger (`stock_movements`)**:
+   - Every stock movement records exact `balanceAfter`. When `balanceAfter < 0`, movements are automatically annotated with `(Backordered / Negative Stock)` for audit visibility.
+4. **Billing UI & POS Backorder Badging (`NewInvoiceForm.tsx`)**:
+   - When adding an item with `stock <= 0` or exceeding available stock: if permitted by the 3-tier cascade, the billing form issues a non-blocking amber warning toast and displays an amber pill badge `⚠️ Backorder (X on hand)`. Submission is permitted without interruption. If disallowed, strict hard blocking is enforced.
+5. **Real-Time Inventory Dashboard & Filtering (`InventoryDashboardClient.tsx`)**:
+   - Identifies negative inventory units (`quantity < 0`), renders high-density purple pill badges (`BACKORDERED (-X Units)`), and provides a 1-click `Backordered` KPI counter and filter state alongside Low Stock and Out of Stock.
+
+### 3.3 Category Master & Commercial Defaults Architecture (`CategoryGstRatesSettings.tsx`)
+Store managers and owners configure standardized optical taxonomy rules via the Category Master:
+1. **Curated Commercial & Inventory Attributes**:
+   - **Display vs Print Name (`printName`)**: Decouples the internal catalog name from the customer-facing alias printed on thermal slips, barcode tags, and official tax invoices.
+   - **Track as Stockable (`isStockable`)**: Classifies category items as physical inventory (e.g. Frames, Contact Lenses) versus services or non-stock lab charges (e.g. Fitting Charges, Consultation, Frame Repairs).
+   - **Default Commercial Discounts**: Pre-populates category-specific selling discounts (`defaultSaleDiscount`) and purchase inward discounts (`defaultPurchaseDiscount`).
+   - **Smart 50/50 GST Tax Split**: Single-click tax presets (`0% Exempt`, `5%`, `12%`, `18%`, `28%`) automatically divide into statutory CGST and SGST rates with instant re-calculation.
+2. **Retroactive Product Synchronization**:
+   - When modifying category tax rates, HSN codes, or discounts, users can toggle `applyToExistingProducts`, triggering transactional propagation across all active items cataloged under that category code.
+3. **Dual Add & Edit Modal Ergonomics**:
+   - A single medium-sized modal (`max-w-lg`) handles both new category creation and editing existing categories directly from table row action triggers (`Pencil` button).
 
 ### 4. PWA & Offline-First Storage Architecture (`lib/offline/`)
 

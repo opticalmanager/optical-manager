@@ -23,6 +23,7 @@ export function LowStockAlert({ items }: LowStockAlertProps) {
       case "CONTACT_LENS": return "Contact Lens";
       case "ACCESSORY": return "Accessory";
       case "SOLUTION": return "Solution";
+      case "SUNGLASSES": return "Sunglasses";
       default: return category;
     }
   };

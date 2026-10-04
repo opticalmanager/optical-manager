@@ -292,6 +292,13 @@ export function AddContactLensItemForm({ shopId, categoryDefaults, categories }:
           >
             Accessories
           </button>
+          <button
+            type="button"
+            onClick={() => router.push("/shop/inventory/add?category=sunglasses")}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-650 hover:bg-slate-200/60 bg-transparent rounded-lg flex items-center transition-all"
+          >
+            Sunglasses
+          </button>
         </div>
       )}
 

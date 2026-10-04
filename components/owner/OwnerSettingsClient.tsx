@@ -34,6 +34,7 @@ import {
   Landmark,
   Hash,
   ChevronDown,
+  SlidersHorizontal,
 } from "lucide-react";
 import { updateShopInvoiceSettingsAction } from "@/actions/shop.actions";
 import { toast } from "sonner";
@@ -329,6 +330,21 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
         { id: "ai_ocr_scanner", label: "Bill OCR Scanner", action: "modal_ai" },
       ],
     },
+    {
+      id: "customization",
+      title: "Customization",
+      icon: SlidersHorizontal,
+      tags: [
+        { id: "dash_cust", label: "Dashboard", action: "route_customization_dashboard" },
+        { id: "inv_cust", label: "Inventory", action: "route_customization_inventory" },
+        { id: "sales_cust", label: "Sales & Orders", action: "route_customization_sales" },
+        { id: "inv_bill_cust", label: "Invoices", action: "route_customization_invoices" },
+        { id: "vendor_cust", label: "Vendors", action: "route_customization_vendors" },
+        { id: "cust_rx_cust", label: "Customers & Clinical", action: "route_customization_customers" },
+        { id: "appts_cust", label: "Appointments", action: "route_customization_appointments" },
+        { id: "reports_cust", label: "Reports", action: "route_customization_reports" },
+      ],
+    },
   ];
 
   // Live filter categories based on search input
@@ -377,6 +393,33 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
         break;
       case "modal_appointments":
         router.push("/owner/settings/appointments");
+        break;
+      case "route_customization":
+        router.push("/owner/settings/customization");
+        break;
+      case "route_customization_dashboard":
+        router.push("/owner/settings/customization?tab=dashboard");
+        break;
+      case "route_customization_inventory":
+        router.push("/owner/settings/customization?tab=inventory");
+        break;
+      case "route_customization_sales":
+        router.push("/owner/settings/customization?tab=sales");
+        break;
+      case "route_customization_invoices":
+        router.push("/owner/settings/customization?tab=invoices");
+        break;
+      case "route_customization_vendors":
+        router.push("/owner/settings/customization?tab=vendors");
+        break;
+      case "route_customization_customers":
+        router.push("/owner/settings/customization?tab=customers");
+        break;
+      case "route_customization_appointments":
+        router.push("/owner/settings/customization?tab=appointments");
+        break;
+      case "route_customization_reports":
+        router.push("/owner/settings/customization?tab=reports");
         break;
       default:
         break;
@@ -545,14 +588,32 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
               >
                 <div className="space-y-4">
                   {/* Category Header with Blue Soft Icon */}
-                  <div className="flex items-center gap-3">
+                  <div
+                    onClick={() => {
+                      if (category.id === "customization") {
+                        router.push("/owner/settings/customization");
+                      }
+                    }}
+                    className={`flex items-center gap-3 ${
+                      category.id === "customization" ? "cursor-pointer" : ""
+                    }`}
+                  >
                     <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                       <IconComponent className="w-5 h-5" />
                     </div>
                   </div>
 
                   {/* Title */}
-                  <h3 className="text-lg font-bold text-slate-900 tracking-tight">
+                  <h3
+                    onClick={() => {
+                      if (category.id === "customization") {
+                        router.push("/owner/settings/customization");
+                      }
+                    }}
+                    className={`text-lg font-bold text-slate-900 tracking-tight transition-colors ${
+                      category.id === "customization" ? "cursor-pointer hover:text-[#2563eb]" : ""
+                    }`}
+                  >
                     {category.title}
                   </h3>
 

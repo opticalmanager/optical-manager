@@ -21,6 +21,7 @@ export const inventoryCategoryEnum = pgEnum("inventory_category", [
   "CONTACT_LENS",
   "ACCESSORY",
   "SOLUTION",
+  "SUNGLASSES",
 ]);
 
 export const inventory = pgTable("inventory", {
@@ -38,11 +39,12 @@ export const inventory = pgTable("inventory", {
   brand: varchar("brand", { length: 255 }),
   model: varchar("model", { length: 255 }),
   sku: varchar("sku", { length: 100 }),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }),
   costPrice: decimal("cost_price", { precision: 10, scale: 2 }),
   quantity: integer("quantity").notNull().default(0),
   minQuantity: integer("min_quantity").notNull().default(5),
   isActive: boolean("is_active").notNull().default(true),
+  allowNegativeStock: boolean("allow_negative_stock"), // null = inherit from category/global, true = allow, false = disallow
   
   // Shared expanded columns
   imageUrl: text("image_url"),

@@ -473,7 +473,7 @@ export const PURCHASE_SYSTEM_FIELDS: PurchaseFieldDefinition[] = [
     key: "category",
     label: "Category",
     required: false,
-    description: "FRAME, LENS, CONTACT_LENS, ACCESSORY, or SOLUTION",
+    description: "FRAME, LENS, CONTACT_LENS, ACCESSORY, SOLUTION, or SUNGLASSES",
     aliases: [
       "category",
       "product category",

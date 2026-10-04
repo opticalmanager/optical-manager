@@ -5,6 +5,7 @@ import { AddFrameItemForm } from "@/components/shop/AddFrameItemForm";
 import { AddLensItemForm } from "@/components/shop/AddLensItemForm";
 import { AddContactLensItemForm } from "@/components/shop/AddContactLensItemForm";
 import { AddAccessoryItemForm } from "@/components/shop/AddAccessoryItemForm";
+import { AddSunglassItemForm } from "@/components/shop/AddSunglassItemForm";
 import { AddGeneralItemForm } from "@/components/shop/AddGeneralItemForm";
 
 import { hasModulePermission } from "@/utils/permissions";
@@ -70,6 +71,12 @@ export default async function AddItemPage({ searchParams }: AddItemPageProps) {
         />
       ) : activeCode === "ACCESSORY" ? (
         <AddAccessoryItemForm
+          shopId={user.shopId}
+          categoryDefaults={activeCategory}
+          categories={categories}
+        />
+      ) : activeCode === "SUNGLASSES" ? (
+        <AddSunglassItemForm
           shopId={user.shopId}
           categoryDefaults={activeCategory}
           categories={categories}
