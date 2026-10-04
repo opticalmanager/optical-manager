@@ -233,7 +233,7 @@ Stores incremental payment receipts (`PPS-shopNum-YYYY-NNNN`) linking invoices a
 | `registrationId` | `varchar(50)` | NOT NULL, INDEXED | Human-readable ID (`OP-shopNum-YYYY-NNNN`) |
 | `fullName` | `varchar(255)` | NOT NULL | Patient / customer name |
 | `email` | `varchar(255)` | NULLABLE | Patient email address |
-| `phone` | `varchar(20)` | NOT NULL, INDEXED | Primary contact number |
+| `phone` | `varchar(20)` | NULLABLE, INDEXED | Primary contact number (supports walk-ins, corporate accounts, or historical legacy records without phone) |
 | `dateOfBirth` | `date` | NULLABLE | Patient date of birth |
 | `gender` | `gender` | NULLABLE | Patient gender |
 | `bloodGroup` | `blood_group` | NULLABLE | Patient blood group |

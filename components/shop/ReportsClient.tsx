@@ -195,7 +195,7 @@ export default function ReportsClient({
         !query ||
         d.invoiceNumber.toLowerCase().includes(query) ||
         d.customerName.toLowerCase().includes(query) ||
-        d.customerPhone.includes(query)
+        d.customerPhone?.includes(query)
     );
   }, [duesData.items, query]);
 

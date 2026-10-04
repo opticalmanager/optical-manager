@@ -15,7 +15,7 @@ import { patientVisitSchema } from "@/utils/validators";
 import { generateRegistrationId } from "@/services/customer.service";
 import { generateInvoiceNumber } from "@/services/invoice.service";
 import { generateReceiptNumber, generateOrderNumber } from "@/services/receipt.service";
-import { decrementInventoryStock } from "@/services/inventory.service";
+import { decrementInventoryStock, ingestCustomProductToInventory } from "@/services/inventory.service";
 
 function isUuid(val: string | null | undefined): boolean {
   if (!val || typeof val !== "string") return false;
@@ -285,10 +285,47 @@ export async function POST(request: Request) {
             })
             .returning();
 
-          // Insert invoice items & decrement inventory
+          // Insert invoice items & decrement inventory (with Custom Product Auto-Ingestion)
           if (data.invoiceItems && data.invoiceItems.length > 0) {
             for (const item of data.invoiceItems) {
-              const validInventoryId = item.inventoryId && isUuid(item.inventoryId) ? item.inventoryId : null;
+              let validInventoryId = item.inventoryId && isUuid(item.inventoryId) ? item.inventoryId : null;
+
+              if (validInventoryId && item.quantity > 0) {
+                await decrementInventoryStock(
+                  validInventoryId,
+                  organizationId,
+                  item.quantity,
+                  tx,
+                  "SALE_INVOICE",
+                  serverInvoiceNumber,
+                  data.customer?.fullName || null,
+                  user.id,
+                  offlineCreatedAt ? new Date(offlineCreatedAt) : new Date()
+                );
+              } else if (!validInventoryId && item.quantity > 0) {
+                validInventoryId = await ingestCustomProductToInventory(
+                  {
+                    shopId: effectiveShopId,
+                    organizationId,
+                    description: item.description,
+                    category: item.category || "General",
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    cgstPercent: item.cgstPercent,
+                    sgstPercent: item.sgstPercent,
+                    igstPercent: item.igstPercent,
+                    barcode: item.barcode,
+                    productCode: item.productCode,
+                    sku: item.sku,
+                    invoiceNumber: serverInvoiceNumber,
+                    customerName: data.customer?.fullName || null,
+                    userId: user.id,
+                    createdAt: offlineCreatedAt ? new Date(offlineCreatedAt) : new Date(),
+                  },
+                  tx
+                );
+              }
+
               await tx.insert(invoiceItems).values({
                 invoiceId: invoice.id,
                 inventoryId: validInventoryId,
@@ -307,17 +344,6 @@ export async function POST(request: Request) {
                 igstPercent: String((item.igstPercent || 0).toFixed(2)),
                 igstAmount: String((item.igstAmount || 0).toFixed(2)),
               });
-
-              if (validInventoryId && item.quantity > 0) {
-                await decrementInventoryStock(
-                  validInventoryId,
-                  organizationId,
-                  item.quantity,
-                  tx,
-                  "SALE",
-                  serverInvoiceNumber
-                );
-              }
             }
           }
 

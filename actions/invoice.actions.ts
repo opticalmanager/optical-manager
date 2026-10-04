@@ -239,7 +239,9 @@ export async function bulkImportInvoicesAction(
 
       const customerMap = new Map<string, { id: string; fullName: string }>();
       existingCusts.forEach((c) => {
-        customerMap.set(c.phone, { id: c.id, fullName: c.fullName });
+        if (c.phone) {
+          customerMap.set(c.phone, { id: c.id, fullName: c.fullName });
+        }
       });
 
       const missingPhones = uniquePhones.filter((phone) => !customerMap.has(phone));
@@ -278,7 +280,9 @@ export async function bulkImportInvoicesAction(
           .returning({ id: customers.id, phone: customers.phone, fullName: customers.fullName });
 
         insertedCustomers.forEach((c) => {
-          customerMap.set(c.phone, { id: c.id, fullName: c.fullName });
+          if (c.phone) {
+            customerMap.set(c.phone, { id: c.id, fullName: c.fullName });
+          }
         });
         newCustomersCreated = insertedCustomers.length;
       }

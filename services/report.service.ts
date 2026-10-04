@@ -733,7 +733,7 @@ export interface OutstandingDueItem {
   id: string;
   invoiceNumber: string;
   customerName: string;
-  customerPhone: string;
+  customerPhone: string | null;
   createdAt: Date;
   totalAmount: number;
   amountPaid: number;

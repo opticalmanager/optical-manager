@@ -664,3 +664,195 @@ export async function recordStockMovement(
   await client.insert(stockMovements).values(data);
 }
 
+export interface CustomProductIngestInput {
+  shopId: string;
+  organizationId: string;
+  description: string;
+  category?: string | null;
+  quantity: number;
+  unitPrice: number;
+  cgstPercent?: number;
+  sgstPercent?: number;
+  igstPercent?: number;
+  barcode?: string | null;
+  productCode?: string | null;
+  sku?: string | null;
+  invoiceNumber: string;
+  customerName?: string | null;
+  userId?: string | null;
+  createdAt?: Date;
+}
+
+/**
+ * Ingest an on-demand custom invoice item into the inventory catalog.
+ * If an active item with the same name & category exists in the shop, reuses it and decrements stock.
+ * Otherwise creates a new inventory product with initial stock = -quantity, allowNegativeStock = true,
+ * and logs an authentic audit trail in stock_movements.
+ */
+export async function ingestCustomProductToInventory(
+  input: CustomProductIngestInput,
+  tx?: any
+): Promise<string> {
+  const client = tx || db;
+  const cleanDescription = (input.description || "Custom Item").trim();
+  const cleanCategory = (input.category || "General").trim();
+  const qty = Math.max(1, Math.floor(input.quantity || 1));
+  const unitPriceStr = Number(input.unitPrice || 0).toFixed(2);
+  const cgstStr = Number(input.cgstPercent || 0).toFixed(2);
+  const sgstStr = Number(input.sgstPercent || 0).toFixed(2);
+  const igstStr = Number(input.igstPercent || 0).toFixed(2);
+  const eventDate = input.createdAt || new Date();
+  const validUserId =
+    input.userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.userId)
+      ? input.userId
+      : null;
+
+  // 1. Deduplication check: Check by explicit code/SKU or case-insensitive name & category
+  let existingItem: { id: string; quantity: number; costPrice: string | null } | null = null;
+
+  if (input.productCode && input.productCode.trim()) {
+    const [foundByCode] = await client
+      .select({
+        id: inventory.id,
+        quantity: inventory.quantity,
+        costPrice: inventory.costPrice,
+      })
+      .from(inventory)
+      .where(
+        and(
+          eq(inventory.shopId, input.shopId),
+          eq(inventory.organizationId, input.organizationId),
+          or(
+            ilike(inventory.productCode, input.productCode.trim()),
+            ilike(inventory.sku, input.productCode.trim())
+          )
+        )
+      )
+      .limit(1);
+    if (foundByCode) existingItem = foundByCode;
+  }
+
+  if (!existingItem) {
+    const [foundByName] = await client
+      .select({
+        id: inventory.id,
+        quantity: inventory.quantity,
+        costPrice: inventory.costPrice,
+      })
+      .from(inventory)
+      .where(
+        and(
+          eq(inventory.shopId, input.shopId),
+          eq(inventory.organizationId, input.organizationId),
+          ilike(inventory.name, cleanDescription),
+          ilike(inventory.category, cleanCategory)
+        )
+      )
+      .limit(1);
+    if (foundByName) existingItem = foundByName;
+  }
+
+  // 2. If item already exists in shop catalog, decrement its stock and record movement
+  if (existingItem) {
+    const [updatedItem] = await client
+      .update(inventory)
+      .set({
+        quantity: sql`${inventory.quantity} - ${qty}`,
+        allowNegativeStock: true,
+        updatedAt: eventDate,
+      })
+      .where(eq(inventory.id, existingItem.id))
+      .returning({ id: inventory.id, quantity: inventory.quantity, costPrice: inventory.costPrice });
+
+    const newBalance = updatedItem ? updatedItem.quantity : existingItem.quantity - qty;
+
+    await recordStockMovement(
+      {
+        inventoryId: existingItem.id,
+        shopId: input.shopId,
+        organizationId: input.organizationId,
+        movementType: "SOLD",
+        quantityChange: -qty,
+        balanceAfter: newBalance,
+        referenceType: "SALE_INVOICE",
+        referenceNumber: input.invoiceNumber,
+        vendorParty: input.customerName || null,
+        costPriceAtTime: existingItem.costPrice || "0.00",
+        notes: `On-demand custom product billed on invoice #${input.invoiceNumber} (Stock updated to ${newBalance}).`,
+        performedBy: validUserId,
+        createdAt: eventDate,
+      },
+      client
+    );
+
+    return existingItem.id;
+  }
+
+  // 3. Otherwise generate collision-free unique product code
+  let codeCandidate = (input.productCode || input.sku || input.barcode || "").trim();
+  if (codeCandidate) {
+    const [collision] = await client
+      .select({ id: inventory.id })
+      .from(inventory)
+      .where(and(eq(inventory.shopId, input.shopId), eq(inventory.productCode, codeCandidate)))
+      .limit(1);
+    if (collision) {
+      codeCandidate = "";
+    }
+  }
+
+  if (!codeCandidate) {
+    const tsCode = Date.now().toString(36).toUpperCase();
+    const randPart = Math.floor(100 + Math.random() * 899);
+    codeCandidate = `CUST-${tsCode}-${randPart}`;
+  }
+
+  // 4. Create new inventory item with negative stock = -qty and allowNegativeStock = true
+  const initialStock = -qty;
+  const [newItem] = await client
+    .insert(inventory)
+    .values({
+      shopId: input.shopId,
+      organizationId: input.organizationId,
+      name: cleanDescription,
+      productName: cleanDescription,
+      productCode: codeCandidate,
+      category: cleanCategory,
+      sku: input.sku?.trim() || codeCandidate,
+      price: unitPriceStr,
+      costPrice: "0.00",
+      quantity: initialStock,
+      minQuantity: 0,
+      isActive: true,
+      allowNegativeStock: true,
+      cgstPercent: cgstStr,
+      sgstPercent: sgstStr,
+      igstPercent: igstStr,
+      createdAt: eventDate,
+      updatedAt: eventDate,
+    })
+    .returning({ id: inventory.id });
+
+  // 5. Record movement in stock_movements
+  await recordStockMovement(
+    {
+      inventoryId: newItem.id,
+      shopId: input.shopId,
+      organizationId: input.organizationId,
+      movementType: "SOLD",
+      quantityChange: -qty,
+      balanceAfter: initialStock,
+      referenceType: "SALE_INVOICE",
+      referenceNumber: input.invoiceNumber,
+      vendorParty: input.customerName || null,
+      costPriceAtTime: "0.00",
+      notes: `On-demand custom product auto-created and billed on invoice #${input.invoiceNumber} (Stock initialized as ${initialStock}).`,
+      performedBy: validUserId,
+      createdAt: eventDate,
+    },
+    client
+  );
+
+  return newItem.id;
+}
+

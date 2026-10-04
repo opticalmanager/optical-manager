@@ -6,7 +6,7 @@ import { customers, prescriptions, invoices, invoiceItems, orders, receipts, cus
 import { getCurrentUser } from "@/services/auth.service";
 import { fireEmailTrigger } from "@/services/email-trigger.service";
 import { generateRegistrationId } from "@/services/customer.service";
-import { decrementInventoryStock, resolveNegativeStockPermission } from "@/services/inventory.service";
+import { decrementInventoryStock, resolveNegativeStockPermission, ingestCustomProductToInventory } from "@/services/inventory.service";
 import { generateInvoiceNumber } from "@/services/invoice.service";
 import { generateOrderNumber, generateReceiptNumber } from "@/services/receipt.service";
 import { patientVisitSchema } from "@/utils/validators";
@@ -586,32 +586,13 @@ export async function registerPatientAndInvoiceAction(
         })
         .returning();
 
-      // 6. Create Invoice Line Items and Decrement Inventory Stock
+      // 6. Create Invoice Line Items and Decrement Inventory Stock (with Custom Product Auto-Ingestion)
       for (const item of data.invoiceItems!) {
         const itemSubtotal = item.quantity * item.unitPrice;
-        const validInventoryId = item.inventoryId && isUuid(item.inventoryId) ? item.inventoryId : null;
-        await tx.insert(invoiceItems).values({
-          invoiceId: invoice.id,
-          inventoryId: validInventoryId,
-          shopId,
-          organizationId: user.organizationId!,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: Number(item.unitPrice).toFixed(2),
-          subtotal: Number(itemSubtotal).toFixed(2),
-          discountPercent: Number(item.discountPercent || 0).toFixed(2),
-          discountAmount: Number(item.discountAmount || 0).toFixed(2),
-          cgstPercent: Number(item.cgstPercent || 0).toFixed(2),
-          cgstAmount: Number(item.cgstAmount || 0).toFixed(2),
-          sgstPercent: Number(item.sgstPercent || 0).toFixed(2),
-          sgstAmount: Number(item.sgstAmount || 0).toFixed(2),
-          igstPercent: Number(item.igstPercent || 0).toFixed(2),
-          igstAmount: Number(item.igstAmount || 0).toFixed(2),
-          createdAt: invoiceTimestamp,
-        });
+        let validInventoryId = item.inventoryId && isUuid(item.inventoryId) ? item.inventoryId : null;
 
-        // Decrement stock atomically if it corresponds to a valid inventory product UUID
         if (validInventoryId) {
+          // Decrement stock atomically for existing catalog product
           const [invItem] = await tx
             .select({
               id: inventory.id,
@@ -651,7 +632,50 @@ export async function registerPatientAndInvoiceAction(
             user.id,
             invoiceTimestamp
           );
+        } else {
+          // Auto-ingest custom on-demand item into inventory with initial negative stock (-quantity) and allowNegativeStock = true
+          validInventoryId = await ingestCustomProductToInventory(
+            {
+              shopId,
+              organizationId: user.organizationId!,
+              description: item.description,
+              category: item.category || "General",
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              cgstPercent: item.cgstPercent,
+              sgstPercent: item.sgstPercent,
+              igstPercent: item.igstPercent,
+              barcode: item.barcode,
+              productCode: item.productCode,
+              sku: item.sku,
+              invoiceNumber: invoice.invoiceNumber,
+              customerName: customerRecord.fullName,
+              userId: user.id,
+              createdAt: invoiceTimestamp,
+            },
+            tx
+          );
         }
+
+        await tx.insert(invoiceItems).values({
+          invoiceId: invoice.id,
+          inventoryId: validInventoryId,
+          shopId,
+          organizationId: user.organizationId!,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice).toFixed(2),
+          subtotal: Number(itemSubtotal).toFixed(2),
+          discountPercent: Number(item.discountPercent || 0).toFixed(2),
+          discountAmount: Number(item.discountAmount || 0).toFixed(2),
+          cgstPercent: Number(item.cgstPercent || 0).toFixed(2),
+          cgstAmount: Number(item.cgstAmount || 0).toFixed(2),
+          sgstPercent: Number(item.sgstPercent || 0).toFixed(2),
+          sgstAmount: Number(item.sgstAmount || 0).toFixed(2),
+          igstPercent: Number(item.igstPercent || 0).toFixed(2),
+          igstAmount: Number(item.igstAmount || 0).toFixed(2),
+          createdAt: invoiceTimestamp,
+        });
       }
 
       return { customer: customerRecord, invoice, order, receipt: receiptRecord };

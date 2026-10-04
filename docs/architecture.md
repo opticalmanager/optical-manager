@@ -133,14 +133,22 @@ Optical retail counters frequently book customer orders for frames or ophthalmic
 ### 3.3 Category Master & Commercial Defaults Architecture (`CategoryGstRatesSettings.tsx`)
 Store managers and owners configure standardized optical taxonomy rules via the Category Master:
 1. **Curated Commercial & Inventory Attributes**:
-   - **Display vs Print Name (`printName`)**: Decouples the internal catalog name from the customer-facing alias printed on thermal slips, barcode tags, and official tax invoices.
+   - **Unified Category Name**: Eliminates redundant "Print Name" inputs by synchronizing display and invoice printing names 1-to-1.
    - **Track as Stockable (`isStockable`)**: Classifies category items as physical inventory (e.g. Frames, Contact Lenses) versus services or non-stock lab charges (e.g. Fitting Charges, Consultation, Frame Repairs).
    - **Default Commercial Discounts**: Pre-populates category-specific selling discounts (`defaultSaleDiscount`) and purchase inward discounts (`defaultPurchaseDiscount`).
    - **Smart 50/50 GST Tax Split**: Single-click tax presets (`0% Exempt`, `5%`, `12%`, `18%`, `28%`) automatically divide into statutory CGST and SGST rates with instant re-calculation.
 2. **Retroactive Product Synchronization**:
    - When modifying category tax rates, HSN codes, or discounts, users can toggle `applyToExistingProducts`, triggering transactional propagation across all active items cataloged under that category code.
-3. **Dual Add & Edit Modal Ergonomics**:
-   - A single medium-sized modal (`max-w-lg`) handles both new category creation and editing existing categories directly from table row action triggers (`Pencil` button).
+3. **High-Density, Zero-Scroll Ergonomics**:
+   - **Zero Vertical Scroll Modal (`max-w-xl`)**: Proportional 2-column layout fits all required inputs comfortably within ~420px height on standard laptop viewports without scrolling.
+   - **Zero Horizontal Scroll Table**: Streamlined into 7 high-density columns with combined Name/Code badges, removing redundant CGST, SGST, and Tax Slab columns so the table naturally fits within standard screen containers without horizontal scrollbars.
+
+### 3.4 On-Demand Custom Product Ingestion Architecture (`services/inventory.service.ts` -> `ingestCustomProductToInventory`)
+When billing products on new invoices (`/shop/invoices/new` and offline invoice sync) that do not already exist in the inventory catalog (`inventoryId: null`):
+1. **Intelligent Deduplication**: Checks within the shop for any existing inventory item matching the exact trimmed description and category (or custom barcode/code). If found, reuses the item and decrements its stock quantity.
+2. **Auto-Catalog Provisioning**: If not found, generates a collision-free unique product code (`CUST-XXXXXXXX-XXX`), inserts a new product record in `inventory` with initial stock equal to `-quantitySold` (e.g. `-1` or `-2`), and sets `allowNegativeStock = true`.
+3. **Immutable Audit Movement Ledger**: Inserts a `SOLD` movement into `stock_movements` with `quantityChange: -quantity`, `balanceAfter: -quantity`, reference to the sale invoice, customer name, and user ID.
+4. **Relational Integrity**: Links `invoice_items.inventoryId` directly to the newly provisioned/updated inventory item, eliminating orphaned non-inventory line items and maintaining 100% catalog integrity across sales reports, order forms, and inventory valuations.
 
 ### 4. PWA & Offline-First Storage Architecture (`lib/offline/`)
 

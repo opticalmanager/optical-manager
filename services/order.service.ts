@@ -714,7 +714,7 @@ export interface OrderForEditData {
   customer: {
     id: string;
     fullName: string;
-    phone: string;
+    phone: string | null;
     email: string | null;
     address: string | null;
     city: string | null;

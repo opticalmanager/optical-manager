@@ -12,12 +12,9 @@ import {
   Layers, 
   Sparkles,
   Pencil,
-  Boxes,
   SlidersHorizontal,
   ChevronDown,
-  ChevronUp,
-  PackageCheck,
-  PackageX
+  ChevronUp
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -76,12 +73,9 @@ export function CategoryGstRatesSettings({
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
 
-  // Modal Form Inputs
+  // Modal Form Inputs (Clean & Minimal: Printable Name removed)
   const [formName, setFormName] = useState("");
-  const [formPrintName, setFormPrintName] = useState("");
-  const [isPrintNameCustom, setIsPrintNameCustom] = useState(false);
   const [formCode, setFormCode] = useState("");
   const [formHsn, setFormHsn] = useState("");
   const [formIgst, setFormIgst] = useState("18");
@@ -181,7 +175,7 @@ export function CategoryGstRatesSettings({
     }
   }
 
-  // Handle IGST change in main matrix -> auto splits CGST and SGST
+  // Handle IGST change in table -> auto splits CGST and SGST
   const handleIgstChange = (id: string, val: string) => {
     const num = parseFloat(val);
     const half = isNaN(num) ? "" : (num / 2).toFixed(2);
@@ -199,49 +193,10 @@ export function CategoryGstRatesSettings({
     );
   };
 
-  // Handle direct CGST change
-  const handleCgstChange = (id: string, val: string) => {
-    setCategories((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const cgstNum = parseFloat(val) || 0;
-        const sgstNum = parseFloat(c.sgstPercent) || 0;
-        return {
-          ...c,
-          cgstPercent: val,
-          igstPercent: (cgstNum + sgstNum).toFixed(2),
-        };
-      })
-    );
-  };
-
-  // Handle direct SGST change
-  const handleSgstChange = (id: string, val: string) => {
-    setCategories((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const sgstNum = parseFloat(val) || 0;
-        const cgstNum = parseFloat(c.cgstPercent) || 0;
-        return {
-          ...c,
-          sgstPercent: val,
-          igstPercent: (cgstNum + sgstNum).toFixed(2),
-        };
-      })
-    );
-  };
-
-  // Handle HSN change in matrix
+  // Handle HSN change in table
   const handleHsnChange = (id: string, val: string) => {
     setCategories((prev) =>
       prev.map((c) => (c.id === id ? { ...c, hsnCode: val } : c))
-    );
-  };
-
-  // Handle Name change for custom categories
-  const handleNameChange = (id: string, val: string) => {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, name: val } : c))
     );
   };
 
@@ -259,7 +214,7 @@ export function CategoryGstRatesSettings({
       const payload = categories.map((c) => ({
         id: c.id,
         name: c.name,
-        printName: c.printName || c.name,
+        printName: c.name, // Keep printName synchronized with name
         hsnCode: c.hsnCode.trim() || null,
         cgstPercent: parseFloat(c.cgstPercent) || 0,
         sgstPercent: parseFloat(c.sgstPercent) || 0,
@@ -290,8 +245,6 @@ export function CategoryGstRatesSettings({
     setModalMode("create");
     setEditingCatId(null);
     setFormName("");
-    setFormPrintName("");
-    setIsPrintNameCustom(false);
     setFormCode("");
     setFormHsn("");
     setFormIgst("18");
@@ -302,7 +255,6 @@ export function CategoryGstRatesSettings({
     setFormPurchaseDiscount("0");
     setFormAllowNegativeStock(true);
     setFormApplyToExisting(false);
-    setIsAdvancedOpen(true);
     setShowModal(true);
   };
 
@@ -310,8 +262,6 @@ export function CategoryGstRatesSettings({
     setModalMode("edit");
     setEditingCatId(cat.id);
     setFormName(cat.name);
-    setFormPrintName(cat.printName || cat.name);
-    setIsPrintNameCustom(true);
     setFormCode(cat.code);
     setFormHsn(cat.hsnCode);
     setFormIgst(cat.igstPercent);
@@ -322,17 +272,13 @@ export function CategoryGstRatesSettings({
     setFormPurchaseDiscount(cat.defaultPurchaseDiscount);
     setFormAllowNegativeStock(cat.allowNegativeStock);
     setFormApplyToExisting(false);
-    setIsAdvancedOpen(true);
     setShowModal(true);
   };
 
-  // Auto-fill Print Name and Code while typing Name in create mode
+  // Auto-fill Code while typing Name in create mode
   const handleNameInputChange = (name: string) => {
     setFormName(name);
     if (modalMode === "create") {
-      if (!isPrintNameCustom) {
-        setFormPrintName(name);
-      }
       const suggestedCode = name
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "_")
@@ -372,45 +318,33 @@ export function CategoryGstRatesSettings({
 
     setIsSubmitting(true);
     try {
-      if (modalMode === "create") {
-        const res = await createCategoryAction(null, {
-          name: formName.trim(),
-          printName: formPrintName.trim() || formName.trim(),
-          code: formCode.trim() || undefined,
-          hsnCode: formHsn.trim() || undefined,
-          cgstPercent: parseFloat(formCgst) || 0,
-          sgstPercent: parseFloat(formSgst) || 0,
-          igstPercent: parseFloat(formIgst) || 0,
-          isStockable: formIsStockable,
-          defaultSaleDiscount: parseFloat(formSaleDiscount) || 0,
-          defaultPurchaseDiscount: parseFloat(formPurchaseDiscount) || 0,
-          allowNegativeStock: formAllowNegativeStock,
-          applyToExistingProducts: formApplyToExisting,
-        });
+      const cleanName = formName.trim();
+      const payload = {
+        name: cleanName,
+        printName: cleanName, // Seamless 1-to-1 parity: printName equals category name
+        code: formCode.trim() || undefined,
+        hsnCode: formHsn.trim() || undefined,
+        cgstPercent: parseFloat(formCgst) || 0,
+        sgstPercent: parseFloat(formSgst) || 0,
+        igstPercent: parseFloat(formIgst) || 0,
+        isStockable: formIsStockable,
+        defaultSaleDiscount: parseFloat(formSaleDiscount) || 0,
+        defaultPurchaseDiscount: parseFloat(formPurchaseDiscount) || 0,
+        allowNegativeStock: formAllowNegativeStock,
+        applyToExistingProducts: formApplyToExisting,
+      };
 
+      if (modalMode === "create") {
+        const res = await createCategoryAction(null, payload);
         if (res.success) {
-          toast.success(res.message || `Category "${formName}" created!`);
+          toast.success(res.message || `Category "${cleanName}" created!`);
           setShowModal(false);
           await loadCategories();
         } else {
           toast.error(res.message || "Failed to create category.");
         }
       } else if (modalMode === "edit" && editingCatId) {
-        const res = await updateCategoryAction(editingCatId, {
-          name: formName.trim(),
-          printName: formPrintName.trim() || formName.trim(),
-          code: formCode.trim() || undefined,
-          hsnCode: formHsn.trim() || undefined,
-          cgstPercent: parseFloat(formCgst) || 0,
-          sgstPercent: parseFloat(formSgst) || 0,
-          igstPercent: parseFloat(formIgst) || 0,
-          isStockable: formIsStockable,
-          defaultSaleDiscount: parseFloat(formSaleDiscount) || 0,
-          defaultPurchaseDiscount: parseFloat(formPurchaseDiscount) || 0,
-          allowNegativeStock: formAllowNegativeStock,
-          applyToExistingProducts: formApplyToExisting,
-        });
-
+        const res = await updateCategoryAction(editingCatId, payload);
         if (res.success) {
           toast.success(res.message || `Category updated successfully!`);
           setShowModal(false);
@@ -449,33 +383,31 @@ export function CategoryGstRatesSettings({
   };
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-3.5 ${className}`}>
       {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 border border-slate-200/90 rounded-2xl p-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-xs">
-              <Percent className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                Category GST Rates &amp; HSN Master
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200/60">
-                  {categories.length} Categories
-                </span>
-              </h3>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Configure default GST percentages, commercial discounts, and inventory rules for each optical category.
-              </p>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 border border-slate-200/90 rounded-xl p-3.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-xs shrink-0">
+            <Percent className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+              Category GST Rates &amp; HSN Master
+              <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-blue-50 text-blue-600 border border-blue-200/60">
+                {categories.length} Categories
+              </span>
+            </h3>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Configure default GST percentages, commercial discounts, and inventory rules for each optical category.
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 self-end sm:self-center">
+        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
           <button
             type="button"
             onClick={openCreateModal}
-            className="px-3.5 py-2 rounded-xl border border-slate-300/80 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
             <span>New Category</span>
@@ -485,553 +417,400 @@ export function CategoryGstRatesSettings({
             type="button"
             onClick={handleSaveAll}
             disabled={isSaving || isLoading}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
             {isSaving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <Save className="w-3.5 h-3.5 stroke-[2.2]" />
             )}
-            <span>{isSaving ? "Saving Rates..." : "Save GST Rates"}</span>
+            <span>{isSaving ? "Saving..." : "Save GST Rates"}</span>
           </button>
         </div>
       </div>
 
-      {/* Smart Hint Bar */}
-      <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-50/70 border border-blue-200/60 text-blue-800 text-[11px] font-medium">
-        <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-        <span>
-          <strong>Smart Category Management:</strong> Click the <strong>Pencil (Edit)</strong> button on any category to modify its Print Name, stock tracking type, default commercial discounts, and sync rates across existing catalog products.
-        </span>
-      </div>
-
-      {/* High-Density Category Rates Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      {/* Zero Horizontal Scroll Category Rates Table */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
         {isLoading ? (
-          <div className="p-12 flex flex-col items-center justify-center gap-2 text-slate-450">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Loading Categories...</span>
+          <div className="p-10 flex flex-col items-center justify-center gap-2 text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Loading Categories...</span>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/90 border-b border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  <th className="py-2.5 px-3 w-8">#</th>
-                  <th className="py-2.5 px-3 min-w-[170px]">Product Category</th>
-                  <th className="py-2.5 px-3 min-w-[110px]">Code</th>
-                  <th className="py-2.5 px-3 min-w-[110px]">Default HSN</th>
-                  <th className="py-2.5 px-3 w-20 text-center">CGST (%)</th>
-                  <th className="py-2.5 px-3 w-20 text-center">SGST (%)</th>
-                  <th className="py-2.5 px-3 w-24 text-center bg-blue-50/40">IGST (%)</th>
-                  <th className="py-2.5 px-3 w-24 text-center">Tax Slabs</th>
-                  <th className="py-2.5 px-3 min-w-[120px] text-center">Discounts (S / P)</th>
-                  <th className="py-2.5 px-3 w-32 text-center">Negative Stock</th>
-                  <th className="py-2.5 px-3 w-20 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {categories.map((cat, idx) => {
-                  const igstNum = parseFloat(cat.igstPercent) || 0;
-                  const saleDiscNum = parseFloat(cat.defaultSaleDiscount) || 0;
-                  const purchDiscNum = parseFloat(cat.defaultPurchaseDiscount) || 0;
+          <table className="w-full text-left border-collapse table-auto">
+            <thead>
+              <tr className="bg-slate-50/90 border-b border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <th className="py-2.5 px-3 w-8 text-center">#</th>
+                <th className="py-2.5 px-3">Category &amp; Identifier</th>
+                <th className="py-2.5 px-3 w-28 text-center">HSN Code</th>
+                <th className="py-2.5 px-3 w-32 text-center bg-blue-50/30">GST Rate (%)</th>
+                <th className="py-2.5 px-3 w-28 text-center">Discounts (S/P)</th>
+                <th className="py-2.5 px-3 w-28 text-center">Negative Stock</th>
+                <th className="py-2.5 px-3 w-16 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs">
+              {categories.map((cat, idx) => {
+                const igstNum = parseFloat(cat.igstPercent) || 0;
+                const halfTax = (igstNum / 2).toFixed(1);
+                const saleDiscNum = parseFloat(cat.defaultSaleDiscount) || 0;
+                const purchDiscNum = parseFloat(cat.defaultPurchaseDiscount) || 0;
 
-                  return (
-                    <tr 
-                      key={cat.id} 
-                      className="hover:bg-slate-50/60 transition-colors group"
-                    >
-                      {/* Index */}
-                      <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">
-                        {idx + 1}
-                      </td>
+                return (
+                  <tr 
+                    key={cat.id} 
+                    className="hover:bg-slate-50/60 transition-colors group"
+                  >
+                    {/* Index */}
+                    <td className="py-2 px-3 text-slate-400 font-mono text-[11px] text-center">
+                      {idx + 1}
+                    </td>
 
-                      {/* Name & Attributes */}
-                      <td className="py-2.5 px-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-extrabold text-slate-800 tracking-tight">
-                              {cat.name}
-                            </span>
-                            <span
-                              className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded tracking-wider shrink-0 ${
-                                cat.isSystem
-                                  ? "bg-slate-100 text-slate-500 border border-slate-200"
-                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              }`}
-                            >
-                              {cat.isSystem ? "System" : "Custom"}
-                            </span>
-                            <span
-                              className={`text-[9px] font-bold px-1.5 py-0.2 rounded tracking-wide shrink-0 ${
-                                cat.isStockable
-                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
-                                  : "bg-purple-50 text-purple-700 border border-purple-200"
-                              }`}
-                            >
-                              {cat.isStockable ? "Stocked" : "Service"}
-                            </span>
-                          </div>
-                          {cat.printName && cat.printName !== cat.name && (
-                            <div className="text-[10px] text-slate-400 font-medium">
-                              Print: <span className="text-slate-600 font-semibold">{cat.printName}</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Code */}
-                      <td className="py-2.5 px-3">
-                        <code className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    {/* Category Name & Tags */}
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-slate-800 tracking-tight text-xs">
+                          {cat.name}
+                        </span>
+                        <code className="text-[10px] font-mono font-bold text-slate-600 bg-slate-100 px-1 py-0.2 rounded border border-slate-200">
                           {cat.code}
                         </code>
-                      </td>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded tracking-wide shrink-0 ${
+                            cat.isSystem
+                              ? "bg-slate-100 text-slate-500"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          }`}
+                        >
+                          {cat.isSystem ? "System" : "Custom"}
+                        </span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded tracking-wide shrink-0 ${
+                            cat.isStockable
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : "bg-purple-50 text-purple-700 border border-purple-200"
+                          }`}
+                        >
+                          {cat.isStockable ? "Stocked" : "Service"}
+                        </span>
+                      </div>
+                    </td>
 
-                      {/* Default HSN */}
-                      <td className="py-2.5 px-3">
-                        <input
-                          type="text"
-                          value={cat.hsnCode}
-                          onChange={(e) => handleHsnChange(cat.id, e.target.value)}
-                          placeholder="e.g. 90049000"
-                          maxLength={15}
-                          className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all"
-                        />
-                      </td>
+                    {/* Default HSN */}
+                    <td className="py-2 px-3 text-center">
+                      <input
+                        type="text"
+                        value={cat.hsnCode}
+                        onChange={(e) => handleHsnChange(cat.id, e.target.value)}
+                        placeholder="90049000"
+                        maxLength={15}
+                        className="w-24 px-1.5 py-1 text-center bg-slate-50 border border-slate-200 rounded-md text-xs font-mono font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                      />
+                    </td>
 
-                      {/* CGST */}
-                      <td className="py-2.5 px-3 text-center">
-                        <div className="relative inline-flex items-center">
+                    {/* GST Rate (IGST Driver with Half split note) */}
+                    <td className="py-2 px-3 text-center bg-blue-50/15">
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        <div className="inline-flex items-center">
                           <input
                             type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            value={cat.cgstPercent}
-                            onChange={(e) => handleCgstChange(cat.id, e.target.value)}
-                            className="w-14 text-center px-1 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                          />
-                          <span className="text-[9px] text-slate-400 font-bold ml-0.5">%</span>
-                        </div>
-                      </td>
-
-                      {/* SGST */}
-                      <td className="py-2.5 px-3 text-center">
-                        <div className="relative inline-flex items-center">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            value={cat.sgstPercent}
-                            onChange={(e) => handleSgstChange(cat.id, e.target.value)}
-                            className="w-14 text-center px-1 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                          />
-                          <span className="text-[9px] text-slate-400 font-bold ml-0.5">%</span>
-                        </div>
-                      </td>
-
-                      {/* IGST (Primary Driver) */}
-                      <td className="py-2.5 px-3 text-center bg-blue-50/20">
-                        <div className="relative inline-flex items-center">
-                          <input
-                            type="number"
-                            step="0.1"
+                            step="0.5"
                             min="0"
                             max="100"
                             value={cat.igstPercent}
                             onChange={(e) => handleIgstChange(cat.id, e.target.value)}
-                            className="w-16 text-center px-1 py-1 bg-blue-50/60 border border-blue-300 rounded-lg text-xs font-extrabold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 focus:bg-white"
+                            className="w-14 text-center px-1 py-0.5 bg-blue-50/60 border border-blue-300 rounded-md text-xs font-black text-blue-700 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-600 focus:bg-white"
                           />
-                          <span className="text-[9px] text-blue-500 font-bold ml-0.5">%</span>
+                          <span className="text-[10px] text-blue-600 font-extrabold ml-1">%</span>
                         </div>
-                      </td>
-
-                      {/* Total Tax Pill */}
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide bg-blue-50 text-blue-700 border border-blue-200/60">
-                          {igstNum.toFixed(1)}% GST
+                        <span className="text-[9px] text-slate-400 font-medium">
+                          ({halfTax}% + {halfTax}%)
                         </span>
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* Discounts */}
-                      <td className="py-2.5 px-3 text-center">
-                        {saleDiscNum > 0 || purchDiscNum > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            {saleDiscNum}% S / {purchDiscNum}% P
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 font-mono">0% / 0%</span>
-                        )}
-                      </td>
+                    {/* Discounts */}
+                    <td className="py-2 px-3 text-center">
+                      {saleDiscNum > 0 || purchDiscNum > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          {saleDiscNum}% S / {purchDiscNum}% P
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-mono">0% / 0%</span>
+                      )}
+                    </td>
 
-                      {/* Allow Negative Stock Toggle */}
-                      <td className="py-2.5 px-3 text-center">
+                    {/* Allow Negative Stock Toggle */}
+                    <td className="py-2 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleNegativeStock(cat.id)}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
+                          cat.allowNegativeStock
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                            : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                        }`}
+                        title={cat.allowNegativeStock ? "Allowed: billing permitted when stock <= 0" : "Blocked: billing rejected when stock is 0"}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${cat.allowNegativeStock ? "bg-emerald-500" : "bg-slate-400"}`} />
+                        {cat.allowNegativeStock ? "Allowed" : "Blocked"}
+                      </button>
+                    </td>
+
+                    {/* Actions: Edit & Delete */}
+                    <td className="py-2 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
-                          onClick={() => handleToggleNegativeStock(cat.id)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
-                            cat.allowNegativeStock
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                              : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-                          }`}
-                          title={cat.allowNegativeStock ? "Negative stock allowed: users can bill when stock <= 0" : "Blocked: invoice creation rejected when stock reaches 0"}
+                          onClick={() => openEditModal(cat)}
+                          title="Edit category settings"
+                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full ${cat.allowNegativeStock ? "bg-emerald-500" : "bg-slate-400"}`} />
-                          {cat.allowNegativeStock ? "Allowed" : "Blocked"}
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
-                      </td>
-
-                      {/* Actions: Edit & Delete */}
-                      <td className="py-2.5 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                        {!cat.isSystem && (
                           <button
                             type="button"
-                            onClick={() => openEditModal(cat)}
-                            title="Edit full category settings"
-                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                            disabled={deletePendingId === cat.id}
+                            title="Delete custom category"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
                           >
-                            <Pencil className="w-3.5 h-3.5" />
+                            {deletePendingId === cat.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
                           </button>
-                          {!cat.isSystem && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                              disabled={deletePendingId === cat.id}
-                              title="Delete custom category"
-                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            >
-                              {deletePendingId === cat.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
-                              ) : (
-                                <Trash2 className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* MODERN MEDIUM-SIZED ADD / EDIT CATEGORY MODAL */}
+      {/* COMPACT & ZERO VERTICAL SCROLL ADD / EDIT CATEGORY MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center">
-                  <Layers className="w-4 h-4" />
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header (Compact) */}
+            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                  <Layers className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-slate-800 tracking-tight">
-                    {modalMode === "create" ? "Add New Product Category" : `Edit Category: ${formName || "Details"}`}
+                  <h3 className="text-sm font-extrabold text-slate-800 tracking-tight leading-tight">
+                    {modalMode === "create" ? "Add Product Category" : `Edit Category: ${formName || "Details"}`}
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-                    {modalMode === "create" ? "Define names, tax rates, and stock rules" : "Update category attributes & tax configuration"}
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Configure category name, default tax slab, and stock behavior
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleModalSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
-              {/* CARD 1: GENERAL INFORMATION (2x2 Grid) */}
-              <div className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-xl space-y-3">
-                <div className="flex items-center gap-1.5 text-[11px] font-black uppercase text-slate-600 tracking-wider">
-                  <Tag className="w-3.5 h-3.5 text-blue-600" />
-                  <span>General Information</span>
+            {/* Modal Form — Fits Completely On-Screen without Vertical Scroll */}
+            <form onSubmit={handleModalSubmit} className="p-4 sm:p-5 space-y-3">
+              {/* ROW 1: CATEGORY NAME & CODE (2-Col) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
+                    Category Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sunglasses, Blue Cut"
+                    value={formName}
+                    onChange={(e) => handleNameInputChange(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                    autoFocus
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
-                      Category Name <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Sunglasses, Reading Glasses"
-                      value={formName}
-                      onChange={(e) => handleNameInputChange(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500 transition-all"
-                      autoFocus
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide flex items-center justify-between">
-                      <span>Print Name</span>
-                      <span className="text-[9px] text-slate-400 font-normal lowercase">(on invoices/slips)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Sunglass / SG"
-                      value={formPrintName}
-                      onChange={(e) => {
-                        setFormPrintName(e.target.value);
-                        setIsPrintNameCustom(true);
-                      }}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500 transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
-                      Category Code
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. SUNGLASSES"
-                      value={formCode}
-                      onChange={(e) => setFormCode(e.target.value.toUpperCase())}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 outline-none focus:border-blue-500 transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
-                      Default HSN Code
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 90041000"
-                      value={formHsn}
-                      onChange={(e) => setFormHsn(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 outline-none focus:border-blue-500 transition-all"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
+                    Category Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SUNGLASSES"
+                    value={formCode}
+                    onChange={(e) => setFormCode(e.target.value.toUpperCase())}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  />
                 </div>
               </div>
 
-              {/* CARD 2: DEFAULT GST TAX PERCENTAGES */}
-              <div className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-[11px] font-black uppercase text-slate-600 tracking-wider">
-                    <Percent className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Default GST Tax Structure</span>
-                  </div>
-                  <span className="text-[9px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
-                    Smart 50/50 Division
-                  </span>
+              {/* ROW 2: DEFAULT HSN CODE & GST RATE PRESETS (2-Col) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50/70 border border-slate-200 rounded-xl">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
+                    Default HSN Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 90041000"
+                    value={formHsn}
+                    onChange={(e) => setFormHsn(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 outline-none focus:border-blue-500 transition-all"
+                  />
+                  <span className="text-[9px] text-slate-400 block">Standard HSN for tax compliance</span>
                 </div>
 
-                {/* Quick Presets */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-bold text-slate-400 mr-1">Presets:</span>
-                  {TAX_PRESETS.map((preset) => (
-                    <button
-                      key={preset.value}
-                      type="button"
-                      onClick={() => handleTaxPresetClick(preset.value)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                        formIgst === preset.value
-                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                          : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* 3-Column Inline Inputs */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wide block text-center">
-                      IGST (%)
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
+                      GST Rate (IGST)
                     </label>
+                    <span className="text-[9px] font-bold text-blue-600">
+                      {formCgst}% CGST + {formSgst}% SGST
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="number"
-                      step="0.1"
+                      step="0.5"
                       min="0"
                       max="100"
                       value={formIgst}
                       onChange={(e) => handleModalIgstChange(e.target.value)}
-                      className="w-full text-center px-2 py-1.5 bg-white border border-blue-300 rounded-lg text-xs font-extrabold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                      className="w-16 px-2 py-1 bg-white border border-blue-300 rounded-lg text-xs font-black text-blue-700 text-center outline-none focus:ring-1 focus:ring-blue-500"
                     />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide block text-center">
-                      CGST (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={formCgst}
-                      onChange={(e) => setFormCgst(e.target.value)}
-                      className="w-full text-center px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide block text-center">
-                      SGST (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={formSgst}
-                      onChange={(e) => setFormSgst(e.target.value)}
-                      className="w-full text-center px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
-                    />
+                    <div className="flex items-center gap-1 flex-wrap flex-1">
+                      {TAX_PRESETS.map((preset) => (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => handleTaxPresetClick(preset.value)}
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-all cursor-pointer ${
+                            formIgst === preset.value
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                          }`}
+                        >
+                          {preset.label.split(" ")[0]}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* CARD 3: COMMERCIAL & INVENTORY DEFAULTS (COLLAPSIBLE / COMPACT) */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50/80 flex items-center justify-between text-left hover:bg-slate-100/70 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5 text-[11px] font-black uppercase text-slate-600 tracking-wider">
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Commercial Defaults &amp; Inventory Rules</span>
+              {/* ROW 3: COMMERCIAL DISCOUNTS & STOCK TOGGLES (2-Col) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Default Discounts */}
+                <div className="p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl space-y-1.5">
+                  <div className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-600 tracking-wide">
+                    <SlidersHorizontal className="w-3 h-3 text-blue-600" />
+                    <span>Default Discounts (%)</span>
                   </div>
-                  {isAdvancedOpen ? (
-                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                  )}
-                </button>
-
-                {isAdvancedOpen && (
-                  <div className="p-3.5 bg-white space-y-3 border-t border-slate-100">
-                    {/* Discounts 2-Column Grid */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
-                          Default Sale Discount (%)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max="100"
-                          placeholder="0"
-                          value={formSaleDiscount}
-                          onChange={(e) => setFormSaleDiscount(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
-                          Default Purchase Discount (%)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max="100"
-                          placeholder="0"
-                          value={formPurchaseDiscount}
-                          onChange={(e) => setFormPurchaseDiscount(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all"
-                        />
-                      </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-500 block mb-0.5">Sale Disc %</span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        value={formSaleDiscount}
+                        onChange={(e) => setFormSaleDiscount(e.target.value)}
+                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                      />
                     </div>
-
-                    {/* Stockable Toggle Row */}
-                    <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-slate-800">
-                            Set as Stockable (Inventory Tracking)
-                          </span>
-                        </div>
-                        <span className="block text-[10px] text-slate-400 font-medium">
-                          Track physical stock units on hand (disable for repair/service fees)
-                        </span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={formIsStockable}
-                          onChange={(e) => setFormIsStockable(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-
-                    {/* Allow Negative Stock Toggle Row */}
-                    <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="space-y-0.5">
-                        <span className="block text-xs font-bold text-slate-800">
-                          Allow Negative Inventory
-                        </span>
-                        <span className="block text-[10px] text-slate-400 font-medium">
-                          Permit billing and booking when on-hand quantity is 0 or less
-                        </span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={formAllowNegativeStock}
-                          onChange={(e) => setFormAllowNegativeStock(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
-                      </label>
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-500 block mb-0.5">Purch Disc %</span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        value={formPurchaseDiscount}
+                        onChange={(e) => setFormPurchaseDiscount(e.target.value)}
+                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                      />
                     </div>
                   </div>
-                )}
+                </div>
+
+                {/* Stock Controls */}
+                <div className="p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">Stockable Item</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Track physical inventory</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={formIsStockable}
+                        onChange={(e) => setFormIsStockable(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">Allow Negative Stock</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Bill when quantity &le; 0</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={formAllowNegativeStock}
+                        onChange={(e) => setFormAllowNegativeStock(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+                </div>
               </div>
 
-              {/* CARD 4: RETROACTIVE SYNC OPTION */}
-              <div className="p-3 bg-amber-50/60 border border-amber-200/60 rounded-xl">
-                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              {/* ROW 4: RETROACTIVE SYNC OPTION (Clean Inline) */}
+              <div className="p-2.5 bg-amber-50/60 border border-amber-200/60 rounded-xl">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={formApplyToExisting}
                     onChange={(e) => setFormApplyToExisting(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-amber-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    className="h-3.5 w-3.5 rounded border-amber-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-bold text-amber-900">
-                      Apply HSN, GST &amp; discounts to all existing products
-                    </span>
-                    <span className="block text-[10px] text-amber-700/80 font-medium leading-tight">
-                      When checked, updates default tax percentages and HSN code across all active inventory items matching this category.
-                    </span>
-                  </div>
+                  <span className="text-[11px] font-bold text-amber-900">
+                    Apply default HSN, GST &amp; discounts to all existing products in this category
+                  </span>
                 </label>
               </div>
 
-              {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              {/* MODAL FOOTER */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
