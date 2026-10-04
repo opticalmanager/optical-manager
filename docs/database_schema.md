@@ -361,9 +361,9 @@ Base entity for all stock items across all categories (Frames, Lenses, Contact L
 | `sku` | `varchar(100)` | NULLABLE, INDEXED | Barcode / SKU string (synchronized with productCode) |
 | `price` | `decimal(10,2)` | NULLABLE | Retail selling price (null for catalog items awaiting price assignment) |
 | `costPrice` | `decimal(10,2)` | NULLABLE | Purchase / acquisition cost price |
-| `quantity` | `integer` | NOT NULL, DEFAULT 0 | Current on-hand stock count (permits negative values when backordering is enabled) |
+| `quantity` | `integer` | NOT NULL, DEFAULT 0 | Current on-hand stock count (permits negative values when backordering is enabled, or initialized to `-quantitySold` during on-demand custom invoice billing) |
 | `minQuantity` | `integer` | NOT NULL, DEFAULT 5 | Low-stock threshold trigger level |
-| `allowNegativeStock` | `boolean` | NULLABLE | 3-way negative inventory override (`null`: inherit from category, `true`: always allow, `false`: disallow) |
+| `allowNegativeStock` | `boolean` | NULLABLE | 3-way negative inventory override (`null`: inherit from category, `true`: always allow, `false`: disallow; automatically set to `true` on auto-created custom invoice products) |
 | `isActive` | `boolean` | NOT NULL, DEFAULT true | Active status toggle |
 | `imageUrl` | `text` | NULLABLE | Cloudinary / Supabase storage image URL |
 | `hsnCode` | `varchar(20)` | NULLABLE | Harmonized System of Nomenclature code for GST |
