@@ -1879,6 +1879,10 @@ export function NewInvoiceForm() {
           return {
             inventoryId: item.inventoryId || null,
             description: desc,
+            category: item.category || "General",
+            barcode: item.barcode || undefined,
+            productCode: item.productCode || undefined,
+            sku: item.sku || undefined,
             quantity: qty,
             unitPrice: item.unitPrice,
             subtotal: itemSubtotal,

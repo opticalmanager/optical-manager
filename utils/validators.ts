@@ -666,6 +666,10 @@ export const invoiceSchema = z.object({
 export const invoiceItemSchema = z.object({
   inventoryId: z.string().optional().nullable().or(z.literal("")),
   description: z.string().min(1, "Product description is required."),
+  category: z.string().optional().nullable(),
+  barcode: z.string().optional().nullable(),
+  productCode: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
   quantity: z.coerce.number().int().min(1, "Quantity must be at least 1."),
   unitPrice: z.coerce.number().min(0, "Price cannot be negative."),
   subtotal: z.coerce.number().min(0),

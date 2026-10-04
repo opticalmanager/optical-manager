@@ -225,7 +225,11 @@ export async function getCustomersDashboard(shopId: string): Promise<any[]> {
     .select({
       customerId: invoices.customerId,
       maxInvoiceDate: sql`max(${invoices.createdAt}) filter (where ${invoices.createdAt} <= NOW())`.as("max_invoice_date"),
-      latestFulfillmentStatus: sql`(array_agg(${invoices.fulfillmentStatus} order by ${invoices.createdAt} desc))[1]`.as("latest_fulfillment_status"),
+      latestFulfillmentStatus: sql`CASE 
+        WHEN bool_or(${invoices.fulfillmentStatus} = 'PROCESSING') THEN 'PROCESSING'
+        WHEN sum(${invoices.balanceDue}) > 0 THEN 'PROCESSING'
+        ELSE (array_agg(${invoices.fulfillmentStatus} order by ${invoices.createdAt} desc))[1]
+      END`.as("latest_fulfillment_status"),
       pendingDues: sql`sum(${invoices.balanceDue})`.as("pending_dues"),
     })
     .from(invoices)

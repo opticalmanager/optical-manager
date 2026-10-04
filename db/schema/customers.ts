@@ -36,7 +36,7 @@ export const customers = pgTable("customers", {
   registrationId: varchar("registration_id", { length: 50 }),
   fullName: varchar("full_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 20 }).notNull(),
+  phone: varchar("phone", { length: 20 }),
   dateOfBirth: date("date_of_birth"),
   address: text("address"),
   city: varchar("city", { length: 100 }),

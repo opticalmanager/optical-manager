@@ -53,7 +53,7 @@ interface BulkInvoiceImportClientProps {
   existingCustomers: Array<{
     id: string;
     fullName: string;
-    phone: string;
+    phone: string | null;
     registrationId: string | null;
   }>;
   existingInvoiceNumbers: string[];
