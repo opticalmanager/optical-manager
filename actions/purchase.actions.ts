@@ -9,7 +9,7 @@ import {
   VendorFormValues,
 } from "@/utils/validators";
 import { createPurchaseOrder } from "@/services/purchase.service";
-import { createVendor, getVendorsByOrganization } from "@/services/vendor.service";
+import { createVendor, updateVendor, getVendorsByOrganization } from "@/services/vendor.service";
 
 /**
  * Server action to create and finalize a purchase order.
@@ -37,11 +37,50 @@ export async function createPurchaseAction(data: PurchaseOrderFormValues) {
 
     const payload = validated.data;
 
+    // Auto-create or resolve vendor if vendorId is missing or vendor doesn't exist yet
+    let resolvedVendorId = payload.vendorId || null;
+    const cleanVendorName = (payload.vendorName || "").trim();
+    const cleanVendorGstin = (payload.vendorGstin || "").trim();
+
+    if (cleanVendorName) {
+      const orgVendors = await getVendorsByOrganization(user.organizationId);
+      const matchedVendor = orgVendors.find(
+        (v) =>
+          (resolvedVendorId && v.id === resolvedVendorId) ||
+          v.name.toLowerCase() === cleanVendorName.toLowerCase() ||
+          (cleanVendorGstin && v.gstin && v.gstin.toUpperCase() === cleanVendorGstin.toUpperCase())
+      );
+
+      if (matchedVendor) {
+        resolvedVendorId = matchedVendor.id;
+        if (!matchedVendor.gstin && cleanVendorGstin) {
+          try {
+            await updateVendor(matchedVendor.id, user.organizationId, { gstin: cleanVendorGstin });
+          } catch (e) {
+            console.warn("Could not backfill vendor GSTIN:", e);
+          }
+        }
+      } else {
+        try {
+          const createdVendor = await createVendor({
+            shopId: user.shopId,
+            organizationId: user.organizationId,
+            name: cleanVendorName,
+            gstin: cleanVendorGstin || undefined,
+            isActive: true,
+          });
+          resolvedVendorId = createdVendor.id;
+        } catch (vErr) {
+          console.warn("Failed to auto-create vendor:", vErr);
+        }
+      }
+    }
+
     const result = await createPurchaseOrder({
       shopId: user.shopId,
       organizationId: user.organizationId,
-      vendorId: payload.vendorId || null,
-      vendorName: payload.vendorName,
+      vendorId: resolvedVendorId,
+      vendorName: cleanVendorName || payload.vendorName,
       purchaseNumber: payload.purchaseNumber,
       purchaseDate: payload.purchaseDate,
       status: "COMPLETED",
@@ -120,11 +159,50 @@ export async function savePurchaseDraftAction(data: PurchaseOrderFormValues) {
 
     const payload = validated.data;
 
+    // Auto-create or resolve vendor if vendorId is missing or vendor doesn't exist yet
+    let resolvedVendorId = payload.vendorId || null;
+    const cleanVendorName = (payload.vendorName || "").trim();
+    const cleanVendorGstin = (payload.vendorGstin || "").trim();
+
+    if (cleanVendorName) {
+      const orgVendors = await getVendorsByOrganization(user.organizationId);
+      const matchedVendor = orgVendors.find(
+        (v) =>
+          (resolvedVendorId && v.id === resolvedVendorId) ||
+          v.name.toLowerCase() === cleanVendorName.toLowerCase() ||
+          (cleanVendorGstin && v.gstin && v.gstin.toUpperCase() === cleanVendorGstin.toUpperCase())
+      );
+
+      if (matchedVendor) {
+        resolvedVendorId = matchedVendor.id;
+        if (!matchedVendor.gstin && cleanVendorGstin) {
+          try {
+            await updateVendor(matchedVendor.id, user.organizationId, { gstin: cleanVendorGstin });
+          } catch (e) {
+            console.warn("Could not backfill vendor GSTIN:", e);
+          }
+        }
+      } else {
+        try {
+          const createdVendor = await createVendor({
+            shopId: user.shopId,
+            organizationId: user.organizationId,
+            name: cleanVendorName,
+            gstin: cleanVendorGstin || undefined,
+            isActive: true,
+          });
+          resolvedVendorId = createdVendor.id;
+        } catch (vErr) {
+          console.warn("Failed to auto-create vendor in draft:", vErr);
+        }
+      }
+    }
+
     const result = await createPurchaseOrder({
       shopId: user.shopId,
       organizationId: user.organizationId,
-      vendorId: payload.vendorId || null,
-      vendorName: payload.vendorName,
+      vendorId: resolvedVendorId,
+      vendorName: cleanVendorName || payload.vendorName,
       purchaseNumber: payload.purchaseNumber,
       purchaseDate: payload.purchaseDate,
       status: "DRAFT",

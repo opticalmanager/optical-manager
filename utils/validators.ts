@@ -805,6 +805,7 @@ export const purchaseOrderSchema = z.object({
   purchaseDate: z.string().min(1, "Purchase date is required."),
   vendorId: z.string().optional().nullable().or(z.literal("")),
   vendorName: z.string().min(1, "Supplier/vendor name is required.").max(255),
+  vendorGstin: z.string().optional().nullable().or(z.literal("")),
   purchaseNumber: z.string().min(1, "Purchase bill number is required.").max(100),
   taxRule: z.enum(["EXCLUDE", "INCLUDE"]).default("EXCLUDE"),
   taxType: z.string().default("SGST_CGST"),

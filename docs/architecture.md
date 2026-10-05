@@ -112,6 +112,7 @@ The POS billing engine features an 11-column high-density ERP ledger grid design
 - **Bi-Directional Dual-Editable Tax Ledger**: CGST, SGST, and IGST fields are completely editable per row item. Both the calculated Rupee amount (`amount`) and rate (`percent`) feature bi-directional reactivity (changing percent recalculates amount, and changing amount recalculates percent). No currency glyphs (`₹`) appear inside input fields, preventing visual clutter and typing obstructions.
 - **Separation of Item Code & Description**: The Product Search column cleanly displays the search input and exclusively the active item code badge (Barcode, Product Code, or SKU). Product name, brand, model, and clinical specifications are formatted into the Item Description column with `title` hover tooltips to avoid text clipping.
 - **Bi-Directional Discount & Price Engine**: Computes row totals reactively from `unitPrice`, `quantity`, `discountPercent`, `discountAmount`, `cgstPercent`, `sgstPercent`, and `igstPercent`. Discount percentage is strictly clamped between 0% and 100%, and discount amount cannot exceed line subtotal.
+- **Bi-Directional Total Price Entry & Reverse Tax Back-Calculation**: The Row Total column (`Column 11`) is an interactive, directly editable decimal input. Entering a total price directly (e.g. ₹1,000 all-inclusive retail price) automatically back-calculates the taxable base price (`unitPrice` / `taxableSubtotal`) and breaks down statutory GST amounts (`cgstAmount`, `sgstAmount`, `igstAmount`) based on the selected category's GST rate and intra-state/inter-state rules with 0-paisa rounding precision (`taxableSubtotal + taxes === rowTotal`). If the category is switched after entering the total price, the total price is preserved while base price and GST amounts re-adjust automatically. Entering unit price directly preserves traditional forward calculation.
 - **Strict Input Constraints & Multi-Device Responsiveness**: Numerical enforcement via `inputMode="numeric"` / `inputMode="decimal"` and clean integer/decimal parsing. The table wrapper enforces `min-w-[1280px]` with horizontal scrolling, guaranteeing that no columns or input texts become clipped on smaller viewports.
 
 ### 3.2 Negative Inventory (Backordering) & Stock Movement Architecture
@@ -375,5 +376,29 @@ Optical Manager renders official tax invoices and receipts as authentic A4 physi
    - **Automatic Scale Reset During Export**: Temporarily un-zooms the document during canvas capture to guarantee pristine vector-like 300 DPI resolution, then restores user zoom scale seamlessly.
    - **Standardized Enterprise File Naming**: Generated PDF files are strictly formatted as `[Organization_Or_Store_Name]_[Invoice_Number].pdf` (e.g. `Eye_Care_Opticals_INV-2026-0042.pdf`).
    - **Native Print Integration**: `handlePrint()` updates `document.title` to the standardized filename before calling `window.print()`, so browser "Save as PDF" dialogs also pre-populate the exact standardized file name. In `@media print`, all transforms and zoom controls are bypassed for 100% physical A4 printing.
+
+---
+
+## 10. 📦 Add Purchase Ledger, AI Bill Extraction & Auto-Vendor Onboarding Engine
+
+The **Add Purchase** workflow (`/shop/purchases/new`) integrates Gemini multimodal AI bill parsing with a zero-loss bidirectional purchase calculation engine and automatic vendor master onboarding.
+
+### Architectural Highlights:
+1. **Purchase Cost Driven Math Engine (`components/shop/PurchaseAddForm.tsx`)**:
+   - Treats supplier billed rates as net **Purchase Cost** (`purchasePrice`) per unit.
+   - Automatically back-calculates **Base Price** ($\text{unitPrice} = \frac{\text{purchasePrice}}{1 + \text{gstPercent}/100}$) and exact CGST/SGST/IGST tax splits, ensuring zero fractional round-off error between line totals and sum of base + taxes.
+   - Bidirectional recalculation vectors:
+     - User edits **Total Purchase Cost** (Column 10): $\text{purchasePrice} = \frac{\text{Total Cost}}{\text{Qty}} \to \text{unitPrice} \to \text{Taxes}$.
+     - User edits **Purchase Cost** (Column 8): $\text{unitPrice} \to \text{Total Cost}$.
+     - User edits **Base Price** (Column 5): $\text{purchasePrice} \to \text{Total Cost}$.
+     - User switches Category / HSN: Keeps `purchasePrice` constant and recalculates `unitPrice` with new statutory GST rate.
+2. **AI Bill Extraction & Fallback Rules (`actions/bill-scan.actions.ts`)**:
+   - Injects store's live Category Master (`productCategories`) into Gemini prompts with statutory HSN codes and GST rates.
+   - **Product Code Fallback**: If an uploaded bill lacks an explicit "Product Code" column, extracts structured codes from "Description of Goods" (e.g. `SI-20050,50-15-135,F900`) and preserves the full string to avoid variant collisions.
+   - **HSN Auto-Detection**: Matches 4/6/8-digit HSN codes against store categories (e.g., `9003` $\to$ Frames, `900410` $\to$ Sunglasses, `9001` $\to$ Lenses, `3307` $\to$ Solutions).
+   - **Retail Price Isolation**: Strictly keeps retail price blank (0), preventing supplier bills from polluting retail selling prices.
+3. **Automated Vendor Master Onboarding (`actions/purchase.actions.ts`)**:
+   - In both `createPurchaseAction` and `savePurchaseDraftAction`, vendor names are checked against `vendors`.
+   - If a vendor does not yet exist in the organization, it is automatically created with `shopId`, `organizationId`, name, GSTIN, and active status, linking the purchase order seamlessly without manual master entry.
 
 

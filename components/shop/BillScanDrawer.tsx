@@ -282,8 +282,13 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
 
   function handleApplyExtractedData() {
     if (!extractedData) return;
-    onApply(extractedData);
-    onClose();
+    try {
+      onApply(extractedData);
+      onClose();
+    } catch (err: any) {
+      console.error("Error applying extracted bill data:", err);
+      toast.error("Failed to populate purchase form. Please review rows.");
+    }
   }
 
   function handleRemoveItem(id: string) {
@@ -686,10 +691,10 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-extrabold text-blue-700">
-                      ₹{extractedData.totalAmount?.toLocaleString("en-IN") || "0"}
+                      ₹{Number(extractedData.totalAmount || 0).toLocaleString("en-IN")}
                     </span>
                     <p className="text-[10px] text-slate-500">
-                      {extractedData.items.length} items extracted
+                      {(extractedData.items || []).length} items extracted
                     </p>
                   </div>
                 </div>
@@ -734,17 +739,17 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                         <th className="py-2 px-3">Item & Code</th>
                         <th className="py-2 px-2 text-center">Cat</th>
                         <th className="py-2 px-2 text-right">Qty</th>
-                        <th className="py-2 px-2 text-right">Rate</th>
-                        <th className="py-2 px-2 text-right">Total</th>
+                        <th className="py-2 px-2 text-right">Cost (Rate)</th>
+                        <th className="py-2 px-2 text-right">Total Cost</th>
                         <th className="py-2 px-2 text-center w-8"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                      {extractedData.items.map((item, idx) => (
-                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      {(extractedData.items || []).map((item, idx) => (
+                        <tr key={item.id || idx} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-2 px-3">
                             <p className="font-semibold text-slate-800 line-clamp-1">
-                              {item.productName}
+                              {item.productName || "Product"}
                             </p>
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
                               {item.productCode && (
@@ -766,21 +771,27 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                             <span className={`inline-block rounded-sm px-1.5 py-0.5 text-[9px] font-bold ${
                               item.category === "SUNGLASSES"
                                 ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : item.category === "LENS"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : item.category === "CONTACT_LENS"
+                                ? "bg-cyan-50 text-cyan-700 border border-cyan-200"
+                                : item.category === "SOLUTION"
+                                ? "bg-purple-50 text-purple-700 border border-purple-200"
                                 : item.category === "FRAME"
                                 ? "bg-blue-50 text-blue-700"
                                 : "bg-slate-100 text-slate-600"
                             }`}>
-                              {item.category}
+                              {item.category || "FRAME"}
                             </span>
                           </td>
                           <td className="py-2 px-2 text-right font-medium text-slate-800">
-                            {item.quantity}
+                            {item.quantity || 1}
                           </td>
                           <td className="py-2 px-2 text-right font-mono text-slate-700">
-                            ₹{item.unitPrice.toFixed(0)}
+                            ₹{Number(item.purchasePrice || item.unitPrice || 0).toFixed(2)}
                           </td>
                           <td className="py-2 px-2 text-right font-bold text-slate-900 font-mono">
-                            ₹{item.totalPurchasePrice.toFixed(0)}
+                            ₹{Number(item.totalPurchasePrice || 0).toFixed(2)}
                           </td>
                           <td className="py-2 px-2 text-center">
                             <button

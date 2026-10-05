@@ -122,6 +122,65 @@ interface PurchaseAddFormProps {
   shopId: string;
 }
 
+/**
+ * Client-side helper to match an HSN code against the organization's saved categories.
+ * Supports exact match, prefix match (4, 6, or 8 digits), and optical statutory standards.
+ */
+function matchCategoryByHsnClient(
+  hsnCode?: string | null,
+  categoriesList: CategoryItem[] = []
+): CategoryItem | null {
+  if (!hsnCode) return null;
+  const cleanHsn = hsnCode.replace(/\D/g, "");
+  if (!cleanHsn) return null;
+
+  // 1. Direct match on saved category hsnCode
+  const direct = categoriesList.find((c) => {
+    if (!c.hsnCode) return false;
+    const catHsn = c.hsnCode.replace(/\D/g, "");
+    return catHsn === cleanHsn;
+  });
+  if (direct) return direct;
+
+  // 2. Prefix match (e.g. 9003 matches 90031100 or 90031900)
+  const prefix = categoriesList.find((c) => {
+    if (!c.hsnCode) return false;
+    const catHsn = c.hsnCode.replace(/\D/g, "");
+    return cleanHsn.startsWith(catHsn) || catHsn.startsWith(cleanHsn);
+  });
+  if (prefix) return prefix;
+
+  // 3. Optical Chapter 90 / 33 statutory standards
+  if (cleanHsn.startsWith("9003")) {
+    const frameCat = categoriesList.find((c) => c.code === "FRAME");
+    if (frameCat) return frameCat;
+  }
+  if (cleanHsn.startsWith("900410")) {
+    const sunCat = categoriesList.find((c) => c.code === "SUNGLASSES");
+    if (sunCat) return sunCat;
+  }
+  if (cleanHsn.startsWith("9004")) {
+    const sunCat = categoriesList.find((c) => c.code === "SUNGLASSES");
+    const frameCat = categoriesList.find((c) => c.code === "FRAME");
+    if (sunCat) return sunCat;
+    if (frameCat) return frameCat;
+  }
+  if (cleanHsn.startsWith("900130")) {
+    const clCat = categoriesList.find((c) => c.code === "CONTACT_LENS");
+    if (clCat) return clCat;
+  }
+  if (cleanHsn.startsWith("9001")) {
+    const lensCat = categoriesList.find((c) => c.code === "LENS");
+    if (lensCat) return lensCat;
+  }
+  if (cleanHsn.startsWith("3307")) {
+    const solCat = categoriesList.find((c) => c.code === "SOLUTION");
+    if (solCat) return solCat;
+  }
+
+  return null;
+}
+
 export function PurchaseAddForm({
   categories,
   vendors,
@@ -138,6 +197,7 @@ export function PurchaseAddForm({
   const [taxType, setTaxType] = useState<string>("SGST_CGST");
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [vendorName, setVendorName] = useState<string>("");
+  const [vendorGstin, setVendorGstin] = useState<string>("");
   const [purchaseNumber, setPurchaseNumber] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [roundOff, setRoundOff] = useState<number>(0);
@@ -163,14 +223,26 @@ export function PurchaseAddForm({
     createEmptyRow(3),
   ]);
 
+  function generateRowId(): string {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      try {
+        return crypto.randomUUID();
+      } catch (e) {
+        // Fallback for non-secure contexts
+      }
+    }
+    return `row_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
   function createEmptyRow(serial: number): PurchaseTableRow {
     // Default to first category GST rates
-    const defaultCat = categories[0];
+    const safeCategories = Array.isArray(categories) ? categories : [];
+    const defaultCat = safeCategories[0];
     const igst = defaultCat ? parseFloat(defaultCat.igstPercent) || 12 : 12;
     const half = Number((igst / 2).toFixed(2));
 
     return {
-      id: crypto.randomUUID(),
+      id: generateRowId(),
       inventoryId: null,
       productName: "",
       productCode: "",
@@ -197,7 +269,7 @@ export function PurchaseAddForm({
     };
   }
 
-  // Row recalculation helper with bidirectional Base Price <-> Purchase Cost math
+  // Row recalculation helper with bidirectional Base Price <-> Purchase Cost <-> Total Cost math
   const recalculateRow = (
     row: PurchaseTableRow,
     updates: Partial<PurchaseTableRow>
@@ -207,20 +279,71 @@ export function PurchaseAddForm({
     const qty =
       merged.quantity === "" || isNaN(Number(merged.quantity))
         ? 0
-        : Number(merged.quantity);
-    const gstPct = isNaN(merged.gstPercent) ? 0 : Math.max(0, merged.gstPercent);
+        : Math.max(0, Number(merged.quantity));
 
-    let unitPrice = isNaN(merged.unitPrice) ? 0 : Math.max(0, merged.unitPrice);
-    let purchasePrice = isNaN(merged.purchasePrice)
+    // Auto-detect Category from HSN code if user modified HSN without selecting category
+    if (updates.hsnCode !== undefined && updates.category === undefined) {
+      const hsnInput = String(updates.hsnCode || "").trim();
+      if (hsnInput) {
+        const safeCategories = Array.isArray(categories) ? categories : [];
+        const matched = matchCategoryByHsnClient(hsnInput, safeCategories);
+        if (matched) {
+          merged.category = matched.code;
+          const matchedGst = parseFloat(matched.igstPercent) || 12;
+          merged.gstPercent = matchedGst;
+          merged.cgstPercent = Number((matchedGst / 2).toFixed(2));
+          merged.sgstPercent = Number((matchedGst / 2).toFixed(2));
+          merged.igstPercent = matchedGst;
+        }
+      }
+    }
+
+    const gstPct = isNaN(Number(merged.gstPercent)) ? 0 : Math.max(0, Number(merged.gstPercent));
+
+    let unitPrice = isNaN(Number(merged.unitPrice)) ? 0 : Math.max(0, Number(merged.unitPrice));
+    let purchasePrice = isNaN(Number(merged.purchasePrice))
       ? 0
-      : Math.max(0, merged.purchasePrice);
+      : Math.max(0, Number(merged.purchasePrice));
+    let totalPurchasePrice = isNaN(Number(merged.totalPurchasePrice))
+      ? 0
+      : Math.max(0, Number(merged.totalPurchasePrice));
 
-    // If purchasePrice was directly updated without unitPrice, back-calculate unitPrice (Base Price)
-    if (updates.purchasePrice !== undefined && updates.unitPrice === undefined) {
-      unitPrice = Number((purchasePrice / (1 + gstPct / 100)).toFixed(2));
-    } else {
-      // Otherwise unitPrice drives purchasePrice
+    // Priority 1: User directly edited Total Cost (Column 10)
+    if (updates.totalPurchasePrice !== undefined) {
+      totalPurchasePrice = Math.max(0, Number(updates.totalPurchasePrice) || 0);
+      purchasePrice = qty > 0 ? Number((totalPurchasePrice / qty).toFixed(2)) : totalPurchasePrice;
+      unitPrice = gstPct > 0 ? Number((purchasePrice / (1 + gstPct / 100)).toFixed(2)) : purchasePrice;
+    }
+    // Priority 2: User directly edited Purchase Cost (Column 8) or Category/HSN changed while purchasePrice > 0
+    else if (
+      updates.purchasePrice !== undefined ||
+      (updates.hsnCode !== undefined && purchasePrice > 0) ||
+      (updates.category !== undefined && purchasePrice > 0)
+    ) {
+      if (updates.purchasePrice !== undefined) {
+        purchasePrice = Math.max(0, Number(updates.purchasePrice) || 0);
+      }
+      unitPrice = gstPct > 0 ? Number((purchasePrice / (1 + gstPct / 100)).toFixed(2)) : purchasePrice;
+      totalPurchasePrice = Number((purchasePrice * qty).toFixed(2));
+    }
+    // Priority 3: User directly edited Base Price (Column 5)
+    else if (updates.unitPrice !== undefined) {
+      unitPrice = Math.max(0, Number(updates.unitPrice) || 0);
       purchasePrice = Number((unitPrice * (1 + gstPct / 100)).toFixed(2));
+      totalPurchasePrice = Number((purchasePrice * qty).toFixed(2));
+    }
+    // Priority 4: User edited GST% directly
+    else if (updates.gstPercent !== undefined) {
+      if (purchasePrice > 0) {
+        unitPrice = gstPct > 0 ? Number((purchasePrice / (1 + gstPct / 100)).toFixed(2)) : purchasePrice;
+      } else {
+        purchasePrice = Number((unitPrice * (1 + gstPct / 100)).toFixed(2));
+      }
+      totalPurchasePrice = Number((purchasePrice * qty).toFixed(2));
+    }
+    // Priority 5: Quantity or other spec changes
+    else {
+      totalPurchasePrice = Number((purchasePrice * qty).toFixed(2));
     }
 
     // GST split: CGST = GST/2, SGST = GST/2, IGST = GST
@@ -232,27 +355,25 @@ export function PurchaseAddForm({
     // Base Price Total = Qty × Unit Base Price
     const basePrice = Number((qty * unitPrice).toFixed(2));
 
-    // GST Amounts
-    const cgstAmount = Number((basePrice * (cgstPct / 100)).toFixed(2));
-    const sgstAmount = Number((basePrice * (sgstPct / 100)).toFixed(2));
-    const igstAmount = Number((basePrice * (igstPct / 100)).toFixed(2));
-
-    // Total Purchase Cost = purchasePrice × qty
-    const totalPurchasePrice = Number((purchasePrice * qty).toFixed(2));
+    // GST Amounts derived exactly from totalPurchasePrice - basePrice to prevent fractional discrepancies
+    const totalTax = Number(Math.max(0, totalPurchasePrice - basePrice).toFixed(2));
+    const cgstAmount = Number((totalTax / 2).toFixed(2));
+    const sgstAmount = Number((totalTax - cgstAmount).toFixed(2));
+    const igstAmount = totalTax;
 
     return {
       ...merged,
-      unitPrice,
-      basePrice,
-      gstPercent: gstPct,
-      cgstPercent: cgstPct,
-      cgstAmount,
-      sgstPercent: sgstPct,
-      sgstAmount,
-      igstPercent: igstPct,
-      igstAmount,
-      purchasePrice,
-      totalPurchasePrice,
+      unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
+      basePrice: isNaN(basePrice) ? 0 : basePrice,
+      gstPercent: isNaN(gstPct) ? 0 : gstPct,
+      cgstPercent: isNaN(cgstPct) ? 0 : cgstPct,
+      cgstAmount: isNaN(cgstAmount) ? 0 : cgstAmount,
+      sgstPercent: isNaN(sgstPct) ? 0 : sgstPct,
+      sgstAmount: isNaN(sgstAmount) ? 0 : sgstAmount,
+      igstPercent: isNaN(igstPct) ? 0 : igstPct,
+      igstAmount: isNaN(igstAmount) ? 0 : igstAmount,
+      purchasePrice: isNaN(purchasePrice) ? 0 : purchasePrice,
+      totalPurchasePrice: isNaN(totalPurchasePrice) ? 0 : totalPurchasePrice,
     };
   };
 
@@ -266,22 +387,27 @@ export function PurchaseAddForm({
     });
   };
 
-  // Category switch handler: auto-populates category GST and HSN
+  // Category switch handler: auto-populates category GST and HSN while preserving purchasePrice
   const handleCategoryChange = (index: number, newCatCode: string) => {
-    const matched = categories.find(
+    const safeCategories = Array.isArray(categories) ? categories : [];
+    const matched = safeCategories.find(
       (c) => c.code.toUpperCase() === newCatCode.toUpperCase()
     );
     const igst = matched ? parseFloat(matched.igstPercent) || 12 : 12;
     const half = Number((igst / 2).toFixed(2));
     const hsn = matched?.hsnCode || "";
 
+    const currentRow = rows[index];
+    const currentPurchasePrice = Number(currentRow?.purchasePrice) || 0;
+
     updateRow(index, {
       category: newCatCode,
-      hsnCode: hsn || rows[index]?.hsnCode || "",
+      hsnCode: hsn || currentRow?.hsnCode || "",
       gstPercent: igst,
       cgstPercent: half,
       sgstPercent: half,
       igstPercent: igst,
+      ...(currentPurchasePrice > 0 ? { purchasePrice: currentPurchasePrice } : {}),
     });
   };
 
@@ -302,10 +428,11 @@ export function PurchaseAddForm({
       // 4: gstPercent
       // 5: purchasePrice (Purchase Cost)
       // 6: quantity
-      // 7: retailPrice (MRP)
+      // 7: totalPurchasePrice (Total Cost)
+      // 8: retailPrice (MRP)
 
       const nextCol = colIndex + 1;
-      if (nextCol <= 7) {
+      if (nextCol <= 8) {
         const nextElem = document.querySelector<HTMLElement>(
           `[data-row="${rowIndex}"][data-col="${nextCol}"]`
         );
@@ -316,7 +443,7 @@ export function PurchaseAddForm({
           }
         }
       } else {
-        // At the end of the row (col 7): move to first cell of next row
+        // At the end of the row (col 8): move to first cell of next row
         const nextRow = rowIndex + 1;
         if (nextRow < rows.length) {
           const nextElem = document.querySelector<HTMLElement>(
@@ -390,8 +517,8 @@ export function PurchaseAddForm({
     const searchTimers: NodeJS.Timeout[] = [];
 
     rows.forEach((row, idx) => {
-      if (row.isSearching && row.productCode.trim()) {
-        const query = row.productCode.trim();
+      if (row.isSearching && (row.productCode || "").trim()) {
+        const query = (row.productCode || "").trim();
         const timer = setTimeout(async () => {
           try {
             const vendorParam = vendorName ? `&vendor=${encodeURIComponent(vendorName)}` : "";
@@ -569,90 +696,120 @@ export function PurchaseAddForm({
 
   // Handler to apply AI extracted bill data into the form
   const handleApplyExtractedBill = (data: ExtractedBillData) => {
-    // 1. Auto-select or set vendor
-    if (data.matchedVendorId) {
-      setSelectedVendorId(data.matchedVendorId);
-      setVendorName(data.vendorName || "");
-    } else if (data.vendorName) {
-      setSelectedVendorId(null);
-      setVendorName(data.vendorName);
-    }
+    try {
+      if (!data) return;
 
-    // 2. Invoice number & date
-    if (data.invoiceNumber) {
-      setPurchaseNumber(data.invoiceNumber);
-    }
-    if (data.invoiceDate) {
-      setPurchaseDate(data.invoiceDate);
-    }
+      // 1. Auto-select or set vendor
+      if (data.matchedVendorId) {
+        setSelectedVendorId(data.matchedVendorId);
+        setVendorName(data.vendorName || "");
+        if (data.vendorGstin) setVendorGstin(data.vendorGstin);
+      } else if (data.vendorName) {
+        setSelectedVendorId(null);
+        setVendorName(data.vendorName);
+        if (data.vendorGstin) setVendorGstin(data.vendorGstin);
+      }
 
-    // 3. Tax type
-    if (data.taxType) {
-      setTaxType(data.taxType);
-    }
+      // 2. Invoice number & date
+      if (data.invoiceNumber) {
+        setPurchaseNumber(data.invoiceNumber);
+      }
+      if (data.invoiceDate) {
+        setPurchaseDate(data.invoiceDate);
+      }
 
-    // 4. Populate table rows with extracted line items
-    if (data.items && data.items.length > 0) {
-      const newRows: PurchaseTableRow[] = data.items.map((item) => {
-        const matchedCat = categories.find((c) => c.code === item.category);
-        const hsn = item.hsnCode || matchedCat?.hsnCode || "90049000";
+      // 3. Tax type
+      if (data.taxType) {
+        setTaxType(data.taxType);
+      }
 
-        const detailsParts = [item.brand, item.model].filter(Boolean);
-        const detailsStr = detailsParts.length > 0 ? detailsParts.join(" ") : "";
+      // 4. Populate table rows with extracted line items
+      const itemsList = Array.isArray(data.items) ? data.items : [];
+      if (itemsList.length > 0) {
+        const safeCategories = Array.isArray(categories) ? categories : [];
+        const newRows: PurchaseTableRow[] = itemsList.map((item) => {
+          // Detect category by HSN code first if present
+          const hsnMatchedCat = matchCategoryByHsnClient(item.hsnCode, safeCategories);
+          const matchedCat = hsnMatchedCat || safeCategories.find((c) => c.code === item.category);
+          const resolvedCategory = matchedCat?.code || item.category || safeCategories[0]?.code || "FRAME";
+          const hsn = item.hsnCode || matchedCat?.hsnCode || "90049000";
 
-        const baseRow: PurchaseTableRow = {
-          id: crypto.randomUUID(),
-          inventoryId: null,
-          productName: item.productName,
-          productCode: item.productCode || "",
-          category: item.category,
-          details: detailsStr,
-          unitPrice: item.unitPrice,
-          basePrice: item.unitPrice,
-          hsnCode: hsn,
-          gstPercent: item.gstPercent,
-          cgstPercent: item.cgstPercent,
-          cgstAmount: item.cgstAmount,
-          sgstPercent: item.sgstPercent,
-          sgstAmount: item.sgstAmount,
-          igstPercent: item.igstPercent,
-          igstAmount: item.igstAmount,
-          purchasePrice: item.purchasePrice,
-          quantity: item.quantity,
-          totalPurchasePrice: item.totalPurchasePrice,
-          // Retail Price is kept blank (0) - supplier bills never contain retail selling prices
-          retailPrice: 0,
+          const brandStr = typeof item.brand === "string" ? item.brand.trim() : "";
+          const modelStr = typeof item.model === "string" ? item.model.trim() : "";
+          const detailsParts = [brandStr, modelStr].filter(Boolean);
+          const detailsStr = detailsParts.length > 0 ? detailsParts.join(" ") : "";
 
-          // Extended specs for the modal
-          brand: item.brand,
-          model: item.model,
-          color: item.color,
-          size: item.size,
-          batchNumber: item.batchNumber,
-          expiryDate: item.expiryDate,
-          requiresExpiryTracking: item.requiresExpiryTracking,
+          const safeQty = isNaN(Number(item.quantity)) ? 1 : Math.max(1, Number(item.quantity));
+          const catGst = matchedCat ? parseFloat(matchedCat.igstPercent) || 12 : 12;
+          const safeGst = Number(item.gstPercent) > 0 ? Number(item.gstPercent) : catGst;
 
-          suggestions: [],
-          isSearching: false,
-          showSuggestions: false,
-          showAddBadge: false,
-        };
+          const safeUnitPrice = isNaN(Number(item.unitPrice)) ? 0 : Math.max(0, Number(item.unitPrice));
+          const rawPurchasePrice = isNaN(Number(item.purchasePrice)) ? 0 : Math.max(0, Number(item.purchasePrice));
+          const safePurchasePrice = rawPurchasePrice > 0
+            ? rawPurchasePrice
+            : (Number(item.totalPurchasePrice) > 0
+                ? Number((Number(item.totalPurchasePrice) / safeQty).toFixed(2))
+                : safeUnitPrice);
 
-        return recalculateRow(baseRow, {
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          basePrice: item.unitPrice,
+          const baseRow: PurchaseTableRow = {
+            id: item.id || generateRowId(),
+            inventoryId: null,
+            productName: item.productName || detailsStr || "Product",
+            productCode: item.productCode || "",
+            category: resolvedCategory,
+            details: detailsStr,
+            unitPrice: safeUnitPrice,
+            basePrice: safeUnitPrice,
+            hsnCode: hsn,
+            gstPercent: safeGst,
+            cgstPercent: isNaN(Number(item.cgstPercent)) ? safeGst / 2 : Number(item.cgstPercent),
+            cgstAmount: isNaN(Number(item.cgstAmount)) ? 0 : Number(item.cgstAmount),
+            sgstPercent: isNaN(Number(item.sgstPercent)) ? safeGst / 2 : Number(item.sgstPercent),
+            sgstAmount: isNaN(Number(item.sgstAmount)) ? 0 : Number(item.sgstAmount),
+            igstPercent: isNaN(Number(item.igstPercent)) ? safeGst : Number(item.igstPercent),
+            igstAmount: isNaN(Number(item.igstAmount)) ? 0 : Number(item.igstAmount),
+            purchasePrice: safePurchasePrice,
+            quantity: safeQty,
+            totalPurchasePrice: isNaN(Number(item.totalPurchasePrice)) ? Number((safePurchasePrice * safeQty).toFixed(2)) : Number(item.totalPurchasePrice),
+            // Retail Price is kept blank (0) - supplier bills never contain retail selling prices
+            retailPrice: 0,
+
+            // Extended specs for the modal
+            brand: brandStr || undefined,
+            model: modelStr || undefined,
+            color: item.color || undefined,
+            size: item.size || undefined,
+            batchNumber: item.batchNumber || undefined,
+            expiryDate: item.expiryDate || undefined,
+            requiresExpiryTracking: Boolean(item.requiresExpiryTracking),
+
+            suggestions: [],
+            isSearching: false,
+            showSuggestions: false,
+            showAddBadge: false,
+          };
+
+          return recalculateRow(baseRow, {
+            quantity: safeQty,
+            purchasePrice: safePurchasePrice,
+            category: resolvedCategory,
+            hsnCode: hsn,
+            gstPercent: safeGst,
+          });
         });
-      });
 
-      setRows(newRows);
-      setAiExtractedBanner({
-        vendor: data.vendorName || "vendor",
-        count: data.items.length,
-      });
-      toast.success(
-        `Imported ${data.items.length} items from ${data.vendorName || "bill"} into form!`
-      );
+        setRows(newRows);
+        setAiExtractedBanner({
+          vendor: data.vendorName || "vendor",
+          count: itemsList.length,
+        });
+        toast.success(
+          `Imported ${itemsList.length} items from ${data.vendorName || "bill"} into form!`
+        );
+      }
+    } catch (err: any) {
+      console.error("handleApplyExtractedBill error:", err);
+      toast.error("Failed to load extracted items. Please check invoice data.");
     }
   };
 
@@ -664,22 +821,25 @@ export function PurchaseAddForm({
   let totalPurchase = 0;
 
   rows.forEach((r) => {
-    const q = typeof r.quantity === "number" ? r.quantity : 0;
+    const q = typeof r.quantity === "number" ? r.quantity : (parseInt(String(r.quantity)) || 0);
     totalQuantity += q;
-    totalUnitAmount += r.unitPrice;
-    totalBasePrice += r.basePrice;
+    totalUnitAmount += Number(r.unitPrice) || 0;
+    totalBasePrice += Number(r.basePrice) || 0;
     totalGstAmount +=
-      taxType === "IGST" ? r.igstAmount : r.cgstAmount + r.sgstAmount;
-    totalPurchase += r.totalPurchasePrice;
+      taxType === "IGST"
+        ? (Number(r.igstAmount) || 0)
+        : ((Number(r.cgstAmount) || 0) + (Number(r.sgstAmount) || 0));
+    totalPurchase += Number(r.totalPurchasePrice) || 0;
   });
 
-  const totalNetPurchase = Number((totalPurchase + (roundOff || 0)).toFixed(2));
+  const totalNetPurchase = Number(((totalPurchase || 0) + (roundOff || 0)).toFixed(2));
 
   // Vendor selection handler
   const handleSelectVendor = (vendor: Vendor | null) => {
     if (vendor) {
       setSelectedVendorId(vendor.id);
       setVendorName(vendor.name);
+      setVendorGstin(vendor.gstin || "");
       // Auto-set Tax Type based on GSTIN state code if available
       if (vendor.gstin && vendor.gstin.length >= 2) {
         setTaxType("SGST_CGST"); // standard default
@@ -687,6 +847,7 @@ export function PurchaseAddForm({
     } else {
       setSelectedVendorId(null);
       setVendorName("");
+      setVendorGstin("");
     }
   };
 
@@ -694,7 +855,7 @@ export function PurchaseAddForm({
   const buildPayload = (status: "DRAFT" | "COMPLETED") => {
     // Filter out completely blank rows
     const validItems = rows.filter(
-      (r) => r.productName.trim() || r.productCode.trim() || r.unitPrice > 0
+      (r) => (r.productName || "").trim() || (r.productCode || "").trim() || (Number(r.unitPrice) || 0) > 0
     );
 
     if (validItems.length === 0) {
@@ -730,6 +891,7 @@ export function PurchaseAddForm({
       purchaseDate,
       vendorId: selectedVendorId,
       vendorName: vendorName.trim(),
+      vendorGstin: vendorGstin.trim() || undefined,
       purchaseNumber: purchaseNumber.trim(),
       taxRule,
       taxType,
@@ -985,11 +1147,11 @@ export function PurchaseAddForm({
                           type="text"
                           data-row={index}
                           data-col={0}
-                          value={row.productCode}
+                          value={row.productCode || ""}
                           onChange={(e) => handleCodeChange(index, e.target.value)}
                           onKeyDown={(e) => handleCellKeyDown(e, index, 0)}
                           onFocus={() => {
-                            if (row.productCode.trim()) {
+                            if ((row.productCode || "").trim()) {
                               updateRow(index, { showSuggestions: true });
                             }
                           }}
@@ -1001,7 +1163,7 @@ export function PurchaseAddForm({
                       </div>
 
                       {/* Autocomplete Suggestions Dropdown */}
-                      {row.showSuggestions && row.suggestions.length > 0 && (
+                      {row.showSuggestions && Array.isArray(row.suggestions) && row.suggestions.length > 0 && (
                         <div className="absolute z-40 left-0 right-0 top-8.5 bg-white rounded-b-xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in-50 min-w-[240px]">
                           <div className="px-2.5 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             Suggested Catalog Items
@@ -1170,21 +1332,34 @@ export function PurchaseAddForm({
                       />
                     </td>
 
-                    {/* 10. Total Purchase Cost */}
-                    <td className="p-0 border-b border-r border-slate-200 text-right bg-slate-50/30 font-extrabold text-emerald-600 text-xs">
-                      <div className="h-8.5 px-2 flex items-center justify-end">
-                        ₹{row.totalPurchasePrice.toFixed(2)}
-                      </div>
-                    </td>
-
-                    {/* 11. Retail Price (MRP) (Col 7) */}
-                    <td className="p-0 border-b border-r border-slate-200 text-right">
+                    {/* 10. Total Purchase Cost (Col 7 - Directly Editable) */}
+                    <td className="p-0 border-b border-r border-slate-200 text-right bg-emerald-50/20">
                       <input
                         type="number"
                         step="0.01"
                         min={0}
                         data-row={index}
                         data-col={7}
+                        value={row.totalPurchasePrice !== undefined && row.totalPurchasePrice !== null && row.totalPurchasePrice !== 0 ? row.totalPurchasePrice : ""}
+                        placeholder="0.00"
+                        onChange={(e) =>
+                          updateRow(index, {
+                            totalPurchasePrice: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        onKeyDown={(e) => handleCellKeyDown(e, index, 7)}
+                        className="w-full h-8.5 px-1.5 text-xs font-black text-right text-emerald-700 border-0 bg-transparent focus:bg-emerald-100/40 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-600"
+                      />
+                    </td>
+
+                    {/* 11. Retail Price (MRP) (Col 8) */}
+                    <td className="p-0 border-b border-r border-slate-200 text-right">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        data-row={index}
+                        data-col={8}
                         value={row.retailPrice || ""}
                         placeholder="0.00"
                         onChange={(e) =>
@@ -1192,7 +1367,7 @@ export function PurchaseAddForm({
                             retailPrice: parseFloat(e.target.value) || 0,
                           })
                         }
-                        onKeyDown={(e) => handleCellKeyDown(e, index, 7)}
+                        onKeyDown={(e) => handleCellKeyDown(e, index, 8)}
                         className="w-full h-8.5 px-1.5 text-xs font-bold text-right border-0 bg-transparent focus:bg-blue-50/30 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#2563eb]"
                       />
                     </td>
@@ -1252,28 +1427,28 @@ export function PurchaseAddForm({
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-600">Total Unit Amount :</span>
               <span className="font-semibold text-slate-800">
-                ₹{totalUnitAmount.toFixed(2)}
+                ₹{Number(totalUnitAmount || 0).toFixed(2)}
               </span>
             </div>
 
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-600">Total Base Price :</span>
               <span className="font-semibold text-slate-800">
-                ₹{totalBasePrice.toFixed(2)}
+                ₹{Number(totalBasePrice || 0).toFixed(2)}
               </span>
             </div>
 
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-600">Total GST Amount :</span>
               <span className="font-semibold text-blue-600">
-                ₹{totalGstAmount.toFixed(2)}
+                ₹{Number(totalGstAmount || 0).toFixed(2)}
               </span>
             </div>
 
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-600">Total Purchase :</span>
               <span className="font-extrabold text-slate-900">
-                ₹{totalPurchase.toFixed(2)}
+                ₹{Number(totalPurchase || 0).toFixed(2)}
               </span>
             </div>
 
@@ -1295,7 +1470,7 @@ export function PurchaseAddForm({
                 Total Net Purchase :
               </span>
               <span className="text-lg font-black text-[#2563eb] tracking-tight">
-                ₹{totalNetPurchase.toFixed(2)}
+                ₹{Number(totalNetPurchase || 0).toFixed(2)}
               </span>
             </div>
           </div>
