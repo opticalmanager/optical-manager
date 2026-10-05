@@ -597,15 +597,16 @@ export function PurchaseAddForm({
         const matchedCat = categories.find((c) => c.code === item.category);
         const hsn = item.hsnCode || matchedCat?.hsnCode || "90049000";
 
+        const detailsParts = [item.brand, item.model].filter(Boolean);
+        const detailsStr = detailsParts.length > 0 ? detailsParts.join(" ") : "";
+
         const baseRow: PurchaseTableRow = {
           id: crypto.randomUUID(),
           inventoryId: null,
           productName: item.productName,
           productCode: item.productCode || "",
           category: item.category,
-          details: item.brand
-            ? `${item.brand} ${item.model || ""}`.trim()
-            : "",
+          details: detailsStr,
           unitPrice: item.unitPrice,
           basePrice: item.unitPrice,
           hsnCode: hsn,
@@ -619,7 +620,8 @@ export function PurchaseAddForm({
           purchasePrice: item.purchasePrice,
           quantity: item.quantity,
           totalPurchasePrice: item.totalPurchasePrice,
-          retailPrice: item.retailPrice,
+          // Retail Price is kept blank (0) - supplier bills never contain retail selling prices
+          retailPrice: 0,
 
           // Extended specs for the modal
           brand: item.brand,
@@ -1184,6 +1186,7 @@ export function PurchaseAddForm({
                         data-row={index}
                         data-col={7}
                         value={row.retailPrice || ""}
+                        placeholder="0.00"
                         onChange={(e) =>
                           updateRow(index, {
                             retailPrice: parseFloat(e.target.value) || 0,

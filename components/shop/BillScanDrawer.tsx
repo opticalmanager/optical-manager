@@ -747,10 +747,14 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                               {item.productName}
                             </p>
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
-                              <span className="font-mono text-blue-600 font-medium">
-                                {item.productCode}
-                              </span>
-                              {item.brand && <span>• {item.brand}</span>}
+                              {item.productCode && (
+                                <span className="font-mono text-blue-600 font-medium">
+                                  {item.productCode}
+                                </span>
+                              )}
+                              {item.brand && (
+                                <span>{item.productCode ? `• ${item.brand}` : item.brand}</span>
+                              )}
                               {item.batchNumber && (
                                 <span className="text-amber-700 font-mono">
                                   • B:{item.batchNumber}
@@ -759,7 +763,13 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                             </div>
                           </td>
                           <td className="py-2 px-2 text-center">
-                            <span className="inline-block rounded-sm bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">
+                            <span className={`inline-block rounded-sm px-1.5 py-0.5 text-[9px] font-bold ${
+                              item.category === "SUNGLASSES"
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : item.category === "FRAME"
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-slate-100 text-slate-600"
+                            }`}>
                               {item.category}
                             </span>
                           </td>

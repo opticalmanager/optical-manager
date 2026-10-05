@@ -68,3 +68,11 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
    - Each tenant organization stores its private `geminiApiKey` and `geminiModel` in `organizations.settings.ai`.
    - Keys are managed and tested via `actions/ai-settings.actions.ts`.
    - Fallback to `process.env.GEMINI_API_KEY` for development and platform testing.
+
+5. **Zero-Hallucination & Clean Inward Rules (Optical Retail Standards)**:
+   - **No Fabricated Retail Prices**: Supplier bills are B2B wholesale tax invoices that do not contain consumer retail selling prices / MRP. The AI pipeline strictly sets `retailPrice: 0`, leaving the Retail Price field 100% blank in both the purchase table and inline modal for store management entry.
+   - **No Synthetic Product Codes**: If a line item does not print an explicit article code, SKU, or barcode on the bill, `productCode` remains empty `""`. Prevents hallucinated synthetic strings from obstructing barcode scanners or inventory autocomplete.
+   - **Optical Category Classification**: Accurately classifies sunglasses into the dedicated `SUNGLASSES` category alongside `FRAME`, `LENS`, `CONTACT_LENS`, `SOLUTION`, and `ACCESSORY`.
+   - **Net Taxable Unit Rate**: Captures true inward purchase cost by computing net taxable unit rate after line-item trade discounts (`unitPrice = taxableValue / quantity`).
+   - **Indian Date Normalizer**: Deterministically normalizes Indian invoice date formats (`DD/MM/YYYY`, `DD-MM-YYYY`, `DD.MM.YYYY`) into standard ISO `YYYY-MM-DD`.
+   - **Spec Sanitizer**: Automatically strips placeholder tokens (`"N/A"`, `"none"`, `"null"`, `"-"`) to preserve clean database attributes.

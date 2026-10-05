@@ -182,15 +182,168 @@ function checkIsInterState(customerState: string, storeState: string): boolean {
 }
 
 const DEFAULT_CATEGORIES = [
-  { id: "cat-frames", name: "Frames", code: "FRAMES", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9003" },
+  { id: "cat-frames", name: "Frames", code: "FRAME", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9003" },
   { id: "cat-sunglasses", name: "Sunglasses", code: "SUNGLASSES", cgstPercent: "9.00", sgstPercent: "9.00", igstPercent: "18.00", hsnCode: "9004" },
-  { id: "cat-lenses", name: "Lenses", code: "LENSES", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9001" },
-  { id: "cat-contact-lenses", name: "Contact Lenses", code: "CONTACT_LENSES", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9001" },
-  { id: "cat-accessories", name: "Accessories", code: "ACCESSORIES", cgstPercent: "9.00", sgstPercent: "9.00", igstPercent: "18.00", hsnCode: "9003" },
-  { id: "cat-solutions", name: "Solutions", code: "SOLUTIONS", cgstPercent: "9.00", sgstPercent: "9.00", igstPercent: "18.00", hsnCode: "3307" },
+  { id: "cat-lenses", name: "Lenses", code: "LENS", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9001" },
+  { id: "cat-contact-lenses", name: "Contact Lenses", code: "CONTACT_LENS", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9001" },
+  { id: "cat-accessories", name: "Accessories", code: "ACCESSORY", cgstPercent: "9.00", sgstPercent: "9.00", igstPercent: "18.00", hsnCode: "9003" },
+  { id: "cat-solutions", name: "Solutions", code: "SOLUTION", cgstPercent: "9.00", sgstPercent: "9.00", igstPercent: "18.00", hsnCode: "3307" },
   { id: "cat-reading-glasses", name: "Reading Glasses", code: "READING_GLASSES", cgstPercent: "6.00", sgstPercent: "6.00", igstPercent: "12.00", hsnCode: "9004" },
   { id: "cat-general", name: "General", code: "GENERAL", cgstPercent: "0.00", sgstPercent: "0.00", igstPercent: "0.00", hsnCode: "" },
 ];
+
+/**
+ * Robust Category Resolver: Matches raw category against categoriesList by:
+ * 1. Exact name or code match
+ * 2. Singular/Plural stem match (e.g. FRAME <-> Frames, LENS <-> Lenses, ACCESSORY <-> Accessories)
+ */
+function findMatchingCategory(
+  rawCat: string | null | undefined,
+  categories: any[]
+): any | null {
+  if (!rawCat || !rawCat.trim() || !categories || categories.length === 0) return null;
+  const clean = rawCat.trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+  // 1. Direct match on name or code
+  const direct = categories.find((c) => {
+    const cName = (c.name || "").toLowerCase().replace(/[\s_-]+/g, "");
+    const cCode = (c.code || "").toLowerCase().replace(/[\s_-]+/g, "");
+    return cName === clean || cCode === clean;
+  });
+  if (direct) return direct;
+
+  // 2. Singular/Plural stem matching
+  const stem = (str: string) => {
+    if (str.endsWith("ies")) return str.slice(0, -3) + "y";
+    if (str.endsWith("es")) return str.slice(0, -2);
+    if (str.endsWith("s")) return str.slice(0, -1);
+    return str;
+  };
+  const cleanStem = stem(clean);
+
+  const stemmedMatch = categories.find((c) => {
+    const cNameClean = (c.name || "").toLowerCase().replace(/[\s_-]+/g, "");
+    const cCodeClean = (c.code || "").toLowerCase().replace(/[\s_-]+/g, "");
+    const cNameStem = stem(cNameClean);
+    const cCodeStem = stem(cCodeClean);
+    return (
+      cNameStem === cleanStem ||
+      cCodeStem === cleanStem ||
+      cNameClean.includes(cleanStem) ||
+      cleanStem.includes(cNameClean) ||
+      cCodeClean.includes(cleanStem) ||
+      cleanStem.includes(cCodeClean)
+    );
+  });
+  if (stemmedMatch) return stemmedMatch;
+
+  return null;
+}
+
+/**
+ * Returns canonical display name of category for seamless select binding.
+ */
+function resolveCanonicalCategoryName(
+  rawCat: string | null | undefined,
+  categories: any[]
+): string {
+  const matched = findMatchingCategory(rawCat, categories);
+  if (matched) return matched.name;
+  return rawCat && rawCat.trim() ? rawCat.trim() : (categories[0]?.name || "Frames");
+}
+
+/**
+ * 2-Tier GST Rate Hierarchy Engine:
+ * Priority 1: Check if product record has explicitly saved GST rates (> 0).
+ * Priority 2: Fallback to product category's active saved GST rates from store settings / Category Master.
+ * Automatically distributes into statutory CGST/SGST (intra-state) or IGST (inter-state).
+ */
+function resolveItemGstRates(
+  product: any | null | undefined,
+  categoryIdentifier: string | null | undefined,
+  categories: any[],
+  isInterState: boolean
+): {
+  cgstPercent: number;
+  sgstPercent: number;
+  igstPercent: number;
+  totalGst: number;
+  source: "PRODUCT" | "CATEGORY";
+} {
+  // 1. Check if product record has explicitly saved GST rates
+  if (product) {
+    const rawCgst = product.cgstPercent !== null && product.cgstPercent !== undefined ? parseFloat(String(product.cgstPercent)) : null;
+    const rawSgst = product.sgstPercent !== null && product.sgstPercent !== undefined ? parseFloat(String(product.sgstPercent)) : null;
+    const rawIgst = product.igstPercent !== null && product.igstPercent !== undefined ? parseFloat(String(product.igstPercent)) : null;
+
+    const hasExplicitGst =
+      (rawCgst !== null && !isNaN(rawCgst) && rawCgst > 0) ||
+      (rawSgst !== null && !isNaN(rawSgst) && rawSgst > 0) ||
+      (rawIgst !== null && !isNaN(rawIgst) && rawIgst > 0);
+
+    if (hasExplicitGst) {
+      const totalGst = rawIgst && rawIgst > 0 ? rawIgst : Number(((rawCgst || 0) + (rawSgst || 0)).toFixed(2));
+      if (isInterState) {
+        return {
+          cgstPercent: 0,
+          sgstPercent: 0,
+          igstPercent: totalGst,
+          totalGst,
+          source: "PRODUCT",
+        };
+      } else {
+        const half = Number((totalGst / 2).toFixed(2));
+        const cgst = rawCgst !== null && rawCgst > 0 ? rawCgst : half;
+        const sgst = rawSgst !== null && rawSgst > 0 ? rawSgst : half;
+        return {
+          cgstPercent: cgst,
+          sgstPercent: sgst,
+          igstPercent: 0,
+          totalGst,
+          source: "PRODUCT",
+        };
+      }
+    }
+  }
+
+  // 2. Fall back to category's active saved GST rates from settings
+  const catObj = findMatchingCategory(categoryIdentifier || product?.category || "Frames", categories) || categories[0];
+  if (catObj) {
+    const catCgst = parseFloat(String(catObj.cgstPercent)) || 0;
+    const catSgst = parseFloat(String(catObj.sgstPercent)) || 0;
+    const catIgst = parseFloat(String(catObj.igstPercent)) || Number((catCgst + catSgst).toFixed(2));
+    const totalGst = catIgst > 0 ? catIgst : Number((catCgst + catSgst).toFixed(2));
+
+    if (isInterState) {
+      return {
+        cgstPercent: 0,
+        sgstPercent: 0,
+        igstPercent: totalGst,
+        totalGst,
+        source: "CATEGORY",
+      };
+    } else {
+      const half = Number((totalGst / 2).toFixed(2));
+      const cgst = catCgst > 0 ? catCgst : half;
+      const sgst = catSgst > 0 ? catSgst : half;
+      return {
+        cgstPercent: cgst,
+        sgstPercent: sgst,
+        igstPercent: 0,
+        totalGst,
+        source: "CATEGORY",
+      };
+    }
+  }
+
+  return {
+    cgstPercent: 0,
+    sgstPercent: 0,
+    igstPercent: 0,
+    totalGst: 0,
+    source: "CATEGORY",
+  };
+}
 
 interface LineItem {
   inventoryId: string | null;
@@ -456,11 +609,15 @@ export function NewInvoiceForm() {
   }, [shopId]);
 
   // Section 04: Product Selection (Order Line Items)
+  const initialDefaultCat = DEFAULT_CATEGORIES[0];
+  const initialDefaultCgst = parseFloat(initialDefaultCat.cgstPercent) || 0;
+  const initialDefaultSgst = parseFloat(initialDefaultCat.sgstPercent) || 0;
+
   const [lineItems, setLineItems] = useState<LineItem[]>([
     {
       inventoryId: null,
       description: "",
-      category: "Frames",
+      category: initialDefaultCat.name,
       barcode: "",
       productCode: "",
       sku: "",
@@ -468,9 +625,9 @@ export function NewInvoiceForm() {
       unitPrice: 0,
       discountPercent: 0,
       discountAmount: 0,
-      cgstPercent: 6,
+      cgstPercent: initialDefaultCgst,
       cgstAmount: 0,
-      sgstPercent: 6,
+      sgstPercent: initialDefaultSgst,
       sgstAmount: 0,
       igstPercent: 0,
       igstAmount: 0,
@@ -483,6 +640,31 @@ export function NewInvoiceForm() {
       isSearching: false,
     },
   ]);
+
+  // Synchronize unedited blank line items with active saved categories and inter-state GST rules
+  useEffect(() => {
+    if (categoriesList && categoriesList.length > 0) {
+      setLineItems((prev) =>
+        prev.map((item) => {
+          // If this row is a clean placeholder row (no product selected, no description typed, no price entered),
+          // update its category and GST rates to reflect the active settings for the default category!
+          if (!item.inventoryId && !item.description && !item.searchQuery && (!item.unitPrice || item.unitPrice === 0)) {
+            const defaultCat = findMatchingCategory("Frames", categoriesList) || categoriesList[0];
+            const rates = resolveItemGstRates(null, defaultCat.name, categoriesList, isInterState);
+            return {
+              ...item,
+              category: defaultCat.name,
+              cgstPercent: rates.cgstPercent,
+              sgstPercent: rates.sgstPercent,
+              igstPercent: rates.igstPercent,
+            };
+          }
+          return item;
+        })
+      );
+    }
+  }, [categoriesList, isInterState]);
+
 
   // Re-adjust GST distribution when inter-state mode changes (patient state changed)
   useEffect(() => {
@@ -1197,12 +1379,8 @@ export function NewInvoiceForm() {
   // Add Item Table Actions
   const handleAddRow = () => {
     setDropdownTarget(null);
-    const defaultCat = categoriesList.find((c) => c.name.toLowerCase() === "frames") || DEFAULT_CATEGORIES[0];
-    const catTotalGst = parseFloat(defaultCat.igstPercent) || 
-      ((parseFloat(defaultCat.cgstPercent) || 0) + (parseFloat(defaultCat.sgstPercent) || 0)) || 12;
-    const defaultCgst = isInterState ? 0 : (parseFloat(defaultCat.cgstPercent) || Number((catTotalGst / 2).toFixed(2)));
-    const defaultSgst = isInterState ? 0 : (parseFloat(defaultCat.sgstPercent) || Number((catTotalGst / 2).toFixed(2)));
-    const defaultIgst = isInterState ? catTotalGst : 0;
+    const defaultCat = findMatchingCategory("Frames", categoriesList) || categoriesList[0] || DEFAULT_CATEGORIES[0];
+    const rates = resolveItemGstRates(null, defaultCat.name, categoriesList, isInterState);
 
     setLineItems([
       ...lineItems,
@@ -1217,11 +1395,11 @@ export function NewInvoiceForm() {
         unitPrice: 0,
         discountPercent: 0,
         discountAmount: 0,
-        cgstPercent: defaultCgst,
+        cgstPercent: rates.cgstPercent,
         cgstAmount: 0,
-        sgstPercent: defaultSgst,
+        sgstPercent: rates.sgstPercent,
         sgstAmount: 0,
-        igstPercent: defaultIgst,
+        igstPercent: rates.igstPercent,
         igstAmount: 0,
         taxableSubtotal: 0,
         rowTotal: 0,
@@ -1252,33 +1430,17 @@ export function NewInvoiceForm() {
       if (idx === index) {
         const merged = { ...item, ...fields };
 
-        // If category changed without explicit tax rates, auto-fill GST rates from category adhering to inter-state/intra-state logic
+        // If category changed without explicit tax rates, auto-fill GST rates from category settings adhering to inter-state/intra-state logic
         if (
           fields.category !== undefined &&
           fields.cgstPercent === undefined &&
           fields.sgstPercent === undefined &&
           fields.igstPercent === undefined
         ) {
-          const matched = categoriesList.find(
-            (c) => c.name.toLowerCase() === (fields.category || "").toLowerCase()
-          );
-          if (matched) {
-            const catTotalGst = parseFloat(matched.igstPercent) || 
-              ((parseFloat(matched.cgstPercent) || 0) + (parseFloat(matched.sgstPercent) || 0)) || 0;
-            if (isInterState) {
-              merged.cgstPercent = 0;
-              merged.cgstAmount = 0;
-              merged.sgstPercent = 0;
-              merged.sgstAmount = 0;
-              merged.igstPercent = catTotalGst;
-            } else {
-              const half = Number((catTotalGst / 2).toFixed(2));
-              merged.cgstPercent = parseFloat(matched.cgstPercent) || half;
-              merged.sgstPercent = parseFloat(matched.sgstPercent) || half;
-              merged.igstPercent = 0;
-              merged.igstAmount = 0;
-            }
-          }
+          const rates = resolveItemGstRates(null, fields.category, categoriesList, isInterState);
+          merged.cgstPercent = rates.cgstPercent;
+          merged.sgstPercent = rates.sgstPercent;
+          merged.igstPercent = rates.igstPercent;
         }
 
         // Handle potential empty/blank quantity or price while editing
@@ -1386,7 +1548,8 @@ export function NewInvoiceForm() {
     const prodCode = product.productCode || product.sku || "";
     const barcodeVal = product.barcode || prodCode;
     const availableCode = barcodeVal || prodCode || product.sku || "";
-    const catName = product.category || "Frames";
+    const catName = resolveCanonicalCategoryName(product.category, categoriesList);
+    const gstRates = resolveItemGstRates(product, catName, categoriesList, isInterState);
     const maxStock = parseInt(product.quantity ?? product.stockQuantity, 10) || 0;
 
     const descParts: string[] = [];
@@ -1395,29 +1558,7 @@ export function NewInvoiceForm() {
     if (product.model) descParts.push(product.model);
     const formattedDescription = descParts.join(" • ") || prodName;
 
-    let totalGst = parseFloat(product.igstPercent) || 0;
-    if (totalGst === 0 && (parseFloat(product.cgstPercent) > 0 || parseFloat(product.sgstPercent) > 0)) {
-      totalGst = (parseFloat(product.cgstPercent) || 0) + (parseFloat(product.sgstPercent) || 0);
-    }
-    if (totalGst === 0) {
-      const matchedCat = categoriesList.find(
-        (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
-      );
-      if (matchedCat) {
-        totalGst = parseFloat(matchedCat.igstPercent) || 
-          ((parseFloat(matchedCat.cgstPercent) || 0) + (parseFloat(matchedCat.sgstPercent) || 0)) || 12;
-      } else {
-        totalGst = 12;
-      }
-    }
-
-    const cgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
-    const sgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
-    const igst = isInterState ? totalGst : 0;
-
-    const matchedCat = categoriesList.find(
-      (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
-    );
+    const matchedCat = findMatchingCategory(catName, categoriesList);
     const isNegAllowed = typeof product.allowNegativeStock === "boolean"
       ? product.allowNegativeStock
       : typeof matchedCat?.allowNegativeStock === "boolean"
@@ -1443,14 +1584,14 @@ export function NewInvoiceForm() {
       unitPrice: price,
       discountPercent: 0,
       discountAmount: 0,
-      cgstPercent: cgst,
+      cgstPercent: gstRates.cgstPercent,
       cgstAmount: 0,
-      sgstPercent: sgst,
+      sgstPercent: gstRates.sgstPercent,
       sgstAmount: 0,
-      igstPercent: igst,
+      igstPercent: gstRates.igstPercent,
       igstAmount: 0,
       taxableSubtotal: price,
-      rowTotal: price * (1 + (cgst + sgst + igst) / 100),
+      rowTotal: Number((price * (1 + gstRates.totalGst / 100)).toFixed(2)),
       maxQty: maxStock,
       allowNegativeStock: isNegAllowed,
       searchQuery: availableCode || prodName,
@@ -1468,9 +1609,9 @@ export function NewInvoiceForm() {
       const lineSubtotal = 1 * price;
       const discountAmount = 0;
       const taxableSubtotal = lineSubtotal - discountAmount;
-      const cgstAmount = Number((taxableSubtotal * (cgst / 100)).toFixed(2));
-      const sgstAmount = Number((taxableSubtotal * (sgst / 100)).toFixed(2));
-      const igstAmount = Number((taxableSubtotal * (igst / 100)).toFixed(2));
+      const cgstAmount = Number((taxableSubtotal * (gstRates.cgstPercent / 100)).toFixed(2));
+      const sgstAmount = Number((taxableSubtotal * (gstRates.sgstPercent / 100)).toFixed(2));
+      const igstAmount = Number((taxableSubtotal * (gstRates.igstPercent / 100)).toFixed(2));
       const rowTotal = Number((taxableSubtotal + cgstAmount + sgstAmount + igstAmount).toFixed(2));
 
       const fullyMergedItem = {
@@ -1527,7 +1668,8 @@ export function NewInvoiceForm() {
     const prodCode = product.productCode || product.sku || "";
     const barcodeVal = product.barcode || prodCode;
     const availableCode = barcodeVal || prodCode || product.sku || "";
-    const catName = product.category || "Frames";
+    const catName = resolveCanonicalCategoryName(product.category, categoriesList);
+    const gstRates = resolveItemGstRates(product, catName, categoriesList, isInterState);
 
     const descParts: string[] = [];
     if (prodName) descParts.push(prodName);
@@ -1535,28 +1677,7 @@ export function NewInvoiceForm() {
     if (product.model) descParts.push(product.model);
     const formattedDescription = descParts.join(" • ") || prodName;
 
-    let totalGst = parseFloat(product.igstPercent) || 0;
-    if (totalGst === 0 && (parseFloat(product.cgstPercent) > 0 || parseFloat(product.sgstPercent) > 0)) {
-      totalGst = (parseFloat(product.cgstPercent) || 0) + (parseFloat(product.sgstPercent) || 0);
-    }
-    if (totalGst === 0) {
-      const matchedCat = categoriesList.find(
-        (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
-      );
-      if (matchedCat) {
-        totalGst = parseFloat(matchedCat.igstPercent) || 
-          ((parseFloat(matchedCat.cgstPercent) || 0) + (parseFloat(matchedCat.sgstPercent) || 0)) || 12;
-      } else {
-        totalGst = 12;
-      }
-    }
-
-    const cgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
-    const sgst = isInterState ? 0 : Number((totalGst / 2).toFixed(2));
-    const igst = isInterState ? totalGst : 0;
-    const matchedCat = categoriesList.find(
-      (c) => c.name.toLowerCase() === catName.toLowerCase() || c.code?.toLowerCase() === catName.toLowerCase()
-    );
+    const matchedCat = findMatchingCategory(catName, categoriesList);
     const isNegAllowed = typeof product.allowNegativeStock === "boolean"
       ? product.allowNegativeStock
       : typeof matchedCat?.allowNegativeStock === "boolean"
@@ -1579,9 +1700,9 @@ export function NewInvoiceForm() {
       productCode: prodCode,
       sku: product.sku || prodCode || "N/A",
       unitPrice: price,
-      cgstPercent: cgst,
-      sgstPercent: sgst,
-      igstPercent: igst,
+      cgstPercent: gstRates.cgstPercent,
+      sgstPercent: gstRates.sgstPercent,
+      igstPercent: gstRates.igstPercent,
       maxQty: maxStock,
       allowNegativeStock: isNegAllowed,
       searchQuery: availableCode || prodName,
@@ -1664,11 +1785,14 @@ export function NewInvoiceForm() {
       clearTimeout(searchTimeouts.current[parseInt(k, 10)])
     );
 
+    const defaultCat = findMatchingCategory("Frames", categoriesList) || categoriesList[0] || DEFAULT_CATEGORIES[0];
+    const defaultRates = resolveItemGstRates(null, defaultCat.name, categoriesList, isInterState);
+
     setLineItems([
       {
         inventoryId: null,
         description: "",
-        category: "Frames",
+        category: defaultCat.name || "Frames",
         barcode: "",
         productCode: "",
         sku: "",
@@ -1676,11 +1800,11 @@ export function NewInvoiceForm() {
         unitPrice: 0,
         discountPercent: 0,
         discountAmount: 0,
-        cgstPercent: 6,
+        cgstPercent: defaultRates.cgstPercent,
         cgstAmount: 0,
-        sgstPercent: 6,
+        sgstPercent: defaultRates.sgstPercent,
         sgstAmount: 0,
-        igstPercent: 0,
+        igstPercent: defaultRates.igstPercent,
         igstAmount: 0,
         taxableSubtotal: 0,
         rowTotal: 0,
@@ -2603,46 +2727,35 @@ export function NewInvoiceForm() {
                       <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb] overflow-hidden">
                         <div className="relative flex items-center min-h-[40px] px-1 py-1">
                           <select
-                            value={item.category || "Frames"}
+                            value={resolveCanonicalCategoryName(item.category, categoriesList)}
                             onChange={(e) => {
                               const selectedCatName = e.target.value;
-                              const matchedCat = categoriesList.find(
-                                (c) => c.name.toLowerCase() === selectedCatName.toLowerCase()
-                              );
-                              if (matchedCat) {
-                                const catTotalGst = parseFloat(matchedCat.igstPercent) || 
-                                  ((parseFloat(matchedCat.cgstPercent) || 0) + (parseFloat(matchedCat.sgstPercent) || 0)) || 0;
-                                if (isInterState) {
-                                  updateLineItem(index, {
-                                    category: matchedCat.name,
-                                    cgstPercent: 0,
-                                    cgstAmount: 0,
-                                    sgstPercent: 0,
-                                    sgstAmount: 0,
-                                    igstPercent: catTotalGst,
-                                  });
-                                } else {
-                                  const half = Number((catTotalGst / 2).toFixed(2));
-                                  updateLineItem(index, {
-                                    category: matchedCat.name,
-                                    cgstPercent: parseFloat(matchedCat.cgstPercent) || half,
-                                    sgstPercent: parseFloat(matchedCat.sgstPercent) || half,
-                                    igstPercent: 0,
-                                    igstAmount: 0,
-                                  });
-                                }
-                              } else {
-                                updateLineItem(index, { category: selectedCatName });
-                              }
+                              const newRates = resolveItemGstRates(null, selectedCatName, categoriesList, isInterState);
+                              updateLineItem(index, {
+                                category: selectedCatName,
+                                cgstPercent: newRates.cgstPercent,
+                                sgstPercent: newRates.sgstPercent,
+                                igstPercent: newRates.igstPercent,
+                              });
                             }}
-                            title={item.category || "Frames"}
+                            title={resolveCanonicalCategoryName(item.category, categoriesList)}
                             className="w-full bg-transparent border-0 rounded-none text-[11px] font-semibold text-slate-800 focus:outline-none focus:ring-0 cursor-pointer appearance-none pr-4 p-0 truncate"
                           >
                             {categoriesList.map((cat) => (
-                              <option key={cat.id || cat.code} value={cat.name}>
+                              <option key={cat.id || cat.code || cat.name} value={cat.name}>
                                 {cat.name}
                               </option>
                             ))}
+                            {item.category &&
+                              !categoriesList.some(
+                                (c) =>
+                                  (c.name && c.name.toLowerCase() === item.category.toLowerCase()) ||
+                                  (c.code && c.code.toLowerCase() === item.category.toLowerCase())
+                              ) && (
+                                <option value={item.category}>
+                                  {item.category}
+                                </option>
+                            )}
                           </select>
                           <ChevronDown className="absolute right-0.5 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
                         </div>
