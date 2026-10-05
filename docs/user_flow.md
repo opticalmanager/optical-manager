@@ -57,7 +57,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Columns 4 & 5 — Qty & Price (₹)**: Centered integer input for quantity and right-aligned decimal input for unit price, without rupee glyphs inside the input cell.
    - **Columns 6 & 7 — Dual Discount Synchronization**: Supports discount entry in Rupees (`Disc (₹)`) and percentage (`Disc (%)`) with bi-directional syncing, strictly capped to line subtotal and 100%.
    - **Columns 8, 9 & 10 — Dual-Editable Taxes (CGST, SGST, IGST)**: Both the tax amount (top) and percentage rate (bottom) are fully editable with bi-directional recalculation. No rupee symbols inside the inputs.
-   - **Column 11 — Line Total**: Real-time calculated line total reflecting quantity, price, discounts, and applicable GST.
+   - **Column 11 — Direct Editable Total Price & Auto-Backcalculation**: Directly editable numeric cell allowing staff to enter negotiated all-inclusive customer totals (e.g. ₹1,000 flat). The system instantly back-calculates taxable base price and statutory GST amounts according to the selected item category with zero penny discrepancy. Selecting or changing category with an entered total automatically updates base price and tax amounts in zero latency while maintaining the user's total price.
    - **Horizontal Responsiveness**: Table container includes `min-w-[1280px]` and silky horizontal scrolling, ensuring no columns are squeezed or obscured on smaller viewports.
 4. **Checkout, Delivery Date & Payment**:
    - **Salesperson Attribution ("Sold By")**: Staff can record the name of the sales representative who completed the order, stamped permanently into the invoice database and printed on tax invoices and payment receipts.
@@ -692,4 +692,33 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Pressing `Ctrl+Enter` or `Cmd+Enter` advances focus to the subsequent input element.
 4. **Instant Action Execution**:
    - When the cursor reaches the final primary action button (`[data-enter-submit="true"]` or `type="submit"`), pressing `Enter` initiates validation and executes the form submission handler seamlessly.
+
+---
+
+## 11. Add Purchase, AI Bill Scanning & Auto-Vendor Onboarding Flow
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Upload Bill      │───>│ Review & Confirm │───>│ Bidirectional    │───>│ Auto-Create New  │
+│ (Image / PDF)    │    │ AI Extraction    │    │ Table Editing    │    │ Vendor & Finalize│
+└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+1. **AI Bill Scanning (`/shop/purchases/new` -> "Insert with AI")**:
+   - Staff uploads an optical supplier bill/tax invoice (JPG, PNG, WEBP, or PDF).
+   - Gemini multimodal AI extracts header details (supplier name, GSTIN, invoice number, invoice date) and purchase line items.
+   - **Fallback Product Code Extraction**: If the bill does not have a dedicated "Product Code" / "Article" column, structured codes printed inside "Description of Goods" (e.g. `SI-20050,50-15-135,F900`) are automatically extracted as `productCode` with the full string preserved to prevent SKU collisions.
+   - **HSN-to-Category Auto-Detection**: Extracted HSN codes (e.g., `90031100`, `90041000`, `90015000`, `3307`) are matched against the store's saved Category Master settings to auto-assign the category and its statutory GST rate.
+   - **Purchase Cost as Primary Rate**: The supplier's final net billed rate is assigned as unit **Purchase Cost** (`purchasePrice`). **Base Price** is back-calculated ($\text{unitPrice} = \frac{\text{purchasePrice}}{1 + \text{gstPercent}/100}$). Retail Price / MRP is strictly left blank (0.00).
+2. **Review & Import Preview Drawer**:
+   - Staff reviews the extracted vendor info and line items table with real-time category badges and purchase cost rates.
+   - Clicking **Apply to Purchase Form** populates the entire purchase ledger grid in 0ms.
+3. **Universal Interactive Table Editing**:
+   - **Interactive Column 10 (Total Purchase Cost)**: Staff can directly type into the Total Cost column (e.g. ₹32,400 with Qty 10), which automatically computes unit Purchase Cost (₹3,240), Base Price (₹2,892.86), and GST amounts down to the exact paise.
+   - **Purchase Cost & Base Price Editing**: Typing in Purchase Cost auto-derives Base Price; typing in Base Price auto-derives Purchase Cost.
+   - **Dynamic HSN & Category Updates**: Typing an HSN code auto-detects and switches the category; changing the category preserves user Purchase Cost and recalculates Base Price with the new category GST rate.
+4. **Auto-Detect & Auto-Save New Vendors**:
+   - If the supplier's name or GSTIN does not exist in the organization's vendor master, the system automatically detects it as a new vendor upon clicking **Add Purchase** or **Save As Draft**.
+   - The system creates the new vendor in the `vendors` database table (with `shopId`, `organizationId`, `name`, `gstin`, `isActive = true`) and seamlessly links the purchase order.
+
 

@@ -3,6 +3,7 @@
 import { getCurrentUser } from "@/services/auth.service";
 import { getOrganizationAiConfig } from "@/services/organization.service";
 import { getVendorsByOrganization } from "@/services/vendor.service";
+import { getOrganizationCategories, CategoryItem } from "@/services/category.service";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type {
   BillExtractionResult,
@@ -93,7 +94,70 @@ function sanitizeCode(str?: string | null): string {
   if (/^(n\/?a|none|null|undefined|-|unknown|nil)$/i.test(cleaned)) {
     return "";
   }
-  return cleaned.toUpperCase().replace(/[^A-Z0-9\-_./]/g, "").slice(0, 30);
+  return cleaned.toUpperCase().replace(/[^A-Z0-9\-_./,]/g, "").slice(0, 50);
+}
+
+/**
+ * Matches an extracted HSN code against the organization's saved categories.
+ * Supports exact match, prefix match (4, 6, or 8 digits), and optical statutory standards.
+ */
+function matchCategoryByHsn(
+  hsnCode?: string | null,
+  categories: CategoryItem[] = []
+): CategoryItem | null {
+  if (!hsnCode) return null;
+  const cleanHsn = hsnCode.replace(/\D/g, "");
+  if (!cleanHsn) return null;
+
+  // 1. Direct match on saved category hsnCode
+  const direct = categories.find((c) => {
+    if (!c.hsnCode) return false;
+    const catHsn = c.hsnCode.replace(/\D/g, "");
+    return catHsn === cleanHsn;
+  });
+  if (direct) return direct;
+
+  // 2. Prefix match (e.g. 9003 matches 90031100 or 90031900)
+  const prefix = categories.find((c) => {
+    if (!c.hsnCode) return false;
+    const catHsn = c.hsnCode.replace(/\D/g, "");
+    return cleanHsn.startsWith(catHsn) || catHsn.startsWith(cleanHsn);
+  });
+  if (prefix) return prefix;
+
+  // 3. Optical Chapter 90 / 33 statutory standards
+  // 9003: Frames and mountings for spectacles
+  if (cleanHsn.startsWith("9003")) {
+    const frameCat = categories.find((c) => c.code === "FRAME");
+    if (frameCat) return frameCat;
+  }
+  // 9004: Sunglasses (900410) or corrective spectacles
+  if (cleanHsn.startsWith("900410")) {
+    const sunCat = categories.find((c) => c.code === "SUNGLASSES");
+    if (sunCat) return sunCat;
+  }
+  if (cleanHsn.startsWith("9004")) {
+    const sunCat = categories.find((c) => c.code === "SUNGLASSES");
+    const frameCat = categories.find((c) => c.code === "FRAME");
+    if (sunCat) return sunCat;
+    if (frameCat) return frameCat;
+  }
+  // 9001: Ophthalmic lenses (900130: Contact lenses, 900140/900150: Spectacle lenses)
+  if (cleanHsn.startsWith("900130")) {
+    const clCat = categories.find((c) => c.code === "CONTACT_LENS");
+    if (clCat) return clCat;
+  }
+  if (cleanHsn.startsWith("9001")) {
+    const lensCat = categories.find((c) => c.code === "LENS");
+    if (lensCat) return lensCat;
+  }
+  // 3307: Contact lens solutions
+  if (cleanHsn.startsWith("3307")) {
+    const solCat = categories.find((c) => c.code === "SOLUTION");
+    if (solCat) return solCat;
+  }
+
+  return null;
 }
 
 /**
@@ -111,8 +175,12 @@ export async function extractBillDataAction(
     };
   }
 
-  // 1. Get organization AI configuration
-  const aiConfig = await getOrganizationAiConfig(user.organizationId);
+  // 1. Get organization AI configuration & categories from database
+  const [aiConfig, orgCategories] = await Promise.all([
+    getOrganizationAiConfig(user.organizationId),
+    getOrganizationCategories(user.organizationId),
+  ]);
+
   if (!aiConfig.apiKey) {
     return {
       success: false,
@@ -141,6 +209,10 @@ export async function extractBillDataAction(
     ? base64Data.split("base64,")[1]
     : base64Data;
 
+  const categoriesContext = orgCategories && orgCategories.length > 0
+    ? orgCategories.map((c) => `- ${c.name} (Code: "${c.code}", HSN: "${c.hsnCode || 'N/A'}", GST: ${c.igstPercent}%)`).join("\n")
+    : `- Frames (Code: "FRAME", HSN: "9003", GST: 12%)\n- Sunglasses (Code: "SUNGLASSES", HSN: "9004", GST: 12%)\n- Lenses (Code: "LENS", HSN: "9001", GST: 12%)\n- Contact Lenses (Code: "CONTACT_LENS", HSN: "90013000", GST: 12%)\n- Solutions (Code: "SOLUTION", HSN: "3307", GST: 18%)\n- Accessories (Code: "ACCESSORY", HSN: "90049000", GST: 18%)`;
+
   const prompt = `You are an expert optical retail bill & tax invoice reader for Indian optical stores.
 Extract header details and all purchase line items from this supplier bill/invoice.
 Return ONLY valid JSON matching this schema without any markdown formatting or code blocks:
@@ -153,9 +225,9 @@ Return ONLY valid JSON matching this schema without any markdown formatting or c
   "items": [
     {
       "productName": "Full name or description of optical product as printed",
-      "productCode": "SKU, Barcode, Article code, or Item Code ONLY if explicitly printed on the bill, otherwise null",
+      "productCode": "SKU, Barcode, Article code, or Item Code if printed. If no separate product code column exists, but Description contains a code (e.g. 'SI-20050,50-15-135,F900'), extract that full code string here. Otherwise null",
       "category": "FRAME" or "SUNGLASSES" or "LENS" or "CONTACT_LENS" or "ACCESSORY" or "SOLUTION",
-      "hsnCode": "HSN/SAC code if printed (e.g. 90041000, 90049000, 9003, 9001, 90013000, 33077000)",
+      "hsnCode": "HSN/SAC code if printed (e.g. 90031100, 90031900, 90041000, 90015000, 33077000)",
       "quantity": 1,
       "unitPrice": 100.0,
       "discountPercent": 0.0,
@@ -171,21 +243,23 @@ Return ONLY valid JSON matching this schema without any markdown formatting or c
   ]
 }
 
-Classification rules:
-- Sunglasses (Ray-Ban sunglasses, Polaroid, sunwear, shades, polarized sunglasses) -> category "SUNGLASSES"
-- Spectacle Frames (Optical frames, eyeglasses, rimless, metal/acetate frames without tinted sun lenses) -> category "FRAME"
-- Ophthalmic lenses (Single Vision, Progressive, Bifocal, Blue Cut, Anti-Glare, Crizal, 1.56, 1.61, 1.67) -> category "LENS"
-- Contact lenses (Acuvue, Soflens, PureVision, Biofinity, Dailies, Monthly, Toric) -> category "CONTACT_LENS"
-- Contact Lens solutions / eye drops (Renu, Opti-Free, Biotrue, Complete) -> category "SOLUTION"
-- Accessories (Cases, cloths, nose pads, chains, cords, cleaners, tools) -> category "ACCESSORY"
+Saved store categories and HSN reference:
+${categoriesContext}
 
 CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
 1. ZERO HALLUCINATION: Extract ONLY data explicitly printed on the document. NEVER invent, extrapolate, or guess values.
 2. NO RETAIL PRICES: Supplier invoices NEVER contain retail selling prices / MRP. Do NOT extract or guess retail prices.
-3. PRODUCT CODES: If an item does NOT have an article code or barcode printed on the bill, set "productCode": null. NEVER fabricate fake codes.
-4. NET TAXABLE UNIT RATE: "unitPrice" must be the net rate per unit BEFORE taxes. If the bill lists a trade discount or gives a net taxable value for the line item, "unitPrice" = taxableValue / quantity. NEVER include GST in unitPrice.
-5. GST RATE: Optical items in India typically have 12% GST (6% CGST + 6% SGST, or 12% IGST) for frames, sunglasses, and lenses, or 18% GST (9% CGST + 9% SGST, or 18% IGST) for solutions and certain accessories. Extract the exact printed GST rate.
-6. SPECIFICATIONS: If color, size, model, batch, or expiry are not printed for an item, return null for those fields. Never output "N/A", "null", or "none".`;
+3. PRODUCT CODES:
+   - If an explicit column for Product Code / Item Code / SKU / Article exists, extract it as "productCode".
+   - If NO dedicated product code column exists on the bill, but the item description / "Description of Goods" contains a structured code (e.g. "SI-20050,50-15-135,F900" or model number with dimensions/color), extract the complete code string as "productCode", and also use it in "productName".
+   - NEVER fabricate synthetic codes not printed on the document.
+4. LINE ITEM PRICE:
+   - Extract the final net price printed on the bill for the item (e.g. after any line trade discount). In supplier invoices where the line shows "Price" or "Amount" (e.g. 3240.00), extract that final net unit price as "unitPrice".
+   - Do NOT multiply by quantity for unitPrice.
+5. HSN CODE & CATEGORY:
+   - Always extract the exact HSN/SAC code printed for each line item (e.g. 90031100, 90031900, 90041000, 90015000).
+   - Match the HSN code and item description to the most appropriate store category from the list above.
+6. SPECIFICATIONS: If color, size, model, batch, or expiry are printed in the description or bill columns, extract them. If not printed, return null. Never output "N/A", "null", or "none".`;
 
   try {
     const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
@@ -295,25 +369,52 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
       };
     }
 
-    let parsed: RawGeminiResponse;
+    let parsed: any = {};
     try {
       parsed = JSON.parse(responseText);
     } catch (parseErr) {
-      // Fallback: attempt to strip any inadvertent markdown backticks
+      // Fallback: strip markdown code fences and whitespace
       const cleanJson = responseText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
-      parsed = JSON.parse(cleanJson);
+      try {
+        parsed = JSON.parse(cleanJson);
+      } catch (e) {
+        console.error("Failed to parse Gemini JSON:", responseText);
+        parsed = {};
+      }
+    }
+
+    // Resilient raw items array detection (handles root array, parsed.items, or nested objects)
+    let rawItems: RawGeminiItem[] = [];
+    if (Array.isArray(parsed)) {
+      rawItems = parsed;
+    } else if (Array.isArray(parsed?.items)) {
+      rawItems = parsed.items;
+    } else if (parsed && typeof parsed === "object") {
+      const candidates = [
+        parsed.items,
+        parsed.lineItems,
+        parsed.products,
+        parsed.invoice?.items,
+        parsed.data?.items,
+      ];
+      for (const cand of candidates) {
+        if (Array.isArray(cand)) {
+          rawItems = cand;
+          break;
+        }
+      }
     }
 
     // 3. Match Vendor against Database
     const existingVendors = await getVendorsByOrganization(user.organizationId);
     let matchedVendorId: string | null = null;
-    let finalVendorName = parsed.vendorName?.trim() || "";
+    let finalVendorName = typeof parsed?.vendorName === "string" ? parsed.vendorName.trim() : "";
     let isNewVendor = true;
 
-    const extractedGstin = parsed.vendorGstin
+    const extractedGstin = typeof parsed?.vendorGstin === "string"
       ? parsed.vendorGstin.toUpperCase().replace(/[^A-Z0-9]/g, "")
       : "";
 
@@ -349,9 +450,8 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
 
     // 4. System-Side Math Engine & Row Normalization (Zero-error calculation)
     const taxType: "SGST_CGST" | "IGST" =
-      parsed.taxType === "IGST" ? "IGST" : "SGST_CGST";
+      parsed?.taxType === "IGST" ? "IGST" : "SGST_CGST";
 
-    const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
     let calculatedTotalAmount = 0;
     let calculatedTotalGst = 0;
 
@@ -385,7 +485,31 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
         unitRate = Number((Number(raw.taxableValue) / qty).toFixed(2));
       }
 
-      const rawGst = Math.max(0, Number(raw.gstPercent) || 12);
+      // 1. Category Detection: Match via HSN code against organization's saved categories first!
+      const rawCat = (raw.category || "").toUpperCase().trim();
+      const hsnMatchedCat = matchCategoryByHsn(raw.hsnCode, orgCategories);
+      let validCategory: ExtractedBillItem["category"] = "FRAME";
+      if (hsnMatchedCat && validCategories.includes(hsnMatchedCat.code)) {
+        validCategory = hsnMatchedCat.code as ExtractedBillItem["category"];
+      } else if (validCategories.includes(rawCat)) {
+        validCategory = rawCat as ExtractedBillItem["category"];
+      } else {
+        validCategory = "FRAME";
+      }
+
+      // 2. GST Rate Determination: Use row's GST if printed, otherwise default to matched category's rate
+      const catObj = orgCategories.find((c) => c.code === validCategory);
+      const catGst = catObj ? parseFloat(catObj.igstPercent) || 12 : 12;
+      const rawGst = Number(raw.gstPercent) > 0 ? Number(raw.gstPercent) : catGst;
+
+      // 3. Purchase Cost & Base Price Math:
+      // The final net price extracted from the bill is the Purchase Cost per unit (inclusive of any trade discounts)
+      const purchasePricePerUnit = unitRate;
+      const totalPurchase = Number((purchasePricePerUnit * qty).toFixed(2));
+      const baseUnitPrice = rawGst > 0
+        ? Number((purchasePricePerUnit / (1 + rawGst / 100)).toFixed(2))
+        : purchasePricePerUnit;
+      const totalItemTax = Number(Math.max(0, totalPurchase - Number((baseUnitPrice * qty).toFixed(2))).toFixed(2));
 
       // System computes precise tax splits
       let cgstPercent = 0;
@@ -397,34 +521,25 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
 
       if (taxType === "IGST") {
         igstPercent = rawGst;
-        igstAmount = Number(((unitRate * qty * igstPercent) / 100).toFixed(2));
+        igstAmount = totalItemTax;
       } else {
         cgstPercent = Number((rawGst / 2).toFixed(2));
         sgstPercent = Number((rawGst / 2).toFixed(2));
-        cgstAmount = Number(((unitRate * qty * cgstPercent) / 100).toFixed(2));
-        sgstAmount = Number(((unitRate * qty * sgstPercent) / 100).toFixed(2));
+        cgstAmount = Number((totalItemTax / 2).toFixed(2));
+        sgstAmount = Number((totalItemTax - cgstAmount).toFixed(2));
       }
-
-      const totalItemTax = Number(
-        (cgstAmount + sgstAmount + igstAmount).toFixed(2)
-      );
-      const totalPurchase = Number(
-        (unitRate * qty + totalItemTax).toFixed(2)
-      );
-      const purchasePricePerUnit = Number(
-        (unitRate + totalItemTax / qty).toFixed(2)
-      );
 
       calculatedTotalAmount += totalPurchase;
       calculatedTotalGst += totalItemTax;
 
-      const rawCat = (raw.category || "").toUpperCase().trim();
-      const validCategory: ExtractedBillItem["category"] = validCategories.includes(rawCat)
-        ? (rawCat as ExtractedBillItem["category"])
-        : "FRAME";
-
-      // Product code: only extract if explicitly on bill, NEVER hallucinate fake codes
-      const cleanCode = sanitizeCode(raw.productCode);
+      // 4. Product code: If not explicitly in a product code column, pick from description if structured
+      let cleanCode = sanitizeCode(raw.productCode);
+      if (!cleanCode && raw.productName) {
+        const trimmedName = String(raw.productName).trim();
+        if (/^[A-Z0-9\-_./,]{4,}$/i.test(trimmedName) || /^[A-Z0-9\-_]+[,;\s]+[0-9\-]+/i.test(trimmedName)) {
+          cleanCode = sanitizeCode(trimmedName);
+        }
+      }
 
       // Optical Specs: sanitize out "N/A", "none", "null" strings
       const brand = sanitizeSpecString(raw.brand);
@@ -433,7 +548,7 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
       const size = sanitizeSpecString(raw.size);
       const batchNumber = sanitizeSpecString(raw.batchNumber);
       const expiryDate = sanitizeSpecString(raw.expiryDate);
-      const cleanHsn = sanitizeSpecString(raw.hsnCode) || defaultHsnMap[validCategory] || "90049000";
+      const cleanHsn = sanitizeSpecString(raw.hsnCode) || catObj?.hsnCode || defaultHsnMap[validCategory] || "90049000";
 
       const fallbackName = [brand, model, validCategory].filter(Boolean).join(" ");
       const productName = sanitizeSpecString(raw.productName) || fallbackName || `Item ${idx + 1}`;
@@ -445,8 +560,8 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
         category: validCategory,
         hsnCode: cleanHsn,
         quantity: qty,
-        unitPrice: unitRate,
-        basePrice: unitRate,
+        unitPrice: baseUnitPrice,
+        basePrice: baseUnitPrice,
         gstPercent: rawGst,
         cgstPercent,
         cgstAmount,
@@ -459,7 +574,7 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
         // STRICTLY 0: Supplier bills never dictate retail selling price. Field is kept blank in UI.
         retailPrice: 0,
         discountPercent: Number(raw.discountPercent) || 0,
-        taxableValue: Number(raw.taxableValue) || Number((unitRate * qty).toFixed(2)),
+        taxableValue: Number((baseUnitPrice * qty).toFixed(2)),
 
         // Extended specs
         brand,

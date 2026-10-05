@@ -366,6 +366,7 @@ interface LineItem {
   rowTotal: number;
   maxQty: number;
   allowNegativeStock?: boolean;
+  pricingMode?: "exclusive" | "inclusive";
 
   // Autocomplete states per row item
   searchQuery: string;
@@ -1443,74 +1444,172 @@ export function NewInvoiceForm() {
           merged.igstPercent = rates.igstPercent;
         }
 
-        // Handle potential empty/blank quantity or price while editing
-        const qty = merged.quantity === "" || isNaN(merged.quantity as number) ? 0 : (merged.quantity as number);
-        const price = isNaN(merged.unitPrice) ? 0 : merged.unitPrice;
-        const lineSubtotal = qty * price;
-
-        // Bi-directional Discount calculations (strictly clamped so discount percentage is never > 100%):
-        if (fields.discountAmount !== undefined) {
-          const rawAmt = Math.max(0, fields.discountAmount || 0);
-          // If lineSubtotal > 0, discount amount cannot exceed lineSubtotal, ensuring discount percentage is never > 100%
-          const discAmt = lineSubtotal > 0 ? Math.min(lineSubtotal, rawAmt) : rawAmt;
-          merged.discountAmount = discAmt;
-          merged.discountPercent = lineSubtotal > 0 ? Number(Math.min(100, (discAmt / lineSubtotal) * 100).toFixed(2)) : 0;
-        } else if (fields.discountPercent !== undefined) {
-          // Strictly cap discount percentage at 100%
-          const discPct = Math.min(100, Math.max(0, fields.discountPercent || 0));
-          merged.discountPercent = discPct;
-          merged.discountAmount = Number(((lineSubtotal * discPct) / 100).toFixed(2));
-        } else {
-          // If price or quantity changed, recompute discountAmount based on existing discountPercent (capped at 100%)
-          const discPct = Math.min(100, Math.max(0, merged.discountPercent || 0));
-          merged.discountPercent = discPct;
-          merged.discountAmount = Number(((lineSubtotal * discPct) / 100).toFixed(2));
+        // Determine pricing mode:
+        // - "inclusive" when user enters/edits rowTotal directly
+        // - "exclusive" when user enters/edits unitPrice directly
+        let mode: "inclusive" | "exclusive" = item.pricingMode || "exclusive";
+        if (fields.rowTotal !== undefined && fields.unitPrice === undefined) {
+          mode = "inclusive";
+          merged.pricingMode = "inclusive";
+        } else if (fields.unitPrice !== undefined) {
+          mode = "exclusive";
+          merged.pricingMode = "exclusive";
         }
 
-        merged.taxableSubtotal = Number(Math.max(0, lineSubtotal - merged.discountAmount).toFixed(2));
+        // Quantity normalization
+        const rawQty = merged.quantity === "" || isNaN(merged.quantity as number) ? 0 : (merged.quantity as number);
+        const effectiveQty = rawQty > 0 ? rawQty : 1;
 
-        // Bi-directional CGST computations:
-        if (fields.cgstAmount !== undefined) {
-          const amt = Math.max(0, fields.cgstAmount || 0);
-          merged.cgstAmount = amt;
-          merged.cgstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
-        } else if (fields.cgstPercent !== undefined) {
-          const pct = Math.max(0, fields.cgstPercent || 0);
-          merged.cgstPercent = pct;
-          merged.cgstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
+        // Total GST rate for the line item
+        const cgstPct = Math.max(0, merged.cgstPercent || 0);
+        const sgstPct = Math.max(0, merged.sgstPercent || 0);
+        const igstPct = Math.max(0, merged.igstPercent || 0);
+        const totalGstRate = Number((cgstPct + sgstPct + igstPct).toFixed(2));
+
+        if (
+          mode === "inclusive" &&
+          (fields.rowTotal !== undefined ||
+            fields.category !== undefined ||
+            fields.cgstPercent !== undefined ||
+            fields.sgstPercent !== undefined ||
+            fields.igstPercent !== undefined)
+        ) {
+          // =========================================================================
+          // REVERSE CALCULATION (From rowTotal -> taxableSubtotal, GST amounts, unitPrice)
+          // =========================================================================
+          const targetTotal = fields.rowTotal !== undefined ? Math.max(0, fields.rowTotal || 0) : Math.max(0, merged.rowTotal || 0);
+
+          if (targetTotal === 0) {
+            merged.taxableSubtotal = 0;
+            merged.cgstAmount = 0;
+            merged.sgstAmount = 0;
+            merged.igstAmount = 0;
+            merged.unitPrice = 0;
+            merged.discountAmount = 0;
+            merged.discountPercent = 0;
+            merged.rowTotal = 0;
+          } else {
+            // 1. Calculate taxable subtotal (base price before GST)
+            const taxableSubtotal = totalGstRate > 0
+              ? Number((targetTotal / (1 + totalGstRate / 100)).toFixed(2))
+              : targetTotal;
+
+            // 2. Exact total tax (guarantees taxableSubtotal + totalTax === targetTotal with zero rounding leak)
+            const totalTax = Number(Math.max(0, targetTotal - taxableSubtotal).toFixed(2));
+
+            // 3. Tax breakdown according to statutory rules
+            let cgstAmt = 0;
+            let sgstAmt = 0;
+            let igstAmt = 0;
+
+            if (isInterState || (igstPct > 0 && cgstPct === 0 && sgstPct === 0)) {
+              igstAmt = totalTax;
+              cgstAmt = 0;
+              sgstAmt = 0;
+            } else if (cgstPct > 0 || sgstPct > 0) {
+              igstAmt = 0;
+              if (cgstPct === sgstPct) {
+                cgstAmt = Number((totalTax / 2).toFixed(2));
+                sgstAmt = Number((totalTax - cgstAmt).toFixed(2));
+              } else {
+                const combined = cgstPct + sgstPct;
+                const ratio = combined > 0 ? cgstPct / combined : 0.5;
+                cgstAmt = Number((totalTax * ratio).toFixed(2));
+                sgstAmt = Number((totalTax - cgstAmt).toFixed(2));
+              }
+            }
+
+            // 4. Back-calculate unit price and discount
+            if (merged.discountPercent > 0 && merged.discountPercent < 100) {
+              const undiscountedSubtotal = Number((taxableSubtotal / (1 - merged.discountPercent / 100)).toFixed(2));
+              merged.unitPrice = Number((undiscountedSubtotal / effectiveQty).toFixed(2));
+              merged.discountAmount = Number(Math.max(0, undiscountedSubtotal - taxableSubtotal).toFixed(2));
+            } else {
+              const discAmt = Math.max(0, merged.discountAmount || 0);
+              const undiscountedSubtotal = taxableSubtotal + discAmt;
+              merged.unitPrice = Number((undiscountedSubtotal / effectiveQty).toFixed(2));
+              if (undiscountedSubtotal > 0 && discAmt > 0) {
+                merged.discountPercent = Number(Math.min(100, (discAmt / undiscountedSubtotal) * 100).toFixed(2));
+              } else {
+                merged.discountPercent = 0;
+              }
+            }
+
+            merged.taxableSubtotal = taxableSubtotal;
+            merged.cgstAmount = cgstAmt;
+            merged.sgstAmount = sgstAmt;
+            merged.igstAmount = igstAmt;
+            merged.rowTotal = targetTotal;
+          }
         } else {
-          merged.cgstAmount = Number((merged.taxableSubtotal * ((merged.cgstPercent || 0) / 100)).toFixed(2));
+          // =========================================================================
+          // FORWARD CALCULATION (From unitPrice * qty -> taxableSubtotal -> taxes -> rowTotal)
+          // =========================================================================
+          const price = isNaN(merged.unitPrice) ? 0 : merged.unitPrice;
+          const lineSubtotal = rawQty * price;
+
+          // Bi-directional Discount calculations (strictly clamped so discount percentage is never > 100%):
+          if (fields.discountAmount !== undefined) {
+            const rawAmt = Math.max(0, fields.discountAmount || 0);
+            const discAmt = lineSubtotal > 0 ? Math.min(lineSubtotal, rawAmt) : rawAmt;
+            merged.discountAmount = discAmt;
+            merged.discountPercent = lineSubtotal > 0 ? Number(Math.min(100, (discAmt / lineSubtotal) * 100).toFixed(2)) : 0;
+          } else if (fields.discountPercent !== undefined) {
+            const discPct = Math.min(100, Math.max(0, fields.discountPercent || 0));
+            merged.discountPercent = discPct;
+            merged.discountAmount = Number(((lineSubtotal * discPct) / 100).toFixed(2));
+          } else {
+            const discPct = Math.min(100, Math.max(0, merged.discountPercent || 0));
+            merged.discountPercent = discPct;
+            merged.discountAmount = Number(((lineSubtotal * discPct) / 100).toFixed(2));
+          }
+
+          merged.taxableSubtotal = Number(Math.max(0, lineSubtotal - merged.discountAmount).toFixed(2));
+
+          // Bi-directional CGST computations:
+          if (fields.cgstAmount !== undefined) {
+            const amt = Math.max(0, fields.cgstAmount || 0);
+            merged.cgstAmount = amt;
+            merged.cgstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
+          } else if (fields.cgstPercent !== undefined) {
+            const pct = Math.max(0, fields.cgstPercent || 0);
+            merged.cgstPercent = pct;
+            merged.cgstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
+          } else {
+            merged.cgstAmount = Number((merged.taxableSubtotal * ((merged.cgstPercent || 0) / 100)).toFixed(2));
+          }
+
+          // Bi-directional SGST computations:
+          if (fields.sgstAmount !== undefined) {
+            const amt = Math.max(0, fields.sgstAmount || 0);
+            merged.sgstAmount = amt;
+            merged.sgstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
+          } else if (fields.sgstPercent !== undefined) {
+            const pct = Math.max(0, fields.sgstPercent || 0);
+            merged.sgstPercent = pct;
+            merged.sgstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
+          } else {
+            merged.sgstAmount = Number((merged.taxableSubtotal * ((merged.sgstPercent || 0) / 100)).toFixed(2));
+          }
+
+          // Bi-directional IGST computations:
+          if (fields.igstAmount !== undefined) {
+            const amt = Math.max(0, fields.igstAmount || 0);
+            merged.igstAmount = amt;
+            merged.igstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
+          } else if (fields.igstPercent !== undefined) {
+            const pct = Math.max(0, fields.igstPercent || 0);
+            merged.igstPercent = pct;
+            merged.igstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
+          } else {
+            merged.igstAmount = Number((merged.taxableSubtotal * ((merged.igstPercent || 0) / 100)).toFixed(2));
+          }
+
+          merged.rowTotal = Number(
+            (merged.taxableSubtotal + merged.cgstAmount + merged.sgstAmount + merged.igstAmount).toFixed(2)
+          );
         }
 
-        // Bi-directional SGST computations:
-        if (fields.sgstAmount !== undefined) {
-          const amt = Math.max(0, fields.sgstAmount || 0);
-          merged.sgstAmount = amt;
-          merged.sgstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
-        } else if (fields.sgstPercent !== undefined) {
-          const pct = Math.max(0, fields.sgstPercent || 0);
-          merged.sgstPercent = pct;
-          merged.sgstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
-        } else {
-          merged.sgstAmount = Number((merged.taxableSubtotal * ((merged.sgstPercent || 0) / 100)).toFixed(2));
-        }
-
-        // Bi-directional IGST computations:
-        if (fields.igstAmount !== undefined) {
-          const amt = Math.max(0, fields.igstAmount || 0);
-          merged.igstAmount = amt;
-          merged.igstPercent = merged.taxableSubtotal > 0 ? Number(((amt / merged.taxableSubtotal) * 100).toFixed(2)) : 0;
-        } else if (fields.igstPercent !== undefined) {
-          const pct = Math.max(0, fields.igstPercent || 0);
-          merged.igstPercent = pct;
-          merged.igstAmount = Number((merged.taxableSubtotal * (pct / 100)).toFixed(2));
-        } else {
-          merged.igstAmount = Number((merged.taxableSubtotal * ((merged.igstPercent || 0) / 100)).toFixed(2));
-        }
-
-        merged.rowTotal = Number(
-          (merged.taxableSubtotal + merged.cgstAmount + merged.sgstAmount + merged.igstAmount).toFixed(2)
-        );
         return merged;
       }
       return item;
@@ -2628,18 +2727,18 @@ export function NewInvoiceForm() {
           <div className="overflow-hidden">
             <table className="w-full text-left text-xs border-collapse border-b border-slate-200" style={{ tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '16%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '15%' }} />
                 <col style={{ width: '4%' }} />
                 <col style={{ width: '8%' }} />
                 <col style={{ width: '6%' }} />
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '2%' }} />
+                <col style={{ width: '4%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '3%' }} />
               </colgroup>
               <thead>
                 <tr className="bg-slate-800 text-slate-100 text-[10px] font-bold uppercase tracking-wider border-b-2 border-slate-900">
@@ -2986,12 +3085,24 @@ export function NewInvoiceForm() {
                       </td>
 
                       {/* 11. Row Total */}
-                      <td className="border-r border-b border-slate-200 bg-slate-50/50 p-0 relative transition-colors">
-                        <div
-                          className="flex items-center justify-end min-h-[40px] px-1 font-mono font-black text-slate-900 text-[11px] tabular-nums truncate"
-                          title={`Total: ₹${item.rowTotal.toFixed(2)}`}
-                        >
-                          {item.rowTotal.toFixed(2)}
+                      <td className="border-r border-b border-slate-200 bg-slate-50/50 p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
+                        <div className="flex items-center justify-end min-h-[40px] px-1">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="any"
+                            min="0"
+                            placeholder="0.00"
+                            value={item.rowTotal === 0 ? "" : item.rowTotal}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateLineItem(index, {
+                                rowTotal: val === "" ? 0 : Math.max(0, parseFloat(val) || 0),
+                              });
+                            }}
+                            title={`Total Price: ₹${item.rowTotal.toFixed(2)} (Direct entry auto-calculates base price & GST)`}
+                            className="w-full text-right font-mono font-black text-[11px] text-slate-900 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 p-0 tabular-nums placeholder:text-slate-400 placeholder:font-normal"
+                          />
                         </div>
                       </td>
 
