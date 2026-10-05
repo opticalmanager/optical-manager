@@ -31,7 +31,9 @@ export interface ExtractedBillItem {
   igstAmount: number;
   purchasePrice: number; // unitPrice + tax
   totalPurchasePrice: number; // (unitPrice * qty) + tax
-  retailPrice: number;
+  retailPrice: number; // Defaults to 0 (Supplier bills do not contain retail selling prices; kept blank in UI)
+  discountPercent?: number;
+  taxableValue?: number;
 
   // Extended optical specs (auto-filled for the Add Details modal)
   brand?: string;

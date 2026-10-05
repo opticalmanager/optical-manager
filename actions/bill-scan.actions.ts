@@ -17,6 +17,9 @@ interface RawGeminiItem {
   hsnCode?: string;
   quantity?: number;
   unitPrice?: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  taxableValue?: number;
   gstPercent?: number;
   brand?: string;
   model?: string;
@@ -36,33 +39,61 @@ interface RawGeminiResponse {
   notes?: string;
 }
 
-function sanitizeCode(str?: string): string {
-  if (!str) return "";
-  return str.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
+/**
+ * Normalizes diverse Indian invoice date formats (DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, DD-MMM-YYYY)
+ * into standard ISO YYYY-MM-DD for form date pickers.
+ */
+function normalizeIndianDate(dateStr?: string | null): string {
+  if (!dateStr) return new Date().toISOString().split("T")[0];
+  const cleaned = String(dateStr).trim();
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    return cleaned;
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const dmyMatch = cleaned.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, "0");
+    const month = dmyMatch[2].padStart(2, "0");
+    let year = dmyMatch[3];
+    if (year.length === 2) year = `20${year}`;
+    return `${year}-${month}-${day}`;
+  }
+
+  // Native Date parsing fallback
+  const parsed = new Date(cleaned);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split("T")[0];
+  }
+
+  return new Date().toISOString().split("T")[0];
 }
 
-function generateSmartProductCode(
-  category: string,
-  brand?: string,
-  index: number = 1
-): string {
-  const catPrefix =
-    category === "FRAME"
-      ? "FRM"
-      : category === "LENS"
-      ? "LNS"
-      : category === "CONTACT_LENS"
-      ? "CL"
-      : category === "SOLUTION"
-      ? "SOL"
-      : "ACC";
+/**
+ * Filters out placeholder strings ("N/A", "none", "null", "-", "nil") from LLM outputs.
+ */
+function sanitizeSpecString(val?: string | null): string | undefined {
+  if (!val) return undefined;
+  const str = String(val).trim();
+  if (!str) return undefined;
+  if (/^(n\/?a|none|null|undefined|-|--|unknown|not available|nil)$/i.test(str)) {
+    return undefined;
+  }
+  return str;
+}
 
-  const brandPrefix = brand
-    ? brand.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4)
-    : "GEN";
-
-  const randomSuffix = Math.floor(100 + Math.random() * 900);
-  return `${catPrefix}-${brandPrefix}-${randomSuffix}`;
+/**
+ * Sanitizes product codes/barcodes. Returns empty string if not a real code.
+ */
+function sanitizeCode(str?: string | null): string {
+  if (!str) return "";
+  const cleaned = String(str).trim();
+  if (/^(n\/?a|none|null|undefined|-|unknown|nil)$/i.test(cleaned)) {
+    return "";
+  }
+  return cleaned.toUpperCase().replace(/[^A-Z0-9\-_./]/g, "").slice(0, 30);
 }
 
 /**
@@ -121,34 +152,40 @@ Return ONLY valid JSON matching this schema without any markdown formatting or c
   "taxType": "SGST_CGST" (if intra-state, CGST+SGST) or "IGST" (if inter-state IGST),
   "items": [
     {
-      "productName": "Full name or description of optical product",
-      "productCode": "SKU, Item Code, or Model number if printed",
-      "category": "FRAME" or "LENS" or "CONTACT_LENS" or "ACCESSORY" or "SOLUTION",
-      "hsnCode": "HSN/SAC code if present (e.g. 90049000, 9003, 9001)",
+      "productName": "Full name or description of optical product as printed",
+      "productCode": "SKU, Barcode, Article code, or Item Code ONLY if explicitly printed on the bill, otherwise null",
+      "category": "FRAME" or "SUNGLASSES" or "LENS" or "CONTACT_LENS" or "ACCESSORY" or "SOLUTION",
+      "hsnCode": "HSN/SAC code if printed (e.g. 90041000, 90049000, 9003, 9001, 90013000, 33077000)",
       "quantity": 1,
       "unitPrice": 100.0,
+      "discountPercent": 0.0,
+      "taxableValue": 100.0,
       "gstPercent": 12.0,
-      "brand": "Brand name if detectable (e.g. Ray-Ban, Essilor, Bausch+Lomb)",
-      "model": "Model name / code if present",
-      "color": "Color code or name if present",
-      "size": "Size or dimensions if present (e.g. 52-18-140)",
-      "batchNumber": "Batch or Lot number if present",
-      "expiryDate": "YYYY-MM-DD if expiry date is printed"
+      "brand": "Brand name if printed or recognizable (e.g. Ray-Ban, Polaroid, Essilor, Bausch+Lomb), otherwise null",
+      "model": "Model name / code if printed, otherwise null",
+      "color": "Color code or name ONLY if printed, otherwise null",
+      "size": "Size or dimensions ONLY if printed (e.g. 52-18-140), otherwise null",
+      "batchNumber": "Batch or Lot number if printed (common on lenses/solutions), otherwise null",
+      "expiryDate": "YYYY-MM-DD if expiry date is printed, otherwise null"
     }
   ]
 }
 
 Classification rules:
-- Frames/Sunglasses (Ray-Ban, Carrera, Oakley, Vogue, Titan, Fastrack, metal/plastic frames) -> category "FRAME"
+- Sunglasses (Ray-Ban sunglasses, Polaroid, sunwear, shades, polarized sunglasses) -> category "SUNGLASSES"
+- Spectacle Frames (Optical frames, eyeglasses, rimless, metal/acetate frames without tinted sun lenses) -> category "FRAME"
 - Ophthalmic lenses (Single Vision, Progressive, Bifocal, Blue Cut, Anti-Glare, Crizal, 1.56, 1.61, 1.67) -> category "LENS"
 - Contact lenses (Acuvue, Soflens, PureVision, Biofinity, Dailies, Monthly, Toric) -> category "CONTACT_LENS"
-- Lens solutions / eye drops (Renu, Opti-Free, Biotrue, Complete) -> category "SOLUTION"
-- Cases, cloths, nose pads, chains, cords, cleaners -> category "ACCESSORY"
+- Contact Lens solutions / eye drops (Renu, Opti-Free, Biotrue, Complete) -> category "SOLUTION"
+- Accessories (Cases, cloths, nose pads, chains, cords, cleaners, tools) -> category "ACCESSORY"
 
-Extraction instructions:
-- unitPrice is the rate/base price per unit BEFORE taxes.
-- gstPercent is the total GST rate (e.g. 12, 18, 5, 0).
-- Do not invent non-existent items. Extract only real items printed on the document.`;
+CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
+1. ZERO HALLUCINATION: Extract ONLY data explicitly printed on the document. NEVER invent, extrapolate, or guess values.
+2. NO RETAIL PRICES: Supplier invoices NEVER contain retail selling prices / MRP. Do NOT extract or guess retail prices.
+3. PRODUCT CODES: If an item does NOT have an article code or barcode printed on the bill, set "productCode": null. NEVER fabricate fake codes.
+4. NET TAXABLE UNIT RATE: "unitPrice" must be the net rate per unit BEFORE taxes. If the bill lists a trade discount or gives a net taxable value for the line item, "unitPrice" = taxableValue / quantity. NEVER include GST in unitPrice.
+5. GST RATE: Optical items in India typically have 12% GST (6% CGST + 6% SGST, or 12% IGST) for frames, sunglasses, and lenses, or 18% GST (9% CGST + 9% SGST, or 18% IGST) for solutions and certain accessories. Extract the exact printed GST rate.
+6. SPECIFICATIONS: If color, size, model, batch, or expiry are not printed for an item, return null for those fields. Never output "N/A", "null", or "none".`;
 
   try {
     const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
@@ -174,7 +211,7 @@ Extraction instructions:
           model: modelName,
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0.1,
+            temperature: 0.0,
           },
         });
 
@@ -318,9 +355,36 @@ Extraction instructions:
     let calculatedTotalAmount = 0;
     let calculatedTotalGst = 0;
 
+    const defaultHsnMap: Record<string, string> = {
+      FRAME: "90049000",
+      SUNGLASSES: "90041000",
+      LENS: "9001",
+      CONTACT_LENS: "90013000",
+      SOLUTION: "33077000",
+      ACCESSORY: "90049000",
+    };
+
+    const validCategories = [
+      "FRAME",
+      "SUNGLASSES",
+      "LENS",
+      "CONTACT_LENS",
+      "ACCESSORY",
+      "SOLUTION",
+    ];
+
     const processedItems: ExtractedBillItem[] = rawItems.map((raw, idx) => {
       const qty = Math.max(1, Math.round(Number(raw.quantity) || 1));
-      const unitRate = Math.max(0, Number(raw.unitPrice) || 0);
+      let unitRate = Math.max(0, Number(raw.unitPrice) || 0);
+
+      // If unitRate was not extracted or 0, but line taxable value is present
+      if ((!unitRate || unitRate === 0) && Number(raw.taxableValue) > 0) {
+        unitRate = Number((Number(raw.taxableValue) / qty).toFixed(2));
+      } else if (raw.taxableValue && Number(raw.taxableValue) > 0 && raw.discountPercent && Number(raw.discountPercent) > 0) {
+        // Effective net taxable unit cost after trade discount
+        unitRate = Number((Number(raw.taxableValue) / qty).toFixed(2));
+      }
+
       const rawGst = Math.max(0, Number(raw.gstPercent) || 12);
 
       // System computes precise tax splits
@@ -350,32 +414,36 @@ Extraction instructions:
       const purchasePricePerUnit = Number(
         (unitRate + totalItemTax / qty).toFixed(2)
       );
-      const retailPriceEstimate = Math.round(purchasePricePerUnit * 1.5);
 
       calculatedTotalAmount += totalPurchase;
       calculatedTotalGst += totalItemTax;
 
-      const validCategory: ExtractedBillItem["category"] = [
-        "FRAME",
-        "LENS",
-        "CONTACT_LENS",
-        "ACCESSORY",
-        "SOLUTION",
-      ].includes(raw.category as any)
-        ? (raw.category as ExtractedBillItem["category"])
+      const rawCat = (raw.category || "").toUpperCase().trim();
+      const validCategory: ExtractedBillItem["category"] = validCategories.includes(rawCat)
+        ? (rawCat as ExtractedBillItem["category"])
         : "FRAME";
 
-      const cleanCode =
-        sanitizeCode(raw.productCode) ||
-        generateSmartProductCode(validCategory, raw.brand, idx + 1);
+      // Product code: only extract if explicitly on bill, NEVER hallucinate fake codes
+      const cleanCode = sanitizeCode(raw.productCode);
+
+      // Optical Specs: sanitize out "N/A", "none", "null" strings
+      const brand = sanitizeSpecString(raw.brand);
+      const model = sanitizeSpecString(raw.model);
+      const color = sanitizeSpecString(raw.color);
+      const size = sanitizeSpecString(raw.size);
+      const batchNumber = sanitizeSpecString(raw.batchNumber);
+      const expiryDate = sanitizeSpecString(raw.expiryDate);
+      const cleanHsn = sanitizeSpecString(raw.hsnCode) || defaultHsnMap[validCategory] || "90049000";
+
+      const fallbackName = [brand, model, validCategory].filter(Boolean).join(" ");
+      const productName = sanitizeSpecString(raw.productName) || fallbackName || `Item ${idx + 1}`;
 
       return {
         id: crypto.randomUUID(),
-        productName:
-          raw.productName?.trim() || `${raw.brand || "Optical"} Product ${idx + 1}`,
+        productName,
         productCode: cleanCode,
         category: validCategory,
-        hsnCode: raw.hsnCode?.trim() || (validCategory === "FRAME" ? "90049000" : "9001"),
+        hsnCode: cleanHsn,
         quantity: qty,
         unitPrice: unitRate,
         basePrice: unitRate,
@@ -388,16 +456,19 @@ Extraction instructions:
         igstAmount,
         purchasePrice: purchasePricePerUnit,
         totalPurchasePrice: totalPurchase,
-        retailPrice: retailPriceEstimate,
+        // STRICTLY 0: Supplier bills never dictate retail selling price. Field is kept blank in UI.
+        retailPrice: 0,
+        discountPercent: Number(raw.discountPercent) || 0,
+        taxableValue: Number(raw.taxableValue) || Number((unitRate * qty).toFixed(2)),
 
         // Extended specs
-        brand: raw.brand?.trim(),
-        model: raw.model?.trim(),
-        color: raw.color?.trim(),
-        size: raw.size?.trim(),
-        batchNumber: raw.batchNumber?.trim(),
-        expiryDate: raw.expiryDate?.trim(),
-        requiresExpiryTracking: !!(raw.batchNumber || raw.expiryDate),
+        brand,
+        model,
+        color,
+        size,
+        batchNumber,
+        expiryDate,
+        requiresExpiryTracking: !!(batchNumber || expiryDate),
       };
     });
 
@@ -407,9 +478,7 @@ Extraction instructions:
       matchedVendorId,
       isNewVendor,
       invoiceNumber: parsed.invoiceNumber?.trim() || "",
-      invoiceDate:
-        parsed.invoiceDate?.trim() ||
-        new Date().toISOString().split("T")[0],
+      invoiceDate: normalizeIndianDate(parsed.invoiceDate),
       taxType,
       taxRule: "EXCLUDE",
       items: processedItems,

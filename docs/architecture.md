@@ -150,6 +150,19 @@ When billing products on new invoices (`/shop/invoices/new` and offline invoice 
 3. **Immutable Audit Movement Ledger**: Inserts a `SOLD` movement into `stock_movements` with `quantityChange: -quantity`, `balanceAfter: -quantity`, reference to the sale invoice, customer name, and user ID.
 4. **Relational Integrity**: Links `invoice_items.inventoryId` directly to the newly provisioned/updated inventory item, eliminating orphaned non-inventory line items and maintaining 100% catalog integrity across sales reports, order forms, and inventory valuations.
 
+### 3.5 POS Category Normalization & 2-Tier GST Rate Hierarchy (`NewInvoiceForm.tsx`)
+During invoice creation (`/shop/invoices/new`), line items adhere to an enterprise-grade taxonomy and tax calculation hierarchy:
+1. **Dynamic Category Default Rates**:
+   - Initial blank rows and added rows dynamically pull active tax rates from Category Master settings for the default category ("Frames" or organization-configured default) rather than relying on hardcoded percentages.
+   - Synchronizes seamlessly whenever store categories finish loading from local IndexedDB or remote server.
+2. **Canonical Category Code-to-Name Normalization**:
+   - Database catalog records store category codes (`FRAME`, `LENS`, `CONTACT_LENS`, `ACCESSORY`, `SUNGLASSES`, `SOLUTION`) while user interfaces display localized names (`Frames`, `Lenses`, `Contact Lenses`, `Accessories`, `Sunglasses`).
+   - The canonical category resolver normalizes uppercase codes, singulars, and plurals to the matching category's display name, guaranteeing that selecting any product via autocomplete search or barcode scanning immediately and accurately selects its category in the table dropdown.
+3. **2-Tier GST Rate Inheritance Hierarchy**:
+   - **Tier 1 (Product-Level Specific GST)**: When an item is selected from inventory, the billing engine inspects `product.cgstPercent`, `product.sgstPercent`, and `product.igstPercent`. If the item has explicitly configured non-zero GST rates, those item-specific rates take precedence.
+   - **Tier 2 (Category-Level Fallback GST)**: If the item does not have specific GST rates defined (or set to 0.00), the billing engine falls back to the configured rates of that product's category in the store's Category Master.
+   - **Statutory Distribution**: For intra-state transactions, total tax is divided equally into CGST and SGST (`igstPercent = 0`). For inter-state transactions, the total tax applies entirely to IGST (`cgstPercent = 0`, `sgstPercent = 0`).
+
 ### 4. PWA & Offline-First Storage Architecture (`lib/offline/`)
 
 Optical Manager implements an enterprise-grade client-side offline layer allowing POS checkout, patient onboarding, appointment scheduling, dues settlement, and full shop operations to survive network drops without interruption:

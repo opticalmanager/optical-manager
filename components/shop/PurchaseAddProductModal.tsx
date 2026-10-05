@@ -1315,6 +1315,8 @@ export function PurchaseAddProductModal({
                 <Input
                   type="number"
                   step="0.01"
+                  min={0}
+                  placeholder="0.00"
                   value={retailPrice || ""}
                   onChange={(e) =>
                     setRetailPrice(Math.max(0, parseFloat(e.target.value) || 0))
