@@ -71,7 +71,14 @@
 - **Multi-Dashboard Inward Triggers**: Direct access via the high-density action dropdowns on the Customers directory (`/shop/customers` -> `Add Bulk Invoices (CSV)`) and Orders management hub (`/shop/orders` -> `Invoices & Sales` -> `Import Invoices (CSV)`).
 
 ### 5. Purchases, Inward Supply & 4-Step Bulk CSV Ingestion Architecture
-- **Inward Supply Navigation**: Positioned directly below "Sales" in the store manager left sidebar, featuring hover-triggered sub-menus for "Purchases Add" (`/shop/purchases/new`) and "Vendors" (`/shop/purchases/vendors`).
+- **Inward Supply Navigation**: Positioned directly below "Sales" in the store manager left sidebar, featuring hover-triggered sub-menus for "Purchase Ledger" (`/shop/purchases`), "Purchases Add" (`/shop/purchases/new`), and "Vendors" (`/shop/purchases/vendors`).
+- **Comprehensive Purchase Ledger Hub (`/shop/purchases`)**:
+  - *Real-time KPI Metrics*: Instant 1-query aggregation for Total Purchases count, Net Inward Valuation (₹), Current Month Inward count, and Top Supplier identifier with interactive active-selection filter states.
+  - *Multi-Condition Filter Bar*: Zero-latency filtering by Vendor, Date Range (From/To), GST Pricing Model (Inclusive/Exclusive), Status (Draft/Completed/Cancelled), and full-text invoice # / vendor name search.
+  - *High-Density Zero-Scroll Table*: 8-column layout (Date, Bill #, Vendor with GSTIN, Amount, GST Type pill badge, Inward Qty, Status Badge with payment indicator, and View Action) with zero horizontal scrolling on standard laptop displays.
+  - *Full-Page Transaction Detail (`/shop/purchases/[id]`)*: Streamlined 8-column high-density table displaying `#`, `Product & Code`, `Category & HSN`, `Inward Qty`, `Rate (Purchase Cost & Base Split)`, `Total Amount`, `Retail MRP`, and `Tag / Delete Actions` - completely eliminating horizontal scrollbars in both View and Edit modes.
+  - *Multi-Format Barcode Printing & Batch Modal*: Individual item barcode modal (`BarcodeDesignerModal`) and batch modal (`PurchaseBulkBarcodeModal`) both defaulting to the optical gold standards (`100x15 mm Dual-Wing Butterfly Tag` and `Continuous Roll Thermal Direct`). The bulk printing interface features a 2-column split layout with interactive real-time barcode SVG preview on the right side (including zoom view, fold lines, and item switcher), per-item quantity steppers, and a zero-lag hidden iframe print spooler for instant thermal label printing.
+  - *Inward Editing & Atomic Deletion*: Supports full in-place editing with 5-priority bidirectional calculations (Purchase Cost ↔ Base Price ↔ GST% ↔ Qty), preserving the user's authentic entered supplier bill number on the purchase ledger, and safe transaction deletion with automatic stock deduction reversal (`STOCK_OUT`/`RETURN` movements).
 - **4-Phase Bulk Purchase Inward Wizard (`/shop/inventory/import`)**:
   - *Phase 1 (Upload)*: Drag-and-drop CSV uploader with RFC-4180 parsing and standardized sample template generator (`downloadSamplePurchaseCSV()`).
   - *Phase 2 (Mapping)*: Intelligent auto-mapping of CSV headers to system fields (`productCode`, `productName`, `quantity`, `unitPrice`, `retailPrice`, `category`, `gstPercent`, `hsnCode`, `brand`, `model`, `rackLocation`, `details`) with live first-row preview chips.
@@ -128,6 +135,13 @@ Optical Manager includes a complete, high-density Inward Supply & Purchases modu
 - **Vendor-Scoped Product Autocomplete & Ingestion**: Product code search autocomplete queries existing inventory with prioritization/scoping per selected vendor. Codes are unique per vendor rather than globally.
 - **Spacious Category-Rich Product Details Modal**: Unknown or edited codes open a `max-w-4xl` modal with dynamic category switcher tabs (`Frames`, `Lenses`, `Contact Lenses`, `Accessories`, `Solutions`), full category-specific spec panels (shapes, dimensions, lens design, index, coatings, contact lens BC/DIA, solution volumes, expiry tracking), and auto-filled HSN/GST rates from `product_categories`.
 - **Atomic Stock Increments & Ledger Auditing**: Completing a purchase order atomically increments inventory stock count (`+qty`), updates recent cost and retail prices, links vendor invoice references, and logs `STOCK_IN` movements in `stock_movements`.
+- **Unified Internal SKU = Barcode Standard (`[CAT]-[BRAND]-[SEQ]`)**:
+  - Unifies internal SKU and barcode into a single, canonical, collision-free identifier across inventory, purchases, barcode printing, and POS checkout.
+  - Optical 3-letter category prefixes: `FRM` (Frames), `SNG` (Sunglasses), `LNS` (Ophthalmic Lenses), `CTL` (Contact Lenses), `ACC` (Accessories), and `SOL` (Solutions).
+  - Robust Missing Metadata Hierarchy: Brand fallback derives first 3 alphanumeric characters from brand, falls back to vendor name, and defaults to `"GEN"` (Universal Generic, e.g. `FRM-GEN-00042`) for unbranded inward products.
+  - Zero-Collision Shop Sequences: Backed by `getNextSkuSequenceBatch` and `ensureUniqueShopSku`, guaranteeing 100% uniqueness in PostgreSQL `inventory_shop_product_code_idx`.
+  - Strict 13-Character Tag Optimization: Constrained to 13 characters to ensure crisp Code 39/Code 128 barcode rendering on 100×15 mm optical butterfly frame tags.
+  - Full POS Barcode Scanner Interoperability: Scanned at checkout via `/api/search`, matching either `sku` or `productCode` with 0ms latency.
 
 ---
 

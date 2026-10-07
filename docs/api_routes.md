@@ -254,3 +254,21 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
   - `recentTransactions`: Last 6-10 transactions with customer name, items summary string, formatted timestamp, total amount, and status.
   - `lowStockSummary`: `{ lowStockCount, items: [...] }`.
 
+### Purchase Ledger & Inward Management Server Actions
+
+#### `getPurchaseLedgerAction(options?: GetPurchaseOrdersOptions)`
+- **Module**: `actions/purchase.actions.ts`
+- **Description**: Retrieves paginated purchase order records with joined vendor GSTIN/phone and total count for the active shop.
+- **Filters**: `status`, `vendorId`, `dateFrom`, `dateTo`, `taxRule`, `search` (matches bill # or vendor name), `limit`, `offset`.
+- **Response**: `{ success: boolean, orders: PurchaseOrderWithVendor[], totalCount: number, message?: string }`.
+
+#### `updatePurchaseAction(id: string, data: PurchaseOrderFormValues)`
+- **Module**: `actions/purchase.actions.ts`
+- **Description**: Atomically updates a purchase order and line items within a PostgreSQL transaction. If previously COMPLETED, rolls back previous inventory stock additions with `RETURN` movement logs, before applying updated line items and re-synchronizing stock levels.
+- **Response**: `{ success: boolean, message: string, purchaseId?: string }`.
+
+#### `deletePurchaseAction(id: string)`
+- **Module**: `actions/purchase.actions.ts`
+- **Description**: Safely deletes a purchase invoice. For COMPLETED orders, automatically reverses inward stock additions from `inventory` via `RETURN` movements before removing line items and the order header.
+- **Response**: `{ success: boolean, message: string }`.
+

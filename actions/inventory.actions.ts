@@ -90,6 +90,8 @@ export async function createFrameItemAction(
       sequentialNumber: seq,
     });
 
+    const canonicalCode = data.productCode?.trim() || skuCode;
+
     // Execute atomic transaction
     await db.transaction(async (tx) => {
       // 1. Create base inventory item record
@@ -98,13 +100,13 @@ export async function createFrameItemAction(
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.productName || data.name || data.productCode,
+          name: data.productName || data.name || canonicalCode,
           productName: data.productName,
-          productCode: data.productCode,
+          productCode: canonicalCode,
           category: "FRAME",
           brand: data.brand || null,
           model: data.modelNumber || null,
-          sku: data.productCode || skuCode,
+          sku: canonicalCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -407,19 +409,21 @@ export async function createLensItemAction(
       sequentialNumber: seq,
     });
 
+    const canonicalCode = data.productCode?.trim() || skuCode;
+
     await db.transaction(async (tx) => {
       const [newInv] = await tx
         .insert(inventory)
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.productName || data.name || data.productCode,
+          name: data.productName || data.name || canonicalCode,
           productName: data.productName,
-          productCode: data.productCode,
+          productCode: canonicalCode,
           category: "LENS",
           brand: data.brand || null,
           model: null,
-          sku: data.productCode || skuCode,
+          sku: canonicalCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -680,19 +684,21 @@ export async function createContactLensItemAction(
       sequentialNumber: seq,
     });
 
+    const canonicalCode = data.productCode?.trim() || skuCode;
+
     await db.transaction(async (tx) => {
       const [newInv] = await tx
         .insert(inventory)
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.productName || data.name || data.productCode,
+          name: data.productName || data.name || canonicalCode,
           productName: data.productName,
-          productCode: data.productCode,
+          productCode: canonicalCode,
           category: "CONTACT_LENS",
           brand: data.brand || null,
           model: null,
-          sku: data.productCode || skuCode,
+          sku: canonicalCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -935,19 +941,21 @@ export async function createAccessoryItemAction(
       sequentialNumber: seq,
     });
 
+    const canonicalCode = data.productCode?.trim() || skuCode;
+
     await db.transaction(async (tx) => {
       const [newInv] = await tx
         .insert(inventory)
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.productName || data.name || data.productCode,
+          name: data.productName || data.name || canonicalCode,
           productName: data.productName,
-          productCode: data.productCode,
+          productCode: canonicalCode,
           category: "ACCESSORY",
           brand: data.brand || null,
           model: null,
-          sku: data.productCode || skuCode,
+          sku: canonicalCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,
@@ -1182,6 +1190,8 @@ export async function createSunglassItemAction(
       sequentialNumber: seq,
     });
 
+    const canonicalCode = data.productCode?.trim() || skuCode;
+
     // Execute atomic transaction
     await db.transaction(async (tx) => {
       // 1. Create base inventory item record
@@ -1190,13 +1200,13 @@ export async function createSunglassItemAction(
         .values({
           shopId: user.shopId!,
           organizationId: user.organizationId!,
-          name: data.productName || data.name || data.productCode,
+          name: data.productName || data.name || canonicalCode,
           productName: data.productName,
-          productCode: data.productCode,
+          productCode: canonicalCode,
           category: "SUNGLASSES",
           brand: data.brand || null,
           model: data.modelNumber || null,
-          sku: data.productCode || skuCode,
+          sku: canonicalCode,
           price: data.price.toString(),
           costPrice: data.costPrice ? data.costPrice.toString() : "0.00",
           quantity: data.quantity,

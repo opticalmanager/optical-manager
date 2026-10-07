@@ -17,8 +17,9 @@ import {
   Glasses
 } from "lucide-react";
 import { toast } from "sonner";
+import { printBarcodeDocument } from "@/utils/barcode.utils";
 
-interface InventoryItem {
+export interface InventoryItem {
   id: string;
   name: string;
   category: string;
@@ -26,12 +27,14 @@ interface InventoryItem {
   model: string | null;
   sku: string | null;
   price: string | null;
+  quantity?: number;
 }
 
-interface BarcodeDesignerModalProps {
+export interface BarcodeDesignerModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: InventoryItem | null;
+  initialQuantity?: number;
 }
 
 // ─── Supported Label & Paper Size Presets ──────────────────────────────────────
@@ -219,18 +222,32 @@ export function BarcodeSVG({ text, height = 36, className, barScale = 1.6 }: Bar
 }
 
 // ─── Main Modal Component ──────────────────────────────────────────────────────
-export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerModalProps) {
+export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }: BarcodeDesignerModalProps) {
   if (!item) return null;
 
   const defaultCustomHeader = item.category === "FRAME" ? "CLINICAL OPTICAL" : "SPECIAL VALUE";
   const formattedPrice = `Rs. ${Number(item.price).toLocaleString("en-IN")}/-`;
+  const defaultQuantity = initialQuantity ?? (item.quantity && item.quantity > 0 ? item.quantity : 1);
+  const displaySku =
+    item.sku ||
+    (item.category
+      ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
+      : "FRM-GEN-00001");
 
-  // UI state
+  // UI state - Default to industry standard A4 Sheet & 100x15 mm Butterfly Tag
   const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">("a4");
   const [labelSize, setLabelSize] = useState<LabelSizePreset>("100x15 mm (Tag)");
-  const [printQuantity, setPrintQuantity] = useState<number | "">(8);
+  const [printQuantity, setPrintQuantity] = useState<number | "">(defaultQuantity);
   const [activeTab, setActiveTab] = useState<"single" | "sheet">("single");
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Keep quantity synchronized when item changes
+  useEffect(() => {
+    if (item) {
+      const q = initialQuantity ?? (item.quantity && item.quantity > 0 ? item.quantity : 1);
+      setPrintQuantity(q);
+    }
+  }, [item, initialQuantity]);
 
   // Active Label Spec Configuration
   const currentSpec = LABEL_SPECS[labelSize] || LABEL_SPECS["100x15 mm (Tag)"];
@@ -370,11 +387,11 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
         ? `<span style="font-size:${priceFontSize}px;color:#2563eb;font-weight:800;display:block;line-height:1.1;margin-top:1px;">${formattedPrice}</span>`
         : "";
 
-    const barcodeSvg = buildBarcodeSvgString(item.sku || "0000", clampedBarcodeH, type === "tag" ? 1.2 : 1.4);
+    const barcodeSvg = buildBarcodeSvgString(displaySku, clampedBarcodeH, type === "tag" ? 1.2 : 1.4);
 
     const skuTextHtml =
       showSKU && showBarcodeText
-        ? `<span style="font-size:${type === "tag" ? "6.5px" : "7.5px"};font-family:'Courier New',monospace;letter-spacing:0.15em;font-weight:700;color:#1e293b;display:block;margin-top:1px;line-height:1;">${item.sku}</span>`
+        ? `<span style="font-size:${type === "tag" ? "6.5px" : "7.5px"};font-family:'Courier New',monospace;letter-spacing:0.15em;font-weight:700;color:#1e293b;display:block;margin-top:1px;line-height:1;">${displaySku}</span>`
         : "";
 
     // 1. SPECIFIC OPTICAL FRAME TAG (100x15 mm Butterfly Barbell Tag)
@@ -454,24 +471,61 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
   };
 
   const handlePrint = () => {
-    const qty = Number(printQuantity) || 1;
+    const qty = Math.max(1, Number(printQuantity) || 1);
     const labels = Array.from({ length: qty }).map(() => buildOneLabelHtml());
-
-    // In continuous roll mode, if multiple labels are printed, auto-switch sheet layout for standard A4/A5 printers
-    const effectivePaperSize = (paperSize === "continuous" && qty > 1) ? "a4" : paperSize;
 
     let pageCSS = "";
     let bodyContent = "";
 
-    if (effectivePaperSize === "continuous") {
-      // Single continuous roll tag (Thermal Barcode Printer)
-      pageCSS = `@page { size: ${currentSpec.widthMm}mm ${currentSpec.heightMm}mm; margin: 0; }`;
-      bodyContent = labels.join("");
+    if (paperSize === "continuous") {
+      // True Continuous Roll (Direct Thermal Barcode Printer: TSC, Zebra, TVS, Godex)
+      pageCSS = `
+        @page { size: ${currentSpec.widthMm}mm ${currentSpec.heightMm}mm; margin: 0; }
+        @media print {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .barcode-continuous-label {
+            width: ${currentSpec.widthMm}mm !important;
+            height: ${currentSpec.heightMm}mm !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            box-sizing: border-box !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+        }
+      `;
+      bodyContent = labels
+        .map((lbl) => `<div class="barcode-continuous-label">${lbl}</div>`)
+        .join("");
     } else {
-      // Multi-label sheet layout using HTML Table (rock-solid cross-browser print consistency)
+      // Multi-label sheet layout using HTML Table (A4 / A5)
+      const effectivePaperSize = paperSize;
       const cols = effectivePaperSize === "a4" ? currentSpec.a4Cols : currentSpec.a5Cols;
       const margin = effectivePaperSize === "a4" ? "5mm 4mm" : "4mm 3mm";
-      pageCSS = `@page { size: ${effectivePaperSize.toUpperCase()} portrait; margin: ${margin}; }`;
+      pageCSS = `
+        @page { size: ${effectivePaperSize.toUpperCase()} portrait; margin: ${margin}; }
+        @media print {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          table { page-break-inside: auto; border-spacing: 0; width: 100%; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          td { padding: 1mm; vertical-align: top; }
+        }
+      `;
 
       let rows = "";
       for (let i = 0; i < labels.length; i += cols) {
@@ -495,32 +549,18 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
   <title>Optical Manager - Barcode Print Spool (${currentSpec.displayName})</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #ffffff; margin: 0; padding: 0; }
+    body { background: #ffffff; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     ${pageCSS}
-    @media print {
-      body { background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      table { page-break-inside: auto; border-spacing: 0; }
-      tr { page-break-inside: avoid; page-break-after: auto; }
-      td { padding: 1mm; }
-    }
   </style>
 </head>
-<body onload="setTimeout(function(){window.print();},300);">
+<body onload="window.focus();">
   ${bodyContent}
 </body>
 </html>`;
 
-    // Open clean print window
-    const popup = window.open("", "barcode_print", "width=920,height=720,scrollbars=yes");
-    if (!popup) {
-      toast.error("Please allow popups for this site to enable instant printing.");
-      return;
-    }
-
-    popup.document.open();
-    popup.document.write(fullHtml);
-    popup.document.close();
-    popup.focus();
+    // Dispatch zero-lag printing
+    printBarcodeDocument(fullHtml);
+    toast.success(`Dispatched ${qty} barcode labels to printer.`);
   };
 
   if (!isOpen) return null;
@@ -550,7 +590,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
                 </span>
               </h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                Item: {item.name} ({item.sku}) • Category: {item.category}
+                Item: {item.name} ({displaySku}) • Category: {item.category}
               </p>
             </div>
           </div>
@@ -639,7 +679,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
                   <input
                     type="number"
                     min="1"
-                    max="100"
+                    max="500"
                     value={printQuantity}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -652,7 +692,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
                     }}
                     onBlur={() => {
                       if (printQuantity === "" || printQuantity < 1) setPrintQuantity(1);
-                      else if (printQuantity > 100) setPrintQuantity(100);
+                      else if (printQuantity > 500) setPrintQuantity(500);
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-center text-sm font-extrabold text-indigo-600 focus:border-indigo-500 focus:bg-white transition-all"
                   />
@@ -971,9 +1011,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
 
                       {/* Right Wing */}
                       <div className="w-[160px] flex flex-col items-center justify-center text-center overflow-hidden pl-1">
-                        <BarcodeSVG text={item.sku || "0000"} height={barcodeHeight} barScale={1.2} className="w-full max-w-[140px]" />
+                        <BarcodeSVG text={displaySku} height={barcodeHeight} barScale={1.2} className="w-full max-w-[140px]" />
                         {showSKU && showBarcodeText && (
-                          <span className="text-[8px] font-mono tracking-[0.15em] font-bold text-slate-800 mt-0.5">{item.sku}</span>
+                          <span className="text-[8px] font-mono tracking-[0.15em] font-bold text-slate-800 mt-0.5">{displaySku}</span>
                         )}
                       </div>
                     </div>
@@ -1012,9 +1052,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item }: BarcodeDesignerM
                         )}
                       </div>
                       <div className="flex flex-col items-center gap-0.5 mt-auto">
-                        <BarcodeSVG text={item.sku || "0000"} height={barcodeHeight} className="w-full max-w-[190px]" />
+                        <BarcodeSVG text={displaySku} height={barcodeHeight} className="w-full max-w-[190px]" />
                         {showSKU && showBarcodeText && (
-                          <span className="text-[9px] font-mono tracking-[0.2em] font-bold text-slate-700">{item.sku}</span>
+                          <span className="text-[9px] font-mono tracking-[0.2em] font-bold text-slate-700">{displaySku}</span>
                         )}
                       </div>
                     </div>

@@ -146,11 +146,7 @@ export function BulkPurchaseImportClient({
   // Purchase Bill Header parameters
   const [vendorName, setVendorName] = useState(vendors[0]?.name || "");
   const [vendorId, setVendorId] = useState<string | null>(vendors[0]?.id || null);
-  const [purchaseNumber, setPurchaseNumber] = useState(
-    `PUR-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(
-      1000 + Math.random() * 9000
-    )}`
-  );
+  const [purchaseNumber, setPurchaseNumber] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(
     new Date().toISOString().split("T")[0]
   );
