@@ -22,7 +22,8 @@ import {
   ShoppingBag,
   Truck,
   PlusCircle,
-  Building2
+  Building2,
+  BookOpen
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -89,6 +90,11 @@ const mainNavItems: NavItem[] = [
     href: "/shop/purchases",
     icon: Truck,
     subItems: [
+      {
+        title: "Purchase Ledger",
+        href: "/shop/purchases",
+        icon: BookOpen,
+      },
       {
         title: "Purchases Add",
         href: "/shop/purchases/new",
@@ -383,6 +389,8 @@ export function Sidebar({
                           const isSubActive =
                             sub.href === "/shop/orders"
                               ? pathname.startsWith("/shop/orders") || pathname.startsWith("/shop/invoices")
+                              : sub.href === "/shop/purchases"
+                              ? pathname === "/shop/purchases" || (pathname.startsWith("/shop/purchases/") && !pathname.startsWith("/shop/purchases/new") && !pathname.startsWith("/shop/purchases/vendors"))
                               : pathname.startsWith(sub.href);
 
                           return (
@@ -466,6 +474,8 @@ export function Sidebar({
                       const isSubActive =
                         sub.href === "/shop/orders"
                           ? pathname.startsWith("/shop/orders") || pathname.startsWith("/shop/invoices")
+                          : sub.href === "/shop/purchases"
+                          ? pathname === "/shop/purchases" || (pathname.startsWith("/shop/purchases/") && !pathname.startsWith("/shop/purchases/new") && !pathname.startsWith("/shop/purchases/vendors"))
                           : pathname.startsWith(sub.href);
 
                       return (

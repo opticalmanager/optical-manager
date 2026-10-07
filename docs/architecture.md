@@ -400,5 +400,19 @@ The **Add Purchase** workflow (`/shop/purchases/new`) integrates Gemini multimod
 3. **Automated Vendor Master Onboarding (`actions/purchase.actions.ts`)**:
    - In both `createPurchaseAction` and `savePurchaseDraftAction`, vendor names are checked against `vendors`.
    - If a vendor does not yet exist in the organization, it is automatically created with `shopId`, `organizationId`, name, GSTIN, and active status, linking the purchase order seamlessly without manual master entry.
+4. **Purchase Ledger Hub & Transaction Audit Subsystem (`/shop/purchases` & `/shop/purchases/[id]`)**:
+   - **Optimized Data Layer (`services/purchase.service.ts`)**:
+     - `getPurchaseOrders`: Executes multi-predicate querying (`status`, `vendorId`, `dateFrom`, `dateTo`, `taxRule`, `search`) with `count(*)` pagination and vendor GSTIN joins in one round-trip.
+     - `getPurchaseLedgerKPIs`: Instant 1-query aggregation extracting total orders count, net inward valuation (₹), current month inward count, and top supplier name using PostgreSQL conditional filters (`filter (where purchase_date >= ...)`).
+     - `updatePurchaseOrder`: Atomically modifies order headers and line items. If existing order was `COMPLETED`, rolls back prior stock additions with `RETURN` stock movement entries before re-applying updated items.
+     - `deletePurchaseOrder`: Safely deletes purchase transactions and cascades to items. Reverses inward inventory additions for `COMPLETED` orders via `RETURN` movements with cost preservation.
+   - **Shared Barcode Utility Engine (`utils/barcode.utils.ts`)**:
+     - Standalone Code 39 SVG encoder and multi-label layout builder supporting 4 optical industry presets:
+       - `100x15 mm (Tag)`: Dual-Wing Butterfly Frame Tag with temple fold bridge.
+       - `50x25 mm (Standard)`: Standard Retail Box & Case Label.
+       - `38x25 mm (Compact Jewel)`: Lens & Blister Pack Tag.
+       - `40x30 mm (Medium Box)`: Medium Eyewear Box & Accessory Label.
+     - `buildBulkLabelsHtml`: Automatically multiplies labels by each item's inward quantity ($n \times \text{qty}$) and spools them into an `@page` print stylesheet with zero latency.
+
 
 

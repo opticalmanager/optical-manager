@@ -1739,7 +1739,9 @@ export function NewInvoiceForm() {
         const data = await res.json();
         const products = data.inventory || [];
         const exactMatch = products.find(
-          (prod: any) => (prod.sku || "").toLowerCase() === val.toLowerCase()
+          (prod: any) =>
+            (prod.sku || "").trim().toLowerCase() === val.toLowerCase() ||
+            (prod.productCode || "").trim().toLowerCase() === val.toLowerCase()
         );
 
         if (exactMatch) {

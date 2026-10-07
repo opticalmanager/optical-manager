@@ -391,6 +391,23 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Order Finalization**:
      - **Save As Draft**: Persists the purchase order with status `DRAFT` in `purchase_orders` and `purchase_order_items`. Does not alter live inventory stock levels.
      - **Add Purchase**: Persists order with status `COMPLETED`, atomically increments inventory stock quantities (`quantity += row.quantity`), updates latest cost price and retail price, links purchase invoice number and inward date, and logs individual `STOCK_IN` movements in `stock_movements`.
+     - **Automatic Ledger Redirection**: Automatically redirects the operator to `/shop/purchases` upon successful submission with a confirmation toast.
+
+4. **Purchase Ledger & Transaction Hub (`/shop/purchases`)**:
+   - **Real-Time KPI Cards**: Top metrics for Total Purchases count, Net Inward Valuation (₹), Current Month Inward count, and Top Supplier identifier with interactive active selection border states (`border-2 border-[#2563eb]`).
+   - **Multi-Condition Filter Bar**: Zero-latency filtering by Vendor, Date Range (From/To), Tax Rule (`INCLUDE`/`EXCLUDE`), Status (`COMPLETED`/`DRAFT`/`CANCELLED`), and keyword search.
+   - **High-Density Zero-Scroll Table**: Compact 8-column layout (`Date`, `Bill #`, `Vendor`, `Amount`, `GST Type`, `Inward Qty`, `Status`, `Action`) rendering 20 records per page without horizontal scrolling on standard laptop displays.
+
+5. **Inward Purchase Detail & Barcode Center (`/shop/purchases/[id]`)**:
+   - **Streamlined 8-Column Inward Items Table**: Displays `#`, `Product & Code`, `Category & HSN`, `Inward Qty`, `Rate (Purchase Cost & Base Split)`, `Total Amount`, `Retail MRP`, and `Tag / Action Buttons` - completely fitting standard laptop screens with zero horizontal scrolling.
+   - **Single Item Barcode Modal (`BarcodeDesignerModal`)**: Clicking the barcode action icon on any row automatically detects and prefills the label count with that item's added inward quantity (`item.quantity`), with an editable number input stepper supporting up to 500 labels.
+   - **Vibrant Batch Barcode Center (`PurchaseBulkBarcodeModal`)**:
+     - Accessed via the top modern gradient "Print All Barcodes" button (`bg-gradient-to-r from-blue-600 to-indigo-600`).
+     - Defaulted to optical gold standard settings: `100x15 mm (Tag)` and `Continuous Roll (Thermal Tag)`.
+     - 2-Column responsive split layout featuring a dedicated **Live Barcode Preview Panel on the right side** with carousel item switcher (`< Prev` / `Next >`), realistic dual-wing fold tag mockup, and real-time SVG barcode rendering.
+     - Uncluttered inward products summary table on the left with per-item editable quantity steppers and quick batch tools (`Inward Qty`, `+1 All`, `Zero`).
+     - Zero-lag isolated hidden iframe print engine dispatching thermal jobs directly to the printer spooler without popup blocking or browser freezes.
+   - **In-Place Editing & Atomic Rollback Deletion**: Full edit mode with 5-priority bidirectional calculations, preserving the user's authentic entered supplier bill number on the purchase ledger, and safe invoice deletion with automatic inward stock deduction reversal (`RETURN` stock movements).
 
 ---
 
@@ -720,5 +737,50 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 4. **Auto-Detect & Auto-Save New Vendors**:
    - If the supplier's name or GSTIN does not exist in the organization's vendor master, the system automatically detects it as a new vendor upon clicking **Add Purchase** or **Save As Draft**.
    - The system creates the new vendor in the `vendors` database table (with `shopId`, `organizationId`, `name`, `gstin`, `isActive = true`) and seamlessly links the purchase order.
+
+---
+
+## 12. Purchase Ledger, Transaction Details & Barcode Printing Workflow
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Purchase Ledger  │───>│ Transaction Card │───>│ Multi-Preset     │───>│ Inline Edit or   │
+│ KPI & Filters    │    │ & Items Ledger   │    │ Barcode Printing │    │ Atomic Reversal  │
+└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+1. **Browsing the Purchase Ledger (`/shop/purchases`)**:
+   - Accessed directly via **Purchases -> Purchase Ledger** in the left navigation sidebar.
+   - **Interactive KPI Deck**: Displays real-time aggregate metrics for Total Purchases count, Net Inward Valuation (₹), Current Month Inward count, and Top Supplier name. Clicking KPI cards activates an active selection border (`border-2 border-[#2563eb]`) and instantaneously filters the transactions table.
+   - **Multi-Filter Bar**: Enables zero-latency filtering by Vendor, GST Pricing Rule (Inclusive/Exclusive), Status (Draft/Completed/Cancelled), Date Range (From/To), and full-text search across invoice numbers and vendor names.
+   - **High-Density Table**: 8-column layout (Date, Bill #, Vendor with GSTIN, Amount, GST Type pill badge, Item Quantity, Payment Status, and Status Badge) rendering 20 records per page with zero mock data.
+   - **Post-Purchase Auto-Navigation**: Completing an inward purchase form or saving a draft on `/shop/purchases/new` automatically navigates staff to `/shop/purchases` with immediate visibility of the newly recorded transaction.
+
+2. **Full-Page Transaction Detail View (`/shop/purchases/[id]`)**:
+   - Clicking any transaction row navigates to its dedicated full-page audit route (`/shop/purchases/[id]`).
+   - **Supplier & Bill Metadata Card**: Displays vendor name, GSTIN, invoice number, purchase date, GST inclusion model, tax regime (SGST+CGST / IGST), status, and remarks.
+   - **12-Column Inward Items Ledger**: Comprehensive breakdown of S.No, Product Name, SKU / Product Code, Category color pill badge, HSN Code, Quantity, Base Price, GST %, Purchase Cost, Total Cost, Retail Price, and per-row barcode actions.
+   - **Tax Breakdown & Valuation Summary Card**: Itemizes taxable base, total GST, gross inward supply value, round-off adjustments, and net payable supplier amount.
+
+3. **High-Precision Barcode Printing & Unified SKU Engine**:
+   - **Unified Internal SKU = Barcode Standard**:
+     - All inward products without a manual code automatically receive a guaranteed-unique, canonical optical SKU formatted as `[CAT]-[BRAND]-[SEQ]` (strictly 13 characters, e.g. `FRM-RAY-00042` or `FRM-GEN-00001`).
+     - **Missing Metadata Fallbacks**: Automatically falls back to vendor name prefix or `"GEN"` (Generic) when brand/model is omitted by the user, ensuring unbranded frames or budget inward items always receive a structured, professional barcode.
+     - **Database & Inventory Synchronization**: Canonical SKU is saved into `inventory.sku`, `inventory.product_code`, and `purchase_order_items.product_code`, linking seamlessly with physical inventory and POS scanner lookup.
+   - **Batch "Print All Barcodes" (`PurchaseBulkBarcodeModal`)**:
+     - Pre-populated with authentic inward product quantities editable in real-time with quick actions (`Inward Qty`, `+1 All`, `Zero`).
+     - **Dual Segmented Preview Tabs**: Features `Single Label` (carousel through individual product labels with butterfly tag fold line or retail box mockup) and `Sheet Preview` (realistic A4/A5 sticker sheet grid miniature with `aspect-[1/1.414]` proportions, numbered cell highlights, and multi-page pagination controls).
+     - **Authentic Labels-Per-Page Calculations**: Clearly displays exact sheet capacity (e.g., A4: 36 labels/page on 2×18 grid for 100×15 mm Tag; 30 labels/page on 3×10 grid for 50×25 mm) and total physical sheets required.
+     - **Industrial Standard Defaults**: Out-of-the-box defaults to `100x15 mm (Tag)` and `A4 Sheet` layout for standard desktop sticker sheet printers, with seamless one-click switching to Continuous Thermal Roll mode (TSC/Zebra).
+     - **Zero-Lag Hidden IFrame Spooling**: Dispatches print jobs directly through an isolated hidden iframe with CSS page-break prevention and `table` row flow, eliminating popup blocking and lag.
+   - **Individual Product Barcode Designer (`BarcodeDesignerModal`)**:
+     - Pre-populated with the row item's inward quantity, canonical optical SKU, category, and retail price.
+     - Defaults to A4 Sheet layout and 100×15 mm butterfly optical tag, with instant sheet vs single label preview and zero-lag printing matching the bulk barcode system.
+
+4. **Inward Transaction Editing & Stock Reversal**:
+   - **In-Place Editing**: Clicking "Edit" enables bidirectional inline editing across supplier details, invoice metadata, and line-item prices with automatic recalculation. Saving changes updates the purchase order and re-calibrates inventory stock.
+   - **Safe Transaction Deletion**: Deleting a purchase prompts a confirmation modal with clear warnings. For `COMPLETED` transactions, the system atomically reverses inward inventory stock increments via `RETURN` stock movement entries before deleting the order.
+
+
 
 
