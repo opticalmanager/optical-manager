@@ -90,6 +90,7 @@ export function PurchaseDetailClient({
     brand: string | null;
     model: string | null;
     sku: string | null;
+    productCode?: string | null;
     price: string | null;
     quantity?: number;
   } | null>(null);
@@ -239,6 +240,7 @@ export function PurchaseDetailClient({
       brand: null,
       model: null,
       sku: it.productCode || fallbackSku,
+      productCode: it.productCode || null,
       price: it.retailPrice && Number(it.retailPrice) > 0 ? String(it.retailPrice) : String(it.purchasePrice),
       quantity: it.quantity || 1,
     });
@@ -951,6 +953,7 @@ export function PurchaseDetailClient({
               id: it.id,
               name: it.productName,
               sku: it.productCode || fallbackSku,
+              productCode: it.productCode || null,
               category: it.category || "FRAME",
               price: it.retailPrice && Number(it.retailPrice) > 0 ? String(it.retailPrice) : String(it.purchasePrice),
               quantity: it.quantity || 1,

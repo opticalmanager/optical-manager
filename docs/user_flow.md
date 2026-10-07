@@ -765,7 +765,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 3. **High-Precision Barcode Printing & Unified SKU Engine**:
    - **Unified Internal SKU = Barcode Standard**:
      - All inward products without a manual code automatically receive a guaranteed-unique, canonical optical SKU formatted as `[CAT]-[BRAND]-[SEQ]` (strictly 13 characters, e.g. `FRM-RAY-00042` or `FRM-GEN-00001`).
-     - **Missing Metadata Fallbacks**: Automatically falls back to vendor name prefix or `"GEN"` (Generic) when brand/model is omitted by the user, ensuring unbranded frames or budget inward items always receive a structured, professional barcode.
+     - **Missing Metadata Fallbacks**: Automatically falls back to vendor name prefix or `"GEN"` (Generic) when brand/model is omitted by the user, ensuring unbranded frames or budget inward items always receive a structured, professional barcode. When product name/description is omitted, the tag left-wing display automatically prioritizes the user-written productCode (e.g. SI-20050), falling back to category (Optical Frame) so tags never display blank gaps.
      - **Database & Inventory Synchronization**: Canonical SKU is saved into `inventory.sku`, `inventory.product_code`, and `purchase_order_items.product_code`, linking seamlessly with physical inventory and POS scanner lookup.
    - **Batch "Print All Barcodes" (`PurchaseBulkBarcodeModal`)**:
      - Pre-populated with authentic inward product quantities editable in real-time with quick actions (`Inward Qty`, `+1 All`, `Zero`).

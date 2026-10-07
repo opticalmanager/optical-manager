@@ -17,7 +17,7 @@ import {
   Glasses
 } from "lucide-react";
 import { toast } from "sonner";
-import { printBarcodeDocument } from "@/utils/barcode.utils";
+import { printBarcodeDocument, resolveDisplayTitle } from "@/utils/barcode.utils";
 
 export interface InventoryItem {
   id: string;
@@ -26,6 +26,7 @@ export interface InventoryItem {
   brand: string | null;
   model: string | null;
   sku: string | null;
+  productCode?: string | null;
   price: string | null;
   quantity?: number;
 }
@@ -233,6 +234,13 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
     (item.category
       ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
       : "FRM-GEN-00001");
+  const displayTitle = resolveDisplayTitle(
+    item.name,
+    item.category,
+    item.brand,
+    item.model,
+    item.productCode || item.sku
+  );
 
   // UI state - Default to industry standard A4 Sheet & 100x15 mm Butterfly Tag
   const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">("a4");
@@ -379,7 +387,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
 
     const itemNameHtml =
       showItemName
-        ? `<span style="font-size:${descriptionFontSize}px;color:#475569;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;">${item.name}</span>`
+        ? `<span style="font-size:${descriptionFontSize}px;color:#475569;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;">${displayTitle}</span>`
         : "";
 
     const priceHtml =
@@ -590,7 +598,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                 </span>
               </h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                Item: {item.name} ({displaySku}) • Category: {item.category}
+                Item: {displayTitle} ({displaySku}) • Category: {item.category}
               </p>
             </div>
           </div>
@@ -996,7 +1004,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                           <span style={{ fontSize: `${brandFontSize}px` }} className="text-slate-900 truncate block font-extrabold">{item.brand || "GENERIC"}</span>
                         )}
                         {showItemName && (
-                          <span style={{ fontSize: `${descriptionFontSize}px` }} className="text-slate-500 block truncate">{item.name}</span>
+                          <span style={{ fontSize: `${descriptionFontSize}px` }} className="text-slate-500 block truncate">{displayTitle}</span>
                         )}
                         {showPrice && (
                           <span style={{ fontSize: `${priceFontSize}px` }} className="text-indigo-600 font-extrabold block mt-0.5">{formattedPrice}</span>
@@ -1042,7 +1050,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                             <span style={{ fontSize: `${brandFontSize}px` }} className="text-slate-800 truncate block font-extrabold">{item.brand || "GENERIC"}</span>
                           )}
                           {showItemName && (
-                            <span style={{ fontSize: `${descriptionFontSize}px` }} className="text-slate-500 block truncate mt-0.5 max-w-[160px]">{item.name}</span>
+                            <span style={{ fontSize: `${descriptionFontSize}px` }} className="text-slate-500 block truncate mt-0.5 max-w-[160px]">{displayTitle}</span>
                           )}
                         </div>
                         {showPrice && (
