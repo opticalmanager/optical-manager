@@ -317,15 +317,15 @@ optical-manager/
 Optical Manager features an offline-first architecture designed for uninterrupted clinical POS billing, inventory lookups, and customer search during internet outages.
 
 ### Core Components:
-1. **Dual-Role Service Worker (`public/sw.js` - v16 - Fail-Safe Zero-Latency Engine)**:
-   - **Static Shell Precaching**: On install, the Service Worker strictly precaches only immutable static shell assets (`/`, `/manifest.webmanifest`, app icons, SVG logo). Heavy SSR routes are never precached on install, completely preventing 35+ concurrent server compilation storms, CPU lockup, and database connection pool starvation on server startup.
+1. **Dual-Role Service Worker (`public/sw.js` - v19 - Resilient Offline Outbox & Dual-Source Orders Hydration)**:
+   - **Static Shell Precaching**: On install, the Service Worker strictly precaches only immutable static shell assets (`/`, `/manifest.webmanifest`, app icons, SVG logo). Heavy SSR routes are never precached on install, completely preventing concurrent server compilation storms, CPU lockup, and database connection pool starvation.
    - **Dynamic Runtime Caching & Fail-Safe Navigation Passthrough**: When online, page navigations and RSC requests pass through directly to the live server for all HTTP status codes (200, 301, 302, 304, 307, 308, 401, 404), ensuring auth redirects (`proxy.ts`) and headers function unimpeded. Caching is guarded with `.catch()` to prevent `TypeError: Redirected response cannot be stored`, and all `event.respondWith` execution is protected by top-level fallback handlers that guarantee the fetch promise NEVER rejects (completely preventing `ERR_FAILED` crashes).
    - **Offline Navigation & Zero-Crash RSC Handling**: Serves precached desktop shell when disconnected. When Next.js App Router client navigation requests dynamic React Server Component (`RSC: 1` / `?_rsc=...`) chunks while offline:
      - First attempts direct match and match with `ignoreSearch: true` to match cached flight streams regardless of build hashes.
      - If uncached in offline mode, returns a clean `503 Service Unavailable (Offline)` response instead of a `307` redirect with Location, preventing the client router from dumping raw RSC flight JSON payloads (`0:{"f":...}`) on a blank screen.
      - Navigating to un-cached subroutes falls back cleanly to their respective section listings rather than hijacking the user to `/shop/dashboard`.
      - Offline HTML fallback explicitly provides `charset=utf-8` header to guarantee correct unicode symbol rendering (`⚡`).
-   - **Cache Busting**: Versioned registration (`/sw.js?v=20260914_v16`) with automatic older cache bucket purging (`optical-manager-cache-v1` through `v15`) ensures instant client upgrades without stale worker persistence.
+   - **Cache Busting**: Versioned registration (`CACHE_VERSION = "v19"`) with automatic older cache bucket purging (`optical-manager-*-v1` through `v18`) ensures instant client upgrades without stale worker persistence.
 
 2. **Resilient Server Component & Session Timeouts (`services/*`, `app/(dashboard)/*`)**:
    - All shop and owner dashboard pages wrap database queries in a `Promise.race` with generous 8,000ms timeout guards.
@@ -352,6 +352,28 @@ Optical Manager features an offline-first architecture designed for uninterrupte
    - Online creation attempts direct PostgreSQL server action.
    - When offline or upon network drop, transactions write to `offline_invoices_queue` with client UUIDs (`OFF-2026-XXXX`) and mutations write to `offline_mutations_queue`.
    - Automatically synchronizes queued mutations and invoices via `/api/sync/offline-mutations` and `/api/sync/offline-invoices` upon reconnect with idempotent conflict handling.
+
+7. **Dual-Source Orders Table Hydration (`app/(dashboard)/shop/orders/OrdersTableClient.tsx`)**:
+   - Removes network barrier checks (`if (navigator.onLine) return;`) so that client hydration ALWAYS merges live server-rendered orders with any locally queued offline invoices stored in Dexie IndexedDB (`offlineDB.offline_invoices_queue`).
+   - Locally queued offline invoices are prepended at the top of the Orders table with distinctive `[Device]` badges and live synchronization statuses:
+     - `Stored in Device` (Soft amber pill with Clock icon): queued and awaiting transmission.
+     - `Syncing...` (Soft blue pill with spinning Refresh icon): active transmission in progress.
+     - `Sync Paused` (Soft rose pill with Alert icon & error tooltip): validation issue or temporary network block.
+   - Renders inline single-order `[Sync]` push action in the Actions column and a direct "View Bill" button in the Documents column linking to `/shop/invoices/offline/[id]`.
+   - Listens to `"offline-databank-updated"` custom DOM events to re-hydrate seamlessly the instant synchronization completes.
+
+8. **Self-Healing Sync Engine & Stale-Lock Recovery (`lib/offline/invoice-queue.ts`)**:
+   - `recoverStaleSyncLocks()` automatically scans the local queue for any records stranded in `"SYNCING"` status for >30 seconds (due to network timeout, tab closing, or battery death) and resets them back to `"PENDING"`.
+   - Resilient shop ID matching (`inv.shopId === shopId || !inv.shopId`) ensures offline invoices created before active shop context resolved are never orphaned.
+   - On successful sync, the server invoice number and order ID are propagated into `cached_invoices` and `cached_orders` before the queue entry is marked `"SYNCED"`.
+
+9. **Dedicated High-Density Offline Invoices Outbox (`/shop/invoices/offline`)**:
+   - Dedicated management hub for store staff and business owners to inspect, filter, retry, print, and purge device-stored offline bills.
+   - 4 Interactive High-Density KPI Cards: *Total in Device*, *Synced to Cloud*, *Pending Sync*, *Attention Needed*.
+   - Tab filtering (`ALL`, `PENDING`, `FAILED`, `SYNCED`) with live search by invoice number, customer name, and phone.
+   - Row-level actions: Single-click cloud push (`Sync`), offline thermal/A4 preview (`Print Bill`), and local discard with confirmation modal.
+   - Bulk action: Global **"Sync All to Cloud Now"** push button in page header.
+   - Accessible via the Orders table header dropdown menu (*Offline Outbox*).
 
 ---
 

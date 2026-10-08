@@ -510,7 +510,6 @@ export async function syncOfflineInvoices(
           if (cachedOrd && resItem.serverInvoiceNumber) {
             await offlineDB.cached_orders.update(resItem.offlineQueueId, {
               invoiceNumber: resItem.serverInvoiceNumber,
-              orderNumber: resItem.serverInvoiceNumber,
             });
           }
         } catch {}
