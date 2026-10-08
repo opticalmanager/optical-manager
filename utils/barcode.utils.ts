@@ -8,6 +8,7 @@ export interface BarcodeItem {
   brand: string | null;
   model: string | null;
   sku: string | null;
+  productCode?: string | null;
   price: string | null;
 }
 
@@ -177,6 +178,64 @@ export interface BarcodeLabelOptions {
   currencySymbol?: string;
 }
 
+/**
+ * Derives an optical industry-standard display title when the product name is blank or missing.
+ * Hierarchy:
+ * 1. Explicit productName / name
+ * 2. Brand + Model (e.g. "RAY-BAN RB-3025")
+ * 3. User-written Product Code (e.g. "SI-20050" or "RAY-BAN SI-20050")
+ * 4. Brand + Category (e.g. "FASTTRACK Optical Frame")
+ * 5. Model alone (e.g. "Optical Frame RB-3025")
+ * 6. Category Standard Name (e.g. "Optical Frame", "Sunglasses", "Ophthalmic Lens", etc.)
+ */
+export function resolveDisplayTitle(
+  name?: string | null,
+  category?: string | null,
+  brand?: string | null,
+  model?: string | null,
+  productCode?: string | null
+): string {
+  const cleanName = (name || "").trim();
+  if (cleanName) return cleanName;
+
+  const cleanBrand = (brand || "").trim();
+  const cleanModel = (model || "").trim();
+  const cleanCode = (productCode || "").trim();
+  const cleanCat = (category || "").trim().toUpperCase();
+
+  let catLabel = "Optical Frame";
+  if (cleanCat.includes("SUN") || cleanCat === "SNG") catLabel = "Sunglasses";
+  else if (cleanCat.includes("LENS") && !cleanCat.includes("CONTACT")) catLabel = "Ophthalmic Lens";
+  else if (cleanCat.includes("CONTACT") || cleanCat === "CTL") catLabel = "Contact Lens";
+  else if (cleanCat.includes("ACC")) catLabel = "Optical Accessory";
+  else if (cleanCat.includes("SOL")) catLabel = "Cleaning Solution";
+  else if (cleanCat.includes("FRAME") || cleanCat === "FRM") catLabel = "Optical Frame";
+
+  // 1. If brand and model are both present: "RAY-BAN RB-3025"
+  if (cleanBrand && cleanModel) return `${cleanBrand} ${cleanModel}`;
+
+  // 2. If user entered a specific product code (not an auto-generated generic fallback):
+  // Show product code written by user if available!
+  if (cleanCode && !cleanCode.includes("-GEN-")) {
+    if (cleanBrand && !cleanCode.toUpperCase().includes(cleanBrand.toUpperCase())) {
+      return `${cleanBrand} ${cleanCode}`;
+    }
+    return cleanCode;
+  }
+
+  // 3. If brand is present without model or code: "RAY-BAN Optical Frame"
+  if (cleanBrand) return `${cleanBrand} ${catLabel}`;
+
+  // 4. If model is present without brand: "Optical Frame RB-3025"
+  if (cleanModel) return `${catLabel} ${cleanModel}`;
+
+  // 5. If any code was provided (even generic), show it:
+  if (cleanCode) return cleanCode;
+
+  // 6. Category default
+  return catLabel;
+}
+
 export function buildOneLabelHtml(
   item: BarcodeItem,
   spec: LabelSpec,
@@ -228,8 +287,15 @@ export function buildOneLabelHtml(
     ? `<span style="font-size:${brandFontSize}px;color:#0f172a;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};">${item.brand || item.category || "GENERIC"}</span>`
     : "";
 
+  const displayTitle = resolveDisplayTitle(
+    item.name,
+    item.category,
+    item.brand,
+    item.model,
+    item.productCode || item.sku
+  );
   const itemNameHtml = showItemName
-    ? `<span style="font-size:${descriptionFontSize}px;color:#475569;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;">${item.name}</span>`
+    ? `<span style="font-size:${descriptionFontSize}px;color:#475569;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;">${displayTitle}</span>`
     : "";
 
   const priceHtml =
@@ -237,7 +303,10 @@ export function buildOneLabelHtml(
       ? `<span style="font-size:${priceFontSize}px;color:#2563eb;font-weight:800;display:block;line-height:1.1;margin-top:1px;">${formattedPrice}</span>`
       : "";
 
-  const skuCode = item.sku || "0000";
+  const fallbackSku = item.category
+    ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
+    : "FRM-GEN-00001";
+  const skuCode = item.sku || fallbackSku;
   const barcodeSvg = buildBarcodeSvgString(skuCode, barcodeHeight, type === "tag" ? 1.2 : 1.4);
 
   const skuTextHtml =

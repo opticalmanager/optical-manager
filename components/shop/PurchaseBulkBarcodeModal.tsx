@@ -27,6 +27,7 @@ import {
   buildBulkLabelsHtml,
   buildBarcodeSvgString,
   printBarcodeDocument,
+  resolveDisplayTitle,
   BarcodeItem,
 } from "@/utils/barcode.utils";
 
@@ -34,6 +35,7 @@ export interface BulkBarcodeProduct {
   id: string;
   name: string;
   sku: string | null;
+  productCode?: string | null;
   category: string;
   price: string | null;
   quantity: number;
@@ -103,6 +105,14 @@ export function PurchaseBulkBarcodeModal({
     quantity: 1,
   };
 
+  const currentPreviewTitle = resolveDisplayTitle(
+    currentPreviewProduct.name,
+    currentPreviewProduct.category,
+    null,
+    null,
+    currentPreviewProduct.productCode || currentPreviewProduct.sku
+  );
+
   // Handle single item quantity change
   const handleQuantityChange = (id: string, delta: number) => {
     setProductQuantities((prev) => {
@@ -165,6 +175,7 @@ export function PurchaseBulkBarcodeModal({
             brand: null,
             model: null,
             sku: p.sku || fallbackSku,
+            productCode: p.productCode || p.sku || null,
             price: p.price,
           },
           quantity: q,
@@ -512,8 +523,8 @@ export function PurchaseBulkBarcodeModal({
                 // ─── TAB 1: SINGLE LABEL VIEW ───
                 <div className="space-y-2">
                   <div className="flex items-center justify-between px-0.5">
-                    <span className="text-[11px] font-bold text-slate-700 truncate max-w-[200px]" title={currentPreviewProduct.name}>
-                      {currentPreviewProduct.name}
+                    <span className="text-[11px] font-bold text-slate-700 truncate max-w-[200px]" title={currentPreviewTitle}>
+                      {currentPreviewTitle}
                     </span>
                     <div className="flex items-center gap-1">
                       <span className="text-[11px] font-semibold text-slate-500 mr-1">
@@ -550,8 +561,8 @@ export function PurchaseBulkBarcodeModal({
                           <span className="text-[7px] uppercase tracking-wider text-slate-400 font-bold">
                             CLINICAL OPTICAL
                           </span>
-                          <span className="text-[9px] font-bold text-slate-800 truncate" title={currentPreviewProduct.name}>
-                            {currentPreviewProduct.name}
+                          <span className="text-[9px] font-bold text-slate-800 truncate" title={currentPreviewTitle}>
+                            {currentPreviewTitle}
                           </span>
                           <span className="text-[10px] font-extrabold text-[#2563eb] mt-0.5">
                             {formatPrice(currentPreviewProduct.price)}
@@ -601,8 +612,8 @@ export function PurchaseBulkBarcodeModal({
                             <span className="text-[7px] uppercase tracking-wider text-slate-400 font-bold">
                               CLINICAL OPTICAL
                             </span>
-                            <span className="text-[10px] font-bold text-slate-800 truncate" title={currentPreviewProduct.name}>
-                              {currentPreviewProduct.name}
+                            <span className="text-[10px] font-bold text-slate-800 truncate" title={currentPreviewTitle}>
+                              {currentPreviewTitle}
                             </span>
                           </div>
                           <span className="text-[11px] font-extrabold text-[#2563eb] shrink-0 ml-1">
@@ -636,7 +647,7 @@ export function PurchaseBulkBarcodeModal({
                     )}
 
                     <div className="mt-2 text-[10px] text-slate-400 font-medium text-center">
-                      Live preview of single label for <span className="font-bold text-slate-700">{currentPreviewProduct.name}</span>
+                      Live preview of single label for <span className="font-bold text-slate-700">{currentPreviewTitle}</span>
                     </div>
                   </div>
                 </div>

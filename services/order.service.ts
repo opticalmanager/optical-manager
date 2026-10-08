@@ -53,6 +53,10 @@ export interface OrderItem {
   categoryText?: string; // e.g. "Progressive Lens Fitting" or "Spectacles Order"
   receiptId?: string | null;
   receipts?: ReceiptItem[];
+  isOfflinePending?: boolean;
+  syncStatus?: "PENDING" | "SYNCING" | "SYNCED" | "FAILED";
+  syncError?: string | null;
+  queueId?: string;
 }
 
 export interface PriorityReminder {

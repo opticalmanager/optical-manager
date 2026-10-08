@@ -765,7 +765,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 3. **High-Precision Barcode Printing & Unified SKU Engine**:
    - **Unified Internal SKU = Barcode Standard**:
      - All inward products without a manual code automatically receive a guaranteed-unique, canonical optical SKU formatted as `[CAT]-[BRAND]-[SEQ]` (strictly 13 characters, e.g. `FRM-RAY-00042` or `FRM-GEN-00001`).
-     - **Missing Metadata Fallbacks**: Automatically falls back to vendor name prefix or `"GEN"` (Generic) when brand/model is omitted by the user, ensuring unbranded frames or budget inward items always receive a structured, professional barcode.
+     - **Missing Metadata Fallbacks**: Automatically falls back to vendor name prefix or `"GEN"` (Generic) when brand/model is omitted by the user, ensuring unbranded frames or budget inward items always receive a structured, professional barcode. When product name/description is omitted, the tag left-wing display automatically prioritizes the user-written productCode (e.g. SI-20050), falling back to category (Optical Frame) so tags never display blank gaps.
      - **Database & Inventory Synchronization**: Canonical SKU is saved into `inventory.sku`, `inventory.product_code`, and `purchase_order_items.product_code`, linking seamlessly with physical inventory and POS scanner lookup.
    - **Batch "Print All Barcodes" (`PurchaseBulkBarcodeModal`)**:
      - Pre-populated with authentic inward product quantities editable in real-time with quick actions (`Inward Qty`, `+1 All`, `Zero`).
@@ -780,6 +780,51 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 4. **Inward Transaction Editing & Stock Reversal**:
    - **In-Place Editing**: Clicking "Edit" enables bidirectional inline editing across supplier details, invoice metadata, and line-item prices with automatic recalculation. Saving changes updates the purchase order and re-calibrates inventory stock.
    - **Safe Transaction Deletion**: Deleting a purchase prompts a confirmation modal with clear warnings. For `COMPLETED` transactions, the system atomically reverses inward inventory stock increments via `RETURN` stock movement entries before deleting the order.
+
+---
+
+## 13. Offline Invoicing, Outbox Hub & Multi-Device Orders Hydration Workflow
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Offline Billing  │───>│ Dexie Outbox     │───>│ Dual-Source      │───>│ Auto / 1-Click   │
+│ & Local Storage  │    │ Queue Storage    │    │ Orders Table     │    │ Cloud Push       │
+└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+1. **Uninterrupted Offline Billing (`/shop/invoices/new`)**:
+   - When network connectivity is intermittent, degraded, or completely offline, billing staff can continue creating invoices, recording prescriptions, and taking payments without interruption.
+   - The transaction generates a local queue ID (`off-inv-...` / `OFF-2026-XXXX`) and writes the complete invoice payload into Dexie IndexedDB `offline_invoices_queue` with status `PENDING`.
+   - Local databanks (`cached_invoices`, `cached_orders`, `cached_inventory`) are updated immediately in zero latency, decrementing local stock and recording customer history.
+
+2. **Dual-Source Orders Hydration (`/shop/orders`)**:
+   - Whether the user is currently online or offline, `/shop/orders` merges live cloud database orders with unsynced local bills from `offlineDB.offline_invoices_queue`.
+   - Local bills are prepended at the top of the Orders table with distinctive `[Device]` badges.
+   - Real-time status badges reflect sync progress:
+     - `Stored in Device` (Soft amber pill with Clock icon): queued and awaiting transmission.
+     - `Syncing...` (Soft blue pill with spinning Refresh icon): active transmission in progress.
+     - `Sync Paused` (Soft rose pill with Alert icon & error tooltip): validation issue or temporary network block.
+   - Staff can click **"View Bill"** in the Documents column to inspect or print the bill via `/shop/invoices/offline/[id]`.
+   - Staff can click the inline **"Sync"** button in the Actions column to trigger immediate single-invoice transmission to the cloud.
+
+3. **Dedicated Offline Invoices Outbox (`/shop/invoices/offline`)**:
+   - Accessible via the Orders table header action menu (*Offline Outbox* with database icon).
+   - **High-Density KPI Deck**: 4 real-time stat cards (*Total in Device*, *Synced to Cloud*, *Pending Sync*, *Attention Needed*) with active selection states for instantaneous filtering.
+   - **Filter Tabs & Search**: Tabs for `ALL`, `PENDING`, `FAILED`, and `SYNCED` with instant search by invoice number, customer name, and phone.
+   - **Row-Level Actions**:
+     - **Sync**: Push individual offline bill to cloud database.
+     - **Print**: Open official thermal or A4 document preview for customer handover.
+     - **Discard**: Discard invalid or duplicate test bills with double-confirmation dialog.
+   - **Global Action**: Header button **"Sync All to Cloud Now"** triggers batch synchronization across all pending records.
+
+4. **Self-Healing Sync & Seamless Transition**:
+   - `recoverStaleSyncLocks()` automatically resolves any bills stuck in `"SYNCING"` status for >30 seconds and resets them to `"PENDING"`.
+   - Upon successful cloud reconciliation:
+     - The permanent cloud invoice number (`INV-2026-XXXX`) and server order ID replace temporary device IDs.
+     - `cached_invoices` and `cached_orders` are updated in IndexedDB.
+     - The topbar sync pill updates smoothly to `[Synced]` once zero pending bills remain.
+     - Custom event `"offline-databank-updated"` triggers instant re-hydration of the Orders table with zero page reloads.
+
 
 
 

@@ -119,7 +119,10 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Dual-Role Support**: Supports both `SHOP_MANAGER` and `OWNER` roles. For owners, dynamically resolves `effectiveShopId` from the payload or session context rather than requiring a static `profile.shopId`.
 - **Payload**: `{ shopId, invoices: [{ offlineQueueId, offlineInvoiceNumber, payload, createdAt }] }`.
 - **Idempotency**: Embeds `[OFFLINE_QUEUE_ID:uuid]` into invoice metadata; duplicate submissions return the existing invoice record without re-billing or double-decrementing stock.
-- **Local Integration**: When enqueued locally, atomically populates `offlineDB.cached_invoices` and `offlineDB.cached_orders`, decrements stock in `cached_inventory`, and updates customer store credit.
+- **Targeted & Batch Modes**: Supports batch synchronization of all pending records or targeted single-bill push via `syncOfflineInvoices(shopId, targetQueueId)`.
+- **Self-Healing Stale-Lock Recovery**: Automatically resets stale `"SYNCING"` locks back to `"PENDING"` if locked for >30s without completion.
+- **Propagation**: Propagates official cloud invoice number (`INV-2026-XXXX`) into `cached_invoices` and `cached_orders`, transitioning local queue status to `"SYNCED"` and firing `"offline-databank-updated"` event.
+- **Offline Outbox Hub (`/shop/invoices/offline`)**: Dedicated management interface for inspecting device bills, single/batch synchronization, offline document printing, and local discard.
 - **Response**: `200 OK` JSON containing `{ results: [{ offlineQueueId, success, serverInvoiceId, serverInvoiceNumber }] }`.
 
 #### `POST /api/sync/offline-mutations`

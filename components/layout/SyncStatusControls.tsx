@@ -86,15 +86,26 @@ export function SyncStatusControls({ className = "" }: SyncStatusControlsProps) 
         </button>
       )}
 
-      {/* 2. Syncing... in Green / Synced in Green Indicator Button */}
+      {/* 2. Dynamic Sync Status: Syncing / In Queue / Fully Synced */}
       {effectiveSyncing ? (
         <div
-          className="h-9 px-2.5 sm:px-3 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0"
+          className="h-9 px-2.5 sm:px-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-700 text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0"
           title="Synchronizing local databank with cloud..."
         >
-          <RefreshCw className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+          <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin shrink-0" />
           <span>Syncing...</span>
         </div>
+      ) : effectivePendingCount > 0 ? (
+        <button
+          type="button"
+          onClick={handleManualSync}
+          disabled={!effectiveOnline}
+          className="h-9 px-2.5 sm:px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200/80 text-[#0a52c3] text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+          title={`${effectivePendingCount} local bill(s) stored on device. Click to sync to cloud.`}
+        >
+          <UploadCloud className="w-3.5 h-3.5 text-[#0a52c3] shrink-0 animate-pulse" />
+          <span>{effectivePendingCount} In Queue</span>
+        </button>
       ) : (
         <button
           type="button"
@@ -102,26 +113,12 @@ export function SyncStatusControls({ className = "" }: SyncStatusControlsProps) 
           className="h-9 px-2.5 sm:px-3 rounded-xl bg-emerald-50/80 hover:bg-emerald-100/90 border border-emerald-200/80 text-emerald-700 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
           title={
             effectiveLastSyncTime
-              ? `Synced at ${effectiveLastSyncTime.toLocaleTimeString()}. Click to refresh local cache.`
-              : "Data synchronized. Click to re-sync."
+              ? `All data synced at ${effectiveLastSyncTime.toLocaleTimeString()}. Click to refresh.`
+              : "All local data synced with cloud. Click to refresh."
           }
         >
           <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
           <span>Synced</span>
-        </button>
-      )}
-
-      {/* 3. Pending Offline Invoices Badge (if any pending) */}
-      {effectivePendingCount > 0 && (
-        <button
-          type="button"
-          onClick={() => syncNow()}
-          disabled={effectiveSyncing || !effectiveOnline}
-          className="h-9 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#0a52c3] text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-          title="Push pending offline invoices to cloud now"
-        >
-          <UploadCloud className="w-3.5 h-3.5 text-[#0a52c3] shrink-0" />
-          <span>{effectivePendingCount} Pending</span>
         </button>
       )}
 
