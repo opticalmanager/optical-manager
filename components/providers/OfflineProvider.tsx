@@ -271,9 +271,18 @@ export function OfflineProvider({ children, shopId: initialShopId }: OfflineProv
     }
     refreshPendingCountRef.current();
 
-    // Defer background warming by 4 seconds so page interactions and initial rendering remain 100% smooth
+    // Trigger immediate auto-sync on load if online and records are pending
+    let syncTimer: ReturnType<typeof setTimeout> | null = null;
     let warmTimer: ReturnType<typeof setTimeout> | null = null;
     if (shopId && navigator.onLine) {
+      syncTimer = setTimeout(async () => {
+        const isReallyOnline = await verifyOnlineStatus(false);
+        if (isReallyOnline) {
+          handleSyncRef.current();
+        }
+      }, 1500);
+
+      // Defer background warming by 4 seconds so page interactions and initial rendering remain 100% smooth
       warmTimer = setTimeout(() => {
         handleWarmCacheRef.current(false);
       }, 4000);
@@ -343,6 +352,7 @@ export function OfflineProvider({ children, shopId: initialShopId }: OfflineProv
     }, 60000);
 
     return () => {
+      if (syncTimer) clearTimeout(syncTimer);
       if (warmTimer) clearTimeout(warmTimer);
       window.removeEventListener("online", handleOnlineEvent);
       window.removeEventListener("offline", handleOfflineEvent);
