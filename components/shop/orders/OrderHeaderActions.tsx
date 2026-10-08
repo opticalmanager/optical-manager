@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronDown, Receipt, FileSpreadsheet } from "lucide-react";
+import { Plus, ChevronDown, Receipt, FileSpreadsheet, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function OrderHeaderActions() {
@@ -117,6 +117,27 @@ export function OrderHeaderActions() {
                   </span>
                   <span className="block text-[10px] text-slate-400 font-medium">
                     Batch import historical bills
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push("/shop/invoices/offline");
+                }}
+                className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-3 text-xs font-bold text-slate-700 hover:text-[#0a52c3] group cursor-pointer"
+              >
+                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                  <Database className="h-4 w-4" />
+                </div>
+                <div>
+                  <span className="block font-bold text-slate-800 group-hover:text-indigo-700">
+                    Offline Outbox
+                  </span>
+                  <span className="block text-[10px] text-slate-400 font-medium">
+                    View bills stored in device
                   </span>
                 </div>
               </button>

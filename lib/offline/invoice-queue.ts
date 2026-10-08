@@ -241,24 +241,60 @@ export async function enqueueOfflineInvoice(
 }
 
 /**
+ * Recovers any offline invoices or mutations stuck in "SYNCING" state for > 30 seconds.
+ */
+export async function recoverStaleSyncLocks(): Promise<void> {
+  try {
+    const thirtySecsAgo = new Date(Date.now() - 30000).toISOString();
+    const stuckInvoices = await offlineDB.offline_invoices_queue
+      .filter((inv) => inv.syncStatus === "SYNCING" && Boolean(inv.createdAt) && inv.createdAt < thirtySecsAgo)
+      .toArray();
+
+    for (const inv of stuckInvoices) {
+      await offlineDB.offline_invoices_queue.update(inv.id, {
+        syncStatus: "PENDING",
+      });
+    }
+
+    if (offlineDB.offline_mutations_queue) {
+      const stuckMutations = await offlineDB.offline_mutations_queue
+        .filter((m) => m.syncStatus === "SYNCING" && Boolean(m.createdAt) && m.createdAt < thirtySecsAgo)
+        .toArray();
+      for (const m of stuckMutations) {
+        await offlineDB.offline_mutations_queue.update(m.id, {
+          syncStatus: "PENDING",
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[OfflineQueue] Error recovering stale sync locks:", err);
+  }
+}
+
+/**
  * Returns count of pending/failed offline invoices and mutations for the active shop.
  */
 export async function getPendingOfflineInvoiceCount(shopId: string): Promise<number> {
-  if (!shopId) return 0;
   try {
+    await recoverStaleSyncLocks();
+
     const invCount = await offlineDB.offline_invoices_queue
-      .where("shopId")
-      .equals(shopId)
-      .filter((inv) => inv.syncStatus === "PENDING" || inv.syncStatus === "FAILED")
+      .filter(
+        (inv) =>
+          (!shopId || !inv.shopId || inv.shopId === shopId) &&
+          (inv.syncStatus === "PENDING" || inv.syncStatus === "FAILED" || inv.syncStatus === "SYNCING")
+      )
       .count();
 
     let mutCount = 0;
     try {
       if (offlineDB.offline_mutations_queue) {
         mutCount = await offlineDB.offline_mutations_queue
-          .where("shopId")
-          .equals(shopId)
-          .filter((m) => m.syncStatus === "PENDING" || m.syncStatus === "FAILED")
+          .filter(
+            (m) =>
+              (!shopId || !m.shopId || m.shopId === shopId) &&
+              (m.syncStatus === "PENDING" || m.syncStatus === "FAILED" || m.syncStatus === "SYNCING")
+          )
           .count();
       }
     } catch {}
@@ -271,19 +307,54 @@ export async function getPendingOfflineInvoiceCount(shopId: string): Promise<num
 }
 
 /**
- * Retrieves all offline invoices for the active shop.
+ * Retrieves all offline invoices for the active shop or device.
  */
-export async function getQueuedInvoices(shopId: string): Promise<OfflineQueuedInvoice[]> {
-  if (!shopId) return [];
+export async function getQueuedInvoices(shopId?: string): Promise<OfflineQueuedInvoice[]> {
   try {
-    return await offlineDB.offline_invoices_queue
-      .where("shopId")
-      .equals(shopId)
-      .reverse()
-      .sortBy("createdAt");
+    await recoverStaleSyncLocks();
+
+    const records = await offlineDB.offline_invoices_queue
+      .filter((inv) => !shopId || !inv.shopId || inv.shopId === shopId)
+      .toArray();
+
+    return records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (err) {
     console.error("[OfflineQueue] Error loading queued invoices:", err);
     return [];
+  }
+}
+
+/**
+ * Retrieves offline invoices along with high-level statistics for the Outbox view.
+ */
+export async function getOfflineInvoicesWithStats(shopId?: string): Promise<{
+  invoices: OfflineQueuedInvoice[];
+  stats: {
+    total: number;
+    synced: number;
+    pending: number;
+    failed: number;
+  };
+}> {
+  try {
+    await recoverStaleSyncLocks();
+
+    const invoices = await getQueuedInvoices(shopId);
+
+    const stats = {
+      total: invoices.length,
+      synced: invoices.filter((i) => i.syncStatus === "SYNCED").length,
+      pending: invoices.filter((i) => i.syncStatus === "PENDING" || i.syncStatus === "SYNCING").length,
+      failed: invoices.filter((i) => i.syncStatus === "FAILED").length,
+    };
+
+    return { invoices, stats };
+  } catch (err) {
+    console.error("[OfflineQueue] Error loading invoices with stats:", err);
+    return {
+      invoices: [],
+      stats: { total: 0, synced: 0, pending: 0, failed: 0 },
+    };
   }
 }
 
@@ -302,9 +373,36 @@ export async function getOfflineInvoiceById(queueId: string): Promise<OfflineQue
 }
 
 /**
- * Pushes queued offline invoices to cloud server.
+ * Safely removes a local offline invoice if cancelled or obsolete.
  */
-export async function syncOfflineInvoices(shopId: string): Promise<{
+export async function deleteOfflineInvoice(queueId: string): Promise<boolean> {
+  if (!queueId) return false;
+  try {
+    await offlineDB.offline_invoices_queue.delete(queueId);
+    await offlineDB.cached_invoices.delete(queueId);
+    await offlineDB.cached_orders.delete(queueId);
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("offline-databank-updated", {
+          detail: { queueId, action: "deleted", timestamp: new Date().toISOString() },
+        })
+      );
+    }
+    return true;
+  } catch (err) {
+    console.error("[OfflineQueue] Error deleting offline invoice:", err);
+    return false;
+  }
+}
+
+/**
+ * Pushes queued offline invoices to cloud server with resilient shop resolution and stale lock protection.
+ */
+export async function syncOfflineInvoices(
+  shopId: string,
+  targetQueueId?: string
+): Promise<{
   syncedCount: number;
   failedCount: number;
   results: any[];
@@ -313,31 +411,51 @@ export async function syncOfflineInvoices(shopId: string): Promise<{
     return { syncedCount: 0, failedCount: 0, results: [] };
   }
 
+  await recoverStaleSyncLocks();
+
   // Sync pending patient/appointment mutations first so dependent records exist
   let mutSynced = 0;
   let mutFailed = 0;
-  try {
-    const mutResult = await syncOfflineMutations(shopId);
-    mutSynced = mutResult.syncedCount;
-    mutFailed = mutResult.failedCount;
-  } catch (mutErr) {
-    console.warn("[OfflineSync] Pre-invoice mutation sync warning:", mutErr);
+  if (!targetQueueId) {
+    try {
+      const mutResult = await syncOfflineMutations(shopId);
+      mutSynced = mutResult.syncedCount;
+      mutFailed = mutResult.failedCount;
+    } catch (mutErr) {
+      console.warn("[OfflineSync] Pre-invoice mutation sync warning:", mutErr);
+    }
   }
 
-  const pendingInvoices = await offlineDB.offline_invoices_queue
-    .where("shopId")
-    .equals(shopId)
-    .filter((inv) => inv.syncStatus === "PENDING" || inv.syncStatus === "FAILED")
-    .toArray();
+  // Load eligible pending/failed records (or single target queue item)
+  let pendingInvoices: OfflineQueuedInvoice[] = [];
+  if (targetQueueId) {
+    const target = await offlineDB.offline_invoices_queue.get(targetQueueId);
+    if (target && target.syncStatus !== "SYNCED") {
+      pendingInvoices = [target];
+    }
+  } else {
+    pendingInvoices = await offlineDB.offline_invoices_queue
+      .filter(
+        (inv) =>
+          (!shopId || !inv.shopId || inv.shopId === shopId) &&
+          (inv.syncStatus === "PENDING" || inv.syncStatus === "FAILED")
+      )
+      .toArray();
+  }
 
   if (pendingInvoices.length === 0) {
     return { syncedCount: mutSynced, failedCount: mutFailed, results: [] };
   }
 
-  // Mark all as SYNCING
+  const effectiveShopId = shopId || (await offlineDB.getCurrentShopId()) || pendingInvoices[0]?.shopId || "";
+
+  // Mark selected items as SYNCING
   await Promise.all(
     pendingInvoices.map((inv) =>
-      offlineDB.offline_invoices_queue.update(inv.id, { syncStatus: "SYNCING" })
+      offlineDB.offline_invoices_queue.update(inv.id, {
+        syncStatus: "SYNCING",
+        shopId: inv.shopId || effectiveShopId,
+      })
     )
   );
 
@@ -346,18 +464,22 @@ export async function syncOfflineInvoices(shopId: string): Promise<{
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        shopId,
+        shopId: effectiveShopId,
         invoices: pendingInvoices.map((inv) => ({
           offlineQueueId: inv.id,
           offlineInvoiceNumber: inv.offlineInvoiceNumber,
-          payload: inv.payload,
+          payload: {
+            ...inv.payload,
+            shopId: inv.payload?.shopId || effectiveShopId,
+          },
           createdAt: inv.createdAt,
         })),
       }),
     });
 
     if (!res.ok) {
-      throw new Error(`Sync API responded with status ${res.status}`);
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Sync API responded with status ${res.status}: ${errText || "Server error"}`);
     }
 
     const data = await res.json();
@@ -375,12 +497,29 @@ export async function syncOfflineInvoices(shopId: string): Promise<{
           syncedAt: new Date().toISOString(),
           syncError: null,
         });
+
+        // Mirror the server invoice & order numbers into cached IndexedDB tables
+        try {
+          const cachedInv = await offlineDB.cached_invoices.get(resItem.offlineQueueId);
+          if (cachedInv && resItem.serverInvoiceNumber) {
+            await offlineDB.cached_invoices.update(resItem.offlineQueueId, {
+              invoiceNumber: resItem.serverInvoiceNumber,
+            });
+          }
+          const cachedOrd = await offlineDB.cached_orders.get(resItem.offlineQueueId);
+          if (cachedOrd && resItem.serverInvoiceNumber) {
+            await offlineDB.cached_orders.update(resItem.offlineQueueId, {
+              invoiceNumber: resItem.serverInvoiceNumber,
+              orderNumber: resItem.serverInvoiceNumber,
+            });
+          }
+        } catch {}
       } else {
         failedCount++;
         const inv = pendingInvoices.find((i) => i.id === resItem.offlineQueueId);
         await offlineDB.offline_invoices_queue.update(resItem.offlineQueueId, {
           syncStatus: "FAILED",
-          syncError: resItem.error || "Server rejection",
+          syncError: resItem.error || "Server validation failure",
           retryCount: (inv?.retryCount || 0) + 1,
         });
       }
@@ -388,7 +527,15 @@ export async function syncOfflineInvoices(shopId: string): Promise<{
 
     // Refresh cache with latest database state after successful sync
     if (syncedCount > 0 || mutSynced > 0) {
-      await warmCache(shopId, true);
+      await warmCache(effectiveShopId, true).catch(() => {});
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("offline-databank-updated", {
+          detail: { shopId: effectiveShopId, syncedCount, failedCount, timestamp: new Date().toISOString() },
+        })
+      );
     }
 
     return {
@@ -397,8 +544,7 @@ export async function syncOfflineInvoices(shopId: string): Promise<{
       results,
     };
   } catch (error: any) {
-    console.error("[OfflineSync] Network error during invoice sync:", error);
-    // Revert status to FAILED
+    console.error("[OfflineSync] Network or server error during invoice sync:", error);
     await Promise.all(
       pendingInvoices.map((inv) =>
         offlineDB.offline_invoices_queue.update(inv.id, {
@@ -408,6 +554,15 @@ export async function syncOfflineInvoices(shopId: string): Promise<{
         })
       )
     );
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("offline-databank-updated", {
+          detail: { shopId: effectiveShopId, failedCount: pendingInvoices.length, timestamp: new Date().toISOString() },
+        })
+      );
+    }
+
     return {
       syncedCount: mutSynced,
       failedCount: pendingInvoices.length + mutFailed,

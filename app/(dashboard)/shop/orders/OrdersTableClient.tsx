@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock, Search, FileText } from "lucide-react";
+import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock, Search, FileText, UploadCloud, RefreshCw, AlertCircle, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { SKUDetailsDropdown } from "./SKUDetailsDropdown";
 import { QuickEditModal } from "./QuickEditModal";
 import { OrdersWhatsAppAction } from "@/components/shop/OrdersWhatsAppAction";
 import { OrderItem } from "@/services/order.service";
 import { offlineDB } from "@/lib/offline/db";
+import { syncOfflineInvoices } from "@/lib/offline/invoice-queue";
+import { useOffline } from "@/components/providers/OfflineProvider";
+import { toast } from "sonner";
 
 interface OrdersTableClientProps {
   orders: OrderItem[];
@@ -142,94 +145,105 @@ export function OrdersTableClient({
   limit,
   canEditOrders = false,
 }: OrdersTableClientProps) {
+  const { shopId } = useOffline();
   const [ordersList, setOrdersList] = useState<OrderItem[]>(orders);
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [syncingQueueId, setSyncingQueueId] = useState<string | null>(null);
 
-  // Sync server prop updates to local state whenever online
+  // Dual-source hydration: ALWAYS inspect local IndexedDB for un-synced offline bills
   useEffect(() => {
-    if (typeof navigator === "undefined" || navigator.onLine) {
-      setOrdersList(orders || []);
-    }
-  }, [orders]);
+    let isCancelled = false;
 
-  // Resilient IndexedDB hydration: activates ONLY when genuinely offline
-  useEffect(() => {
-    async function loadOfflineOrders() {
-      if (typeof navigator === "undefined" || navigator.onLine) return;
+    async function hydrateOrders() {
       try {
-        const [cachedOrders, offlineInvoices] = await Promise.all([
-          offlineDB.cached_orders.toArray(),
-          offlineDB.offline_invoices_queue.toArray(),
-        ]);
+        const isDeviceOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
-        const mappedCached: OrderItem[] = cachedOrders.map((o) => ({
-          id: o.id,
-          orderNumber: (o as any).orderNumber || o.invoiceNumber,
-          invoiceId: o.invoiceId,
-          invoiceNumber: o.invoiceNumber,
-          createdAt: new Date(o.createdAt),
-          total: o.totalAmount,
-          amountPaid: o.paidAmount,
-          balanceDue: o.dueAmount,
-          paymentMethod: (o as any).paymentMethod || "CASH",
-          fulfillmentStatus: o.status,
-          estimatedDelivery: o.deliveryDate || null,
-          isRescheduled: false,
-          customerId: o.customerId || "",
-          customerName: o.customerName,
-          customerPhone: o.customerPhone || null,
-          customerEmail: null,
-          skus: [{ description: "Optical Item", quantity: o.itemsCount || 1, category: "FRAME", sku: "OFFLINE" }],
-          categoryText: "Prescription Order",
-        }));
+        // 1. Load any pending/failed/syncing invoices from IndexedDB queue
+        const queuedInvoices = await offlineDB.offline_invoices_queue.toArray();
+        const pendingQueue = queuedInvoices.filter((inv) => inv.syncStatus !== "SYNCED");
 
-          const mappedQueue: OrderItem[] = offlineInvoices.map((inv) => {
-            const p = inv.payload;
-            const items = p?.invoiceItems || p?.items || [];
-            let subtotal = 0;
-            let calculatedDiscount = 0;
-            let totalTax = 0;
-            for (const it of items) {
-              subtotal += (Number(it.unitPrice) || 0) * (Number(it.quantity) || 1);
-              calculatedDiscount += Number(it.discountAmount) || 0;
-              totalTax += (Number(it.cgstAmount) || 0) + (Number(it.sgstAmount) || 0) + (Number(it.igstAmount) || 0);
-            }
-            const grandTotal = Math.max(0, subtotal - calculatedDiscount) + totalTax;
-            const total = p?.total !== undefined ? String(p.total) : String(grandTotal.toFixed(2));
-            const amountPaid = p?.amountPaid !== undefined ? String(p.amountPaid) : (p?.paidAmount !== undefined ? String(p.paidAmount) : total);
-            const balanceDue = p?.balanceDue !== undefined ? String(p.balanceDue) : String(Math.max(0, Number(total) - Number(amountPaid)).toFixed(2));
+        const mappedOffline: OrderItem[] = pendingQueue.map((inv) => {
+          const p = inv.payload;
+          const items = p?.invoiceItems || p?.items || [];
+          let subtotal = 0;
+          let calculatedDiscount = 0;
+          let totalTax = 0;
+          for (const it of items) {
+            subtotal += (Number(it.unitPrice) || 0) * (Number(it.quantity) || 1);
+            calculatedDiscount += Number(it.discountAmount) || 0;
+            totalTax += (Number(it.cgstAmount) || 0) + (Number(it.sgstAmount) || 0) + (Number(it.igstAmount) || 0);
+          }
+          const grandTotal = Math.max(0, subtotal - calculatedDiscount) + totalTax;
+          const total = p?.total !== undefined ? String(p.total) : String(grandTotal.toFixed(2));
+          const amountPaid = p?.amountPaid !== undefined ? String(p.amountPaid) : (p?.paidAmount !== undefined ? String(p.paidAmount) : total);
+          const balanceDue = p?.balanceDue !== undefined ? String(p.balanceDue) : String(Math.max(0, Number(total) - Number(amountPaid)).toFixed(2));
 
-            return {
-              id: inv.id,
-              orderNumber: inv.offlineInvoiceNumber,
-              invoiceId: inv.id,
-              invoiceNumber: inv.offlineInvoiceNumber,
-              createdAt: new Date(inv.createdAt),
-              total,
-              amountPaid,
-              balanceDue,
-              paymentMethod: p?.paymentMethod || "CASH",
-              fulfillmentStatus: inv.syncStatus === "SYNCED" ? "DELIVERED" : "PROCESSING",
-              estimatedDelivery: p?.estimatedDelivery || null,
-              isRescheduled: false,
-              customerId: p?.customerId || p?.customer?.id || "",
-              customerName: p?.customer?.fullName || "Walk-in Patient",
-              customerPhone: p?.customer?.phone || null,
-              customerEmail: p?.customer?.email || null,
-              skus: items.map((it: any) => ({
-                description: it.description || it.inventoryItemName || it.name || "Optical Item",
-                quantity: it.quantity || 1,
-                category: it.category || "FRAME",
-                sku: it.sku || "OFF-SKU",
-              })),
-              categoryText: "Offline Stored Invoice",
-            };
-          });
+          return {
+            id: inv.id,
+            orderNumber: inv.offlineInvoiceNumber,
+            invoiceId: inv.id,
+            invoiceNumber: inv.offlineInvoiceNumber,
+            createdAt: new Date(inv.createdAt),
+            total,
+            amountPaid,
+            balanceDue,
+            paymentMethod: p?.paymentMethod || "CASH",
+            fulfillmentStatus: "PROCESSING",
+            estimatedDelivery: p?.estimatedDelivery || null,
+            isRescheduled: false,
+            customerId: p?.customerId || p?.customer?.id || "",
+            customerName: p?.customer?.fullName || "Walk-in Patient",
+            customerPhone: p?.customer?.phone || null,
+            customerEmail: p?.customer?.email || null,
+            skus: items.map((it: any) => ({
+              description: it.description || it.inventoryItemName || it.name || "Optical Item",
+              quantity: it.quantity || 1,
+              category: it.category || "FRAME",
+              sku: it.sku || "OFF-SKU",
+            })),
+            categoryText: "Stored on Device",
+            isOfflinePending: true,
+            syncStatus: inv.syncStatus,
+            syncError: inv.syncError,
+            queueId: inv.id,
+          };
+        });
 
-          // Deduplicate queued and cached orders so no order appears twice
+        if (isDeviceOnline) {
+          // ONLINE MODE: Prepend pending offline bills at top of cloud orders
+          const serverInvNumbers = new Set((orders || []).map((o) => o.invoiceNumber));
+          const unpropagated = mappedOffline.filter((o) => !serverInvNumbers.has(o.invoiceNumber));
+
+          if (!isCancelled) {
+            setOrdersList([...unpropagated, ...(orders || [])]);
+          }
+        } else {
+          // OFFLINE MODE: Merge cached orders + queued offline invoices
+          const cachedOrders = await offlineDB.cached_orders.toArray();
+          const mappedCached: OrderItem[] = cachedOrders.map((o) => ({
+            id: o.id,
+            orderNumber: (o as any).orderNumber || o.invoiceNumber,
+            invoiceId: o.invoiceId,
+            invoiceNumber: o.invoiceNumber,
+            createdAt: new Date(o.createdAt),
+            total: o.totalAmount,
+            amountPaid: o.paidAmount,
+            balanceDue: o.dueAmount,
+            paymentMethod: (o as any).paymentMethod || "CASH",
+            fulfillmentStatus: o.status,
+            estimatedDelivery: o.deliveryDate || null,
+            isRescheduled: false,
+            customerId: o.customerId || "",
+            customerName: o.customerName,
+            customerPhone: o.customerPhone || null,
+            customerEmail: null,
+            skus: [{ description: "Optical Item", quantity: o.itemsCount || 1, category: "FRAME", sku: "OFFLINE" }],
+            categoryText: "Prescription Order",
+          }));
+
           const orderMap = new Map<string, OrderItem>();
-          for (const ord of mappedQueue) {
+          for (const ord of mappedOffline) {
             orderMap.set(ord.invoiceNumber || ord.id, ord);
           }
           for (const ord of mappedCached) {
@@ -239,30 +253,52 @@ export function OrdersTableClient({
             }
           }
 
-          const combined = Array.from(orderMap.values());
-          if (combined.length > 0) {
-            setOrdersList(combined);
+          if (!isCancelled) {
+            setOrdersList(Array.from(orderMap.values()));
           }
-        } catch (err) {
-          console.warn("[OrdersTableClient] Failed to load offline orders:", err);
         }
+      } catch (err) {
+        console.warn("[OrdersTableClient] Failed to hydrate orders:", err);
       }
+    }
 
-      loadOfflineOrders();
+    hydrateOrders();
 
-    const handleDataUpdated = () => {
-      if (!navigator.onLine) {
-        loadOfflineOrders();
-      }
+    const handleUpdate = () => {
+      hydrateOrders();
     };
 
-    window.addEventListener("offline-databank-updated", handleDataUpdated);
-    window.addEventListener("offline", loadOfflineOrders);
+    window.addEventListener("offline-databank-updated", handleUpdate);
+    window.addEventListener("online", handleUpdate);
+    window.addEventListener("offline", handleUpdate);
+
     return () => {
-      window.removeEventListener("offline-databank-updated", handleDataUpdated);
-      window.removeEventListener("offline", loadOfflineOrders);
+      isCancelled = true;
+      window.removeEventListener("offline-databank-updated", handleUpdate);
+      window.removeEventListener("online", handleUpdate);
+      window.removeEventListener("offline", handleUpdate);
     };
   }, [orders]);
+
+  const handleSyncSingleInvoice = async (e: React.MouseEvent, queueId: string) => {
+    e.stopPropagation();
+    if (syncingQueueId) return;
+
+    setSyncingQueueId(queueId);
+    toast.loading("Syncing bill to cloud...", { id: `sync-${queueId}` });
+    try {
+      const res = await syncOfflineInvoices(shopId || "", queueId);
+      if (res.syncedCount > 0) {
+        toast.success("Bill successfully pushed to cloud!", { id: `sync-${queueId}` });
+      } else {
+        toast.error("Sync failed. Check device network or error details.", { id: `sync-${queueId}` });
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to sync", { id: `sync-${queueId}` });
+    } finally {
+      setSyncingQueueId(null);
+    }
+  };
 
   const offset = (page - 1) * limit;
 
@@ -314,7 +350,14 @@ export function OrdersTableClient({
                   >
                     {/* Order ID */}
                     <td className="px-4 py-2.5 font-bold text-slate-800 text-xs group-hover:text-[#0a52c3] transition-colors">
-                      {order.orderNumber}
+                      <div className="flex items-center gap-1.5">
+                        <span>{order.orderNumber}</span>
+                        {order.isOfflinePending && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-[#0a52c3] border border-blue-200 shrink-0">
+                            Device
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Customer Info */}
@@ -366,19 +409,38 @@ export function OrdersTableClient({
 
                     {/* Delivery Status */}
                     <td className="px-4 py-2.5 text-center space-y-0.5">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                        order.fulfillmentStatus === "DELIVERED"
-                          ? "bg-slate-50 text-slate-600 border-slate-200/70"
-                          : order.isRescheduled
-                          ? "bg-amber-50 text-amber-700 border-amber-200/60"
-                          : "bg-blue-50 text-[#0a52c3] border-blue-200/60"
-                      }`}>
-                        {order.fulfillmentStatus === "DELIVERED"
-                          ? "DELIVERED"
-                          : order.fulfillmentStatus === "PROCESSING"
-                          ? (order.isRescheduled ? "Processing (Delayed)" : "PROCESSING")
-                          : order.fulfillmentStatus.replace("_", " ")}
-                      </span>
+                      {order.isOfflinePending ? (
+                        order.syncStatus === "SYNCING" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-200">
+                            <RefreshCw className="h-2.5 w-2.5 animate-spin" /> Syncing...
+                          </span>
+                        ) : order.syncStatus === "FAILED" ? (
+                          <span 
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-rose-50 text-rose-700 border-rose-200 cursor-help"
+                            title={order.syncError || "Sync failed. Click Sync button in Actions to retry."}
+                          >
+                            <AlertCircle className="h-2.5 w-2.5 text-rose-600" /> Sync Paused
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-blue-50 text-[#0a52c3] border-blue-200">
+                            <Clock className="h-2.5 w-2.5" /> Stored in Device
+                          </span>
+                        )
+                      ) : (
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          order.fulfillmentStatus === "DELIVERED"
+                            ? "bg-slate-50 text-slate-600 border-slate-200/70"
+                            : order.isRescheduled
+                            ? "bg-amber-50 text-amber-700 border-amber-200/60"
+                            : "bg-blue-50 text-[#0a52c3] border-blue-200/60"
+                        }`}>
+                          {order.fulfillmentStatus === "DELIVERED"
+                            ? "DELIVERED"
+                            : order.fulfillmentStatus === "PROCESSING"
+                            ? (order.isRescheduled ? "Processing (Delayed)" : "PROCESSING")
+                            : order.fulfillmentStatus.replace("_", " ")}
+                        </span>
+                      )}
                       {isDelayed && (
                         <div className="block">
                           <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase bg-rose-50 text-rose-600 border border-rose-200/60">
@@ -390,31 +452,61 @@ export function OrdersTableClient({
 
                     {/* Documents: Direct Order Form & Tax Invoice Icons */}
                     <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                      <OrderDocumentsAction order={order} isFullyPaid={isFullyPaid} />
+                      {order.isOfflinePending ? (
+                        <Link
+                          href={`/shop/invoices/offline/${order.id}`}
+                          className="h-7 px-2 rounded-lg inline-flex items-center justify-center gap-1 text-[#0a52c3] bg-blue-50 hover:bg-blue-100 border border-blue-200 shadow-xs text-[10px] font-bold transition-all hover:scale-105"
+                          title="View and Print Offline Bill"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>View Bill</span>
+                        </Link>
+                      ) : (
+                        <OrderDocumentsAction order={order} isFullyPaid={isFullyPaid} />
+                      )}
                     </td>
 
                     {/* Action: Direct WhatsApp & Edit Icons */}
                     <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex items-center justify-center gap-1.5">
-                        {/* WhatsApp Multi-Message Popover Trigger */}
-                        <OrdersWhatsAppAction order={order} />
-
-                        {/* Quick Edit Icon */}
-                        {canEditOrders ? (
-                          <Link
-                            href={`/shop/orders/${order.id}/edit`}
-                            className="h-7 w-7 rounded-lg flex items-center justify-center text-amber-700 bg-amber-50/80 hover:bg-amber-100 hover:text-amber-900 border border-amber-200/70 shadow-xs transition-all hover:scale-105"
-                            title="Edit Order, Products & Billing"
+                        {order.isOfflinePending ? (
+                          <button
+                            type="button"
+                            onClick={(e) => handleSyncSingleInvoice(e, order.id)}
+                            disabled={syncingQueueId === order.id}
+                            className="h-7 px-2.5 rounded-lg text-xs font-bold bg-[#0a52c3] hover:bg-[#004bb5] text-white flex items-center gap-1 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                            title="Push to Cloud Database Now"
                           >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Link>
+                            {syncingQueueId === order.id ? (
+                              <RefreshCw className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <UploadCloud className="h-3 w-3" />
+                            )}
+                            <span>Sync</span>
+                          </button>
                         ) : (
-                          <span
-                            className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-350 bg-slate-50 border border-slate-200/60 cursor-not-allowed select-none"
-                            title="Permission required to edit orders"
-                          >
-                            <Lock className="h-3 w-3" />
-                          </span>
+                          <>
+                            {/* WhatsApp Multi-Message Popover Trigger */}
+                            <OrdersWhatsAppAction order={order} />
+
+                            {/* Quick Edit Icon */}
+                            {canEditOrders ? (
+                              <Link
+                                href={`/shop/orders/${order.id}/edit`}
+                                className="h-7 w-7 rounded-lg flex items-center justify-center text-amber-700 bg-amber-50/80 hover:bg-amber-100 hover:text-amber-900 border border-amber-200/70 shadow-xs transition-all hover:scale-105"
+                                title="Edit Order, Products & Billing"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Link>
+                            ) : (
+                              <span
+                                className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-350 bg-slate-50 border border-slate-200/60 cursor-not-allowed select-none"
+                                title="Permission required to edit orders"
+                              >
+                                <Lock className="h-3 w-3" />
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>

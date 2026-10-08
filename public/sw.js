@@ -1,5 +1,5 @@
-// Optical Manager PWA Service Worker (v18 - Fail-Safe Isolated RSC & Offline Engine)
-const CACHE_VERSION = "v18";
+// Optical Manager PWA Service Worker (v19 - Resilient Offline Outbox & Dual-Source Orders Hydration)
+const CACHE_VERSION = "v19";
 const CACHE_STATIC = `optical-manager-static-${CACHE_VERSION}`;
 const CACHE_HTML = `optical-manager-html-${CACHE_VERSION}`;
 const CACHE_RSC = `optical-manager-rsc-${CACHE_VERSION}`;
