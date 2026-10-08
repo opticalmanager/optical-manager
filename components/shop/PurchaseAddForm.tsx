@@ -21,12 +21,14 @@ import {
   AlertCircle,
   Check,
   Eye,
+  Barcode,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Vendor, InventoryItem } from "@/types";
 import { CategoryItem } from "@/services/category.service";
 import { PurchaseVendorCombobox } from "@/components/shop/PurchaseVendorCombobox";
 import { PurchaseAddProductModal } from "@/components/shop/PurchaseAddProductModal";
+import { PurchaseBulkBarcodeModal } from "@/components/shop/PurchaseBulkBarcodeModal";
 import {
   createPurchaseAction,
   savePurchaseDraftAction,
@@ -215,6 +217,9 @@ export function PurchaseAddForm({
     vendor: string;
     count: number;
   } | null>(null);
+
+  // Bulk Barcode Modal State
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
 
   // Table Rows (SS2 columns)
   const [rows, setRows] = useState<PurchaseTableRow[]>([
@@ -993,8 +998,27 @@ export function PurchaseAddForm({
           </div>
         </div>
 
-        {/* Top Right Actions: AI Bill Scanner & Date Box */}
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
+        {/* Top Right Actions: Barcode Printing, AI Bill Scanner & Date Box */}
+        <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap sm:flex-nowrap">
+          <button
+            type="button"
+            onClick={() => {
+              const valid = rows.filter(
+                (r) => (r.productName || "").trim() || (r.productCode || "").trim()
+              );
+              if (valid.length === 0) {
+                toast.error("Please add at least 1 product item before printing barcodes.");
+                return;
+              }
+              setIsBarcodeModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200/90 text-slate-700 hover:text-[#2563eb] hover:bg-blue-50/50 hover:border-blue-200 font-bold text-xs shadow-2xs transition-all cursor-pointer"
+            title="Print Barcode Labels for items in this purchase"
+          >
+            <Barcode className="h-4 w-4 text-[#2563eb]" />
+            <span>Print Barcodes</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsScanDrawerOpen(true)}
@@ -1530,6 +1554,36 @@ export function PurchaseAddForm({
         onClose={() => setIsScanDrawerOpen(false)}
         onApply={handleApplyExtractedBill}
       />
+
+      {/* Batch Barcode Printing Modal */}
+      {isBarcodeModalOpen && (
+        <PurchaseBulkBarcodeModal
+          isOpen={isBarcodeModalOpen}
+          onClose={() => setIsBarcodeModalOpen(false)}
+          invoiceNumber={purchaseNumber.trim() || "PURCHASE-BILL"}
+          products={rows
+            .filter((r) => (r.productName || "").trim() || (r.productCode || "").trim())
+            .map((r, idx) => {
+              const fallbackSku = r.category
+                ? `${r.category.slice(0, 3).toUpperCase()}-GEN-00001`
+                : "FRM-GEN-00001";
+              return {
+                id: r.id || `row-${idx}`,
+                name: r.productName || r.productCode || `Item #${idx + 1}`,
+                sku: r.productCode || fallbackSku,
+                productCode: r.productCode || null,
+                category: r.category || "FRAME",
+                price:
+                  r.retailPrice && Number(r.retailPrice) > 0
+                    ? String(r.retailPrice)
+                    : r.purchasePrice && Number(r.purchasePrice) > 0
+                    ? String(r.purchasePrice)
+                    : "0",
+                quantity: typeof r.quantity === "number" && r.quantity > 0 ? r.quantity : 1,
+              };
+            })}
+        />
+      )}
     </div>
   );
 }

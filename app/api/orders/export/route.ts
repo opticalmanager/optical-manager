@@ -30,10 +30,12 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const tab = (searchParams.get("tab") || "ALL") as "ALL" | "PAID" | "PARTIALLY_PAID";
+    const tab = searchParams.get("tab") || "ALL";
     const search = searchParams.get("search") || "";
     const timeframe = (searchParams.get("timeframe") || "30d") as TimeframeType;
-    const filter = (searchParams.get("filter") || "ALL").toUpperCase() as "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+    const filter = (searchParams.get("filter") || "ALL").toUpperCase();
+    const paymentMethod = searchParams.get("paymentMethod") || "ALL";
+    const hasDues = searchParams.get("hasDues") === "true" || searchParams.get("hasDues") === "1";
 
     // Generate CSV
     const csvContent = await exportOrdersToCSVData({
@@ -42,6 +44,8 @@ export async function GET(request: Request) {
       search,
       timeframe,
       filter,
+      paymentMethod,
+      hasDues,
     });
 
     const timestamp = new Date().toISOString().slice(0, 10);

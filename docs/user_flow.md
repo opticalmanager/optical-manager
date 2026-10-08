@@ -146,7 +146,37 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 
 ---
 
-## 7. Order Editing, Stock Re-balancing & Update Audit History Workflow
+## 7. Orders Management Hub & Multi-Criteria Industrial Filtering Workflow
+
+```
+┌──────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│ Orders Hub       │───>│ Filter Popover  │───>│ Active Chips    │───>│ Filtered Table & │
+│ /shop/orders     │    │ Multi-Criteria  │    │ 1-Click Remove  │    │ CSV Export Sync  │
+└──────────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+```
+
+1. **Interactive Filter Popover (`OrdersFilterPopover`)**:
+   - Replaced dead static filter button with a high-density, accessible filter popover modal.
+   - Live counter badge (`bg-blue-600 text-white rounded-full`) indicates the number of active filters.
+   - Dismisses cleanly via backdrop click or `Escape` keyboard shortcut.
+2. **Multi-Dimensional Business Criteria**:
+   - **Delivery / Fulfillment Status**: `ALL`, `PENDING`, `READY`, `PROCESSING`, `DELIVERED`, `DELAYED` (overdue beyond estimated delivery date), and `ON_HOLD`.
+   - **Payment Status**: `ALL`, `PAID` (`balanceDue <= 0`), `PARTIALLY_PAID` (`balanceDue > 0` and `amountPaid > 0`), and `UNPAID` (`amountPaid == 0`).
+   - **Payment Mode / Method**: `ALL`, `CASH`, `UPI`, `CARD`, `BANK_TRANSFER`.
+   - **Timeframe / Range**: `24h` (Today), `yesterday`, `7d`, `30d`, `90d`, `12m`, `ytd`, and `all`.
+   - **Pending Balance Dues Toggle**: Instant toggle switch isolating orders with outstanding dues (`hasDues=true` where `balanceDue > 0`).
+3. **Active Filter Chips Bar (`ActiveOrderFilterChips`)**:
+   - Rendered directly above the main table card.
+   - Shows active criteria badges with label, value, and interactive `×` removal button.
+   - Includes a one-click "Clear All Filters" button.
+4. **URL Synchronization & Export Integrity**:
+   - All criteria are synchronized bi-directionally with URL query parameters (`searchParams`).
+   - Filter state is strictly preserved during pagination, full-text searches, and top KPI selection clicks.
+   - CSV export (`/api/orders/export`) accepts `paymentMethod`, `hasDues`, `filter`, `tab`, `timeframe`, and `search`, ensuring downloaded spreadsheets match the exact on-screen filtered dataset.
+
+---
+
+## 8. Order Editing, Stock Re-balancing & Update Audit History Workflow
 
 ```
 ┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
@@ -824,6 +854,51 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - `cached_invoices` and `cached_orders` are updated in IndexedDB.
      - The topbar sync pill updates smoothly to `[Synced]` once zero pending bills remain.
      - Custom event `"offline-databank-updated"` triggers instant re-hydration of the Orders table with zero page reloads.
+
+---
+
+## 20. Industrial Vertical Roll Barcode Printing & Add Purchase Integration Workflow
+
+```
+┌─────────────────────────────────┐    ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
+│ Entry Points:                   │───>│ Barcode Modal (Single/Batch)    │───>│ Industrial Thermal Output:      │
+│ • Add Purchase (/purchases/new) │    │ • Select Preset: Vertical 3-Up ⭐│    │ • Exact Page Size: 50×100mm     │
+│ • Purchase Detail (/[id])       │    │ • Auto-Set Continuous Roll      │    │ • Razor-Sharp Code 128 (Subset B)│
+│ • Inventory Designer Modal      │    │ • Live Dumbbell Tag Preview     │    │ • Spool to Hidden Iframe        │
+└─────────────────────────────────┘    └─────────────────────────────────┘    └─────────────────────────────────┘
+```
+
+1. **Multi-Column & Vertical Continuous Roll Support**:
+   - Eyewear and jewelry barbell tags typically come on **multi-column vertical rolls** (e.g. 3 tags side-by-side on a continuous web, 50mm web width × 100mm feed length).
+   - The engine provides specialized vertical roll presets:
+     - **`100x15 mm (Vertical 3-Up)` ⭐**: Exact 3-across eyewear barbell tag roll (`50mm` web width × `100mm` feed length).
+     - **`100x15 mm (Vertical 1-Up)`**: Single-column vertical roll (`15mm` width × `100mm` feed length).
+     - **`100x15 mm (Vertical 2-Up)`**: Two-across vertical roll (`34mm` width × `100mm` feed length). Features two 15×100mm labels rendered strictly side-by-side horizontally across the 34mm roll web (`1.5mm left margin + 15mm Col 1 + 1mm center slit gap + 15mm Col 2 + 1.5mm right margin = 34mm`). Enforces `flex-wrap: nowrap !important;` and `flex-shrink: 0 !important;` in print spool CSS to ensure labels are never vertically stacked by thermal printer drivers.
+     - **`100x15 mm (Tag)`**: Horizontal tag layout for 4" continuous rolls or A4/A5 laser/inkjet sticker sheets.
+     - **`50x25 mm`**, **`38x25 mm`**, **`40x30 mm`**, **`50x50 mm`**: Standard retail boxes and frame case labels.
+
+2. **Dumbbell Tag Geometry & 15×100mm Narrow Strip Physical Proportions**:
+   - The barbell tag format is strictly proportioned as a **15mm wide × 100mm long narrow strip** (`1:6.67` aspect ratio), eliminating square flap distortion.
+   - Divided symmetrically into **two 50mm folded sections** via a narrow center fold bridge:
+     - **Top Flap (~38mm length × 15mm width)**: Vertical slender flap (`2.53:1` length-to-width ratio, not a square). Rotated 90° along the 38mm length to provide 36mm of horizontal text width (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Displays store header (`CLINICAL OPTICAL`) on the left, bold retail price on the right, and brand name + model/item description running along the flap length without text clipping.
+     - **Narrow Center Bridge (~24mm length × 5mm width)**: Narrow 5mm fold-around strap with dashed borders, a dashed center fold guideline at the exact 50mm midpoint, and a rotated `FOLD` indicator matching the reading direction. When folded in half around an optical frame bridge, each side measures exactly 50mm (38mm flap + 12mm strap half).
+     - **Bottom Barcode Flap (~38mm length × 15mm width)**: Vertical slender flap (`2.53:1` ratio). Rotated 90° along the 38mm length (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Renders a high-density 34mm-wide Code 128 (Subset B) native vector SVG barcode with 8.5mm bar height across the tag width, paired with a parallel monospace SKU beneath. This prevents barcode distortion and ensures 100% reliable scanner reads compared to squeezing across a 15mm width.
+   - Code 128 (Subset B) uses 11 modules per character, ensuring crisp vector bars rendered along the 34mm length at standard 203 DPI and 300 DPI thermal resolutions.
+   - **Continuous Roll Representation**: On the 50×100mm thermal web (`100x15 mm (Vertical 3-Up Roll)`), three narrow strips (40px wide × 270px long each) render side-by-side with 1.5mm liner margins and 1mm center slit gaps, accurately mirroring the physical 3-across continuous roll feed.
+
+3. **Direct Add Purchase Header Action (`/shop/purchases/new`)**:
+   - In the top action bar of the Add Purchase page, staff can click **`Print Barcodes`** (`Barcode` icon).
+   - Validates that at least 1 product item with a name or code is present.
+   - Opens the `PurchaseBulkBarcodeModal` populated with all inward items from the table:
+     - Pre-fills item quantities, retail prices (or purchase cost if retail price is omitted), and codes.
+     - Provides quantity steppers (`-`, `+`, or direct numeric input) to print exact label counts per product.
+     - Features interactive Single Label (dumbbell tag zoom) and Continuous Roll Feed previews.
+     - Embeds a helpful thermal printer configuration tip (Paper size matching and `Margins: None`).
+
+4. **Zero-Lag Print Spooler & Driver Compatibility**:
+   - Sets exact CSS `@page { size: ${rollWidth}mm ${rollHeight}mm; margin: 0; }` preventing thermal printer gap sensors from skipping or ejecting blank paper.
+   - Multi-column rolls (3-Up, 2-Up) group tags across rows and trigger `@media print { page-break-after: always; }` at each row boundary.
+   - Spools through a hidden `iframe` with fallback to a print popup window, delivering instantaneous print output with zero layout reflows.
 
 
 

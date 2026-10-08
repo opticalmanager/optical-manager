@@ -1,5 +1,6 @@
 // ─── Shared Optical Manager Barcode Utility Engine ───────────────────────────
-// Code 39 SVG generator, label layout presets, and multi-label print spooler.
+// Code 128 / Code 39 SVG generators, vertical barbell & butterfly roll presets,
+// multi-column thermal roll spooling, and zero-lag hidden iframe print dispatcher.
 
 export interface BarcodeItem {
   id?: string;
@@ -13,17 +14,21 @@ export interface BarcodeItem {
 }
 
 export type LabelSizePreset =
+  | "100x15 mm (Vertical 3-Up)"
+  | "100x15 mm (Vertical 1-Up)"
+  | "100x15 mm (Vertical 2-Up)"
   | "100x15 mm (Tag)"
   | "50x25 mm (Standard)"
   | "38x25 mm (Compact Jewel)"
-  | "40x30 mm (Medium Box)";
+  | "40x30 mm (Medium Box)"
+  | "50x50 mm (Square Box)";
 
 export interface LabelSpec {
   id: LabelSizePreset;
   displayName: string;
   widthMm: number;
   heightMm: number;
-  type: "tag" | "standard" | "compact" | "box";
+  type: "tag" | "vertical-tag" | "standard" | "compact" | "box";
   description: string;
   defaultBarcodeHeight: number;
   maxBarcodeHeight: number;
@@ -36,16 +41,85 @@ export interface LabelSpec {
   a5Cols: number;
   a5Rows: number;
   a5Total: number;
+  rollCols?: number;
+  rollWidthMm?: number;
+  rollHeightMm?: number;
 }
 
 export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
+  "100x15 mm (Vertical 3-Up)": {
+    id: "100x15 mm (Vertical 3-Up)",
+    displayName: "100×15 mm Vertical (3-Across Roll)",
+    widthMm: 15,
+    heightMm: 100,
+    type: "vertical-tag",
+    description: "3 Vertical Butterfly Tags Across Roll (50×100mm Thermal Web Standard)",
+    defaultBarcodeHeight: 18,
+    maxBarcodeHeight: 25,
+    defaultBrandFontSize: 7.5,
+    defaultPriceFontSize: 9.5,
+    defaultDescFontSize: 6.5,
+    a4Cols: 6,
+    a4Rows: 2,
+    a4Total: 12,
+    a5Cols: 3,
+    a5Rows: 1,
+    a5Total: 3,
+    rollCols: 3,
+    rollWidthMm: 50,
+    rollHeightMm: 100,
+  },
+  "100x15 mm (Vertical 1-Up)": {
+    id: "100x15 mm (Vertical 1-Up)",
+    displayName: "100×15 mm Vertical (1-Across Roll)",
+    widthMm: 15,
+    heightMm: 100,
+    type: "vertical-tag",
+    description: "Single-Column Vertical Butterfly Tag (15×100mm Continuous Roll)",
+    defaultBarcodeHeight: 18,
+    maxBarcodeHeight: 25,
+    defaultBrandFontSize: 7.5,
+    defaultPriceFontSize: 9.5,
+    defaultDescFontSize: 6.5,
+    a4Cols: 6,
+    a4Rows: 2,
+    a4Total: 12,
+    a5Cols: 3,
+    a5Rows: 1,
+    a5Total: 3,
+    rollCols: 1,
+    rollWidthMm: 15,
+    rollHeightMm: 100,
+  },
+  "100x15 mm (Vertical 2-Up)": {
+    id: "100x15 mm (Vertical 2-Up)",
+    displayName: "100×15 mm Vertical (2-Across Roll)",
+    widthMm: 15,
+    heightMm: 100,
+    type: "vertical-tag",
+    description: "2 Vertical Butterfly Tags Across Roll (34×100mm Thermal Web)",
+    defaultBarcodeHeight: 18,
+    maxBarcodeHeight: 25,
+    defaultBrandFontSize: 7.5,
+    defaultPriceFontSize: 9.5,
+    defaultDescFontSize: 6.5,
+    a4Cols: 6,
+    a4Rows: 2,
+    a4Total: 12,
+    a5Cols: 3,
+    a5Rows: 1,
+    a5Total: 3,
+    rollCols: 2,
+    rollWidthMm: 34,
+    rollHeightMm: 100,
+  },
   "100x15 mm (Tag)": {
     id: "100x15 mm (Tag)",
-    displayName: "100×15 mm (Tag)",
+    displayName: "100×15 mm Horizontal (Tag Sheet/Roll)",
     widthMm: 100,
     heightMm: 15,
     type: "tag",
-    description: "Optical Frame Barbell Tag (Dual-Wing with Center Fold)",
+    description: "Optical Frame Barbell Tag (Horizontal Dual-Wing, A4 Sheet / 4\" Wide Roll)",
     defaultBarcodeHeight: 18,
     maxBarcodeHeight: 22,
     defaultBrandFontSize: 9,
@@ -57,10 +131,13 @@ export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
     a5Cols: 1,
     a5Rows: 9,
     a5Total: 9,
+    rollCols: 1,
+    rollWidthMm: 100,
+    rollHeightMm: 15,
   },
   "50x25 mm (Standard)": {
     id: "50x25 mm (Standard)",
-    displayName: "50×25 mm (Standard)",
+    displayName: "50×25 mm (Standard Retail)",
     widthMm: 50,
     heightMm: 25,
     type: "standard",
@@ -76,6 +153,9 @@ export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
     a5Cols: 2,
     a5Rows: 5,
     a5Total: 10,
+    rollCols: 1,
+    rollWidthMm: 50,
+    rollHeightMm: 25,
   },
   "38x25 mm (Compact Jewel)": {
     id: "38x25 mm (Compact Jewel)",
@@ -95,6 +175,9 @@ export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
     a5Cols: 2,
     a5Rows: 5,
     a5Total: 10,
+    rollCols: 1,
+    rollWidthMm: 38,
+    rollHeightMm: 25,
   },
   "40x30 mm (Medium Box)": {
     id: "40x30 mm (Medium Box)",
@@ -114,10 +197,107 @@ export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
     a5Cols: 2,
     a5Rows: 4,
     a5Total: 8,
+    rollCols: 1,
+    rollWidthMm: 40,
+    rollHeightMm: 30,
+  },
+  "50x50 mm (Square Box)": {
+    id: "50x50 mm (Square Box)",
+    displayName: "50×50 mm (Square Box)",
+    widthMm: 50,
+    heightMm: 50,
+    type: "box",
+    description: "Square 50×50mm Eyewear Case & Frame Box Label",
+    defaultBarcodeHeight: 36,
+    maxBarcodeHeight: 44,
+    defaultBrandFontSize: 13,
+    defaultPriceFontSize: 15,
+    defaultDescFontSize: 8.5,
+    a4Cols: 3,
+    a4Rows: 5,
+    a4Total: 15,
+    a5Cols: 2,
+    a5Rows: 2,
+    a5Total: 4,
+    rollCols: 1,
+    rollWidthMm: 50,
+    rollHeightMm: 50,
   },
 };
 
-// ─── Code 39 barcode encoding table ───────────────────────────────────────────
+// ─── Code 128 (Subset B) High-Density Barcode Generator ───────────────────────
+// Standard 107 pattern table (widths of 6 elements: bar-space-bar-space-bar-space)
+const CODE128_PATTERNS = [
+  "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
+  "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
+  "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
+  "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
+  "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
+  "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
+  "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
+  "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
+  "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
+  "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
+  "114131", "311141", "411131", "211412", "211214", "211232", "2331112",
+];
+
+function code128PatternToBits(p: string): string {
+  let bits = "";
+  let isBar = true;
+  for (let i = 0; i < p.length; i++) {
+    const width = parseInt(p[i], 10);
+    bits += (isBar ? "1" : "0").repeat(width);
+    isBar = !isBar;
+  }
+  return bits;
+}
+
+export function encodeCode128B(text: string): string {
+  // Start Code B is index 104
+  const startBIndex = 104;
+  const values: number[] = [startBIndex];
+
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    // Code 128B maps ASCII 32..126 to 0..94
+    const val = code >= 32 && code <= 126 ? code - 32 : 0;
+    values.push(val);
+  }
+
+  // Calculate checksum: (startVal + sum(i * val)) % 103
+  let checksum = startBIndex;
+  for (let i = 1; i < values.length; i++) {
+    checksum += i * values[i];
+  }
+  checksum %= 103;
+  values.push(checksum);
+
+  // Stop character is index 106
+  values.push(106);
+
+  let totalBits = "";
+  for (const v of values) {
+    totalBits += code128PatternToBits(CODE128_PATTERNS[v]);
+  }
+  return totalBits;
+}
+
+export function buildCode128SvgString(text: string, height: number, barScale = 1.0): string {
+  const pattern = encodeCode128B(text);
+  const barWidth = barScale;
+  const totalWidth = pattern.length * barWidth;
+  const bars = pattern
+    .split("")
+    .map((bit, idx) =>
+      bit === "1"
+        ? `<rect x="${idx * barWidth}" y="0" width="${barWidth}" height="${height}" fill="black"/>`
+        : ""
+    )
+    .join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${height}" width="100%" height="${height}" preserveAspectRatio="none">${bars}</svg>`;
+}
+
+// ─── Code 39 barcode encoding table (Fallback / Legacy) ───────────────────────
 export const CODE39_MAP: Record<string, string> = {
   "0": "101001101101", "1": "110100101011", "2": "101100101011",
   "3": "110110010101", "4": "101001101011", "5": "110100110101",
@@ -146,7 +326,7 @@ export function encodeCode39(text: string): string {
   return pattern;
 }
 
-export function buildBarcodeSvgString(text: string, height: number, barScale = 1.4): string {
+export function buildCode39SvgString(text: string, height: number, barScale = 1.4): string {
   const pattern = encodeCode39(text);
   const barWidth = barScale;
   const totalWidth = pattern.length * barWidth;
@@ -159,6 +339,18 @@ export function buildBarcodeSvgString(text: string, height: number, barScale = 1
     )
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${height}" width="100%" height="${height}" preserveAspectRatio="none">${bars}</svg>`;
+}
+
+export function buildBarcodeSvgString(
+  text: string,
+  height: number,
+  barScale = 1.4,
+  symbology: "code128" | "code39" = "code128"
+): string {
+  if (symbology === "code128") {
+    return buildCode128SvgString(text, height, Math.max(0.7, barScale * 0.75));
+  }
+  return buildCode39SvgString(text, height, barScale);
 }
 
 export interface BarcodeLabelOptions {
@@ -176,17 +368,11 @@ export interface BarcodeLabelOptions {
   fontFamily?: "sans" | "mono" | "classic";
   borderStyle?: "dashed" | "solid" | "none";
   currencySymbol?: string;
+  symbology?: "code128" | "code39";
 }
 
 /**
  * Derives an optical industry-standard display title when the product name is blank or missing.
- * Hierarchy:
- * 1. Explicit productName / name
- * 2. Brand + Model (e.g. "RAY-BAN RB-3025")
- * 3. User-written Product Code (e.g. "SI-20050" or "RAY-BAN SI-20050")
- * 4. Brand + Category (e.g. "FASTTRACK Optical Frame")
- * 5. Model alone (e.g. "Optical Frame RB-3025")
- * 6. Category Standard Name (e.g. "Optical Frame", "Sunglasses", "Ophthalmic Lens", etc.)
  */
 export function resolveDisplayTitle(
   name?: string | null,
@@ -211,11 +397,8 @@ export function resolveDisplayTitle(
   else if (cleanCat.includes("SOL")) catLabel = "Cleaning Solution";
   else if (cleanCat.includes("FRAME") || cleanCat === "FRM") catLabel = "Optical Frame";
 
-  // 1. If brand and model are both present: "RAY-BAN RB-3025"
   if (cleanBrand && cleanModel) return `${cleanBrand} ${cleanModel}`;
 
-  // 2. If user entered a specific product code (not an auto-generated generic fallback):
-  // Show product code written by user if available!
   if (cleanCode && !cleanCode.includes("-GEN-")) {
     if (cleanBrand && !cleanCode.toUpperCase().includes(cleanBrand.toUpperCase())) {
       return `${cleanBrand} ${cleanCode}`;
@@ -223,17 +406,154 @@ export function resolveDisplayTitle(
     return cleanCode;
   }
 
-  // 3. If brand is present without model or code: "RAY-BAN Optical Frame"
   if (cleanBrand) return `${cleanBrand} ${catLabel}`;
-
-  // 4. If model is present without brand: "Optical Frame RB-3025"
   if (cleanModel) return `${catLabel} ${cleanModel}`;
-
-  // 5. If any code was provided (even generic), show it:
   if (cleanCode) return cleanCode;
 
-  // 6. Category default
   return catLabel;
+}
+
+/**
+ * Generates an authentic vertical dumbbell / butterfly optical tag (15mm width × 100mm height)
+ * designed specifically for longitudinal continuous rolls (1-Up, 2-Up, 3-Up).
+ */
+export function buildOneVerticalTagHtml(
+  item: BarcodeItem,
+  spec: LabelSpec,
+  options?: BarcodeLabelOptions
+): string {
+  const { widthMm, heightMm, maxBarcodeHeight } = spec;
+  const barcodeHeight = Math.min(
+    options?.barcodeHeight ?? spec.defaultBarcodeHeight,
+    maxBarcodeHeight
+  );
+
+  const showBrand = options?.showBrand ?? true;
+  const showItemName = options?.showItemName ?? true;
+  const showPrice = options?.showPrice ?? true;
+  const showSKU = options?.showSKU ?? true;
+  const showBarcodeText = options?.showBarcodeText ?? true;
+  const customHeader = options?.customHeader ?? "";
+  const brandFontSize = options?.brandFontSize ?? spec.defaultBrandFontSize;
+  const priceFontSize = options?.priceFontSize ?? spec.defaultPriceFontSize;
+  const descriptionFontSize = options?.descriptionFontSize ?? spec.defaultDescFontSize;
+  const fontWeight = options?.fontWeight ?? "bold";
+  const fontFamily = options?.fontFamily ?? "sans";
+  const borderStyle = options?.borderStyle ?? "dashed";
+  const currencySymbol = options?.currencySymbol ?? "₹";
+
+  const numPrice = item.price ? parseFloat(item.price) : 0;
+  const formattedPrice = numPrice > 0 ? `${currencySymbol}${numPrice.toLocaleString("en-IN")}/-` : "";
+
+  const fontFamilyCss =
+    fontFamily === "mono"
+      ? "'Courier New', Courier, monospace"
+      : fontFamily === "classic"
+      ? "Georgia, 'Times New Roman', Times, serif"
+      : "Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif";
+  const fontWeightCss = fontWeight === "bold" ? "700" : "400";
+
+  const borderCss =
+    borderStyle === "dashed"
+      ? "1px dashed #64748b"
+      : borderStyle === "solid"
+      ? "1px solid #000000"
+      : "1px solid transparent";
+
+  const headerHtml = customHeader
+    ? `<span style="font-size:5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:18mm;">${customHeader}</span>`
+    : `<span style="font-size:5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:18mm;">CLINICAL OPTICAL</span>`;
+
+  const brandHtml = showBrand
+    ? `<span style="font-size:${Math.min(brandFontSize, 7.5)}px;color:#0f172a;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};display:block;">${item.brand || item.category || "OPTICAL"}</span>`
+    : "";
+
+  const displayTitle = resolveDisplayTitle(
+    item.name,
+    item.category,
+    item.brand,
+    item.model,
+    item.productCode || item.sku
+  );
+  const itemNameHtml = showItemName
+    ? `<span style="font-size:${Math.min(descriptionFontSize, 6.5)}px;color:#475569;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;margin-top:0.5px;">${displayTitle}</span>`
+    : "";
+
+  const priceHtml =
+    showPrice && formattedPrice
+      ? `<span style="font-size:${Math.min(priceFontSize, 8)}px;color:#2563eb;font-weight:800;white-space:nowrap;flex-shrink:0;margin-left:2px;">${formattedPrice}</span>`
+      : "";
+
+  const fallbackSku = item.category
+    ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
+    : "FRM-GEN-00001";
+  const skuCode = item.sku || fallbackSku;
+  const barcodeSvg = buildCode128SvgString(skuCode, 24, 0.95);
+
+  const skuTextHtml =
+    showSKU && showBarcodeText
+      ? `<span style="font-size:5.5px;font-family:'Courier New',monospace;letter-spacing:0.12em;font-weight:700;color:#1e293b;display:block;margin-top:0.5mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
+      : "";
+
+  const flapBorderCss =
+    borderStyle === "none"
+      ? "none"
+      : borderStyle === "solid"
+      ? "1px solid #000000"
+      : "1px dashed #cbd5e1";
+
+  return `
+    <div class="barcode-vertical-tag" style="
+      width:${widthMm}mm;
+      max-width:${widthMm}mm;
+      min-width:${widthMm}mm;
+      height:${heightMm}mm;
+      max-height:${heightMm}mm;
+      min-height:${heightMm}mm;
+      flex-shrink:0;
+      flex-grow:0;
+      box-sizing:border-box;
+      background:transparent;
+      font-family:${fontFamilyCss};
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      align-items:center;
+      overflow:hidden;
+      break-inside:avoid;
+      page-break-inside:avoid;
+      border:1px solid transparent;
+    ">
+      <!-- Top Flap (Wing 1): Brand, Details, Price (Vertical Tag 90° Orientation along 38mm length) -->
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;border:${flapBorderCss};border-radius:1mm 1mm 0 0;position:relative;">
+        <div style="width:36mm;height:13mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;padding:0.5mm 1mm;transform:rotate(90deg);transform-origin:center center;overflow:hidden;line-height:1.15;flex-shrink:0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;min-width:0;">
+            ${headerHtml}
+            ${priceHtml}
+          </div>
+          <div style="display:flex;flex-direction:column;width:100%;min-width:0;overflow:hidden;">
+            ${brandHtml}
+            ${itemNameHtml}
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Tail / Strap: Narrow Bridge (~24mm with 50mm center fold dividing 100mm length) -->
+      <div style="width:5mm;height:24mm;box-sizing:border-box;background:#ffffff;border-left:${flapBorderCss};border-right:${flapBorderCss};display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+        <div style="position:absolute;top:50%;left:0;width:100%;border-top:1px dashed #cbd5e1;transform:translateY(-50%);"></div>
+        <span style="font-size:4px;color:#94a3b8;font-weight:700;transform:rotate(90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;background:#ffffff;position:relative;z-index:1;padding:0 1px;">FOLD</span>
+      </div>
+
+      <!-- Bottom Flap (Wing 2): Barcode & SKU (Vertical Tag 90° Orientation along 38mm length) -->
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;border:${flapBorderCss};border-radius:0 0 1mm 1mm;position:relative;">
+        <div style="width:36mm;height:13mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(90deg);transform-origin:center center;overflow:hidden;flex-shrink:0;">
+          <div style="width:34mm;height:8.5mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            ${barcodeSvg}
+          </div>
+          ${skuTextHtml}
+        </div>
+      </div>
+    </div>`;
 }
 
 export function buildOneLabelHtml(
@@ -241,6 +561,10 @@ export function buildOneLabelHtml(
   spec: LabelSpec,
   options?: BarcodeLabelOptions
 ): string {
+  if (spec.type === "vertical-tag") {
+    return buildOneVerticalTagHtml(item, spec, options);
+  }
+
   const { widthMm, heightMm, type, maxBarcodeHeight } = spec;
   const barcodeHeight = Math.min(
     options?.barcodeHeight ?? spec.defaultBarcodeHeight,
@@ -307,14 +631,14 @@ export function buildOneLabelHtml(
     ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
     : "FRM-GEN-00001";
   const skuCode = item.sku || fallbackSku;
-  const barcodeSvg = buildBarcodeSvgString(skuCode, barcodeHeight, type === "tag" ? 1.2 : 1.4);
+  const barcodeSvg = buildBarcodeSvgString(skuCode, barcodeHeight, type === "tag" ? 1.2 : 1.4, options?.symbology || "code128");
 
   const skuTextHtml =
     showSKU && showBarcodeText
       ? `<span style="font-size:${type === "tag" ? "6.5px" : "7.5px"};font-family:'Courier New',monospace;letter-spacing:0.15em;font-weight:700;color:#1e293b;display:block;margin-top:1px;line-height:1;">${skuCode}</span>`
       : "";
 
-  // 1. Tag Butterfly Fold (100x15 mm)
+  // 1. Tag Butterfly Fold (100x15 mm Horizontal)
   if (type === "tag") {
     return `
       <div style="
@@ -405,41 +729,133 @@ export function buildBulkLabelsHtml(
   let bodyContent = "";
 
   if (paperSize === "continuous") {
-    // Industrial Standard Continuous Roll (Zebra / TSC / Citizen / TVS / Godex)
+    // Industrial Standard Continuous Roll (Zebra / TSC / Citizen / TVS / Godex / Xprinter)
+    const rollWidth = spec.rollWidthMm ?? spec.widthMm;
+    const rollHeight = spec.rollHeightMm ?? spec.heightMm;
+    const rollCols = spec.rollCols ?? 1;
+
     pageCSS = `
       @page {
-        size: ${spec.widthMm}mm ${spec.heightMm}mm;
+        size: ${rollWidth}mm ${rollHeight}mm portrait;
         margin: 0;
       }
+      html, body {
+        width: ${rollWidth}mm;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      .barcode-continuous-page {
+        width: ${rollWidth}mm;
+        height: ${rollHeight}mm;
+        max-width: ${rollWidth}mm;
+        min-width: ${rollWidth}mm;
+        page-break-after: always;
+        break-after: page;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin: 0;
+        padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"};
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "center"};
+        gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"};
+        overflow: hidden;
+      }
+      .barcode-vertical-tag {
+        width: ${spec.widthMm}mm;
+        max-width: ${spec.widthMm}mm;
+        min-width: ${spec.widthMm}mm;
+        height: ${spec.heightMm}mm;
+        max-height: ${spec.heightMm}mm;
+        min-height: ${spec.heightMm}mm;
+        flex-shrink: 0;
+        flex-grow: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        box-sizing: border-box;
+      }
       @media print {
+        @page {
+          size: ${rollWidth}mm ${rollHeight}mm portrait;
+          margin: 0;
+        }
         html, body {
+          width: ${rollWidth}mm !important;
+          height: ${rollHeight}mm !important;
           margin: 0 !important;
           padding: 0 !important;
           background: #ffffff !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        .barcode-continuous-label {
-          width: ${spec.widthMm}mm !important;
-          height: ${spec.heightMm}mm !important;
+        .barcode-continuous-page {
+          width: ${rollWidth}mm !important;
+          height: ${rollHeight}mm !important;
+          max-width: ${rollWidth}mm !important;
+          min-width: ${rollWidth}mm !important;
           page-break-after: always !important;
           break-after: page !important;
           page-break-inside: avoid !important;
           break-inside: avoid !important;
           margin: 0 !important;
-          padding: 0 !important;
+          padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"} !important;
           box-sizing: border-box !important;
           display: flex !important;
+          flex-direction: row !important;
+          flex-wrap: nowrap !important;
+          align-items: stretch !important;
+          justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "center"} !important;
+          gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"} !important;
+          overflow: hidden !important;
+        }
+        .barcode-vertical-tag {
+          width: ${spec.widthMm}mm !important;
+          max-width: ${spec.widthMm}mm !important;
+          min-width: ${spec.widthMm}mm !important;
+          height: ${spec.heightMm}mm !important;
+          max-height: ${spec.heightMm}mm !important;
+          min-height: ${spec.heightMm}mm !important;
+          flex-shrink: 0 !important;
+          flex-grow: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
           align-items: center !important;
-          justify-content: center !important;
+          box-sizing: border-box !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
         }
       }
     `;
-    bodyContent = allLabels
-      .map((lbl) => `<div class="barcode-continuous-label">${lbl}</div>`)
-      .join("");
+
+    if (rollCols === 1) {
+      bodyContent = allLabels
+        .map((lbl) => `<div class="barcode-continuous-page">${lbl}</div>`)
+        .join("");
+    } else {
+      // Multi-column continuous roll (e.g. 3-across or 2-across as in reference photo)
+      const rowsHtml: string[] = [];
+      for (let i = 0; i < allLabels.length; i += rollCols) {
+        let colsHtml = "";
+        for (let c = 0; c < rollCols; c++) {
+          if (i + c < allLabels.length) {
+            colsHtml += allLabels[i + c];
+          } else {
+            colsHtml += `<div style="width:${spec.widthMm}mm;height:${spec.heightMm}mm;max-width:${spec.widthMm}mm;min-width:${spec.widthMm}mm;flex-shrink:0;visibility:hidden;"></div>`;
+          }
+        }
+        rowsHtml.push(`<div class="barcode-continuous-page">${colsHtml}</div>`);
+      }
+      bodyContent = rowsHtml.join("");
+    }
   } else {
-    // Multi-label sheet layout using HTML Table (A4 / A5) - matching inventory BarcodeDesignerModal
+    // Multi-label sheet layout using HTML Table (A4 / A5)
     const effectivePaperSize = paperSize;
     const cols = effectivePaperSize === "a4" ? spec.a4Cols : spec.a5Cols;
     const margin = effectivePaperSize === "a4" ? "5mm 4mm" : "4mm 3mm";

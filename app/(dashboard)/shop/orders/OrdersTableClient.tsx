@@ -18,10 +18,12 @@ interface OrdersTableClientProps {
   page: number;
   totalPages: number;
   totalCount: number;
-  tab: "ALL" | "PAID" | "PARTIALLY_PAID";
+  tab: string;
   search: string;
   timeframe: string;
   filter: string;
+  paymentMethod?: string;
+  hasDues?: boolean;
   limit: number;
   canEditOrders?: boolean;
 }
@@ -142,6 +144,8 @@ export function OrdersTableClient({
   search,
   timeframe,
   filter,
+  paymentMethod,
+  hasDues,
   limit,
   canEditOrders = false,
 }: OrdersTableClientProps) {
@@ -530,7 +534,7 @@ export function OrdersTableClient({
                     </p>
                     {search && (
                       <Link
-                        href={`/shop/orders?tab=${tab}&timeframe=${timeframe}&filter=${filter}`}
+                        href={`/shop/orders?tab=${tab}&timeframe=${timeframe}&filter=${filter}${paymentMethod && paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0a52c3] bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 shadow-xs"
                       >
                         Clear Search
@@ -555,7 +559,7 @@ export function OrdersTableClient({
           <div className="flex items-center gap-1">
             {page > 1 ? (
               <Link
-                href={`/shop/orders?tab=${tab}&search=${search}&page=${page - 1}&timeframe=${timeframe}&filter=${filter}`}
+                href={`/shop/orders?tab=${tab}&search=${encodeURIComponent(search)}&page=${page - 1}&timeframe=${timeframe}&filter=${filter}${paymentMethod && paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
                 className="h-8 w-8 bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 text-slate-600 rounded-lg flex items-center justify-center transition-all shadow-sm cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -569,7 +573,7 @@ export function OrdersTableClient({
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
               <Link
                 key={p}
-                href={`/shop/orders?tab=${tab}&search=${search}&page=${p}&timeframe=${timeframe}&filter=${filter}`}
+                href={`/shop/orders?tab=${tab}&search=${encodeURIComponent(search)}&page=${p}&timeframe=${timeframe}&filter=${filter}${paymentMethod && paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
                 className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all text-xs font-bold shadow-sm ${
                   p === page
                     ? "bg-[#0a52c3] text-white border border-[#0a52c3] shadow-md shadow-[#0a52c3]/15 font-black cursor-default"
@@ -582,7 +586,7 @@ export function OrdersTableClient({
 
             {page < totalPages ? (
               <Link
-                href={`/shop/orders?tab=${tab}&search=${search}&page=${page + 1}&timeframe=${timeframe}&filter=${filter}`}
+                href={`/shop/orders?tab=${tab}&search=${encodeURIComponent(search)}&page=${page + 1}&timeframe=${timeframe}&filter=${filter}${paymentMethod && paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
                 className="h-8 w-8 bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 text-slate-655 rounded-lg flex items-center justify-center transition-all shadow-sm cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4" />

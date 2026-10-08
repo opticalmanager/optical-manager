@@ -12,9 +12,11 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Description**: Generates and downloads a CSV spreadsheet of orders and customer billing history matching the active multi-criteria filters. Supports smart search across order numbers, invoice numbers, customer names, mobile phone numbers, and product SKU/descriptions.
 - **Query Parameters**:
   - `search` (optional): Free-text multi-criteria search keyword (strips leading `#`, matches digits or text).
-  - `tab` (optional): `ALL` | `PAID` | `PARTIALLY_PAID`.
-  - `timeframe`: `24h` | `7d` | `30d` | `90d` | `12m` | `ytd` | `all` (bypassed for all-time matching when `search` is provided).
-  - `filter` (optional): `ALL` | `DELIVERED` | `PENDING` | `DELAYED`.
+  - `tab` (optional): `ALL` | `PAID` | `PARTIALLY_PAID` | `UNPAID`.
+  - `timeframe`: `24h` | `yesterday` | `7d` | `30d` | `90d` | `12m` | `ytd` | `all` (bypassed for all-time matching when `search` is provided).
+  - `filter` (optional): `ALL` | `DELIVERED` | `PENDING` | `READY` | `PROCESSING` | `ON_HOLD` | `DELAYED`.
+  - `paymentMethod` (optional): `ALL` | `CASH` | `UPI` | `CARD` | `BANK_TRANSFER`.
+  - `hasDues` (optional): `true` (filters orders with outstanding balance where `balanceDue > 0`).
 - **Response**: `200 OK` with `Content-Type: text/csv` download header.
 
 #### `GET /api/reports/export`
