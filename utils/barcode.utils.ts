@@ -505,7 +505,13 @@ export function buildOneVerticalTagHtml(
   return `
     <div class="barcode-vertical-tag" style="
       width:${widthMm}mm;
+      max-width:${widthMm}mm;
+      min-width:${widthMm}mm;
       height:${heightMm}mm;
+      max-height:${heightMm}mm;
+      min-height:${heightMm}mm;
+      flex-shrink:0;
+      flex-grow:0;
       box-sizing:border-box;
       background:transparent;
       font-family:${fontFamilyCss};
@@ -516,10 +522,10 @@ export function buildOneVerticalTagHtml(
       overflow:hidden;
       break-inside:avoid;
       page-break-inside:avoid;
-      border:${borderCss};
+      border:1px solid transparent;
     ">
       <!-- Top Flap (Wing 1): Brand, Details, Price (~38mm) -->
-      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;overflow:hidden;border-bottom:${flapBorderCss};">
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;overflow:hidden;border:${flapBorderCss};border-radius:1mm 1mm 0 0;">
         ${headerHtml}
         ${brandHtml}
         ${itemNameHtml}
@@ -532,7 +538,7 @@ export function buildOneVerticalTagHtml(
       </div>
 
       <!-- Bottom Flap (Wing 2): Barcode & SKU (~38mm) -->
-      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;text-align:center;border-top:${flapBorderCss};">
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;text-align:center;border:${flapBorderCss};border-radius:0 0 1mm 1mm;">
         <div style="width:100%;display:flex;justify-content:center;align-items:center;overflow:hidden;">
           ${barcodeSvg}
         </div>
@@ -733,22 +739,32 @@ export function buildBulkLabelsHtml(
       .barcode-continuous-page {
         width: ${rollWidth}mm;
         height: ${rollHeight}mm;
+        max-width: ${rollWidth}mm;
+        min-width: ${rollWidth}mm;
         page-break-after: always;
         break-after: page;
         page-break-inside: avoid;
         break-inside: avoid;
         margin: 0;
-        padding: 0;
+        padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"};
         box-sizing: border-box;
         display: flex;
         flex-direction: row;
+        flex-wrap: nowrap;
         align-items: stretch;
-        justify-content: ${rollCols > 1 ? "space-evenly" : "center"};
+        justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "center"};
+        gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"};
         overflow: hidden;
       }
       .barcode-vertical-tag {
         width: ${spec.widthMm}mm;
+        max-width: ${spec.widthMm}mm;
+        min-width: ${spec.widthMm}mm;
         height: ${spec.heightMm}mm;
+        max-height: ${spec.heightMm}mm;
+        min-height: ${spec.heightMm}mm;
+        flex-shrink: 0;
+        flex-grow: 0;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -772,22 +788,32 @@ export function buildBulkLabelsHtml(
         .barcode-continuous-page {
           width: ${rollWidth}mm !important;
           height: ${rollHeight}mm !important;
+          max-width: ${rollWidth}mm !important;
+          min-width: ${rollWidth}mm !important;
           page-break-after: always !important;
           break-after: page !important;
           page-break-inside: avoid !important;
           break-inside: avoid !important;
           margin: 0 !important;
-          padding: 0 !important;
+          padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"} !important;
           box-sizing: border-box !important;
           display: flex !important;
           flex-direction: row !important;
+          flex-wrap: nowrap !important;
           align-items: stretch !important;
-          justify-content: ${rollCols > 1 ? "space-evenly" : "center"} !important;
+          justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "center"} !important;
+          gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"} !important;
           overflow: hidden !important;
         }
         .barcode-vertical-tag {
           width: ${spec.widthMm}mm !important;
+          max-width: ${spec.widthMm}mm !important;
+          min-width: ${spec.widthMm}mm !important;
           height: ${spec.heightMm}mm !important;
+          max-height: ${spec.heightMm}mm !important;
+          min-height: ${spec.heightMm}mm !important;
+          flex-shrink: 0 !important;
+          flex-grow: 0 !important;
           display: flex !important;
           flex-direction: column !important;
           justify-content: space-between !important;
@@ -812,7 +838,7 @@ export function buildBulkLabelsHtml(
           if (i + c < allLabels.length) {
             colsHtml += allLabels[i + c];
           } else {
-            colsHtml += `<div style="width:${spec.widthMm}mm;height:${spec.heightMm}mm;visibility:hidden;"></div>`;
+            colsHtml += `<div style="width:${spec.widthMm}mm;height:${spec.heightMm}mm;max-width:${spec.widthMm}mm;min-width:${spec.widthMm}mm;flex-shrink:0;visibility:hidden;"></div>`;
           }
         }
         rowsHtml.push(`<div class="barcode-continuous-page">${colsHtml}</div>`);

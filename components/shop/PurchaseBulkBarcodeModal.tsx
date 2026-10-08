@@ -769,7 +769,7 @@ export function PurchaseBulkBarcodeModal({
                     currentSpec.type === "vertical-tag" ? (
                       // ─── AUTHENTIC MULTI-COLUMN VERTICAL ROLL MOCKUP (IMAGE 2 STANDARD) ───
                       <div className="w-full flex flex-col items-center justify-center py-1">
-                        <div className="w-[260px] bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden">
+                        <div className={`${currentSpec.rollCols === 1 ? "w-[130px]" : currentSpec.rollCols === 2 ? "w-[190px]" : "w-[260px]"} bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden transition-all`}>
                           {/* Cylinder Spool Header */}
                           <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 text-white px-3 py-1.5 flex items-center justify-between text-[9px] font-bold">
                             <span className="flex items-center gap-1.5">
@@ -782,10 +782,10 @@ export function PurchaseBulkBarcodeModal({
                           </div>
 
                           {/* Continuous Paper Liner Web */}
-                          <div className="bg-slate-200/80 p-2.5 space-y-2 border-b border-slate-300">
-                            {/* Vertical Tags Grid */}
+                          <div className="bg-slate-200/80 p-2 space-y-2 border-b border-slate-300">
+                            {/* Vertical Tags Grid (Side-by-Side Horizontally Across Web Width) */}
                             <div className={`grid ${currentSpec.rollCols === 3 ? "grid-cols-3" : currentSpec.rollCols === 2 ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
-                              {Array.from({ length: currentSpec.rollCols || 3 }).map((_, colIdx) => {
+                              {Array.from({ length: currentSpec.rollCols || 2 }).map((_, colIdx) => {
                                 const prodIndex = (previewIndex + colIdx) % initialProducts.length;
                                 const prod = initialProducts[prodIndex] || currentPreviewProduct;
                                 const sku = prod.sku || prod.productCode || (prod.category ? `${prod.category.slice(0, 3).toUpperCase()}-GEN-00001` : "FRM-GEN-00001");
@@ -796,23 +796,23 @@ export function PurchaseBulkBarcodeModal({
                                     {/* Die-Cut Barbell Tag */}
                                     <div className="w-full flex flex-col items-center select-none shadow-xs rounded-[2px]">
                                       {/* Top Flap */}
-                                      <div className="w-full h-[74px] bg-white border border-slate-300 rounded-t-[2px] p-1 flex flex-col justify-between items-center text-center overflow-hidden">
-                                        <span className="text-[5px] uppercase font-bold text-slate-400 truncate w-full">CLINICAL</span>
+                                      <div className="w-full h-[80px] bg-white border border-slate-300 rounded-t-[2px] p-1 flex flex-col justify-between items-center text-center overflow-hidden">
+                                        <span className="text-[5px] uppercase font-bold text-slate-400 truncate w-full">CLINICAL OPTICAL</span>
                                         <span className="text-[6.5px] font-bold text-slate-800 leading-tight line-clamp-2 w-full" title={title}>{title}</span>
                                         <span className="text-[7.5px] font-extrabold text-[#2563eb]">{formatPrice(prod.price)}</span>
                                       </div>
 
                                       {/* Narrow Die-Cut Strap */}
-                                      <div className="w-[10px] h-[32px] bg-white border-x border-dashed border-slate-400 flex flex-col items-center justify-center my-[-1px] z-1 shadow-2xs">
+                                      <div className="w-[12px] h-[36px] bg-white border-x border-dashed border-slate-400 flex flex-col items-center justify-center my-[-1px] z-1 shadow-2xs">
                                         <span className="text-[4px] font-bold text-slate-400 tracking-widest -rotate-90 select-none">FOLD</span>
                                       </div>
 
                                       {/* Bottom Flap with Barcode */}
-                                      <div className="w-full h-[74px] bg-white border border-slate-300 rounded-b-[2px] p-1 flex flex-col justify-center items-center text-center overflow-hidden">
+                                      <div className="w-full h-[80px] bg-white border border-slate-300 rounded-b-[2px] p-1 flex flex-col justify-center items-center text-center overflow-hidden">
                                         <div
                                           className="w-full h-5 flex items-center justify-center overflow-hidden"
                                           dangerouslySetInnerHTML={{
-                                            __html: buildBarcodeSvgString(sku, 16, 0.7, "code128"),
+                                            __html: buildBarcodeSvgString(sku, 16, currentSpec.rollCols === 2 ? 0.75 : 0.7, "code128"),
                                           }}
                                         />
                                         <span className="text-[5.5px] font-mono font-bold text-slate-700 tracking-wider mt-0.5 truncate w-full">
@@ -820,7 +820,7 @@ export function PurchaseBulkBarcodeModal({
                                         </span>
                                       </div>
                                     </div>
-                                    <span className="text-[7px] font-mono font-bold text-slate-500 mt-1">Col #{colIdx + 1}</span>
+                                    <span className="text-[7.5px] font-mono font-bold text-slate-600 bg-white/90 px-1.5 py-0.5 rounded border border-slate-300 mt-1 shadow-2xs">Col #{colIdx + 1}</span>
                                   </div>
                                 );
                               })}
@@ -829,15 +829,15 @@ export function PurchaseBulkBarcodeModal({
                             {/* Perforation / Feed Pitch Cut Guideline */}
                             <div className="pt-1 border-t-2 border-dashed border-indigo-400 flex items-center justify-between text-[7.5px] font-bold text-indigo-600 px-1">
                               <span>- - - - -</span>
-                              <span className="uppercase tracking-wider">100mm Feed Pitch Cut</span>
+                              <span className="uppercase tracking-wider">{currentSpec.rollHeightMm || 100}mm Feed Pitch Cut</span>
                               <span>- - - - -</span>
                             </div>
 
                             {/* Next Row Peek (Showing Continuous Flow) */}
                             <div className={`grid ${currentSpec.rollCols === 3 ? "grid-cols-3" : currentSpec.rollCols === 2 ? "grid-cols-2" : "grid-cols-1"} gap-2 opacity-50`}>
-                              {Array.from({ length: currentSpec.rollCols || 3 }).map((_, nextIdx) => (
+                              {Array.from({ length: currentSpec.rollCols || 2 }).map((_, nextIdx) => (
                                 <div key={nextIdx} className="h-7 bg-white border border-slate-300 rounded-t-[2px] flex items-center justify-center text-[6px] font-mono font-bold text-slate-600">
-                                  Tag #{(currentSpec.rollCols || 3) + nextIdx + 1}
+                                  Tag #{(currentSpec.rollCols || 2) + nextIdx + 1}
                                 </div>
                               ))}
                             </div>
@@ -848,7 +848,7 @@ export function PurchaseBulkBarcodeModal({
                           Continuous Thermal Roll ({currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm} mm)
                         </p>
                         <p className="text-[9px] text-slate-400 font-medium text-center">
-                          {currentSpec.rollCols}-Across Vertical Tag Roll • 100mm feed length per pitch • Total <strong className="text-slate-700">{totalLabels} labels</strong>
+                          {currentSpec.rollCols}-Across Vertical Tag Roll • {currentSpec.rollHeightMm || 100}mm feed length per pitch • Total <strong className="text-slate-700">{totalLabels} labels</strong>
                         </p>
                       </div>
                     ) : (

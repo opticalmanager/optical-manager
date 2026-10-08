@@ -843,7 +843,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - The engine provides specialized vertical roll presets:
      - **`100x15 mm (Vertical 3-Up)` ⭐**: Exact 3-across eyewear barbell tag roll (`50mm` web width × `100mm` feed length).
      - **`100x15 mm (Vertical 1-Up)`**: Single-column vertical roll (`15mm` width × `100mm` feed length).
-     - **`100x15 mm (Vertical 2-Up)`**: Two-across vertical roll (`34mm` width × `100mm` feed length).
+     - **`100x15 mm (Vertical 2-Up)`**: Two-across vertical roll (`34mm` width × `100mm` feed length). Features two 15×100mm labels rendered strictly side-by-side horizontally across the 34mm roll web (`1.5mm left margin + 15mm Col 1 + 1mm center slit gap + 15mm Col 2 + 1.5mm right margin = 34mm`). Enforces `flex-wrap: nowrap !important;` and `flex-shrink: 0 !important;` in print spool CSS to ensure labels are never vertically stacked by thermal printer drivers.
      - **`100x15 mm (Tag)`**: Horizontal tag layout for 4" continuous rolls or A4/A5 laser/inkjet sticker sheets.
      - **`50x25 mm`**, **`38x25 mm`**, **`40x30 mm`**, **`50x50 mm`**: Standard retail boxes and frame case labels.
 
