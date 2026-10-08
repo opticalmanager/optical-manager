@@ -667,45 +667,51 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     <div
                       className={`w-[125px] h-[340px] flex flex-col justify-between items-center select-none font-sans ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
                     >
-                      {/* Top Wing */}
-                      <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex flex-col justify-center items-center text-center overflow-hidden p-2">
-                        {customHeader && (
-                          <span className="text-[6.5px] uppercase tracking-wider text-slate-400 font-bold block truncate max-w-full">
-                            {customHeader}
-                          </span>
-                        )}
-                        {showBrand && (
-                          <span style={{ fontSize: `${Math.min(brandFontSize, 10)}px` }} className="text-slate-900 truncate block font-extrabold max-w-full">
-                            {item.brand || "GENERIC"}
-                          </span>
-                        )}
-                        {showItemName && (
-                          <span style={{ fontSize: `${Math.min(descriptionFontSize, 8.5)}px` }} className="text-slate-600 block truncate max-w-full">
-                            {displayTitle}
-                          </span>
-                        )}
-                        {showPrice && (
-                          <span style={{ fontSize: `${Math.min(priceFontSize, 11)}px` }} className="text-indigo-600 font-extrabold block mt-1">
-                            {formattedPrice}
-                          </span>
-                        )}
+                      {/* Top Wing (Rotated 90° along length) */}
+                      <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex items-center justify-center overflow-hidden relative">
+                        <div className="w-[115px] h-[95px] rotate-90 transform-gpu flex flex-col justify-between p-1.5 select-none leading-tight">
+                          <div className="flex justify-between items-center w-full">
+                            <span className="text-[7px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[65px]">
+                              {customHeader || "CLINICAL OPTICAL"}
+                            </span>
+                            {showPrice && (
+                              <span style={{ fontSize: `${Math.min(priceFontSize, 10)}px` }} className="text-indigo-600 font-extrabold shrink-0">
+                                {formattedPrice}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-col w-full overflow-hidden">
+                            {showBrand && (
+                              <span style={{ fontSize: `${Math.min(brandFontSize, 9)}px` }} className="text-slate-900 truncate block font-extrabold">
+                                {item.brand || "GENERIC"}
+                              </span>
+                            )}
+                            {showItemName && (
+                              <span style={{ fontSize: `${Math.min(descriptionFontSize, 8)}px` }} className="text-slate-600 truncate block mt-0.5">
+                                {displayTitle}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Center Fold Tail */}
                       <div className="w-[32px] h-[75px] bg-white border-x border-dashed border-slate-400 shadow-2xs flex flex-col items-center justify-center my-[-1px] z-1">
-                        <span className="text-[6px] text-slate-400 font-bold uppercase tracking-widest -rotate-90 select-none">
+                        <span className="text-[6px] text-slate-400 font-bold uppercase tracking-widest rotate-90 select-none">
                           FOLD
                         </span>
                       </div>
 
-                      {/* Bottom Wing */}
-                      <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex flex-col items-center justify-center text-center overflow-hidden p-2">
-                        <BarcodeSVG text={displaySku} height={24} barScale={0.85} className="w-full max-w-[110px]" />
-                        {showSKU && showBarcodeText && (
-                          <span className="text-[7.5px] font-mono font-bold text-slate-800 tracking-wider mt-1 truncate max-w-full">
-                            {displaySku}
-                          </span>
-                        )}
+                      {/* Bottom Wing (Barcode Rotated 90° along length) */}
+                      <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex items-center justify-center overflow-hidden relative">
+                        <div className="w-[115px] h-[95px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-1">
+                          <BarcodeSVG text={displaySku} height={26} barScale={0.9} className="w-[105px] h-7 flex items-center justify-center overflow-hidden" />
+                          {showSKU && showBarcodeText && (
+                            <span className="text-[7.5px] font-mono font-bold text-slate-800 tracking-widest mt-1 truncate">
+                              {displaySku}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : currentSpec.type === "tag" ? (
@@ -816,26 +822,45 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                               <div key={colIdx} className="flex flex-col items-center">
                                 {/* Die-Cut Barbell Tag */}
                                 <div className="w-full flex flex-col items-center select-none shadow-xs rounded-[2px]">
-                                  {/* Top Flap */}
-                                  <div className="w-full h-[80px] bg-white border border-slate-300 rounded-t-[2px] p-1 flex flex-col justify-between items-center text-center overflow-hidden">
-                                    <span className="text-[5px] uppercase font-bold text-slate-400 truncate w-full">{customHeader || "CLINICAL OPTICAL"}</span>
-                                    <span className="text-[6.5px] font-bold text-slate-800 leading-tight line-clamp-2 w-full" title={displayTitle}>{displayTitle}</span>
-                                    <span className="text-[7.5px] font-extrabold text-[#2563eb]">{formattedPrice}</span>
+                                  {/* Top Flap (Wing 1 - Rotated 90° along length) */}
+                                  <div className="w-full h-[80px] bg-white border border-slate-300 rounded-t-[2px] flex items-center justify-center overflow-hidden relative">
+                                    <div className="w-[74px] h-[64px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
+                                      <div className="flex justify-between items-center w-full">
+                                        <span className="text-[4.5px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[40px]">
+                                          {customHeader || "CLINICAL"}
+                                        </span>
+                                        <span className="text-[6.5px] font-extrabold text-[#2563eb] shrink-0">
+                                          {formattedPrice}
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-col w-full overflow-hidden">
+                                        <span className="text-[6px] font-bold text-slate-800 truncate block" title={displayTitle}>
+                                          {displayTitle}
+                                        </span>
+                                        <span className="text-[5px] font-semibold text-slate-500 uppercase tracking-wide truncate block mt-0.5">
+                                          {item.brand || item.category || "FRAME"}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
 
                                   {/* Narrow Die-Cut Strap */}
                                   <div className="w-[12px] h-[36px] bg-white border-x border-dashed border-slate-400 flex flex-col items-center justify-center my-[-1px] z-1 shadow-2xs">
-                                    <span className="text-[4px] font-bold text-slate-400 tracking-widest -rotate-90 select-none">FOLD</span>
+                                    <span className="text-[4px] font-bold text-slate-400 tracking-widest rotate-90 select-none">
+                                      FOLD
+                                    </span>
                                   </div>
 
-                                  {/* Bottom Flap with Barcode */}
-                                  <div className="w-full h-[80px] bg-white border border-slate-300 rounded-b-[2px] p-1 flex flex-col justify-center items-center text-center overflow-hidden">
-                                    <BarcodeSVG text={displaySku} height={16} barScale={currentSpec.rollCols === 2 ? 0.75 : 0.7} className="w-full max-w-[68px]" />
-                                    {showSKU && showBarcodeText && (
-                                      <span className="text-[5.5px] font-mono font-bold text-slate-700 tracking-wider mt-0.5 truncate w-full">
-                                        {displaySku}
-                                      </span>
-                                    )}
+                                  {/* Bottom Flap with Barcode (Wing 2 - Rotated 90° along length) */}
+                                  <div className="w-full h-[80px] bg-white border border-slate-300 rounded-b-[2px] flex items-center justify-center overflow-hidden relative">
+                                    <div className="w-[74px] h-[64px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-0.5">
+                                      <BarcodeSVG text={displaySku} height={16} barScale={0.75} className="w-[68px] h-4 flex items-center justify-center overflow-hidden" />
+                                      {showSKU && showBarcodeText && (
+                                        <span className="text-[5px] font-mono font-bold text-slate-700 tracking-wider mt-0.5 truncate">
+                                          {displaySku}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                                 <span className="text-[7.5px] font-mono font-bold text-slate-600 bg-white/90 px-1.5 py-0.5 rounded border border-slate-300 mt-1 shadow-2xs">Col #{colIdx + 1}</span>

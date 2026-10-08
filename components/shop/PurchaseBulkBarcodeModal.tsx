@@ -620,28 +620,37 @@ export function PurchaseBulkBarcodeModal({
                         className="w-[125px] h-[340px] flex flex-col justify-between items-center select-none text-slate-900"
                         style={{ fontFamily: "Inter, sans-serif" }}
                       >
-                        {/* Top Flap (Wing 1) */}
-                        <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex flex-col justify-center items-center text-center overflow-hidden p-2">
-                          <span className="text-[6.5px] uppercase tracking-wider text-slate-400 font-bold">
-                            CLINICAL OPTICAL
-                          </span>
-                          <span className="text-[8.5px] font-bold text-slate-800 truncate max-w-full mt-0.5" title={currentPreviewTitle}>
-                            {currentPreviewTitle}
-                          </span>
-                          <span className="text-[10.5px] font-extrabold text-[#2563eb] mt-1">
-                            {formatPrice(currentPreviewProduct.price)}
-                          </span>
+                        {/* Top Flap (Wing 1 - Rotated 90° along length) */}
+                        <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex items-center justify-center overflow-hidden relative">
+                          <div className="w-[115px] h-[95px] rotate-90 transform-gpu flex flex-col justify-between p-1.5 select-none leading-tight">
+                            <div className="flex justify-between items-center w-full">
+                              <span className="text-[7px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[65px]">
+                                CLINICAL OPTICAL
+                              </span>
+                              <span className="text-[10px] font-extrabold text-[#2563eb] shrink-0">
+                                {formatPrice(currentPreviewProduct.price)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col w-full overflow-hidden">
+                              <span className="text-[8.5px] font-bold text-slate-800 truncate block mt-0.5" title={currentPreviewTitle}>
+                                {currentPreviewTitle}
+                              </span>
+                              <span className="text-[7.5px] font-semibold text-slate-500 uppercase tracking-wide truncate block mt-0.5">
+                                {currentPreviewProduct.category || "FRAME"}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Center Narrow Tail / Strap with empty die-cut margins */}
+                        {/* Center Narrow Tail / Strap */}
                         <div className="w-[32px] h-[75px] bg-white border-x border-dashed border-slate-400 shadow-2xs flex flex-col items-center justify-center my-[-1px] z-1">
-                          <span className="text-[6px] text-slate-400 font-bold uppercase tracking-widest -rotate-90 select-none">
+                          <span className="text-[6px] text-slate-400 font-bold uppercase tracking-widest rotate-90 select-none">
                             FOLD
                           </span>
                         </div>
 
-                        {/* Bottom Flap (Wing 2) */}
-                        <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex flex-col items-center justify-center text-center overflow-hidden p-2">
+                        {/* Bottom Flap (Wing 2 - Barcode Rotated 90° along length) */}
+                        <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex items-center justify-center overflow-hidden relative">
                           {(() => {
                             const previewSku =
                               currentPreviewProduct.sku ||
@@ -649,17 +658,17 @@ export function PurchaseBulkBarcodeModal({
                                 ? `${currentPreviewProduct.category.slice(0, 3).toUpperCase()}-GEN-00001`
                                 : "FRM-GEN-00001");
                             return (
-                              <>
+                              <div className="w-[115px] h-[95px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-1">
                                 <div
-                                  className="w-full h-8 flex items-center justify-center overflow-hidden"
+                                  className="w-[105px] h-7 flex items-center justify-center overflow-hidden"
                                   dangerouslySetInnerHTML={{
-                                    __html: buildBarcodeSvgString(previewSku, 24, 0.85, "code128"),
+                                    __html: buildBarcodeSvgString(previewSku, 26, 0.9, "code128"),
                                   }}
                                 />
-                                <span className="text-[7.5px] font-mono font-bold text-slate-800 tracking-wider mt-1 truncate max-w-full">
+                                <span className="text-[7.5px] font-mono font-bold text-slate-800 tracking-widest mt-1 truncate">
                                   {previewSku}
                                 </span>
-                              </>
+                              </div>
                             );
                           })()}
                         </div>
@@ -795,29 +804,48 @@ export function PurchaseBulkBarcodeModal({
                                   <div key={colIdx} className="flex flex-col items-center">
                                     {/* Die-Cut Barbell Tag */}
                                     <div className="w-full flex flex-col items-center select-none shadow-xs rounded-[2px]">
-                                      {/* Top Flap */}
-                                      <div className="w-full h-[80px] bg-white border border-slate-300 rounded-t-[2px] p-1 flex flex-col justify-between items-center text-center overflow-hidden">
-                                        <span className="text-[5px] uppercase font-bold text-slate-400 truncate w-full">CLINICAL OPTICAL</span>
-                                        <span className="text-[6.5px] font-bold text-slate-800 leading-tight line-clamp-2 w-full" title={title}>{title}</span>
-                                        <span className="text-[7.5px] font-extrabold text-[#2563eb]">{formatPrice(prod.price)}</span>
+                                      {/* Top Flap (Wing 1 - Rotated 90° along length) */}
+                                      <div className="w-full h-[80px] bg-white border border-slate-300 rounded-t-[2px] flex items-center justify-center overflow-hidden relative">
+                                        <div className="w-[74px] h-[64px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
+                                          <div className="flex justify-between items-center w-full">
+                                            <span className="text-[4.5px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[40px]">
+                                              CLINICAL
+                                            </span>
+                                            <span className="text-[6.5px] font-extrabold text-[#2563eb] shrink-0">
+                                              {formatPrice(prod.price)}
+                                            </span>
+                                          </div>
+                                          <div className="flex flex-col w-full overflow-hidden">
+                                            <span className="text-[6px] font-bold text-slate-800 truncate block" title={title}>
+                                              {title}
+                                            </span>
+                                            <span className="text-[5px] font-semibold text-slate-500 uppercase tracking-wide truncate block mt-0.5">
+                                              {prod.category || "FRAME"}
+                                            </span>
+                                          </div>
+                                        </div>
                                       </div>
 
                                       {/* Narrow Die-Cut Strap */}
                                       <div className="w-[12px] h-[36px] bg-white border-x border-dashed border-slate-400 flex flex-col items-center justify-center my-[-1px] z-1 shadow-2xs">
-                                        <span className="text-[4px] font-bold text-slate-400 tracking-widest -rotate-90 select-none">FOLD</span>
+                                        <span className="text-[4px] font-bold text-slate-400 tracking-widest rotate-90 select-none">
+                                          FOLD
+                                        </span>
                                       </div>
 
-                                      {/* Bottom Flap with Barcode */}
-                                      <div className="w-full h-[80px] bg-white border border-slate-300 rounded-b-[2px] p-1 flex flex-col justify-center items-center text-center overflow-hidden">
-                                        <div
-                                          className="w-full h-5 flex items-center justify-center overflow-hidden"
-                                          dangerouslySetInnerHTML={{
-                                            __html: buildBarcodeSvgString(sku, 16, currentSpec.rollCols === 2 ? 0.75 : 0.7, "code128"),
-                                          }}
-                                        />
-                                        <span className="text-[5.5px] font-mono font-bold text-slate-700 tracking-wider mt-0.5 truncate w-full">
-                                          {sku}
-                                        </span>
+                                      {/* Bottom Flap with Barcode (Wing 2 - Rotated 90° along length) */}
+                                      <div className="w-full h-[80px] bg-white border border-slate-300 rounded-b-[2px] flex items-center justify-center overflow-hidden relative">
+                                        <div className="w-[74px] h-[64px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-0.5">
+                                          <div
+                                            className="w-[68px] h-4 flex items-center justify-center overflow-hidden"
+                                            dangerouslySetInnerHTML={{
+                                              __html: buildBarcodeSvgString(sku, 16, 0.75, "code128"),
+                                            }}
+                                          />
+                                          <span className="text-[5px] font-mono font-bold text-slate-700 tracking-wider mt-0.5 truncate">
+                                            {sku}
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
                                     <span className="text-[7.5px] font-mono font-bold text-slate-600 bg-white/90 px-1.5 py-0.5 rounded border border-slate-300 mt-1 shadow-2xs">Col #{colIdx + 1}</span>

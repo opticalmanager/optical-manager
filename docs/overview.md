@@ -29,9 +29,9 @@
 - **Optical Metadata Tracking**: Supports frame dimensions (`52-18-140`), lens refractive indices (1.56, 1.61, 1.67, 1.74), HSN codes (`9004` frames, `9001` optical lenses), batch numbers, and expiry dates.
 - **Interactive Lens Power SPH/CYL Stock Matrix**: High-density optical power chart with `(-) Minus Power Sphere Chart` and `(+) Plus Power Sphere Chart` toggle modes, standard/extended power ranges (0.00 to ±6.00 SPH, 0.00 to -3.00 CYL in 0.25 steps), per-cell unit count inputs with active cell highlighting, and real-time total stock quantity aggregation.
 - **Interactive Multi-Format Industrial Barcode Engine**: High-density native vector SVG barcode engine (Code 128 Subset B & Code 39) calibrated for standard 203/300 DPI thermal barcode printers (TSC, Zebra, TVS, Godex, Xprinter, Citizen) and multi-grid sheets:
-  - `100×15 mm (Vertical 3-Up Roll)` ⭐: Exact 3-across eyewear barbell tag roll (`50mm` web width × `100mm` feed length). Features top wing (~38mm: Header, Brand, Model, Price), center tail bridge (~24mm: narrow 5mm fold-around strap), and bottom wing (~38mm: high-density Code 128 barcode + monospace SKU).
-  - `100×15 mm (Vertical 1-Up Roll)`: Single-column vertical roll (`15mm` width × `100mm` feed length).
-  - `100×15 mm (Vertical 2-Up Roll)`: Two-across vertical roll (`34mm` width × `100mm` feed length).
+  - `100×15 mm (Vertical 3-Up Roll)` ⭐: Exact 3-across eyewear barbell tag roll (`50mm` web width × `100mm` feed length). Features vertical hanging tag orientation with 90° rotated content along the 38mm flap length (Top flap: Header + Price + Brand/Model; Center strap: narrow 5mm fold-around bridge; Bottom flap: 34mm-wide high-density Code 128 barcode + parallel monospace SKU), matching real-world optical frame tags.
+  - `100×15 mm (Vertical 1-Up Roll)`: Single-column vertical roll (`15mm` width × `100mm` feed length) with 90° rotated vertical tag layout.
+  - `100×15 mm (Vertical 2-Up Roll)`: Two-across vertical roll (`34mm` width × `100mm` feed length) with 90° rotated vertical tag layout rendered side-by-side.
   - `100×15 mm (Horizontal Tag)`: Dual-wing horizontal barbell tag for 4" continuous rolls or A4/A5 laser/inkjet sticker sheets.
   - `50×25 mm (Standard Box)`: Standard 2"×1" retail box and spectacle case label.
   - `38×25 mm (Compact Jewel)`: Compact 1.5"×1" contact lens blister pack and small accessory tag.

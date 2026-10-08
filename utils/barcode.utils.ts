@@ -461,11 +461,11 @@ export function buildOneVerticalTagHtml(
       : "1px solid transparent";
 
   const headerHtml = customHeader
-    ? `<span style="font-size:5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;display:block;line-height:1;margin-bottom:1px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${customHeader}</span>`
-    : "";
+    ? `<span style="font-size:5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:18mm;">${customHeader}</span>`
+    : `<span style="font-size:5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:18mm;">CLINICAL OPTICAL</span>`;
 
   const brandHtml = showBrand
-    ? `<span style="font-size:${brandFontSize}px;color:#0f172a;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};">${item.brand || item.category || "OPTICAL"}</span>`
+    ? `<span style="font-size:${Math.min(brandFontSize, 7.5)}px;color:#0f172a;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};display:block;">${item.brand || item.category || "OPTICAL"}</span>`
     : "";
 
   const displayTitle = resolveDisplayTitle(
@@ -476,23 +476,23 @@ export function buildOneVerticalTagHtml(
     item.productCode || item.sku
   );
   const itemNameHtml = showItemName
-    ? `<span style="font-size:${descriptionFontSize}px;color:#475569;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;">${displayTitle}</span>`
+    ? `<span style="font-size:${Math.min(descriptionFontSize, 6.5)}px;color:#475569;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;margin-top:0.5px;">${displayTitle}</span>`
     : "";
 
   const priceHtml =
     showPrice && formattedPrice
-      ? `<span style="font-size:${priceFontSize}px;color:#2563eb;font-weight:800;display:block;line-height:1.1;margin-top:1px;">${formattedPrice}</span>`
+      ? `<span style="font-size:${Math.min(priceFontSize, 8)}px;color:#2563eb;font-weight:800;white-space:nowrap;flex-shrink:0;margin-left:2px;">${formattedPrice}</span>`
       : "";
 
   const fallbackSku = item.category
     ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
     : "FRM-GEN-00001";
   const skuCode = item.sku || fallbackSku;
-  const barcodeSvg = buildCode128SvgString(skuCode, barcodeHeight, 0.85);
+  const barcodeSvg = buildCode128SvgString(skuCode, 24, 0.95);
 
   const skuTextHtml =
     showSKU && showBarcodeText
-      ? `<span style="font-size:6px;font-family:'Courier New',monospace;letter-spacing:0.1em;font-weight:700;color:#1e293b;display:block;margin-top:1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
+      ? `<span style="font-size:5.5px;font-family:'Courier New',monospace;letter-spacing:0.12em;font-weight:700;color:#1e293b;display:block;margin-top:0.5mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
       : "";
 
   const flapBorderCss =
@@ -524,25 +524,33 @@ export function buildOneVerticalTagHtml(
       page-break-inside:avoid;
       border:1px solid transparent;
     ">
-      <!-- Top Flap (Wing 1): Brand, Details, Price (~38mm) -->
-      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;overflow:hidden;border:${flapBorderCss};border-radius:1mm 1mm 0 0;">
-        ${headerHtml}
-        ${brandHtml}
-        ${itemNameHtml}
-        <div style="margin-top:2px;">${priceHtml}</div>
+      <!-- Top Flap (Wing 1): Brand, Details, Price (Vertical Tag 90° Orientation along 38mm length) -->
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;border:${flapBorderCss};border-radius:1mm 1mm 0 0;position:relative;">
+        <div style="width:36mm;height:13mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;padding:0.5mm 1mm;transform:rotate(90deg);transform-origin:center center;overflow:hidden;line-height:1.15;flex-shrink:0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;min-width:0;">
+            ${headerHtml}
+            ${priceHtml}
+          </div>
+          <div style="display:flex;flex-direction:column;width:100%;min-width:0;overflow:hidden;">
+            ${brandHtml}
+            ${itemNameHtml}
+          </div>
+        </div>
       </div>
 
       <!-- Center Tail / Strap: Narrow Bridge (~24mm) -->
       <div style="width:5mm;height:24mm;box-sizing:border-box;background:#ffffff;border-left:${flapBorderCss};border-right:${flapBorderCss};display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
-        <span style="font-size:4px;color:#94a3b8;font-weight:700;transform:rotate(-90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;">FOLD</span>
+        <span style="font-size:4px;color:#94a3b8;font-weight:700;transform:rotate(90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;">FOLD</span>
       </div>
 
-      <!-- Bottom Flap (Wing 2): Barcode & SKU (~38mm) -->
-      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;text-align:center;border:${flapBorderCss};border-radius:0 0 1mm 1mm;">
-        <div style="width:100%;display:flex;justify-content:center;align-items:center;overflow:hidden;">
-          ${barcodeSvg}
+      <!-- Bottom Flap (Wing 2): Barcode & SKU (Vertical Tag 90° Orientation along 38mm length) -->
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;border:${flapBorderCss};border-radius:0 0 1mm 1mm;position:relative;">
+        <div style="width:36mm;height:13mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(90deg);transform-origin:center center;overflow:hidden;flex-shrink:0;">
+          <div style="width:34mm;height:8.5mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            ${barcodeSvg}
+          </div>
+          ${skuTextHtml}
         </div>
-        ${skuTextHtml}
       </div>
     </div>`;
 }

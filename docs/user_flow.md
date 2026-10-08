@@ -847,12 +847,12 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - **`100x15 mm (Tag)`**: Horizontal tag layout for 4" continuous rolls or A4/A5 laser/inkjet sticker sheets.
      - **`50x25 mm`**, **`38x25 mm`**, **`40x30 mm`**, **`50x50 mm`**: Standard retail boxes and frame case labels.
 
-2. **Dumbbell Tag Geometry & Code 128 (Subset B) Symbology**:
-   - The barbell tag format is rendered with three authentic zones:
-     - **Top Flap (~38mm)**: Store header, Brand, Model/Category, and bold retail Price.
-     - **Narrow Center Bridge (~24mm)**: Narrow 5mm fold-around strap with dashed fold guidelines and `FOLD` indicator.
-     - **Bottom Barcode Flap (~38mm)**: High-density native vector Code 128 (Subset B) SVG barcode and monospace SKU.
-   - Code 128 (Subset B) uses 11 modules per character (compared to 16 for Code 39), producing ultra-compact, crisp bars that fit effortlessly inside a 13–15mm printable width at standard 203 DPI thermal resolution.
+2. **Dumbbell Tag Geometry & 90° Rotated Hanging Tag Orientation**:
+   - The barbell tag format is rendered with three authentic zones following the vertical physical hanging tag orientation:
+     - **Top Flap (~38mm length × 15mm width)**: Rotated 90° along the 38mm length to provide 36mm of horizontal text width (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Displays store header (`CLINICAL OPTICAL`) on the left, bold retail price on the right, and brand name + model/item description running along the flap length without text clipping.
+     - **Narrow Center Bridge (~24mm length × 5mm width)**: Narrow 5mm fold-around strap with dashed fold guidelines and rotated `FOLD` indicator matching the reading direction.
+     - **Bottom Barcode Flap (~38mm length × 15mm width)**: Rotated 90° along the 38mm length (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Renders a high-density 34mm-wide Code 128 (Subset B) native vector SVG barcode with 8.5mm bar height across the tag width, paired with a parallel monospace SKU beneath. This prevents barcode distortion and ensures 100% reliable scanner reads compared to squeezing across a 15mm width.
+   - Code 128 (Subset B) uses 11 modules per character, ensuring crisp vector bars rendered along the 34mm length at standard 203 DPI and 300 DPI thermal resolutions.
 
 3. **Direct Add Purchase Header Action (`/shop/purchases/new`)**:
    - In the top action bar of the Add Purchase page, staff can click **`Print Barcodes`** (`Barcode` icon).
