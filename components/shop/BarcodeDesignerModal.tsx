@@ -17,7 +17,15 @@ import {
   Glasses
 } from "lucide-react";
 import { toast } from "sonner";
-import { printBarcodeDocument, resolveDisplayTitle } from "@/utils/barcode.utils";
+import { 
+  printBarcodeDocument, 
+  resolveDisplayTitle,
+  LABEL_SPECS,
+  type LabelSizePreset,
+  type LabelSpec,
+  buildBulkLabelsHtml,
+  buildBarcodeSvgString,
+} from "@/utils/barcode.utils";
 
 export interface InventoryItem {
   id: string;
@@ -38,158 +46,6 @@ export interface BarcodeDesignerModalProps {
   initialQuantity?: number;
 }
 
-// ─── Supported Label & Paper Size Presets ──────────────────────────────────────
-export type LabelSizePreset = 
-  | "100x15 mm (Tag)"
-  | "50x25 mm (Standard)"
-  | "38x25 mm (Compact Jewel)"
-  | "40x30 mm (Medium Box)";
-
-interface LabelSpec {
-  id: LabelSizePreset;
-  displayName: string;
-  widthMm: number;
-  heightMm: number;
-  type: "tag" | "standard" | "compact" | "box";
-  description: string;
-  defaultBarcodeHeight: number;
-  maxBarcodeHeight: number;
-  defaultBrandFontSize: number;
-  defaultPriceFontSize: number;
-  defaultDescFontSize: number;
-  a4Cols: number;
-  a4Rows: number;
-  a4Total: number;
-  a5Cols: number;
-  a5Rows: number;
-  a5Total: number;
-}
-
-const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
-  "100x15 mm (Tag)": {
-    id: "100x15 mm (Tag)",
-    displayName: "100×15 mm (Tag)",
-    widthMm: 100,
-    heightMm: 15,
-    type: "tag",
-    description: "Optical Frame Barbell Tag (Dual-Wing with Center Fold)",
-    defaultBarcodeHeight: 18,
-    maxBarcodeHeight: 22,
-    defaultBrandFontSize: 9,
-    defaultPriceFontSize: 11,
-    defaultDescFontSize: 7,
-    a4Cols: 2,
-    a4Rows: 18,
-    a4Total: 36,
-    a5Cols: 1,
-    a5Rows: 9,
-    a5Total: 9,
-  },
-  "50x25 mm (Standard)": {
-    id: "50x25 mm (Standard)",
-    displayName: "50×25 mm (Standard)",
-    widthMm: 50,
-    heightMm: 25,
-    type: "standard",
-    description: "Standard 2\"×1\" Retail Box & Case Label",
-    defaultBarcodeHeight: 32,
-    maxBarcodeHeight: 38,
-    defaultBrandFontSize: 12,
-    defaultPriceFontSize: 14,
-    defaultDescFontSize: 8,
-    a4Cols: 3,
-    a4Rows: 10,
-    a4Total: 30,
-    a5Cols: 2,
-    a5Rows: 5,
-    a5Total: 10,
-  },
-  "38x25 mm (Compact Jewel)": {
-    id: "38x25 mm (Compact Jewel)",
-    displayName: "38×25 mm (Compact Jewel)",
-    widthMm: 38,
-    heightMm: 25,
-    type: "compact",
-    description: "Compact 1.5\"×1\" Lens & Blister Pack Tag",
-    defaultBarcodeHeight: 24,
-    maxBarcodeHeight: 28,
-    defaultBrandFontSize: 10,
-    defaultPriceFontSize: 12,
-    defaultDescFontSize: 7,
-    a4Cols: 4,
-    a4Rows: 10,
-    a4Total: 40,
-    a5Cols: 2,
-    a5Rows: 5,
-    a5Total: 10,
-  },
-  "40x30 mm (Medium Box)": {
-    id: "40x30 mm (Medium Box)",
-    displayName: "40×30 mm (Medium Box)",
-    widthMm: 40,
-    heightMm: 30,
-    type: "box",
-    description: "Medium 40×30mm Eyewear Box & Accessory Label",
-    defaultBarcodeHeight: 32,
-    maxBarcodeHeight: 42,
-    defaultBrandFontSize: 12,
-    defaultPriceFontSize: 14,
-    defaultDescFontSize: 8,
-    a4Cols: 4,
-    a4Rows: 8,
-    a4Total: 32,
-    a5Cols: 2,
-    a5Rows: 4,
-    a5Total: 8,
-  },
-};
-
-// ─── Code 39 barcode encoding table ───────────────────────────────────────────
-const CODE39_MAP: Record<string, string> = {
-  "0": "101001101101", "1": "110100101011", "2": "101100101011",
-  "3": "110110010101", "4": "101001101011", "5": "110100110101",
-  "6": "101100110101", "7": "101001011011", "8": "110100101101",
-  "9": "101100101101", "A": "110101001011", "B": "101101001011",
-  "C": "110110100101", "D": "101011001011", "E": "110101100101",
-  "F": "101101100101", "G": "101010011011", "H": "110101001101",
-  "I": "101101001101", "J": "101011001101", "K": "110101010011",
-  "L": "101101010011", "M": "110110101001", "N": "101011010011",
-  "O": "110101101001", "P": "101101101001", "Q": "101010110011",
-  "R": "110101011001", "S": "101101011001", "T": "101011011001",
-  "U": "110010101011", "V": "100110101011", "W": "110011010101",
-  "X": "100101101011", "Y": "110010110101", "Z": "100110110101",
-  "-": "100101011011", ".": "110010101101", " ": "100110101101",
-  "*": "100101101101",
-};
-
-// Pure function: encodes a string to Code 39 bit pattern
-function encodeCode39(text: string): string {
-  const cleanText = text.toUpperCase().replace(/[^0-9A-Z\-\. ]/g, "");
-  const starred = `*${cleanText}*`;
-  let pattern = "";
-  for (let i = 0; i < starred.length; i++) {
-    const ch = starred[i];
-    pattern += (CODE39_MAP[ch] || CODE39_MAP[" "]) + "0";
-  }
-  return pattern;
-}
-
-// Pure function: returns a self-contained SVG string for the barcode
-function buildBarcodeSvgString(text: string, height: number, barScale = 1.4): string {
-  const pattern = encodeCode39(text);
-  const barWidth = barScale;
-  const totalWidth = pattern.length * barWidth;
-  const bars = pattern
-    .split("")
-    .map((bit, idx) =>
-      bit === "1"
-        ? `<rect x="${idx * barWidth}" y="0" width="${barWidth}" height="${height}" fill="black"/>`
-        : ""
-    )
-    .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${height}" width="100%" height="${height}" preserveAspectRatio="none">${bars}</svg>`;
-}
-
 // ─── React BarcodeSVG component (used in the on-screen preview) ────────────────
 interface BarcodeSVGProps {
   text: string;
@@ -198,27 +54,13 @@ interface BarcodeSVGProps {
   barScale?: number;
 }
 
-export function BarcodeSVG({ text, height = 36, className, barScale = 1.6 }: BarcodeSVGProps) {
-  const pattern = useMemo(() => encodeCode39(text), [text]);
-  const barWidth = barScale;
-  const width = pattern.length * barWidth;
+export function BarcodeSVG({ text, height = 36, className, barScale = 1.0 }: BarcodeSVGProps) {
+  const svgMarkup = useMemo(() => buildBarcodeSvgString(text, height, barScale, "code128"), [text, height, barScale]);
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      width="100%"
-      height={height}
+    <div
       className={className}
-      preserveAspectRatio="none"
-    >
-      <g fill="black">
-        {pattern.split("").map((bit, idx) => {
-          if (bit === "1") {
-            return <rect key={idx} x={idx * barWidth} y={0} width={barWidth} height={height} />;
-          }
-          return null;
-        })}
-      </g>
-    </svg>
+      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+    />
   );
 }
 
@@ -297,6 +139,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
       setPriceFontSize(spec.defaultPriceFontSize);
       setDescriptionFontSize(spec.defaultDescFontSize);
       setBarcodeHeight(spec.defaultBarcodeHeight);
+      if (spec.type === "vertical-tag") {
+        setPaperSize("continuous");
+      }
     }
   };
 
@@ -355,218 +200,42 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
     }
   };
 
-  // ─── Industry-Standard Multi-Format Label HTML Generator ────────────────────
-  const buildOneLabelHtml = (): string => {
-    const { widthMm, heightMm, type, maxBarcodeHeight } = currentSpec;
-    const clampedBarcodeH = Math.min(barcodeHeight, maxBarcodeHeight);
-
-    const fontFamilyCss =
-      fontFamily === "mono"
-        ? "'Courier New', Courier, monospace"
-        : fontFamily === "classic"
-        ? "Georgia, 'Times New Roman', Times, serif"
-        : "Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif";
-    const fontWeightCss = fontWeight === "bold" ? "700" : "400";
-
-    const borderCss =
-      borderStyle === "dashed"
-        ? "1px dashed #64748b"
-        : borderStyle === "solid"
-        ? "1px solid #000000"
-        : "1px solid transparent";
-
-    const headerHtml =
-      customHeader
-        ? `<span style="font-size:${type === "tag" ? "5.5px" : "6.5px"};text-transform:uppercase;letter-spacing:0.08em;color:#64748b;display:block;line-height:1;margin-bottom:1px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${customHeader}</span>`
-        : "";
-
-    const brandHtml =
-      showBrand
-        ? `<span style="font-size:${brandFontSize}px;color:#0f172a;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};">${item.brand || "GENERIC"}</span>`
-        : "";
-
-    const itemNameHtml =
-      showItemName
-        ? `<span style="font-size:${descriptionFontSize}px;color:#475569;display:block;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;">${displayTitle}</span>`
-        : "";
-
-    const priceHtml =
-      showPrice
-        ? `<span style="font-size:${priceFontSize}px;color:#2563eb;font-weight:800;display:block;line-height:1.1;margin-top:1px;">${formattedPrice}</span>`
-        : "";
-
-    const barcodeSvg = buildBarcodeSvgString(displaySku, clampedBarcodeH, type === "tag" ? 1.2 : 1.4);
-
-    const skuTextHtml =
-      showSKU && showBarcodeText
-        ? `<span style="font-size:${type === "tag" ? "6.5px" : "7.5px"};font-family:'Courier New',monospace;letter-spacing:0.15em;font-weight:700;color:#1e293b;display:block;margin-top:1px;line-height:1;">${displaySku}</span>`
-        : "";
-
-    // 1. SPECIFIC OPTICAL FRAME TAG (100x15 mm Butterfly Barbell Tag)
-    if (type === "tag") {
-      return `
-        <div style="
-          width:${widthMm}mm;
-          height:${heightMm}mm;
-          box-sizing:border-box;
-          padding:1mm 2mm;
-          border:${borderCss};
-          background:#ffffff;
-          font-family:${fontFamilyCss};
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          overflow:hidden;
-          break-inside:avoid;
-          page-break-inside:avoid;
-        ">
-          <!-- Left Wing: Brand, Model, Price -->
-          <div style="width:38mm;display:flex;flex-direction:column;justify-content:center;text-align:left;overflow:hidden;line-height:1.1;">
-            ${headerHtml}
-            ${brandHtml}
-            ${itemNameHtml}
-            <div style="margin-top:1px;">${priceHtml}</div>
-          </div>
-
-          <!-- Center Bridge: Frame Temple Fold Zone -->
-          <div style="width:18mm;height:100%;border-left:1px dashed #cbd5e1;border-right:1px dashed #cbd5e1;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;padding:0 1mm;">
-            <span style="font-size:5px;color:#94a3b8;letter-spacing:1px;font-weight:700;text-transform:uppercase;">FOLD</span>
-            <span style="font-size:4.5px;color:#cbd5e1;line-height:1;">———</span>
-          </div>
-
-          <!-- Right Wing: Barcode & SKU -->
-          <div style="width:38mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;text-align:center;">
-            ${barcodeSvg}
-            ${skuTextHtml}
-          </div>
-        </div>`;
-    }
-
-    // 2. STANDARD BOX / RECTANGULAR LABEL LAYOUT (50x25, 38x25, 40x30)
-    return `
-      <div style="
-        width:${widthMm}mm;
-        height:${heightMm}mm;
-        box-sizing:border-box;
-        padding:1.5mm 2mm;
-        border:${borderCss};
-        background:#ffffff;
-        font-family:${fontFamilyCss};
-        font-weight:${fontWeightCss};
-        text-align:${alignment};
-        display:flex;
-        flex-direction:column;
-        justify-content:space-between;
-        overflow:hidden;
-        break-inside:avoid;
-        page-break-inside:avoid;
-      ">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;width:100%;">
-          <div style="display:flex;flex-direction:column;text-align:left;min-width:0;flex:1;overflow:hidden;">
-            ${headerHtml}
-            ${brandHtml}
-            ${itemNameHtml}
-          </div>
-          <div style="text-align:right;flex-shrink:0;margin-left:4px;">
-            ${priceHtml}
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;margin-top:1.5px;flex-shrink:0;width:100%;">
-          ${barcodeSvg}
-          ${skuTextHtml}
-        </div>
-      </div>`;
-  };
-
   const handlePrint = () => {
     const qty = Math.max(1, Number(printQuantity) || 1);
-    const labels = Array.from({ length: qty }).map(() => buildOneLabelHtml());
-
-    let pageCSS = "";
-    let bodyContent = "";
-
-    if (paperSize === "continuous") {
-      // True Continuous Roll (Direct Thermal Barcode Printer: TSC, Zebra, TVS, Godex)
-      pageCSS = `
-        @page { size: ${currentSpec.widthMm}mm ${currentSpec.heightMm}mm; margin: 0; }
-        @media print {
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .barcode-continuous-label {
-            width: ${currentSpec.widthMm}mm !important;
-            height: ${currentSpec.heightMm}mm !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            box-sizing: border-box !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-          }
-        }
-      `;
-      bodyContent = labels
-        .map((lbl) => `<div class="barcode-continuous-label">${lbl}</div>`)
-        .join("");
-    } else {
-      // Multi-label sheet layout using HTML Table (A4 / A5)
-      const effectivePaperSize = paperSize;
-      const cols = effectivePaperSize === "a4" ? currentSpec.a4Cols : currentSpec.a5Cols;
-      const margin = effectivePaperSize === "a4" ? "5mm 4mm" : "4mm 3mm";
-      pageCSS = `
-        @page { size: ${effectivePaperSize.toUpperCase()} portrait; margin: ${margin}; }
-        @media print {
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          table { page-break-inside: auto; border-spacing: 0; width: 100%; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          td { padding: 1mm; vertical-align: top; }
-        }
-      `;
-
-      let rows = "";
-      for (let i = 0; i < labels.length; i += cols) {
-        let cells = "";
-        for (let j = 0; j < cols; j++) {
-          if (i + j < labels.length) {
-            cells += `<td style="vertical-align:top;padding:1mm;text-align:center;">${labels[i + j]}</td>`;
-          } else {
-            cells += `<td></td>`;
-          }
-        }
-        rows += `<tr style="page-break-inside:avoid;break-inside:avoid;">${cells}</tr>`;
+    const fullHtml = buildBulkLabelsHtml(
+      [{
+        item: {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          brand: item.brand,
+          model: item.model,
+          sku: displaySku,
+          productCode: item.productCode || displaySku,
+          price: item.price,
+        },
+        quantity: qty,
+      }],
+      currentSpec,
+      {
+        paperSize,
+        showBrand,
+        showItemName,
+        showPrice,
+        showSKU,
+        showBarcodeText,
+        customHeader,
+        brandFontSize,
+        priceFontSize,
+        descriptionFontSize,
+        barcodeHeight,
+        borderStyle,
+        fontFamily: fontFamily === "modern" ? "sans" : fontFamily,
+        fontWeight: fontWeight === "bold" ? "bold" : "normal",
+        symbology: "code128",
       }
-      bodyContent = `<table style="border-collapse:collapse;width:100%;margin:0 auto;"><tbody>${rows}</tbody></table>`;
-    }
+    );
 
-    const fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Optical Manager - Barcode Print Spool (${currentSpec.displayName})</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #ffffff; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    ${pageCSS}
-  </style>
-</head>
-<body onload="window.focus();">
-  ${bodyContent}
-</body>
-</html>`;
-
-    // Dispatch zero-lag printing
     printBarcodeDocument(fullHtml);
     toast.success(`Dispatched ${qty} barcode labels to printer.`);
   };
@@ -651,17 +320,25 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     onChange={(e) => handleLabelSizeChange(e.target.value as LabelSizePreset)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
                   >
-                    <option value="100x15 mm (Tag)">100×15 mm (Tag)</option>
-                    <option value="50x25 mm (Standard)">50×25 mm (Standard)</option>
-                    <option value="38x25 mm (Compact Jewel)">38×25 mm (Compact Jewel)</option>
-                    <option value="40x30 mm (Medium Box)">40×30 mm (Medium Box)</option>
+                    <optgroup label="Optical Frame & Eyewear Barbell Tags">
+                      <option value="100x15 mm (Vertical 3-Up)">100×15 mm (Vertical 3-Up Roll) ⭐</option>
+                      <option value="100x15 mm (Vertical 1-Up)">100×15 mm (Vertical 1-Up Roll)</option>
+                      <option value="100x15 mm (Vertical 2-Up)">100×15 mm (Vertical 2-Up Roll)</option>
+                      <option value="100x15 mm (Tag)">100×15 mm (Horizontal Tag / Sheets)</option>
+                    </optgroup>
+                    <optgroup label="Box & Case Barcode Labels">
+                      <option value="50x25 mm (Standard)">50×25 mm (Standard Box)</option>
+                      <option value="38x25 mm (Compact Jewel)">38×25 mm (Compact Jewel)</option>
+                      <option value="40x30 mm (Medium Box)">40×30 mm (Medium Box)</option>
+                      <option value="50x50 mm (Square)">50×50 mm (Square Label)</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
 
               {/* Tag Format Badge Description */}
               <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center gap-2.5 text-xs">
-                {currentSpec.type === "tag" ? (
+                {currentSpec.type === "vertical-tag" || currentSpec.type === "tag" ? (
                   <Glasses className="w-4 h-4 text-indigo-600 shrink-0" />
                 ) : (
                   <Tag className="w-4 h-4 text-indigo-600 shrink-0" />
@@ -671,7 +348,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     {currentSpec.displayName} — {currentSpec.description}
                   </span>
                   <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">
-                    {currentSpec.type === "tag" 
+                    {currentSpec.type === "vertical-tag"
+                      ? `Specialized vertical dumbbell tag (${currentSpec.rollCols}-across roll, ${currentSpec.rollWidthMm}mm roll width). Continuous roll mode recommended.`
+                      : currentSpec.type === "tag" 
                       ? "Specialized butterfly dumbbell tag with center fold bridge for eyeglasses frame temples."
                       : "Optimized rectangular thermal barcode label with automatic text scaling."}
                   </span>
@@ -973,7 +652,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                       activeTab === "sheet" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
-                    <LayoutGrid className="w-3.5 h-3.5" /> Sheet Preview
+                    <LayoutGrid className="w-3.5 h-3.5" /> {paperSize === "continuous" ? "Roll Feed Preview" : "Sheet Preview"}
                   </button>
                 </div>
               </div>
@@ -983,7 +662,60 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
 
                 {activeTab === "single" ? (
                   // SINGLE LABEL VIEW
-                  currentSpec.type === "tag" ? (
+                  currentSpec.type === "vertical-tag" ? (
+                    // Specialized Vertical 100x15 mm Barbell Tag (Vertical Roll)
+                    <div
+                      className={`bg-white rounded-xs shadow-xl p-2 flex flex-col justify-between items-center transition-all select-none font-sans ${
+                        borderStyle === "dashed"
+                          ? "border-2 border-dashed border-slate-400"
+                          : borderStyle === "solid"
+                          ? "border border-black"
+                          : "border border-slate-200 shadow-md"
+                      } ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
+                      style={{ width: "125px", height: "340px" }}
+                    >
+                      {/* Top Wing */}
+                      <div className="w-full h-[125px] flex flex-col justify-center items-center text-center overflow-hidden p-1 border-b border-dashed border-slate-300">
+                        {customHeader && (
+                          <span className="text-[6.5px] uppercase tracking-wider text-slate-400 font-bold block truncate max-w-full">
+                            {customHeader}
+                          </span>
+                        )}
+                        {showBrand && (
+                          <span style={{ fontSize: `${Math.min(brandFontSize, 10)}px` }} className="text-slate-900 truncate block font-extrabold max-w-full">
+                            {item.brand || "GENERIC"}
+                          </span>
+                        )}
+                        {showItemName && (
+                          <span style={{ fontSize: `${Math.min(descriptionFontSize, 8.5)}px` }} className="text-slate-600 block truncate max-w-full">
+                            {displayTitle}
+                          </span>
+                        )}
+                        {showPrice && (
+                          <span style={{ fontSize: `${Math.min(priceFontSize, 11)}px` }} className="text-indigo-600 font-extrabold block mt-1">
+                            {formattedPrice}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Center Fold Tail */}
+                      <div className="w-[32px] h-[75px] border-l border-r border-dashed border-slate-400 flex flex-col items-center justify-center">
+                        <span className="text-[6px] text-slate-400 font-bold uppercase tracking-widest -rotate-90 select-none">
+                          FOLD
+                        </span>
+                      </div>
+
+                      {/* Bottom Wing */}
+                      <div className="w-full h-[125px] flex flex-col items-center justify-center text-center overflow-hidden p-1 border-t border-dashed border-slate-300">
+                        <BarcodeSVG text={displaySku} height={24} barScale={0.85} className="w-full max-w-[110px]" />
+                        {showSKU && showBarcodeText && (
+                          <span className="text-[7.5px] font-mono font-bold text-slate-800 tracking-wider mt-1 truncate max-w-full">
+                            {displaySku}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : currentSpec.type === "tag" ? (
                     // Specialized 100x15 mm Butterfly Optical Tag
                     <div
                       className={`bg-white rounded-sm shadow-xl p-2 flex items-center justify-between transition-all select-none font-sans ${
@@ -1067,6 +799,38 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                       </div>
                     </div>
                   )
+                ) : paperSize === "continuous" ? (
+                  // CONTINUOUS ROLL FEED PREVIEW
+                  <div className="w-full h-full p-2 flex flex-col items-center justify-center">
+                    <div className="w-[190px] bg-slate-300/80 rounded-xl p-2.5 border border-slate-400 shadow-inner flex flex-col items-center">
+                      <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <span>FEED DIRECTION ↓</span>
+                      </div>
+                      <div className="w-full bg-white rounded-lg border border-slate-300 p-2 shadow-xs space-y-2">
+                        {currentSpec.type === "vertical-tag" ? (
+                          <div className={`grid ${currentSpec.rollCols === 3 ? "grid-cols-3" : currentSpec.rollCols === 2 ? "grid-cols-2" : "grid-cols-1"} gap-1.5`}>
+                            {Array.from({ length: currentSpec.rollCols || 3 }).map((_, i) => (
+                              <div key={i} className="h-28 border border-dashed border-indigo-400 bg-indigo-50/60 rounded-xs flex flex-col items-center justify-between p-1 text-[7px] text-slate-700">
+                                <span className="font-extrabold text-[6.5px]">TAG {i+1}</span>
+                                <div className="w-2.5 h-6 border-l border-r border-dashed border-indigo-300" />
+                                <div className="w-full h-4 bg-slate-800 rounded-[1px] opacity-80" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          Array.from({ length: Math.min(Number(printQuantity) || 1, 3) }).map((_, i) => (
+                            <div key={i} className="h-10 border border-dashed border-indigo-400 bg-indigo-50/60 rounded-xs flex items-center justify-between px-2 text-[8px] text-slate-700">
+                              <span className="font-extrabold">LABEL {i+1}</span>
+                              <div className="w-12 h-4 bg-slate-800 rounded-[1px] opacity-80" />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] font-extrabold text-slate-500 mt-2 uppercase tracking-wide text-center">
+                      Continuous Roll ({currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm}mm{currentSpec.rollCols ? ` • ${currentSpec.rollCols}-Across` : ""})
+                    </p>
+                  </div>
                 ) : (
                   // SHEET PREVIEW
                   <div className="w-full h-full p-3 flex flex-col items-center justify-center">
@@ -1082,7 +846,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                           <div
                             key={i}
                             className={`border rounded-[1px] transition-colors ${
-                              currentSpec.type === "tag" ? "aspect-[6/1]" : "aspect-[2/1]"
+                              currentSpec.type === "tag" || currentSpec.type === "vertical-tag" ? "aspect-[6/1]" : "aspect-[2/1]"
                             } ${
                               isFilled
                                 ? "bg-indigo-500/20 border-indigo-500/40"
@@ -1118,7 +882,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     <span className="block text-slate-400 font-semibold text-[8px] mb-0.5">Print Target:</span>
                     <span className="text-slate-700">
                       {paperSize === "continuous"
-                        ? `Continuous Thermal Roll (${currentSpec.widthMm}×${currentSpec.heightMm}mm)`
+                        ? `Continuous Thermal Roll (${currentSpec.rollWidthMm || currentSpec.widthMm}×${currentSpec.rollHeightMm || currentSpec.heightMm}mm${currentSpec.rollCols ? ` • ${currentSpec.rollCols}-Across` : ""})`
                         : `${paperSize.toUpperCase()} Sheet Grid (${paperSize === "a4" ? `${currentSpec.a4Cols}×${currentSpec.a4Rows} = ${currentSpec.a4Total}` : `${currentSpec.a5Cols}×${currentSpec.a5Rows} = ${currentSpec.a5Total}`} labels/page)`}
                     </span>
                   </div>

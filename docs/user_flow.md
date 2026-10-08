@@ -825,6 +825,49 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - The topbar sync pill updates smoothly to `[Synced]` once zero pending bills remain.
      - Custom event `"offline-databank-updated"` triggers instant re-hydration of the Orders table with zero page reloads.
 
+---
+
+## 20. Industrial Vertical Roll Barcode Printing & Add Purchase Integration Workflow
+
+```
+┌─────────────────────────────────┐    ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
+│ Entry Points:                   │───>│ Barcode Modal (Single/Batch)    │───>│ Industrial Thermal Output:      │
+│ • Add Purchase (/purchases/new) │    │ • Select Preset: Vertical 3-Up ⭐│    │ • Exact Page Size: 50×100mm     │
+│ • Purchase Detail (/[id])       │    │ • Auto-Set Continuous Roll      │    │ • Razor-Sharp Code 128 (Subset B)│
+│ • Inventory Designer Modal      │    │ • Live Dumbbell Tag Preview     │    │ • Spool to Hidden Iframe        │
+└─────────────────────────────────┘    └─────────────────────────────────┘    └─────────────────────────────────┘
+```
+
+1. **Multi-Column & Vertical Continuous Roll Support**:
+   - Eyewear and jewelry barbell tags typically come on **multi-column vertical rolls** (e.g. 3 tags side-by-side on a continuous web, 50mm web width × 100mm feed length).
+   - The engine provides specialized vertical roll presets:
+     - **`100x15 mm (Vertical 3-Up)` ⭐**: Exact 3-across eyewear barbell tag roll (`50mm` web width × `100mm` feed length).
+     - **`100x15 mm (Vertical 1-Up)`**: Single-column vertical roll (`15mm` width × `100mm` feed length).
+     - **`100x15 mm (Vertical 2-Up)`**: Two-across vertical roll (`34mm` width × `100mm` feed length).
+     - **`100x15 mm (Tag)`**: Horizontal tag layout for 4" continuous rolls or A4/A5 laser/inkjet sticker sheets.
+     - **`50x25 mm`**, **`38x25 mm`**, **`40x30 mm`**, **`50x50 mm`**: Standard retail boxes and frame case labels.
+
+2. **Dumbbell Tag Geometry & Code 128 (Subset B) Symbology**:
+   - The barbell tag format is rendered with three authentic zones:
+     - **Top Flap (~38mm)**: Store header, Brand, Model/Category, and bold retail Price.
+     - **Narrow Center Bridge (~24mm)**: Narrow 5mm fold-around strap with dashed fold guidelines and `FOLD` indicator.
+     - **Bottom Barcode Flap (~38mm)**: High-density native vector Code 128 (Subset B) SVG barcode and monospace SKU.
+   - Code 128 (Subset B) uses 11 modules per character (compared to 16 for Code 39), producing ultra-compact, crisp bars that fit effortlessly inside a 13–15mm printable width at standard 203 DPI thermal resolution.
+
+3. **Direct Add Purchase Header Action (`/shop/purchases/new`)**:
+   - In the top action bar of the Add Purchase page, staff can click **`Print Barcodes`** (`Barcode` icon).
+   - Validates that at least 1 product item with a name or code is present.
+   - Opens the `PurchaseBulkBarcodeModal` populated with all inward items from the table:
+     - Pre-fills item quantities, retail prices (or purchase cost if retail price is omitted), and codes.
+     - Provides quantity steppers (`-`, `+`, or direct numeric input) to print exact label counts per product.
+     - Features interactive Single Label (dumbbell tag zoom) and Continuous Roll Feed previews.
+     - Embeds a helpful thermal printer configuration tip (Paper size matching and `Margins: None`).
+
+4. **Zero-Lag Print Spooler & Driver Compatibility**:
+   - Sets exact CSS `@page { size: ${rollWidth}mm ${rollHeight}mm; margin: 0; }` preventing thermal printer gap sensors from skipping or ejecting blank paper.
+   - Multi-column rolls (3-Up, 2-Up) group tags across rows and trigger `@media print { page-break-after: always; }` at each row boundary.
+   - Spools through a hidden `iframe` with fallback to a print popup window, delivering instantaneous print output with zero layout reflows.
+
 
 
 

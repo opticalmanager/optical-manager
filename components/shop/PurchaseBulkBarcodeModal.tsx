@@ -19,6 +19,9 @@ import {
   Maximize2,
   Sliders,
   CheckCheck,
+  Glasses,
+  Box,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -56,12 +59,12 @@ export function PurchaseBulkBarcodeModal({
 }: PurchaseBulkBarcodeModalProps) {
   if (!isOpen) return null;
 
-  // Selected preset and paper size - Default to optical industry gold standards (A4 Sheet + 100x15 mm Butterfly Tag)
-  const [selectedPreset, setSelectedPreset] = useState<LabelSizePreset>("100x15 mm (Tag)");
-  const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">("a4");
+  // Selected preset and paper size - Default to the 3-Across vertical barbell roll (industry gold standard)
+  const [selectedPreset, setSelectedPreset] = useState<LabelSizePreset>("100x15 mm (Vertical 3-Up)");
+  const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">("continuous");
 
-  // Preview tab toggle: Single Label vs Sheet Preview
-  const [activePreviewTab, setActivePreviewTab] = useState<"single" | "sheet">("sheet");
+  // Preview tab toggle: Single Label vs Sheet/Roll Preview
+  const [activePreviewTab, setActivePreviewTab] = useState<"single" | "sheet">("single");
   const [sheetPage, setSheetPage] = useState<number>(1);
 
   // Selected preview item index (for Single Label tab)
@@ -76,7 +79,7 @@ export function PurchaseBulkBarcodeModal({
     return initial;
   });
 
-  const currentSpec = LABEL_SPECS[selectedPreset] || LABEL_SPECS["100x15 mm (Tag)"];
+  const currentSpec = LABEL_SPECS[selectedPreset] || LABEL_SPECS["100x15 mm (Vertical 3-Up)"];
 
   // Calculate total labels to print
   const totalLabels = useMemo(() => {
@@ -112,6 +115,16 @@ export function PurchaseBulkBarcodeModal({
     null,
     currentPreviewProduct.productCode || currentPreviewProduct.sku
   );
+
+  // Handle preset change: auto-select "continuous" for vertical tags
+  const handleSelectPreset = (preset: LabelSizePreset) => {
+    setSelectedPreset(preset);
+    setSheetPage(1);
+    const spec = LABEL_SPECS[preset];
+    if (spec?.type === "vertical-tag") {
+      setPaperSize("continuous");
+    }
+  };
 
   // Handle single item quantity change
   const handleQuantityChange = (id: string, delta: number) => {
@@ -207,6 +220,21 @@ export function PurchaseBulkBarcodeModal({
     return `₹${num.toLocaleString("en-IN")}/-`;
   };
 
+  // Groups of presets
+  const tagPresets: LabelSizePreset[] = [
+    "100x15 mm (Vertical 3-Up)",
+    "100x15 mm (Vertical 1-Up)",
+    "100x15 mm (Vertical 2-Up)",
+    "100x15 mm (Tag)",
+  ];
+
+  const boxPresets: LabelSizePreset[] = [
+    "50x25 mm (Standard)",
+    "38x25 mm (Compact Jewel)",
+    "40x30 mm (Medium Box)",
+    "50x50 mm (Square Box)",
+  ];
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
@@ -226,7 +254,7 @@ export function PurchaseBulkBarcodeModal({
                 </span>
               </div>
               <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-                Thermal roll &amp; sheet barcode printing with real-time live preview.
+                Thermal roll &amp; sticker sheet printing with industrial 1-Up / 3-Up vertical roll support.
               </p>
             </div>
           </div>
@@ -245,29 +273,29 @@ export function PurchaseBulkBarcodeModal({
             {/* ─── LEFT COLUMN: Configuration & Product Quantities (7 cols) ─── */}
             <div className="lg:col-span-7 space-y-4 min-w-0">
               
-              {/* 1. Label Preset Selector */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    Label Size Preset
+              {/* 1. Label Preset Selector with Grouping */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Glasses className="h-3.5 w-3.5 text-[#2563eb]" />
+                    <span>Optical Frame &amp; Barbell Tags (Thermal Rolls / Sheets)</span>
                   </label>
-                  <span className="text-[10px] font-semibold text-slate-400">
-                    Industry standard for optical stores
+                  <span className="text-[10px] font-semibold text-blue-600">
+                    Jewelry &amp; Eyewear Standard
                   </span>
                 </div>
+                
                 <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(LABEL_SPECS) as LabelSizePreset[]).map((key) => {
+                  {tagPresets.map((key) => {
                     const spec = LABEL_SPECS[key];
+                    if (!spec) return null;
                     const isSelected = selectedPreset === key;
-                    const isRecommended = key === "100x15 mm (Tag)";
+                    const isPhotoStandard = key === "100x15 mm (Vertical 3-Up)";
                     return (
                       <button
                         key={key}
                         type="button"
-                        onClick={() => {
-                          setSelectedPreset(key);
-                          setSheetPage(1);
-                        }}
+                        onClick={() => handleSelectPreset(key)}
                         className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
                           isSelected
                             ? "border-[#2563eb] bg-blue-50/70 shadow-xs ring-1 ring-[#2563eb]"
@@ -278,12 +306,12 @@ export function PurchaseBulkBarcodeModal({
                           <span className={`text-xs font-bold ${isSelected ? "text-[#2563eb]" : "text-slate-800"}`}>
                             {spec.displayName}
                           </span>
-                          {isRecommended && (
+                          {isPhotoStandard && (
                             <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
-                              Gold Std
+                              3-Up Roll ⭐
                             </span>
                           )}
-                          {isSelected && !isRecommended && <Check className="h-3.5 w-3.5 text-[#2563eb]" />}
+                          {isSelected && !isPhotoStandard && <Check className="h-3.5 w-3.5 text-[#2563eb]" />}
                         </div>
                         <span className="text-[10px] text-slate-500 block mt-0.5 truncate">
                           {spec.description}
@@ -291,6 +319,39 @@ export function PurchaseBulkBarcodeModal({
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="pt-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                    <Box className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Box &amp; Case Barcode Labels</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {boxPresets.map((key) => {
+                      const spec = LABEL_SPECS[key];
+                      if (!spec) return null;
+                      const isSelected = selectedPreset === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => handleSelectPreset(key)}
+                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-[#2563eb] bg-blue-50/70 shadow-xs ring-1 ring-[#2563eb]"
+                              : "border-slate-200 hover:border-blue-200 bg-white"
+                          }`}
+                        >
+                          <span className={`text-[11px] font-bold block truncate ${isSelected ? "text-[#2563eb]" : "text-slate-800"}`}>
+                            {spec.displayName}
+                          </span>
+                          <span className="text-[9px] text-slate-400 block truncate mt-0.5">
+                            {spec.widthMm}×{spec.heightMm}mm
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -302,39 +363,11 @@ export function PurchaseBulkBarcodeModal({
                   </span>
                   <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
                     {paperSize === "continuous"
-                      ? "Direct Thermal Roll (1 label/cut)"
+                      ? `Continuous Thermal Roll (${currentSpec.rollWidthMm || currentSpec.widthMm}×${currentSpec.rollHeightMm || currentSpec.heightMm}mm)`
                       : `${paperSize.toUpperCase()} Sheet (${labelsPerPage} labels/page)`}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaperSize("a4");
-                      setSheetPage(1);
-                    }}
-                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                      paperSize === "a4"
-                        ? "bg-[#2563eb] text-white shadow-2xs"
-                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    A4 Sheet ({currentSpec.a4Cols}×{currentSpec.a4Rows} • {currentSpec.a4Total}/pg)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaperSize("a5");
-                      setSheetPage(1);
-                    }}
-                    className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                      paperSize === "a5"
-                        ? "bg-[#2563eb] text-white shadow-2xs"
-                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    A5 Sheet ({currentSpec.a5Total}/pg)
-                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -347,12 +380,48 @@ export function PurchaseBulkBarcodeModal({
                         : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
                     }`}
                   >
-                    Continuous Roll (Thermal)
+                    Continuous Thermal Roll ({currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm}mm)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaperSize("a4");
+                      setSheetPage(1);
+                    }}
+                    className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
+                      paperSize === "a4"
+                        ? "bg-[#2563eb] text-white shadow-2xs"
+                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    A4 Sheet ({currentSpec.a4Total}/pg)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaperSize("a5");
+                      setSheetPage(1);
+                    }}
+                    className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
+                      paperSize === "a5"
+                        ? "bg-[#2563eb] text-white shadow-2xs"
+                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    A5 Sheet ({currentSpec.a5Total}/pg)
                   </button>
                 </div>
               </div>
 
-              {/* 3. Products List & Stepper Controls */}
+              {/* 3. Thermal Printer Setup Tip Box */}
+              <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 flex items-start gap-2 text-amber-900 text-xs">
+                <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-tight">
+                  <span className="font-bold">Thermal Printer Setup Tip:</span> When your printer dialog opens, set <strong>Destination: Your Thermal Printer</strong>, <strong>Paper size: {currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm}mm (or Match Media)</strong>, and <strong>Margins: None</strong> for 100% precision.
+                </div>
+              </div>
+
+              {/* 4. Products List & Stepper Controls */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
@@ -369,153 +438,148 @@ export function PurchaseBulkBarcodeModal({
                     <button
                       type="button"
                       onClick={handleResetToInward}
-                      className="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                      title="Reset all to inward quantity"
+                      className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
                     >
                       Inward Qty
                     </button>
                     <button
                       type="button"
                       onClick={handleAddOneToAll}
-                      className="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                      title="Add 1 to all"
+                      className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
                     >
                       +1 All
                     </button>
                     <button
                       type="button"
                       onClick={handleClearAll}
-                      className="px-2 py-1 rounded-md text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors cursor-pointer"
-                      title="Clear all to 0"
+                      className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
                     >
                       Zero
                     </button>
                   </div>
                 </div>
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                    {initialProducts.map((p, idx) => {
-                      const qty = productQuantities[p.id] || 0;
-                      const isPreviewing = previewIndex === idx;
-
-                      return (
-                        <div
-                          key={p.id || idx}
-                          onClick={() => setPreviewIndex(idx)}
-                          className={`px-3.5 py-2.5 flex items-center justify-between gap-3 transition-colors text-xs cursor-pointer ${
-                            isPreviewing
-                              ? "bg-blue-50/70 border-l-3 border-[#2563eb]"
-                              : "hover:bg-slate-50/70 border-l-3 border-transparent"
-                          }`}
-                        >
-                          {/* Product Overview */}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900 truncate">
-                                {p.name}
-                              </span>
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600 shrink-0">
-                                {p.category}
-                              </span>
-                              {isPreviewing && (
-                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
-                                  <Eye className="h-2.5 w-2.5" /> Previewing
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2.5 mt-0.5 text-[11px] text-slate-400">
-                              {p.sku && <span className="font-mono text-slate-600">Code: {p.sku}</span>}
-                              {p.price && Number(p.price) > 0 && (
-                                <span className="text-emerald-600 font-semibold">
-                                  MRP: ₹{Number(p.price).toLocaleString("en-IN")}
-                                </span>
-                              )}
-                              <span className="text-slate-400">
-                                (Inward: {p.quantity || 1})
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Stepper Quantity Controls */}
-                          <div
-                            className="flex items-center gap-1.5 shrink-0"
-                            onClick={(e) => e.stopPropagation()}
+                {/* Products Table with Steppers */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[260px] overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-[10px] uppercase sticky top-0 z-10">
+                      <tr>
+                        <th className="py-2 px-3">Product Name &amp; Code</th>
+                        <th className="py-2 px-2">Retail Price</th>
+                        <th className="py-2 px-3 text-right">Labels to Print</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {initialProducts.map((p, idx) => {
+                        const qty = productQuantities[p.id] || 0;
+                        const isPreviewed = previewIndex === idx;
+                        const title = resolveDisplayTitle(
+                          p.name,
+                          p.category,
+                          null,
+                          null,
+                          p.productCode || p.sku
+                        );
+                        return (
+                          <tr
+                            key={p.id}
+                            onClick={() => setPreviewIndex(idx)}
+                            className={`cursor-pointer transition-colors ${
+                              isPreviewed
+                                ? "bg-blue-50/80 font-medium"
+                                : qty > 0
+                                ? "hover:bg-slate-50/80"
+                                : "hover:bg-slate-50/50 opacity-60"
+                            }`}
                           >
-                            <button
-                              type="button"
-                              onClick={() => handleQuantityChange(p.id, -1)}
-                              className="h-6.5 w-6.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              max="500"
-                              value={qty}
-                              onChange={(e) => handleSetExactQuantity(p.id, e.target.value)}
-                              className="w-12 h-6.5 text-center rounded border border-slate-200 font-bold text-xs text-slate-800 bg-white"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleQuantityChange(p.id, 1)}
-                              className="h-6.5 w-6.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                            <span className="text-[10px] text-slate-400 font-bold ml-1 w-7 text-right">
-                              pcs
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`h-2 w-2 rounded-full ${isPreviewed ? "bg-[#2563eb]" : "bg-slate-300"}`} />
+                                <div className="min-w-0">
+                                  <span className="font-bold text-slate-800 block truncate max-w-[220px]" title={title}>
+                                    {title}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-slate-400 block truncate">
+                                    {p.sku || p.productCode || "Auto SKU"}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 text-slate-600 font-semibold">
+                              {formatPrice(p.price)}
+                            </td>
+                            <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuantityChange(p.id, -1)}
+                                  disabled={qty <= 0}
+                                  className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer"
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={500}
+                                  value={qty}
+                                  onChange={(e) => handleSetExactQuantity(p.id, e.target.value)}
+                                  className="w-11 h-6 text-center text-xs font-bold rounded border border-slate-200 bg-white focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuantityChange(p.id, 1)}
+                                  className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
+
             </div>
 
-            {/* ─── RIGHT COLUMN: Live Barcode Label Preview (5 cols) ─────────── */}
-            <div className="lg:col-span-5 flex flex-col bg-slate-50/90 rounded-2xl border border-slate-200 p-4 space-y-3.5">
+            {/* ─── RIGHT COLUMN: Live Interactive Preview (5 cols) ─── */}
+            <div className="lg:col-span-5 bg-slate-50/70 border border-slate-200 rounded-2xl p-4 space-y-3 min-w-0">
               
-              {/* Preview Header & Specifications Tag */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <div className="flex items-center gap-1.5">
+              {/* Segmented Control Header: Single vs Sheet */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <Eye className="h-4 w-4 text-[#2563eb]" />
-                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Barcode Preview
-                  </span>
-                </div>
-                <span className="text-[10px] font-bold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
-                  {currentSpec.displayName}
+                  <span>Real-Time Label Preview</span>
                 </span>
-              </div>
-
-              {/* Segmented Preview Toggles: Single Label vs Sheet Preview */}
-              <div className="flex bg-slate-200/80 p-0.5 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setActivePreviewTab("single")}
-                  className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    activePreviewTab === "single"
-                      ? "bg-white text-[#2563eb] shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <Eye className="w-3.5 h-3.5" /> Single Label
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePreviewTab("sheet")}
-                  className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    activePreviewTab === "sheet"
-                      ? "bg-white text-[#2563eb] shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" /> Sheet Preview
-                </button>
+                
+                {/* Segmented Switcher */}
+                <div className="bg-slate-200/80 p-0.5 rounded-lg flex items-center text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setActivePreviewTab("single")}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      activePreviewTab === "single"
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Single Label
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePreviewTab("sheet")}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      activePreviewTab === "sheet"
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {paperSize === "continuous" ? "Roll Feed" : "Sheet Grid"}
+                  </button>
+                </div>
               </div>
 
               {/* Main Visualizer Container */}
@@ -549,14 +613,63 @@ export function PurchaseBulkBarcodeModal({
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200/90 shadow-xs min-h-[190px]">
-                    {currentSpec.type === "tag" ? (
-                      // 1. Dual-Wing Optical Butterfly Fold Tag (100x15 mm)
+                  <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200/90 shadow-xs min-h-[220px]">
+                    {currentSpec.type === "vertical-tag" ? (
+                      // 1. VERTICAL DUMBBELL / BUTTERFLY OPTICAL TAG (15x100mm Roll standard)
+                      <div
+                        className="w-[125px] h-[340px] bg-white border border-dashed border-slate-400 rounded-xs flex flex-col justify-between items-center p-1.5 select-none shadow-xs text-slate-900"
+                        style={{ fontFamily: "Inter, sans-serif" }}
+                      >
+                        {/* Top Wing: Brand, Model, Price */}
+                        <div className="w-full h-[125px] flex flex-col justify-center items-center text-center overflow-hidden p-1 border-b border-dashed border-slate-300">
+                          <span className="text-[6.5px] uppercase tracking-wider text-slate-400 font-bold">
+                            CLINICAL OPTICAL
+                          </span>
+                          <span className="text-[8.5px] font-bold text-slate-800 truncate max-w-full mt-0.5" title={currentPreviewTitle}>
+                            {currentPreviewTitle}
+                          </span>
+                          <span className="text-[10.5px] font-extrabold text-[#2563eb] mt-1">
+                            {formatPrice(currentPreviewProduct.price)}
+                          </span>
+                        </div>
+
+                        {/* Center Bridge: Narrow Fold Bridge */}
+                        <div className="w-[32px] h-[75px] border-l border-r border-dashed border-slate-400 flex flex-col items-center justify-center">
+                          <span className="text-[6px] text-slate-400 font-bold uppercase tracking-widest -rotate-90 select-none">
+                            FOLD
+                          </span>
+                        </div>
+
+                        {/* Bottom Wing: High-Density Code 128 Barcode + SKU */}
+                        <div className="w-full h-[125px] flex flex-col items-center justify-center text-center overflow-hidden p-1 border-t border-dashed border-slate-300">
+                          {(() => {
+                            const previewSku =
+                              currentPreviewProduct.sku ||
+                              (currentPreviewProduct.category
+                                ? `${currentPreviewProduct.category.slice(0, 3).toUpperCase()}-GEN-00001`
+                                : "FRM-GEN-00001");
+                            return (
+                              <>
+                                <div
+                                  className="w-full h-8 flex items-center justify-center overflow-hidden"
+                                  dangerouslySetInnerHTML={{
+                                    __html: buildBarcodeSvgString(previewSku, 24, 0.85, "code128"),
+                                  }}
+                                />
+                                <span className="text-[7.5px] font-mono font-bold text-slate-800 tracking-wider mt-1 truncate max-w-full">
+                                  {previewSku}
+                                </span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    ) : currentSpec.type === "tag" ? (
+                      // 2. HORIZONTAL DUAL-WING OPTICAL BUTTERFLY TAG (100x15 mm)
                       <div
                         className="w-full max-w-[360px] h-[72px] bg-white border border-dashed border-slate-400 rounded-xs flex items-center justify-between p-2 select-none shadow-xs text-slate-900"
                         style={{ fontFamily: "Inter, sans-serif" }}
                       >
-                        {/* Left Wing */}
                         <div className="w-[42%] flex flex-col justify-center text-left overflow-hidden leading-tight">
                           <span className="text-[7px] uppercase tracking-wider text-slate-400 font-bold">
                             CLINICAL OPTICAL
@@ -569,7 +682,6 @@ export function PurchaseBulkBarcodeModal({
                           </span>
                         </div>
 
-                        {/* Middle Bridge: Frame Temple Fold Zone */}
                         <div className="w-[16%] h-full border-l border-r border-dashed border-slate-300 flex flex-col items-center justify-center px-0.5">
                           <span className="text-[5.5px] text-slate-400 font-bold uppercase tracking-widest">
                             FOLD
@@ -577,7 +689,6 @@ export function PurchaseBulkBarcodeModal({
                           <span className="text-[5px] text-slate-300">———</span>
                         </div>
 
-                        {/* Right Wing: Code 39 Barcode + SKU */}
                         <div className="w-[42%] flex flex-col items-center justify-center text-center overflow-hidden">
                           {(() => {
                             const previewSku =
@@ -590,7 +701,7 @@ export function PurchaseBulkBarcodeModal({
                                 <div
                                   className="w-full h-7 flex items-center justify-center overflow-hidden"
                                   dangerouslySetInnerHTML={{
-                                    __html: buildBarcodeSvgString(previewSku, 24, 1.2),
+                                    __html: buildBarcodeSvgString(previewSku, 24, 1.2, "code128"),
                                   }}
                                 />
                                 <span className="text-[8px] font-mono font-bold text-slate-800 tracking-wider mt-0.5">
@@ -602,7 +713,7 @@ export function PurchaseBulkBarcodeModal({
                         </div>
                       </div>
                     ) : (
-                      // 2. Standard Retail Label (50x25, 38x25, 40x30 mm)
+                      // 3. STANDARD RETAIL BOX LABEL (50x25, 38x25, 40x30, 50x50 mm)
                       <div
                         className="w-full max-w-[280px] h-[105px] bg-white border border-dashed border-slate-400 rounded-xs p-2.5 flex flex-col justify-between select-none shadow-xs text-slate-900"
                         style={{ fontFamily: "Inter, sans-serif" }}
@@ -633,7 +744,7 @@ export function PurchaseBulkBarcodeModal({
                                 <div
                                   className="w-full h-8 flex items-center justify-center overflow-hidden"
                                   dangerouslySetInnerHTML={{
-                                    __html: buildBarcodeSvgString(previewSku, 28, 1.3),
+                                    __html: buildBarcodeSvgString(previewSku, 28, 1.3, "code128"),
                                   }}
                                 />
                                 <span className="text-[9px] font-mono font-bold text-slate-800 tracking-wider mt-0.5">
@@ -652,40 +763,70 @@ export function PurchaseBulkBarcodeModal({
                   </div>
                 </div>
               ) : (
-                // ─── TAB 2: SHEET / PAGE PREVIEW ───
+                // ─── TAB 2: SHEET / ROLL PREVIEW ───
                 <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200/90 shadow-xs min-h-[220px]">
                   {paperSize === "continuous" ? (
-                    // Continuous Thermal Roll Mockup
+                    // Continuous Thermal Roll Mockup (Supports 3-Up, 2-Up, and 1-Up)
                     <div className="w-full flex flex-col items-center justify-center py-2">
-                      <div className="w-[190px] bg-slate-50 border border-slate-300 rounded-sm shadow-sm p-2 flex flex-col items-center space-y-1.5 overflow-hidden">
+                      <div className="w-[220px] bg-slate-50 border border-slate-300 rounded-sm shadow-sm p-2 flex flex-col items-center space-y-1.5 overflow-hidden">
                         <div className="w-full border-b border-dashed border-slate-300 pb-1 flex items-center justify-between text-[8px] font-bold text-slate-400">
                           <span>THERMAL ROLL FEED</span>
-                          <span>{currentSpec.widthMm}×{currentSpec.heightMm}mm</span>
+                          <span>{currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm}mm</span>
                         </div>
-                        {[0, 1, 2].map((idx) => (
-                          <div
-                            key={idx}
-                            className={`w-full py-1.5 px-2 rounded-[2px] border border-dashed flex items-center justify-between text-[7.5px] font-bold ${
-                              idx < totalLabels
-                                ? "bg-blue-50/80 border-blue-300 text-blue-900"
-                                : "bg-slate-100 border-slate-200 text-slate-400 opacity-40"
-                            }`}
-                          >
-                            <span className="truncate max-w-[85px]">{currentPreviewProduct.name}</span>
-                            <span className="font-mono text-[7px] text-[#2563eb]">#{idx + 1}</span>
+                        
+                        {/* If 3-Across Roll (as in reference photo) */}
+                        {currentSpec.rollCols && currentSpec.rollCols > 1 ? (
+                          <div className="w-full space-y-1">
+                            {[0, 1].map((rowIdx) => (
+                              <div
+                                key={rowIdx}
+                                className="w-full p-1 rounded-[2px] border border-dashed border-blue-300 bg-blue-50/60 flex items-center justify-between gap-1"
+                              >
+                                {Array.from({ length: currentSpec.rollCols || 3 }).map((_, colIdx) => (
+                                  <div
+                                    key={colIdx}
+                                    className="flex-1 py-2 px-0.5 bg-white border border-slate-200 rounded-[1px] flex flex-col items-center justify-center text-[6px] font-mono font-bold text-slate-700"
+                                  >
+                                    <span className="text-[#2563eb]">Tag</span>
+                                    <span>#{rowIdx * (currentSpec.rollCols || 3) + colIdx + 1}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                            <div className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider text-center pt-0.5">
+                              ••• {currentSpec.rollCols} tags across continuous roll •••
+                            </div>
                           </div>
-                        ))}
-                        {totalLabels > 3 && (
-                          <div className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider pt-0.5">
-                            ••• +{totalLabels - 3} more labels on roll •••
-                          </div>
+                        ) : (
+                          // 1-Across Roll Mockup
+                          <>
+                            {[0, 1, 2].map((idx) => (
+                              <div
+                                key={idx}
+                                className={`w-full py-1.5 px-2 rounded-[2px] border border-dashed flex items-center justify-between text-[7.5px] font-bold ${
+                                  idx < totalLabels
+                                    ? "bg-blue-50/80 border-blue-300 text-blue-900"
+                                    : "bg-slate-100 border-slate-200 text-slate-400 opacity-40"
+                                }`}
+                              >
+                                <span className="truncate max-w-[85px]">{currentPreviewProduct.name}</span>
+                                <span className="font-mono text-[7px] text-[#2563eb]">#{idx + 1}</span>
+                              </div>
+                            ))}
+                            {totalLabels > 3 && (
+                              <div className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider pt-0.5">
+                                ••• +{totalLabels - 3} more labels on roll •••
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
+                      
                       <p className="text-[10px] font-extrabold text-slate-600 mt-2 text-center">
-                        Continuous Thermal Roll ({currentSpec.widthMm}×{currentSpec.heightMm} mm)
+                        Continuous Thermal Roll ({currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm} mm)
                       </p>
                       <p className="text-[9.5px] text-slate-400 font-medium text-center">
-                        1 label per print cut • Total <strong className="text-slate-700">{totalLabels} labels</strong>
+                        {currentSpec.rollCols && currentSpec.rollCols > 1 ? `${currentSpec.rollCols} tags across per row` : "1 label per feed cut"} • Total <strong className="text-slate-700">{totalLabels} labels</strong>
                       </p>
                     </div>
                   ) : (
@@ -703,7 +844,11 @@ export function PurchaseBulkBarcodeModal({
                             <div
                               key={i}
                               className={`border rounded-[1px] transition-all flex items-center justify-center ${
-                                currentSpec.type === "tag" ? "aspect-[6/1]" : "aspect-[2/1]"
+                                currentSpec.type === "vertical-tag"
+                                  ? "aspect-[1/6]"
+                                  : currentSpec.type === "tag"
+                                  ? "aspect-[6/1]"
+                                  : "aspect-[2/1]"
                               } ${
                                 isFilled
                                   ? "bg-blue-500/20 border-blue-500/60 shadow-2xs"
@@ -771,21 +916,21 @@ export function PurchaseBulkBarcodeModal({
                   <span className="text-[11px] font-semibold text-slate-500">Print Media &amp; Grid:</span>
                   <span className="font-bold text-slate-800">
                     {paperSize === "continuous"
-                      ? "Continuous Thermal Roll (1 label/cut)"
+                      ? `Continuous Roll (${currentSpec.rollWidthMm || currentSpec.widthMm}×${currentSpec.rollHeightMm || currentSpec.heightMm}mm)`
                       : `${paperSize.toUpperCase()} Sheet (${labelsPerPage} labels/page • ${paperSize === "a4" ? `${currentSpec.a4Cols}×${currentSpec.a4Rows}` : `${currentSpec.a5Cols}×${currentSpec.a5Rows}`})`}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-slate-500">Sheets Required:</span>
+                  <span className="text-[11px] font-semibold text-slate-500">Media Units Required:</span>
                   <span className="font-bold text-[#2563eb]">
                     {paperSize === "continuous"
-                      ? `${totalLabels} feed labels`
+                      ? `${Math.ceil(totalLabels / (currentSpec.rollCols || 1))} roll feed cuts (${totalLabels} labels)`
                       : `${totalPages} ${totalPages === 1 ? "sheet" : "sheets"} (${labelsPerPage} labels/sheet)`}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-slate-500">Barcode Symbology:</span>
-                  <span className="font-mono font-bold text-slate-800">Code 39 (Alphanumeric)</span>
+                  <span className="font-mono font-bold text-slate-800">Code 128 (High-Density Sharp)</span>
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <span className="text-[11px] font-bold text-slate-700">Total Labels Queued:</span>

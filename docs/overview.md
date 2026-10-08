@@ -28,12 +28,16 @@
   - `Add Bulk (CSV)`: Direct navigation to the 4-step CSV Bulk Purchase Inward wizard (`/shop/inventory/import`).
 - **Optical Metadata Tracking**: Supports frame dimensions (`52-18-140`), lens refractive indices (1.56, 1.61, 1.67, 1.74), HSN codes (`9004` frames, `9001` optical lenses), batch numbers, and expiry dates.
 - **Interactive Lens Power SPH/CYL Stock Matrix**: High-density optical power chart with `(-) Minus Power Sphere Chart` and `(+) Plus Power Sphere Chart` toggle modes, standard/extended power ranges (0.00 to ±6.00 SPH, 0.00 to -3.00 CYL in 0.25 steps), per-cell unit count inputs with active cell highlighting, and real-time total stock quantity aggregation.
-- **Interactive Multi-Format Barcode Designer**: Client-side zero-latency Code 39 barcode engine supporting 4 production paper/label size presets:
-  - `100×15 mm (Tag)`: Specialized optical butterfly/barbell tag with left wing (Brand, Model, Price), center fold-around bridge, and right wing (Barcode SVG, SKU).
-  - `50×25 mm (Standard)`: Standard 2"×1" retail box and spectacle case label.
-  - `38×25 mm (Compact Jewel)`: Compact 1.5"×1" contact lens blister pack and small tag.
-  - `40×30 mm (Medium Box)`: Medium 40×30mm optical accessory box label.
-- **Cross-Printer Output**: Supports both single continuous thermal roll printers and multi-grid A4/A5 sheet printing with zero layout reflows.
+- **Interactive Multi-Format Industrial Barcode Engine**: High-density native vector SVG barcode engine (Code 128 Subset B & Code 39) calibrated for standard 203/300 DPI thermal barcode printers (TSC, Zebra, TVS, Godex, Xprinter, Citizen) and multi-grid sheets:
+  - `100×15 mm (Vertical 3-Up Roll)` ⭐: Exact 3-across eyewear barbell tag roll (`50mm` web width × `100mm` feed length). Features top wing (~38mm: Header, Brand, Model, Price), center tail bridge (~24mm: narrow 5mm fold-around strap), and bottom wing (~38mm: high-density Code 128 barcode + monospace SKU).
+  - `100×15 mm (Vertical 1-Up Roll)`: Single-column vertical roll (`15mm` width × `100mm` feed length).
+  - `100×15 mm (Vertical 2-Up Roll)`: Two-across vertical roll (`34mm` width × `100mm` feed length).
+  - `100×15 mm (Horizontal Tag)`: Dual-wing horizontal barbell tag for 4" continuous rolls or A4/A5 laser/inkjet sticker sheets.
+  - `50×25 mm (Standard Box)`: Standard 2"×1" retail box and spectacle case label.
+  - `38×25 mm (Compact Jewel)`: Compact 1.5"×1" contact lens blister pack and small accessory tag.
+  - `40×30 mm (Medium Box)`: Medium optical case label.
+  - `50×50 mm (Square Label)`: Large square frame carton and case label.
+- **Cross-Printer Output & Industrial Page Sizing**: Applies exact roll geometry (`@page { size: ${rollWidth}mm ${rollHeight}mm; margin: 0; }`) to ensure thermal printer gap sensors track labels correctly, completely eliminating blank prints, label choking, and page overflow issues. Multi-column rolls automatically group labels into row sets with page breaks. Also supports A4/A5 multi-grid sticker sheets with zero layout reflows.
 
 ### 4. POS Billing, Eye Prescriptions & Dues Management
 - **Single-Screen High-Density POS Billing (`/shop/invoices/new`)**: Ultra-compact SaaS interface engineered for laptop viewport fit without vertical fatigue. Features a minimal inline header, compact `h-8` form controls, real-time customer search with 0ms local hydration, and streamlined bottom action placement (`[ Save Draft ]` and `[ Book Order ]`).
@@ -77,7 +81,7 @@
   - *Multi-Condition Filter Bar*: Zero-latency filtering by Vendor, Date Range (From/To), GST Pricing Model (Inclusive/Exclusive), Status (Draft/Completed/Cancelled), and full-text invoice # / vendor name search.
   - *High-Density Zero-Scroll Table*: 8-column layout (Date, Bill #, Vendor with GSTIN, Amount, GST Type pill badge, Inward Qty, Status Badge with payment indicator, and View Action) with zero horizontal scrolling on standard laptop displays.
   - *Full-Page Transaction Detail (`/shop/purchases/[id]`)*: Streamlined 8-column high-density table displaying `#`, `Product & Code`, `Category & HSN`, `Inward Qty`, `Rate (Purchase Cost & Base Split)`, `Total Amount`, `Retail MRP`, and `Tag / Delete Actions` - completely eliminating horizontal scrollbars in both View and Edit modes.
-  - *Multi-Format Barcode Printing & Batch Modal*: Individual item barcode modal (`BarcodeDesignerModal`) and batch modal (`PurchaseBulkBarcodeModal`) both defaulting to the optical gold standards (`100x15 mm Dual-Wing Butterfly Tag` and `Continuous Roll Thermal Direct`). The bulk printing interface features a 2-column split layout with interactive real-time barcode SVG preview on the right side (including zoom view, fold lines, and item switcher), per-item quantity steppers, and a zero-lag hidden iframe print spooler for instant thermal label printing.
+  - *Multi-Format Barcode Printing & Batch Modal*: Individual item barcode modal (`BarcodeDesignerModal`) and batch modal (`PurchaseBulkBarcodeModal`) accessible both from the Purchase Details page (`/shop/purchases/[id]`) and directly from the Add Purchase page header (`/shop/purchases/new`). Defaults to industrial vertical rolls (`100x15 mm Vertical 3-Up Roll ⭐`) and optical tags. Features interactive live preview (dumbbell vertical tag, continuous roll feed mockup, and single label zoom), per-item quantity steppers, thermal driver setup guidance banner, and a zero-lag hidden iframe print spooler using authentic Code 128 (Subset B) symbology.
   - *Inward Editing & Atomic Deletion*: Supports full in-place editing with 5-priority bidirectional calculations (Purchase Cost ↔ Base Price ↔ GST% ↔ Qty), preserving the user's authentic entered supplier bill number on the purchase ledger, and safe transaction deletion with automatic stock deduction reversal (`STOCK_OUT`/`RETURN` movements).
 - **4-Phase Bulk Purchase Inward Wizard (`/shop/inventory/import`)**:
   - *Phase 1 (Upload)*: Drag-and-drop CSV uploader with RFC-4180 parsing and standardized sample template generator (`downloadSamplePurchaseCSV()`).
