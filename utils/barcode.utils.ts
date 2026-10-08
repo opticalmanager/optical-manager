@@ -495,12 +495,19 @@ export function buildOneVerticalTagHtml(
       ? `<span style="font-size:6px;font-family:'Courier New',monospace;letter-spacing:0.1em;font-weight:700;color:#1e293b;display:block;margin-top:1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
       : "";
 
+  const flapBorderCss =
+    borderStyle === "none"
+      ? "none"
+      : borderStyle === "solid"
+      ? "1px solid #000000"
+      : "1px dashed #cbd5e1";
+
   return `
     <div class="barcode-vertical-tag" style="
       width:${widthMm}mm;
       height:${heightMm}mm;
       box-sizing:border-box;
-      background:#ffffff;
+      background:transparent;
       font-family:${fontFamilyCss};
       display:flex;
       flex-direction:column;
@@ -512,7 +519,7 @@ export function buildOneVerticalTagHtml(
       border:${borderCss};
     ">
       <!-- Top Flap (Wing 1): Brand, Details, Price (~38mm) -->
-      <div style="width:100%;height:38mm;box-sizing:border-box;padding:1mm 0.8mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;overflow:hidden;border-bottom:1px dashed #cbd5e1;">
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;overflow:hidden;border-bottom:${flapBorderCss};">
         ${headerHtml}
         ${brandHtml}
         ${itemNameHtml}
@@ -520,12 +527,12 @@ export function buildOneVerticalTagHtml(
       </div>
 
       <!-- Center Tail / Strap: Narrow Bridge (~24mm) -->
-      <div style="width:5mm;height:24mm;box-sizing:border-box;border-left:1px dashed #94a3b8;border-right:1px dashed #94a3b8;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+      <div style="width:5mm;height:24mm;box-sizing:border-box;background:#ffffff;border-left:${flapBorderCss};border-right:${flapBorderCss};display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
         <span style="font-size:4px;color:#94a3b8;font-weight:700;transform:rotate(-90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;">FOLD</span>
       </div>
 
       <!-- Bottom Flap (Wing 2): Barcode & SKU (~38mm) -->
-      <div style="width:100%;height:38mm;box-sizing:border-box;padding:1mm 0.8mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;text-align:center;border-top:1px dashed #cbd5e1;">
+      <div style="width:100%;height:38mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;text-align:center;border-top:${flapBorderCss};">
         <div style="width:100%;display:flex;justify-content:center;align-items:center;overflow:hidden;">
           ${barcodeSvg}
         </div>
@@ -714,11 +721,48 @@ export function buildBulkLabelsHtml(
 
     pageCSS = `
       @page {
-        size: ${rollWidth}mm ${rollHeight}mm;
+        size: ${rollWidth}mm ${rollHeight}mm portrait;
         margin: 0;
       }
+      html, body {
+        width: ${rollWidth}mm;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      .barcode-continuous-page {
+        width: ${rollWidth}mm;
+        height: ${rollHeight}mm;
+        page-break-after: always;
+        break-after: page;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        justify-content: ${rollCols > 1 ? "space-evenly" : "center"};
+        overflow: hidden;
+      }
+      .barcode-vertical-tag {
+        width: ${spec.widthMm}mm;
+        height: ${spec.heightMm}mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        box-sizing: border-box;
+      }
       @media print {
+        @page {
+          size: ${rollWidth}mm ${rollHeight}mm portrait;
+          margin: 0;
+        }
         html, body {
+          width: ${rollWidth}mm !important;
+          height: ${rollHeight}mm !important;
           margin: 0 !important;
           padding: 0 !important;
           background: #ffffff !important;
@@ -736,9 +780,21 @@ export function buildBulkLabelsHtml(
           padding: 0 !important;
           box-sizing: border-box !important;
           display: flex !important;
-          align-items: center !important;
-          justify-content: ${rollCols > 1 ? "space-between" : "center"} !important;
+          flex-direction: row !important;
+          align-items: stretch !important;
+          justify-content: ${rollCols > 1 ? "space-evenly" : "center"} !important;
           overflow: hidden !important;
+        }
+        .barcode-vertical-tag {
+          width: ${spec.widthMm}mm !important;
+          height: ${spec.heightMm}mm !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          align-items: center !important;
+          box-sizing: border-box !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
         }
       }
     `;
