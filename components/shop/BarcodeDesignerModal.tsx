@@ -663,54 +663,65 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                 {activeTab === "single" ? (
                   // SINGLE LABEL VIEW
                   currentSpec.type === "vertical-tag" ? (
-                    // Specialized Vertical 100x15 mm Barbell Tag (Vertical Roll)
-                    <div
-                      className={`w-[125px] h-[340px] flex flex-col justify-between items-center select-none font-sans ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
-                    >
-                      {/* Top Wing (Rotated 90° along length) */}
-                      <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex items-center justify-center overflow-hidden relative">
-                        <div className="w-[115px] h-[95px] rotate-90 transform-gpu flex flex-col justify-between p-1.5 select-none leading-tight">
-                          <div className="flex justify-between items-center w-full">
-                            <span className="text-[7px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[65px]">
-                              {customHeader || "CLINICAL OPTICAL"}
-                            </span>
-                            {showPrice && (
-                              <span style={{ fontSize: `${Math.min(priceFontSize, 10)}px` }} className="text-indigo-600 font-extrabold shrink-0">
-                                {formattedPrice}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-col w-full overflow-hidden">
-                            {showBrand && (
-                              <span style={{ fontSize: `${Math.min(brandFontSize, 9)}px` }} className="text-slate-900 truncate block font-extrabold">
-                                {item.brand || "GENERIC"}
-                              </span>
-                            )}
-                            {showItemName && (
-                              <span style={{ fontSize: `${Math.min(descriptionFontSize, 8)}px` }} className="text-slate-600 truncate block mt-0.5">
-                                {displayTitle}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Center Fold Tail */}
-                      <div className="w-[32px] h-[75px] bg-white border-x border-dashed border-slate-400 shadow-2xs flex flex-col items-center justify-center my-[-1px] z-1">
-                        <span className="text-[6px] text-slate-400 font-bold uppercase tracking-widest rotate-90 select-none">
-                          FOLD
+                    // Specialized Vertical 100x15 mm Barbell Tag (15x100mm Narrow Strip Standard)
+                    <div className="flex flex-col items-center">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[8px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          15mm × 100mm Tag
+                        </span>
+                        <span className="text-[8px] font-mono font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                          Fold at 50mm Center
                         </span>
                       </div>
+                      <div
+                        className={`w-[48px] h-[320px] flex flex-col justify-between items-center select-none font-sans shadow-sm ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
+                      >
+                        {/* Top Wing (Wing 1 - 48px wide x 122px tall: Vertical Rectangle, Rotated 90° along length) */}
+                        <div className="w-full h-[122px] bg-white border border-dashed border-slate-400 rounded-t-sm shadow-xs flex items-center justify-center overflow-hidden relative">
+                          <div className="w-[114px] h-[42px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
+                            <div className="flex justify-between items-center w-full">
+                              <span className="text-[6px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[50px]">
+                                {customHeader || "CLINICAL OPTICAL"}
+                              </span>
+                              {showPrice && (
+                                <span style={{ fontSize: `${Math.min(priceFontSize, 8.5)}px` }} className="text-indigo-600 font-extrabold shrink-0">
+                                  {formattedPrice}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-col w-full overflow-hidden">
+                              {showBrand && (
+                                <span style={{ fontSize: `${Math.min(brandFontSize, 7.5)}px` }} className="text-slate-900 truncate block font-extrabold">
+                                  {item.brand || "GENERIC"}
+                                </span>
+                              )}
+                              {showItemName && (
+                                <span style={{ fontSize: `${Math.min(descriptionFontSize, 6.5)}px` }} className="text-slate-600 truncate block mt-0.5">
+                                  {displayTitle}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
 
-                      {/* Bottom Wing (Barcode Rotated 90° along length) */}
-                      <div className="w-full h-[125px] bg-white border border-dashed border-slate-400 rounded-sm shadow-xs flex items-center justify-center overflow-hidden relative">
-                        <div className="w-[115px] h-[95px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-1">
-                          <BarcodeSVG text={displaySku} height={26} barScale={0.9} className="w-[105px] h-7 flex items-center justify-center overflow-hidden" />
-                          {showSKU && showBarcodeText && (
-                            <span className="text-[7.5px] font-mono font-bold text-slate-800 tracking-widest mt-1 truncate">
-                              {displaySku}
-                            </span>
-                          )}
+                        {/* Center Narrow Tail / Strap (16px wide x 76px tall with 50mm Center Fold Divider) */}
+                        <div className="w-[16px] h-[76px] bg-white border-x border-dashed border-slate-400 shadow-2xs flex flex-col items-center justify-center my-[-1px] z-1 relative">
+                          <div className="w-full border-t border-dashed border-slate-400 absolute top-1/2 left-0 -translate-y-1/2" />
+                          <span className="text-[5px] text-slate-400 font-bold uppercase tracking-widest rotate-90 select-none bg-white px-0.5 z-2">
+                            FOLD
+                          </span>
+                        </div>
+
+                        {/* Bottom Wing (Wing 2 - 48px wide x 122px tall: Vertical Rectangle, Barcode Rotated 90° along length) */}
+                        <div className="w-full h-[122px] bg-white border border-dashed border-slate-400 rounded-b-sm shadow-xs flex items-center justify-center overflow-hidden relative">
+                          <div className="w-[114px] h-[42px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-1">
+                            <BarcodeSVG text={displaySku} height={22} barScale={0.85} className="w-[104px] h-6 flex items-center justify-center overflow-hidden" />
+                            {showSKU && showBarcodeText && (
+                              <span className="text-[7px] font-mono font-bold text-slate-800 tracking-widest mt-0.5 truncate">
+                                {displaySku}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -802,31 +813,31 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                   currentSpec.type === "vertical-tag" ? (
                     // ─── AUTHENTIC MULTI-COLUMN VERTICAL ROLL MOCKUP ───
                     <div className="w-full flex flex-col items-center justify-center py-1">
-                      <div className={`${currentSpec.rollCols === 1 ? "w-[130px]" : currentSpec.rollCols === 2 ? "w-[190px]" : "w-[260px]"} bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden transition-all`}>
+                      <div className={`${currentSpec.rollCols === 1 ? "w-[68px]" : currentSpec.rollCols === 2 ? "w-[110px]" : "w-[154px]"} bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden transition-all`}>
                         {/* Cylinder Spool Header */}
-                        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 text-white px-3 py-1.5 flex items-center justify-between text-[9px] font-bold">
-                          <span className="flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                            <span>FEED DIRECTION ↓</span>
+                        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 text-white px-2 py-1.5 flex items-center justify-between text-[8px] font-bold">
+                          <span className="flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>FEED ↓</span>
                           </span>
-                          <span className="font-mono text-slate-300 text-[8px]">
+                          <span className="font-mono text-slate-300 text-[7.5px]">
                             {currentSpec.rollWidthMm || currentSpec.widthMm}mm Web
                           </span>
                         </div>
 
                         {/* Continuous Paper Liner Web */}
-                        <div className="bg-slate-200/80 p-2 space-y-2 border-b border-slate-300">
+                        <div className="bg-slate-200/90 px-1.5 py-2 border-b border-slate-300">
                           {/* Vertical Tags Grid (Side-by-Side Horizontally Across Web Width) */}
-                          <div className={`grid ${currentSpec.rollCols === 3 ? "grid-cols-3" : currentSpec.rollCols === 2 ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
+                          <div className="flex flex-row items-center justify-center gap-[3px]">
                             {Array.from({ length: currentSpec.rollCols || 2 }).map((_, colIdx) => (
-                              <div key={colIdx} className="flex flex-col items-center">
-                                {/* Die-Cut Barbell Tag */}
-                                <div className="w-full flex flex-col items-center select-none shadow-xs rounded-[2px]">
-                                  {/* Top Flap (Wing 1 - Rotated 90° along length) */}
-                                  <div className="w-full h-[80px] bg-white border border-slate-300 rounded-t-[2px] flex items-center justify-center overflow-hidden relative">
-                                    <div className="w-[74px] h-[64px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
+                              <div key={colIdx} className="flex flex-col items-center shrink-0">
+                                {/* Die-Cut Barbell Tag (15mm x 100mm Narrow Strip: 40px x 270px) */}
+                                <div className="w-[40px] h-[270px] flex flex-col justify-between items-center select-none shadow-xs rounded-[2px] bg-white">
+                                  {/* Top Flap (Wing 1 - 40px wide x 102px tall: Vertical Rectangle, Rotated 90° along length) */}
+                                  <div className="w-full h-[102px] bg-white border border-slate-300 rounded-t-[2px] flex items-center justify-center overflow-hidden relative shadow-2xs">
+                                    <div className="w-[94px] h-[34px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
                                       <div className="flex justify-between items-center w-full">
-                                        <span className="text-[4.5px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[40px]">
+                                        <span className="text-[4px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[42px]">
                                           {customHeader || "CLINICAL"}
                                         </span>
                                         <span className="text-[6.5px] font-extrabold text-[#2563eb] shrink-0">
@@ -837,49 +848,52 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                                         <span className="text-[6px] font-bold text-slate-800 truncate block" title={displayTitle}>
                                           {displayTitle}
                                         </span>
-                                        <span className="text-[5px] font-semibold text-slate-500 uppercase tracking-wide truncate block mt-0.5">
+                                        <span className="text-[4.5px] font-semibold text-slate-500 uppercase tracking-wide truncate block mt-0.5">
                                           {item.brand || item.category || "FRAME"}
                                         </span>
                                       </div>
                                     </div>
                                   </div>
 
-                                  {/* Narrow Die-Cut Strap */}
-                                  <div className="w-[12px] h-[36px] bg-white border-x border-dashed border-slate-400 flex flex-col items-center justify-center my-[-1px] z-1 shadow-2xs">
-                                    <span className="text-[4px] font-bold text-slate-400 tracking-widest rotate-90 select-none">
+                                  {/* Narrow Die-Cut Strap (13px wide x 66px tall with 50mm Center Fold Divider) */}
+                                  <div className="w-[13px] h-[66px] bg-white border-x border-dashed border-slate-400 flex flex-col items-center justify-center my-[-1px] z-1 shadow-2xs relative">
+                                    <div className="w-full border-t border-dashed border-slate-400 absolute top-1/2 left-0 -translate-y-1/2" />
+                                    <span className="text-[4px] font-bold text-slate-400 tracking-widest rotate-90 select-none bg-white px-0.5 z-2">
                                       FOLD
                                     </span>
                                   </div>
 
-                                  {/* Bottom Flap with Barcode (Wing 2 - Rotated 90° along length) */}
-                                  <div className="w-full h-[80px] bg-white border border-slate-300 rounded-b-[2px] flex items-center justify-center overflow-hidden relative">
-                                    <div className="w-[74px] h-[64px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-0.5">
-                                      <BarcodeSVG text={displaySku} height={16} barScale={0.75} className="w-[68px] h-4 flex items-center justify-center overflow-hidden" />
+                                  {/* Bottom Flap with Barcode (Wing 2 - 40px wide x 102px tall: Vertical Rectangle, Rotated 90° along length) */}
+                                  <div className="w-full h-[102px] bg-white border border-slate-300 rounded-b-[2px] flex items-center justify-center overflow-hidden relative shadow-2xs">
+                                    <div className="w-[94px] h-[34px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-0.5">
+                                      <BarcodeSVG text={displaySku} height={14} barScale={0.72} className="w-[86px] h-3.5 flex items-center justify-center overflow-hidden" />
                                       {showSKU && showBarcodeText && (
-                                        <span className="text-[5px] font-mono font-bold text-slate-700 tracking-wider mt-0.5 truncate">
+                                        <span className="text-[4.5px] font-mono font-bold text-slate-700 tracking-wider mt-0.5 truncate">
                                           {displaySku}
                                         </span>
                                       )}
                                     </div>
                                   </div>
                                 </div>
-                                <span className="text-[7.5px] font-mono font-bold text-slate-600 bg-white/90 px-1.5 py-0.5 rounded border border-slate-300 mt-1 shadow-2xs">Col #{colIdx + 1}</span>
+                                <span className="text-[7px] font-mono font-bold text-slate-600 bg-white/90 px-1 py-0.5 rounded border border-slate-300 mt-1 shadow-2xs">
+                                  #{colIdx + 1}
+                                </span>
                               </div>
                             ))}
                           </div>
 
                           {/* Perforation / Feed Pitch Cut Guideline */}
-                          <div className="pt-1 border-t-2 border-dashed border-indigo-400 flex items-center justify-between text-[7.5px] font-bold text-indigo-600 px-1">
-                            <span>- - - - -</span>
+                          <div className="pt-1.5 mt-1 border-t-2 border-dashed border-indigo-400 flex items-center justify-between text-[7px] font-bold text-indigo-600 px-1">
+                            <span>- - -</span>
                             <span className="uppercase tracking-wider">{currentSpec.rollHeightMm || 100}mm Feed Pitch Cut</span>
-                            <span>- - - - -</span>
+                            <span>- - -</span>
                           </div>
 
                           {/* Next Row Peek (Showing Continuous Flow) */}
-                          <div className={`grid ${currentSpec.rollCols === 3 ? "grid-cols-3" : currentSpec.rollCols === 2 ? "grid-cols-2" : "grid-cols-1"} gap-2 opacity-50`}>
+                          <div className="flex flex-row items-center justify-center gap-[3px] opacity-40 mt-1">
                             {Array.from({ length: currentSpec.rollCols || 2 }).map((_, nextIdx) => (
-                              <div key={nextIdx} className="h-7 bg-white border border-slate-300 rounded-t-[2px] flex items-center justify-center text-[6px] font-mono font-bold text-slate-600">
-                                Tag #{(currentSpec.rollCols || 2) + nextIdx + 1}
+                              <div key={nextIdx} className="w-[40px] h-6 bg-white border border-slate-300 rounded-t-[2px] flex items-center justify-center text-[5.5px] font-mono font-bold text-slate-600">
+                                #{(currentSpec.rollCols || 2) + nextIdx + 1}
                               </div>
                             ))}
                           </div>

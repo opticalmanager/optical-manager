@@ -538,9 +538,10 @@ export function buildOneVerticalTagHtml(
         </div>
       </div>
 
-      <!-- Center Tail / Strap: Narrow Bridge (~24mm) -->
-      <div style="width:5mm;height:24mm;box-sizing:border-box;background:#ffffff;border-left:${flapBorderCss};border-right:${flapBorderCss};display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
-        <span style="font-size:4px;color:#94a3b8;font-weight:700;transform:rotate(90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;">FOLD</span>
+      <!-- Center Tail / Strap: Narrow Bridge (~24mm with 50mm center fold dividing 100mm length) -->
+      <div style="width:5mm;height:24mm;box-sizing:border-box;background:#ffffff;border-left:${flapBorderCss};border-right:${flapBorderCss};display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+        <div style="position:absolute;top:50%;left:0;width:100%;border-top:1px dashed #cbd5e1;transform:translateY(-50%);"></div>
+        <span style="font-size:4px;color:#94a3b8;font-weight:700;transform:rotate(90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;background:#ffffff;position:relative;z-index:1;padding:0 1px;">FOLD</span>
       </div>
 
       <!-- Bottom Flap (Wing 2): Barcode & SKU (Vertical Tag 90° Orientation along 38mm length) -->
