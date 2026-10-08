@@ -75,14 +75,35 @@ export interface PriorityReminder {
  */
 export type TimeframeType = "24h" | "yesterday" | "7d" | "30d" | "90d" | "12m" | "ytd" | "all";
 
+export type OrderFulfillmentFilterType =
+  | "ALL"
+  | "DELIVERED"
+  | "PENDING"
+  | "DELAYED"
+  | "READY"
+  | "PROCESSING"
+  | "ON_HOLD";
+
+export type OrderPaymentTabType = "ALL" | "PAID" | "PARTIALLY_PAID" | "UNPAID";
+
 export async function buildOrderFilters(params: {
   shopId: string;
-  tab: "ALL" | "PAID" | "PARTIALLY_PAID";
-  search: string;
-  timeframe: TimeframeType;
-  filter: "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+  tab?: OrderPaymentTabType | string;
+  search?: string;
+  timeframe?: TimeframeType | string;
+  filter?: OrderFulfillmentFilterType | string;
+  paymentMethod?: string;
+  hasDues?: boolean | string;
 }) {
-  const { shopId, tab, search, timeframe, filter } = params;
+  const {
+    shopId,
+    tab = "ALL",
+    search = "",
+    timeframe = "30d",
+    filter = "ALL",
+    paymentMethod,
+    hasDues,
+  } = params;
 
   // Dynamic Date-Range calculations
   const nowTime = Date.now();
@@ -168,22 +189,37 @@ export async function buildOrderFilters(params: {
     }
   }
 
-  if (tab === "PAID") {
+  const upperTab = (tab || "ALL").toUpperCase();
+  if (upperTab === "PAID") {
     filters.push(eq(invoices.status, "PAID"));
-  } else if (tab === "PARTIALLY_PAID") {
+  } else if (upperTab === "PARTIALLY_PAID") {
     filters.push(
       and(
         eq(invoices.status, "PENDING"),
         gt(sql`${invoices.amountPaid}::numeric`, 0)
       )!
     );
+  } else if (upperTab === "UNPAID") {
+    filters.push(
+      and(
+        eq(invoices.status, "PENDING"),
+        eq(sql`${invoices.amountPaid}::numeric`, 0)
+      )!
+    );
   }
 
-  if (filter === "DELIVERED") {
+  const upperFilter = (filter || "ALL").toUpperCase();
+  if (upperFilter === "DELIVERED") {
     filters.push(eq(invoices.fulfillmentStatus, "DELIVERED"));
-  } else if (filter === "PENDING") {
+  } else if (upperFilter === "PENDING") {
     filters.push(ne(invoices.fulfillmentStatus, "DELIVERED"));
-  } else if (filter === "DELAYED") {
+  } else if (upperFilter === "READY") {
+    filters.push(eq(invoices.fulfillmentStatus, "READY"));
+  } else if (upperFilter === "PROCESSING") {
+    filters.push(eq(invoices.fulfillmentStatus, "PROCESSING"));
+  } else if (upperFilter === "ON_HOLD") {
+    filters.push(eq(invoices.fulfillmentStatus, "ON_HOLD"));
+  } else if (upperFilter === "DELAYED") {
     const nowStr = new Date().toISOString().split("T")[0];
     filters.push(
       and(
@@ -192,6 +228,16 @@ export async function buildOrderFilters(params: {
         sql`${invoices.estimatedDelivery} < ${nowStr}`
       )!
     );
+  }
+
+  // Payment Method filter
+  if (paymentMethod && paymentMethod.toUpperCase() !== "ALL") {
+    filters.push(eq(invoices.paymentMethod, paymentMethod.toUpperCase() as any));
+  }
+
+  // Has Dues filter (Balance Due > 0)
+  if (hasDues === true || hasDues === "true" || hasDues === "1") {
+    filters.push(gt(sql`${invoices.balanceDue}::numeric`, 0));
   }
 
   if (isSearchActive) {
@@ -233,14 +279,26 @@ export async function buildOrderFilters(params: {
 
 export async function getOrdersDashboardData(params: {
   shopId: string;
-  tab: "ALL" | "PAID" | "PARTIALLY_PAID";
-  search: string;
+  tab?: string;
+  search?: string;
   page: number;
   limit: number;
   timeframe?: TimeframeType;
-  filter?: "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+  filter?: string;
+  paymentMethod?: string;
+  hasDues?: boolean | string;
 }) {
-  const { shopId, tab, search, page, limit, timeframe = "30d", filter = "ALL" } = params;
+  const {
+    shopId,
+    tab = "ALL",
+    search = "",
+    page,
+    limit,
+    timeframe = "30d",
+    filter = "ALL",
+    paymentMethod,
+    hasDues,
+  } = params;
   const offset = (page - 1) * limit;
 
   // Get active filters and date boundaries
@@ -257,6 +315,8 @@ export async function getOrdersDashboardData(params: {
     search,
     timeframe,
     filter,
+    paymentMethod,
+    hasDues,
   });
 
   const currentStartIso = currentStart > 0 ? new Date(currentStart).toISOString() : null;
@@ -561,12 +621,22 @@ function formatCurrency(amount: string | number) {
 
 export async function exportOrdersToCSVData(params: {
   shopId: string;
-  tab: "ALL" | "PAID" | "PARTIALLY_PAID";
-  search: string;
-  timeframe: TimeframeType;
-  filter: "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+  tab?: string;
+  search?: string;
+  timeframe?: TimeframeType;
+  filter?: string;
+  paymentMethod?: string;
+  hasDues?: boolean | string;
 }) {
-  const { shopId, tab, search, timeframe, filter } = params;
+  const {
+    shopId,
+    tab = "ALL",
+    search = "",
+    timeframe = "30d",
+    filter = "ALL",
+    paymentMethod,
+    hasDues,
+  } = params;
 
   // 1. Compile identical filters
   const { filters } = await buildOrderFilters({
@@ -575,6 +645,8 @@ export async function exportOrdersToCSVData(params: {
     search,
     timeframe,
     filter,
+    paymentMethod,
+    hasDues,
   });
 
   // 2. Fetch ALL matching records (no limit, no offset)

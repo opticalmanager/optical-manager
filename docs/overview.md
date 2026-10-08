@@ -72,6 +72,11 @@
   - *Harmonized Revenue & Collections*: Financial KPIs define Revenue as total billed sales across valid invoices in the period, Collections as actual cash inflow (`amountPaid`), and Accounts Receivable as active outstanding dues (`balanceDue`), maintaining mathematical harmony ($Revenue = Collections + Receivables$).
   - *Chronological Prescription Ordering*: Prescriptions query in descending order (`createdAt DESC`), ensuring index `[0]` consistently refers to the customer's latest clinical refraction test across printing, profile, and WhatsApp templates.
   - *Guaranteed Order Form Receipt Linking*: Every booked order (online or offline sync) generates an official booking receipt record linked via `orders.receiptId`, and full order edits maintain and update this receipt without receipt loss or null reference crashes.
+- **Industrial Multi-Criteria Orders Filter Engine (`/shop/orders`)**:
+  - *Interactive Filter Popover (`OrdersFilterPopover`)*: Replaces static buttons with an industrial, accessible popover modal featuring live active filter counter badges, backdrop click/ESC dismissal, and quick reset controls.
+  - *Multi-Dimensional Business Criteria*: Supports filtering across Delivery Status (`ALL`, `PENDING`, `READY`, `PROCESSING`, `DELIVERED`, `DELAYED` [overdue delivery dates], `ON_HOLD`), Payment Status (`ALL`, `PAID`, `PARTIALLY_PAID`, `UNPAID`), Payment Mode (`ALL`, `CASH`, `UPI`, `CARD`, `BANK_TRANSFER`), Timeframe (`24h`, `yesterday`, `7d`, `30d`, `90d`, `12m`, `ytd`, `all`), and an instant Pending Dues Toggle (`hasDues=true` where `balanceDue > 0`).
+  - *Active Filter Chips Bar (`ActiveOrderFilterChips`)*: Displays removable pill badges above the table for all active query parameters with 1-click individual removal and "Clear All".
+  - *Full Query State Preservation*: Seamless URL query parameter synchronization (`searchParams`) preserved across full-text search, pagination, KPI filter cards, and CSV export (`/api/orders/export`).
 - **Multi-Dashboard Inward Triggers**: Direct access via the high-density action dropdowns on the Customers directory (`/shop/customers` -> `Add Bulk Invoices (CSV)`) and Orders management hub (`/shop/orders` -> `Invoices & Sales` -> `Import Invoices (CSV)`).
 
 ### 5. Purchases, Inward Supply & 4-Step Bulk CSV Ingestion Architecture

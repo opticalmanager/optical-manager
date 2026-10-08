@@ -11,6 +11,7 @@ import { OrdersTableClient } from "./OrdersTableClient";
 import { DeletedRecordsModal } from "./DeletedRecordsModal";
 import { OrdersSearchInput } from "@/components/shop/orders/OrdersSearchInput";
 import { OrderHeaderActions } from "@/components/shop/orders/OrderHeaderActions";
+import { OrdersFilterPopover, ActiveOrderFilterChips } from "@/components/shop/orders/OrdersFilterPopover";
 import { 
   SlidersHorizontal, 
   Download, 
@@ -35,14 +36,18 @@ export default async function OrdersDashboardPage({
     page?: string;
     timeframe?: string;
     filter?: string;
+    paymentMethod?: string;
+    hasDues?: string;
   }>;
 }) {
   const params = await searchParams;
   const search = params.search || "";
-  const tab = (params.tab || "ALL") as "ALL" | "PAID" | "PARTIALLY_PAID";
+  const tab = (params.tab || "ALL").toUpperCase();
   const page = parseInt(params.page || "1", 10);
   const timeframe = params.timeframe || "30d";
-  const filter = (params.filter || "ALL").toUpperCase() as "ALL" | "DELIVERED" | "PENDING" | "DELAYED";
+  const filter = (params.filter || "ALL").toUpperCase();
+  const paymentMethod = (params.paymentMethod || "ALL").toUpperCase();
+  const hasDues = params.hasDues === "true" || params.hasDues === "1";
   const limit = 8; // Display 8 rows per page for high-density SaaS viewing
  
   const user = await getCurrentUser();
@@ -108,6 +113,8 @@ export default async function OrdersDashboardPage({
           limit,
           timeframe: timeframe as TimeframeType,
           filter,
+          paymentMethod,
+          hasDues,
         }),
         canDelete && user?.organizationId
           ? getDeletedOrders(shopId, user.organizationId)
@@ -158,7 +165,7 @@ export default async function OrdersDashboardPage({
               : "border border-slate-200/80 bg-white shadow-xs hover:border-slate-300"
           }`}>
             <Link 
-              href={`/shop/orders?filter=ALL&tab=${tab}&search=${search}&timeframe=${timeframe}`}
+              href={`/shop/orders?filter=ALL&tab=${tab}&search=${search}&timeframe=${timeframe}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
               className="absolute inset-0 z-0 rounded-xl font-bold"
             />
             <div className="relative z-10 flex items-center justify-between pointer-events-none">
@@ -183,7 +190,7 @@ export default async function OrdersDashboardPage({
  
         {/* Metric 2: Delivered Orders */}
         <Link 
-          href={`/shop/orders?filter=${filter === "DELIVERED" ? "ALL" : "DELIVERED"}&tab=${tab}&search=${search}&timeframe=${timeframe}`}
+          href={`/shop/orders?filter=${filter === "DELIVERED" ? "ALL" : "DELIVERED"}&tab=${tab}&search=${search}&timeframe=${timeframe}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
           className="block h-full"
         >
           <Card className={`h-full transition-all cursor-pointer rounded-xl p-4 flex flex-col justify-between ${
@@ -220,7 +227,7 @@ export default async function OrdersDashboardPage({
  
         {/* Metric 3: Pending Orders */}
         <Link 
-          href={`/shop/orders?filter=${filter === "PENDING" ? "ALL" : "PENDING"}&tab=${tab}&search=${search}&timeframe=${timeframe}`}
+          href={`/shop/orders?filter=${filter === "PENDING" ? "ALL" : "PENDING"}&tab=${tab}&search=${search}&timeframe=${timeframe}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
           className="block h-full"
         >
           <Card className={`h-full transition-all cursor-pointer rounded-xl p-4 flex flex-col justify-between ${
@@ -251,7 +258,7 @@ export default async function OrdersDashboardPage({
  
         {/* Metric 4: Delayed Orders */}
         <Link 
-          href={`/shop/orders?filter=${filter === "DELAYED" ? "ALL" : "DELAYED"}&tab=${tab}&search=${search}&timeframe=${timeframe}`}
+          href={`/shop/orders?filter=${filter === "DELAYED" ? "ALL" : "DELAYED"}&tab=${tab}&search=${search}&timeframe=${timeframe}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
           className="block h-full"
         >
           <Card className={`h-full transition-all cursor-pointer rounded-xl p-4 flex flex-col justify-between ${
@@ -289,7 +296,7 @@ export default async function OrdersDashboardPage({
           {/* Status Tab buttons */}
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/40 shrink-0">
             <Link
-              href={`/shop/orders?tab=ALL&search=${search}&timeframe=${timeframe}&filter=${filter}`}
+              href={`/shop/orders?tab=ALL&search=${search}&timeframe=${timeframe}&filter=${filter}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
               className={`px-3.5 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${
                 tab === "ALL"
                   ? "bg-white text-slate-900 shadow-sm border border-slate-200/10 font-black"
@@ -299,7 +306,7 @@ export default async function OrdersDashboardPage({
               All Orders
             </Link>
             <Link
-              href={`/shop/orders?tab=PAID&search=${search}&timeframe=${timeframe}&filter=${filter}`}
+              href={`/shop/orders?tab=PAID&search=${search}&timeframe=${timeframe}&filter=${filter}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
               className={`px-3.5 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${
                 tab === "PAID"
                   ? "bg-white text-slate-900 shadow-sm border border-slate-200/10 font-black"
@@ -309,7 +316,7 @@ export default async function OrdersDashboardPage({
               Paid
             </Link>
             <Link
-              href={`/shop/orders?tab=PARTIALLY_PAID&search=${search}&timeframe=${timeframe}&filter=${filter}`}
+              href={`/shop/orders?tab=PARTIALLY_PAID&search=${search}&timeframe=${timeframe}&filter=${filter}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
               className={`px-3.5 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${
                 tab === "PARTIALLY_PAID"
                   ? "bg-white text-slate-900 shadow-sm border border-slate-200/10 font-black"
@@ -324,23 +331,35 @@ export default async function OrdersDashboardPage({
           <OrdersSearchInput defaultValue={search} />
         </div>
  
-        {/* Right: Filters/CSV Buttons */}
+        {/* Right: Functional Industrial Filter Popover & CSV Export */}
         <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            className="h-9 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-800 transition-colors cursor-pointer bg-white flex items-center gap-1.5"
-          >
-            <SlidersHorizontal className="h-4 w-4 text-slate-650" /> Filter
-          </button>
+          <OrdersFilterPopover
+            currentFilter={filter}
+            currentTab={tab}
+            currentTimeframe={timeframe}
+            currentPaymentMethod={paymentMethod}
+            currentHasDues={hasDues}
+            search={search}
+          />
           
           <Link
-            href={`/api/orders/export?tab=${tab}&search=${encodeURIComponent(search)}&timeframe=${timeframe}&filter=${filter}`}
+            href={`/api/orders/export?tab=${tab}&search=${encodeURIComponent(search)}&timeframe=${timeframe}&filter=${filter}${paymentMethod !== "ALL" ? `&paymentMethod=${paymentMethod}` : ""}${hasDues ? "&hasDues=true" : ""}`}
             className="h-9 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-800 transition-colors cursor-pointer bg-white flex items-center gap-1.5"
           >
             <Download className="h-4 w-4 text-slate-655" /> Export CSV
           </Link>
         </div>
       </div>
+
+      {/* 4. Active Filter Chips Indicator Bar */}
+      <ActiveOrderFilterChips
+        currentFilter={filter}
+        currentTab={tab}
+        currentTimeframe={timeframe}
+        currentPaymentMethod={paymentMethod}
+        currentHasDues={hasDues}
+        search={search}
+      />
  
       {/* 5. Invoices & Orders Main Table Card */}
       <Card className="border border-slate-200/80 bg-white shadow-sm rounded-2xl overflow-hidden">
@@ -353,6 +372,8 @@ export default async function OrdersDashboardPage({
           search={search}
           timeframe={timeframe}
           filter={filter}
+          paymentMethod={paymentMethod}
+          hasDues={hasDues}
           limit={limit}
           canEditOrders={canUserEditOrders(user)}
         />

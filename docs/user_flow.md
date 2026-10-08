@@ -146,7 +146,37 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 
 ---
 
-## 7. Order Editing, Stock Re-balancing & Update Audit History Workflow
+## 7. Orders Management Hub & Multi-Criteria Industrial Filtering Workflow
+
+```
+┌──────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│ Orders Hub       │───>│ Filter Popover  │───>│ Active Chips    │───>│ Filtered Table & │
+│ /shop/orders     │    │ Multi-Criteria  │    │ 1-Click Remove  │    │ CSV Export Sync  │
+└──────────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+```
+
+1. **Interactive Filter Popover (`OrdersFilterPopover`)**:
+   - Replaced dead static filter button with a high-density, accessible filter popover modal.
+   - Live counter badge (`bg-blue-600 text-white rounded-full`) indicates the number of active filters.
+   - Dismisses cleanly via backdrop click or `Escape` keyboard shortcut.
+2. **Multi-Dimensional Business Criteria**:
+   - **Delivery / Fulfillment Status**: `ALL`, `PENDING`, `READY`, `PROCESSING`, `DELIVERED`, `DELAYED` (overdue beyond estimated delivery date), and `ON_HOLD`.
+   - **Payment Status**: `ALL`, `PAID` (`balanceDue <= 0`), `PARTIALLY_PAID` (`balanceDue > 0` and `amountPaid > 0`), and `UNPAID` (`amountPaid == 0`).
+   - **Payment Mode / Method**: `ALL`, `CASH`, `UPI`, `CARD`, `BANK_TRANSFER`.
+   - **Timeframe / Range**: `24h` (Today), `yesterday`, `7d`, `30d`, `90d`, `12m`, `ytd`, and `all`.
+   - **Pending Balance Dues Toggle**: Instant toggle switch isolating orders with outstanding dues (`hasDues=true` where `balanceDue > 0`).
+3. **Active Filter Chips Bar (`ActiveOrderFilterChips`)**:
+   - Rendered directly above the main table card.
+   - Shows active criteria badges with label, value, and interactive `×` removal button.
+   - Includes a one-click "Clear All Filters" button.
+4. **URL Synchronization & Export Integrity**:
+   - All criteria are synchronized bi-directionally with URL query parameters (`searchParams`).
+   - Filter state is strictly preserved during pagination, full-text searches, and top KPI selection clicks.
+   - CSV export (`/api/orders/export`) accepts `paymentMethod`, `hasDues`, `filter`, `tab`, `timeframe`, and `search`, ensuring downloaded spreadsheets match the exact on-screen filtered dataset.
+
+---
+
+## 8. Order Editing, Stock Re-balancing & Update Audit History Workflow
 
 ```
 ┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
