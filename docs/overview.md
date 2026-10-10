@@ -197,3 +197,10 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 - **Multiline Textarea Protection**: Native `<textarea>` elements preserve multi-line typing on standard `Enter` (useful for medical history and notes) while supporting `Ctrl+Enter` or `Cmd+Enter` to advance navigation.
 - **Smart Autocomplete Gating**: When dropdown lists or search suggestion popovers are active, `Enter` selects the highlighted item without erroneously advancing the form.
 - **Universal Production Coverage**: Integrated across all core store workflows including `NewInvoiceForm`, `PatientRegistrationForm`, `Add/EditFrameItemForm`, `Add/EditLensItemForm`, `Add/EditContactLensItemForm`, `Add/EditAccessoryItemForm`, `AddGeneralItemForm`, `PurchaseAddForm`, `PurchaseAddProductModal`, `NewReturnForm`, `AddPrescriptionModal`, `EditOrderForm`, `NewAppointmentModal`, and `PurchaseVendorCombobox`.
+
+---
+
+## 8. Landing Page Interactive Video Showcase (`/`)
+- **Self-Hosted Zero-Latency Media**: The public landing page hero section features an embedded high-density product demonstration video (`public/videos/hero-intro.mp4`), eliminating third-party iframe latency and rate limiting.
+- **Browser-Compliant Smart Autoplay & Audio Management**: Starts playing immediately on load with browser-compliant muted autoplay; features an animated floating glassmorphism pill (`🔊 Sound Off • Click to Unmute`) and full-frame click-to-unmute interaction.
+- **Cinematic Micro-Controls**: Custom hover overlay with progress scrubber, time counter (`MM:SS`), play/pause toggle, volume controls, and native fullscreen support.

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Play, ArrowRight, Sparkles } from "lucide-react";
+import { Play, ArrowRight } from "lucide-react";
 import DemoRequestModal from "./DemoRequestModal";
 import { InstallAppButton } from "./InstallAppButton";
+import HeroVideoPlayer from "./HeroVideoPlayer";
 
 export default function HeroSection() {
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
@@ -70,30 +69,9 @@ export default function HeroSection() {
             </div>
           </div>
 
-          {/* Right: Dashboard preview */}
+          {/* Right: Interactive Product Video Preview */}
           <div className="animate-fade-in-up animate-delay-300 relative">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-slate-900/10 border border-slate-200/60 bg-white p-2">
-              <div className="rounded-xl overflow-hidden border border-slate-100">
-                <Image
-                  src="/landing/dashboard-preview.png"
-                  alt="Optical Manager Dashboard Preview"
-                  width={700}
-                  height={480}
-                  className="w-full h-auto"
-                  priority
-                />
-              </div>
-              {/* Overlay gradient for polish */}
-              <div className="absolute inset-0 bg-gradient-to-t from-white/10 to-transparent pointer-events-none" />
-            </div>
-            {/* Floating badge */}
-            <div className="absolute -bottom-4 -left-4 bg-white/95 backdrop-blur-md rounded-xl shadow-xl px-4 py-3 border border-slate-100/80 animate-fade-in animate-delay-600">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm font-bold text-text-main">SaaS Operating System</span>
-              </div>
-              <p className="text-xs text-text-muted mt-0.5">for modern optical retail</p>
-            </div>
+            <HeroVideoPlayer />
           </div>
         </div>
       </div>
