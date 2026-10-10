@@ -20,9 +20,9 @@ export default function HeroSection() {
       <div className="absolute bottom-0 left-0 w-72 h-72 bg-blue-100/30 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-start">
           {/* Left: Text content */}
-          <div className="animate-fade-in-up">
+          <div className="animate-fade-in-up lg:pt-1">
             <h1 className="text-4xl sm:text-5xl lg:text-[3.75rem] font-extrabold leading-[1.15] tracking-tight text-text-main">
               Everything Your <br />
               <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 bg-clip-text text-transparent">

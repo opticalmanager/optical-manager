@@ -231,6 +231,9 @@ function extractOfflineUserFromCookies(request: NextRequest): any | null {
     (route) =>
       pathname === route ||
       pathname.startsWith("/api/auth/") ||
+      pathname.startsWith("/api/video") ||
+      pathname.startsWith("/videos/") ||
+      pathname.startsWith("/landing/") ||
       pathname.startsWith("/book/") ||
       pathname.startsWith("/share/") ||
       pathname.startsWith("/icons/") ||
@@ -289,6 +292,6 @@ function extractOfflineUserFromCookies(request: NextRequest): any | null {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|manifest.json|sw.js|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|manifest.json|sw.js|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|webm|ogg)$).*)",
   ],
 };

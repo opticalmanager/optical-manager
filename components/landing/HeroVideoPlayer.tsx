@@ -132,18 +132,23 @@ export default function HeroVideoPlayer() {
         <div className="relative rounded-xl overflow-hidden border border-slate-100 bg-slate-950 aspect-[16/9]">
           <video
             ref={videoRef}
-            src="/videos/hero-intro.mp4"
-            poster="/landing/dashboard-preview.png"
+            poster="/videos/hero-poster.jpg"
             playsInline
             autoPlay
             loop
             muted
             preload="auto"
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onPlaying={() => setIsPlaying(true)}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onClick={handleVideoClick}
-            className="w-full h-full object-cover cursor-pointer"
-          />
+            className="w-full h-full object-cover cursor-pointer block"
+          >
+            <source src="/videos/hero-intro.mp4" type="video/mp4" />
+            <source src="/api/video" type="video/mp4" />
+          </video>
 
           {/* Floating Unmute / Sound Pill in Top-Right */}
           <button
@@ -169,13 +174,13 @@ export default function HeroVideoPlayer() {
             )}
           </button>
 
-          {/* Center Play/Pause Indicator (when paused) */}
+          {/* Center Play/Pause Indicator (when paused) - Crystal clear without blur */}
           {!isPlaying && (
             <div
               onClick={togglePlay}
-              className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] cursor-pointer transition-opacity"
+              className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/25 hover:bg-slate-950/35 cursor-pointer transition-colors"
             >
-              <div className="w-16 h-16 rounded-full bg-blue-600/90 text-white flex items-center justify-center shadow-xl shadow-blue-600/30 border border-white/20 hover:scale-110 transition-transform">
+              <div className="w-16 h-16 rounded-full bg-blue-600/95 text-white flex items-center justify-center shadow-2xl shadow-blue-600/50 border border-white/30 hover:scale-110 transition-transform">
                 <Play className="w-7 h-7 ml-1 fill-white" />
               </div>
             </div>
