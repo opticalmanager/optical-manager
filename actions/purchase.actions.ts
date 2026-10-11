@@ -17,6 +17,56 @@ import {
   type GetPurchaseOrdersOptions,
 } from "@/services/purchase.service";
 import { createVendor, updateVendor, getVendorsByOrganization } from "@/services/vendor.service";
+import { db } from "@/lib/drizzle";
+import { shops } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+
+function sanitizePurchaseData(data: any) {
+  const cleanStrNum = (v: any, def = 0): number => {
+    if (typeof v === "number") return isNaN(v) ? def : v;
+    if (!v) return def;
+    const n = parseFloat(String(v).replace(/[^0-9.-]/g, ""));
+    return isNaN(n) ? def : n;
+  };
+
+  const items = (data?.items || []).map((it: any, idx: number) => {
+    const qty = Math.max(1, Math.round(cleanStrNum(it.quantity, 1)));
+    const unitPrice = Math.max(0, cleanStrNum(it.unitPrice, 0));
+    const basePrice = Math.max(0, cleanStrNum(it.basePrice, unitPrice));
+    const purchasePrice = Math.max(0, cleanStrNum(it.purchasePrice, unitPrice));
+    const totalPurchasePrice = Math.max(0, cleanStrNum(it.totalPurchasePrice, purchasePrice * qty));
+    const retailPrice = Math.max(0, cleanStrNum(it.retailPrice, 0));
+
+    return {
+      inventoryId: it.inventoryId || null,
+      serialNumber: idx + 1,
+      productName: (it.productName || it.productCode || `Item #${idx + 1}`).trim(),
+      productCode: it.productCode ? String(it.productCode).trim() : null,
+      category: it.category ? String(it.category).trim() : "FRAME",
+      details: it.details ? String(it.details).trim() : null,
+      unitPrice,
+      basePrice,
+      hsnCode: it.hsnCode ? String(it.hsnCode).trim() : null,
+      gstPercent: cleanStrNum(it.gstPercent, 0),
+      cgstPercent: cleanStrNum(it.cgstPercent, 0),
+      cgstAmount: cleanStrNum(it.cgstAmount, 0),
+      sgstPercent: cleanStrNum(it.sgstPercent, 0),
+      sgstAmount: cleanStrNum(it.sgstAmount, 0),
+      igstPercent: cleanStrNum(it.igstPercent, 0),
+      igstAmount: cleanStrNum(it.igstAmount, 0),
+      purchasePrice,
+      quantity: qty,
+      totalPurchasePrice,
+      retailPrice,
+    };
+  });
+
+  return {
+    ...data,
+    roundOff: cleanStrNum(data?.roundOff, 0),
+    items,
+  };
+}
 
 /**
  * Server action to create and finalize a purchase order.
@@ -25,8 +75,8 @@ import { createVendor, updateVendor, getVendorsByOrganization } from "@/services
 export async function createPurchaseAction(data: PurchaseOrderFormValues) {
   try {
     const user = await getCurrentUser();
-    if (!user || !user.shopId || !user.organizationId) {
-      return { success: false, message: "Unauthorized or missing shop session." };
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized: Please log in." };
     }
 
     if (user.permissions && user.permissions.purchases === false) {
@@ -36,7 +86,36 @@ export async function createPurchaseAction(data: PurchaseOrderFormValues) {
       };
     }
 
-    const validated = purchaseOrderSchema.safeParse(data);
+    let targetShopId = user.shopId;
+    if (!targetShopId && (data as any)?.shopId) {
+      const [shop] = await db
+        .select()
+        .from(shops)
+        .where(
+          and(
+            eq(shops.id, (data as any).shopId),
+            eq(shops.organizationId, user.organizationId)
+          )
+        )
+        .limit(1);
+      if (shop) targetShopId = shop.id;
+    }
+
+    if (!targetShopId && user.role === "OWNER") {
+      const [firstShop] = await db
+        .select()
+        .from(shops)
+        .where(eq(shops.organizationId, user.organizationId))
+        .limit(1);
+      if (firstShop) targetShopId = firstShop.id;
+    }
+
+    if (!targetShopId) {
+      return { success: false, message: "Unauthorized or missing shop session." };
+    }
+
+    const sanitized = sanitizePurchaseData({ ...data, status: "COMPLETED" });
+    const validated = purchaseOrderSchema.safeParse(sanitized);
     if (!validated.success) {
       const firstError = validated.error.issues[0]?.message || "Validation failed";
       return { success: false, message: firstError };
@@ -70,7 +149,7 @@ export async function createPurchaseAction(data: PurchaseOrderFormValues) {
       } else {
         try {
           const createdVendor = await createVendor({
-            shopId: user.shopId,
+            shopId: targetShopId,
             organizationId: user.organizationId,
             name: cleanVendorName,
             gstin: cleanVendorGstin || undefined,
@@ -84,7 +163,7 @@ export async function createPurchaseAction(data: PurchaseOrderFormValues) {
     }
 
     const result = await createPurchaseOrder({
-      shopId: user.shopId,
+      shopId: targetShopId,
       organizationId: user.organizationId,
       vendorId: resolvedVendorId,
       vendorName: cleanVendorName || payload.vendorName,
@@ -144,8 +223,8 @@ export async function createPurchaseAction(data: PurchaseOrderFormValues) {
 export async function savePurchaseDraftAction(data: PurchaseOrderFormValues) {
   try {
     const user = await getCurrentUser();
-    if (!user || !user.shopId || !user.organizationId) {
-      return { success: false, message: "Unauthorized or missing shop session." };
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized: Please log in." };
     }
 
     if (user.permissions && user.permissions.purchases === false) {
@@ -155,10 +234,36 @@ export async function savePurchaseDraftAction(data: PurchaseOrderFormValues) {
       };
     }
 
-    const validated = purchaseOrderSchema.safeParse({
-      ...data,
-      status: "DRAFT",
-    });
+    let targetShopId = user.shopId;
+    if (!targetShopId && (data as any)?.shopId) {
+      const [shop] = await db
+        .select()
+        .from(shops)
+        .where(
+          and(
+            eq(shops.id, (data as any).shopId),
+            eq(shops.organizationId, user.organizationId)
+          )
+        )
+        .limit(1);
+      if (shop) targetShopId = shop.id;
+    }
+
+    if (!targetShopId && user.role === "OWNER") {
+      const [firstShop] = await db
+        .select()
+        .from(shops)
+        .where(eq(shops.organizationId, user.organizationId))
+        .limit(1);
+      if (firstShop) targetShopId = firstShop.id;
+    }
+
+    if (!targetShopId) {
+      return { success: false, message: "Unauthorized or missing shop session." };
+    }
+
+    const sanitized = sanitizePurchaseData({ ...data, status: "DRAFT" });
+    const validated = purchaseOrderSchema.safeParse(sanitized);
     if (!validated.success) {
       const firstError = validated.error.issues[0]?.message || "Validation failed";
       return { success: false, message: firstError };
@@ -192,7 +297,7 @@ export async function savePurchaseDraftAction(data: PurchaseOrderFormValues) {
       } else {
         try {
           const createdVendor = await createVendor({
-            shopId: user.shopId,
+            shopId: targetShopId,
             organizationId: user.organizationId,
             name: cleanVendorName,
             gstin: cleanVendorGstin || undefined,
@@ -206,7 +311,7 @@ export async function savePurchaseDraftAction(data: PurchaseOrderFormValues) {
     }
 
     const result = await createPurchaseOrder({
-      shopId: user.shopId,
+      shopId: targetShopId,
       organizationId: user.organizationId,
       vendorId: resolvedVendorId,
       vendorName: cleanVendorName || payload.vendorName,

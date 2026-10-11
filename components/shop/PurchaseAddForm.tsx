@@ -1035,6 +1035,7 @@ export function PurchaseAddForm({
     }
 
     return {
+      shopId,
       purchaseDate,
       vendorId: selectedVendorId,
       vendorName: vendorName.trim(),
@@ -1042,31 +1043,39 @@ export function PurchaseAddForm({
       purchaseNumber: purchaseNumber.trim(),
       taxRule,
       taxType,
-      roundOff: roundOff || 0,
+      roundOff: Number(roundOff) || 0,
       notes,
       status,
-      items: validItems.map((r, i) => ({
-        inventoryId: r.inventoryId,
-        serialNumber: i + 1,
-        productName: r.productName || r.productCode || `Item #${i + 1}`,
-        productCode: r.productCode,
-        category: r.category,
-        details: r.details,
-        unitPrice: r.unitPrice,
-        basePrice: r.basePrice,
-        hsnCode: r.hsnCode,
-        gstPercent: r.gstPercent,
-        cgstPercent: r.cgstPercent,
-        cgstAmount: r.cgstAmount,
-        sgstPercent: r.sgstPercent,
-        sgstAmount: r.sgstAmount,
-        igstPercent: r.igstPercent,
-        igstAmount: r.igstAmount,
-        purchasePrice: r.purchasePrice,
-        quantity: typeof r.quantity === "number" && r.quantity > 0 ? r.quantity : 1,
-        totalPurchasePrice: r.totalPurchasePrice,
-        retailPrice: r.retailPrice,
-      })),
+      items: validItems.map((r, i) => {
+        const qty = typeof r.quantity === "number" && r.quantity > 0 ? r.quantity : (parseInt(String(r.quantity)) || 1);
+        const up = Number(r.unitPrice) || 0;
+        const bp = Number(r.basePrice) || up;
+        const pp = Number(r.purchasePrice) || up;
+        const tp = Number(r.totalPurchasePrice) || (pp * qty);
+
+        return {
+          inventoryId: r.inventoryId,
+          serialNumber: i + 1,
+          productName: (r.productName || r.productCode || `Item #${i + 1}`).trim(),
+          productCode: r.productCode ? String(r.productCode).trim() : undefined,
+          category: r.category || "FRAME",
+          details: r.details,
+          unitPrice: up,
+          basePrice: bp,
+          hsnCode: r.hsnCode,
+          gstPercent: Number(r.gstPercent) || 0,
+          cgstPercent: Number(r.cgstPercent) || 0,
+          cgstAmount: Number(r.cgstAmount) || 0,
+          sgstPercent: Number(r.sgstPercent) || 0,
+          sgstAmount: Number(r.sgstAmount) || 0,
+          igstPercent: Number(r.igstPercent) || 0,
+          igstAmount: Number(r.igstAmount) || 0,
+          purchasePrice: pp,
+          quantity: qty,
+          totalPurchasePrice: tp,
+          retailPrice: Number(r.retailPrice) || 0,
+        };
+      }),
     };
   };
 
@@ -1075,6 +1084,9 @@ export function PurchaseAddForm({
   const submitPurchasePayload = async (
     payload: any
   ): Promise<{ success: boolean; message: string; purchaseId?: string }> => {
+    // Always inject current shopId
+    payload.shopId = shopId;
+
     // 1. Primary: Direct POST to permanent REST API endpoint (/api/purchases)
     try {
       const res = await fetch("/api/purchases", {
@@ -1083,14 +1095,14 @@ export function PurchaseAddForm({
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success) {
         return data;
       }
 
-      const errData = await res.json().catch(() => null);
-      if (errData?.message) {
-        return { success: false, message: errData.message };
+      if (data?.message) {
+        return { success: false, message: data.message };
       }
     } catch (apiErr: any) {
       console.warn("Direct /api/purchases fetch error, attempting fallback...", apiErr);
@@ -1115,8 +1127,12 @@ export function PurchaseAddForm({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          if (retryRes.ok) {
-            return await retryRes.json();
+          const retryData = await retryRes.json().catch(() => null);
+          if (retryRes.ok && retryData?.success) {
+            return retryData;
+          }
+          if (retryData?.message) {
+            return { success: false, message: retryData.message };
           }
         } catch (retryErr) {
           console.error("Retry direct API failed:", retryErr);

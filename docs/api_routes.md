@@ -57,9 +57,11 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 
 #### `POST /api/purchases`
 - **Description**: Dedicated immutable REST endpoint for recording purchase orders (`status: "COMPLETED"`) and saving draft bills (`status: "DRAFT"`). Eliminates Next.js `"Failed to find Server Action"` hash-mismatch errors during active client sessions or background redeployments.
-- **Payload**: Full `PurchaseOrderFormValues` structure containing `purchaseNumber`, `purchaseDate`, `vendorId`, `vendorName`, `vendorGstin`, `taxRule`, `taxType`, `roundOff`, `notes`, `status`, and `items` array with serial numbers, unit costs, GST breakdowns, and quantities.
+- **Payload**: Full `PurchaseOrderFormValues` structure containing `shopId`, `purchaseNumber`, `purchaseDate`, `vendorId`, `vendorName`, `vendorGstin`, `taxRule`, `taxType`, `roundOff`, `notes`, `status`, and `items` array with serial numbers, unit costs, GST breakdowns, and quantities.
 - **Processing Logic**:
   - Validates active user session and RBAC permission (`user.permissions.purchases !== false`).
+  - **Multi-Branch Owner Session Resolution**: Automatically resolves target shop ID if `user.shopId` is null (e.g. for store owners viewing branch accounts or when cookies time out), safely matching `body.shopId` or fallback organization outlets.
+  - **Defensive Number & String Sanitization**: Cleans currency symbols, commas, and NaN edge cases across `quantity`, `unitPrice`, `basePrice`, `cgstAmount`, `sgstAmount`, `igstAmount`, and `totalPurchasePrice` before schema validation.
   - Auto-resolves or creates vendor records in `vendors` table.
   - Generates deterministic sequential shop SKUs via `getNextSkuSequenceBatch`.
   - Atomic stock updates and audit logging via `createPurchaseOrder` in `services/purchase.service.ts`.
