@@ -183,6 +183,20 @@ function matchCategoryByHsnClient(
   return null;
 }
 
+/**
+ * Detects if a purchase table row is completely blank (no inventory, no code, no name, no details, no qty, no price)
+ */
+export function isRowEmpty(r: PurchaseTableRow): boolean {
+  if (!r) return true;
+  const hasInventory = Boolean(r.inventoryId);
+  const hasCode = Boolean((r.productCode || "").trim());
+  const hasName = Boolean((r.productName || "").trim());
+  const hasDetails = Boolean((r.details || "").trim());
+  const hasQty = typeof r.quantity === "number" && r.quantity > 0;
+  const hasPrice = Number(r.unitPrice) > 0 || Number(r.purchasePrice) > 0;
+  return !hasInventory && !hasCode && !hasName && !hasDetails && !hasQty && !hasPrice;
+}
+
 export function PurchaseAddForm({
   categories,
   vendors,
@@ -216,6 +230,14 @@ export function PurchaseAddForm({
   const [aiExtractedBanner, setAiExtractedBanner] = useState<{
     vendor: string;
     count: number;
+  } | null>(null);
+
+  // Recoverable Draft State (localStorage auto-save recovery)
+  const [recoveredDraft, setRecoveredDraft] = useState<{
+    itemCount: number;
+    totalAmount: string;
+    savedAt: string;
+    draftData: any;
   } | null>(null);
 
   // Bulk Barcode Modal State
@@ -704,31 +726,33 @@ export function PurchaseAddForm({
     try {
       if (!data) return;
 
-      // 1. Auto-select or set vendor
-      if (data.matchedVendorId) {
-        setSelectedVendorId(data.matchedVendorId);
-        setVendorName(data.vendorName || "");
-        if (data.vendorGstin) setVendorGstin(data.vendorGstin);
-      } else if (data.vendorName) {
-        setSelectedVendorId(null);
-        setVendorName(data.vendorName);
-        if (data.vendorGstin) setVendorGstin(data.vendorGstin);
+      // 1. Auto-select or set vendor ONLY IF NOT ALREADY SPECIFIED
+      if (!selectedVendorId && !vendorName.trim()) {
+        if (data.matchedVendorId) {
+          setSelectedVendorId(data.matchedVendorId);
+          setVendorName(data.vendorName || "");
+          if (data.vendorGstin) setVendorGstin(data.vendorGstin);
+        } else if (data.vendorName) {
+          setSelectedVendorId(null);
+          setVendorName(data.vendorName);
+          if (data.vendorGstin) setVendorGstin(data.vendorGstin);
+        }
       }
 
-      // 2. Invoice number & date
-      if (data.invoiceNumber) {
+      // 2. Invoice number & date ONLY IF NOT ALREADY SPECIFIED
+      if (!purchaseNumber.trim() && data.invoiceNumber) {
         setPurchaseNumber(data.invoiceNumber);
       }
-      if (data.invoiceDate) {
+      if (!purchaseDate && data.invoiceDate) {
         setPurchaseDate(data.invoiceDate);
       }
 
-      // 3. Tax type
+      // 3. Tax type (set from invoice if provided)
       if (data.taxType) {
         setTaxType(data.taxType);
       }
 
-      // 4. Populate table rows with extracted line items
+      // 4. Populate or Append table rows with extracted line items
       const itemsList = Array.isArray(data.items) ? data.items : [];
       if (itemsList.length > 0) {
         const safeCategories = Array.isArray(categories) ? categories : [];
@@ -803,14 +827,31 @@ export function PurchaseAddForm({
           });
         });
 
-        setRows(newRows);
-        setAiExtractedBanner({
-          vendor: data.vendorName || "vendor",
-          count: itemsList.length,
-        });
-        toast.success(
-          `Imported ${itemsList.length} items from ${data.vendorName || "bill"} into form!`
-        );
+        // Check if there are already filled rows in the table
+        const existingFilledRows = rows.filter((r) => !isRowEmpty(r));
+
+        if (existingFilledRows.length > 0) {
+          // APPEND: Keep all previously entered/scanned items and add new items below
+          const combinedRows = [...existingFilledRows, ...newRows];
+          setRows(combinedRows);
+          setAiExtractedBanner({
+            vendor: vendorName || data.vendorName || "vendor",
+            count: combinedRows.length,
+          });
+          toast.success(
+            `Appended ${newRows.length} items below existing ${existingFilledRows.length} items! (Total: ${combinedRows.length} items)`
+          );
+        } else {
+          // INITIAL: Replace empty placeholder row with the newly scanned items
+          setRows(newRows);
+          setAiExtractedBanner({
+            vendor: data.vendorName || "vendor",
+            count: newRows.length,
+          });
+          toast.success(
+            `Imported ${newRows.length} items from ${data.vendorName || "bill"} into form!`
+          );
+        }
       }
     } catch (err: any) {
       console.error("handleApplyExtractedBill error:", err);
@@ -838,6 +879,107 @@ export function PurchaseAddForm({
   });
 
   const totalNetPurchase = Number(((totalPurchase || 0) + (roundOff || 0)).toFixed(2));
+
+  // 1. Check localStorage for unsaved purchase draft on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("optical_purchase_autosave_draft");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.rows) && parsed.rows.length > 0) {
+          const filledItems = parsed.rows.filter((r: any) => !isRowEmpty(r));
+          if (filledItems.length > 0) {
+            setRecoveredDraft({
+              itemCount: filledItems.length,
+              totalAmount: parsed.totalNetPurchase || "0.00",
+              savedAt: parsed.savedAt || new Date().toISOString(),
+              draftData: parsed,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not check local draft:", e);
+    }
+  }, []);
+
+  // 2. Debounced auto-save to localStorage whenever items or header fields change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const filledRows = rows.filter((r) => !isRowEmpty(r));
+    if (filledRows.length === 0 && !vendorName.trim() && !purchaseNumber.trim()) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          "optical_purchase_autosave_draft",
+          JSON.stringify({
+            selectedVendorId,
+            vendorName,
+            vendorGstin,
+            purchaseNumber,
+            purchaseDate,
+            taxRule,
+            taxType,
+            notes,
+            roundOff,
+            rows: filledRows,
+            totalNetPurchase: totalNetPurchase.toFixed(2),
+            savedAt: new Date().toISOString(),
+          })
+        );
+      } catch (e) {
+        console.warn("Could not auto-save purchase draft:", e);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [
+    rows,
+    selectedVendorId,
+    vendorName,
+    vendorGstin,
+    purchaseNumber,
+    purchaseDate,
+    taxRule,
+    taxType,
+    notes,
+    roundOff,
+    totalNetPurchase,
+  ]);
+
+  const handleRestoreDraft = () => {
+    if (!recoveredDraft?.draftData) return;
+    const d = recoveredDraft.draftData;
+    if (d.selectedVendorId) setSelectedVendorId(d.selectedVendorId);
+    if (d.vendorName) setVendorName(d.vendorName);
+    if (d.vendorGstin) setVendorGstin(d.vendorGstin);
+    if (d.purchaseNumber) setPurchaseNumber(d.purchaseNumber);
+    if (d.purchaseDate) setPurchaseDate(d.purchaseDate);
+    if (d.taxRule) setTaxRule(d.taxRule);
+    if (d.taxType) setTaxType(d.taxType);
+    if (d.notes) setNotes(d.notes);
+    if (d.roundOff) setRoundOff(Number(d.roundOff) || 0);
+
+    if (Array.isArray(d.rows) && d.rows.length > 0) {
+      setRows(d.rows);
+    }
+    setRecoveredDraft(null);
+    toast.success(`Restored unsaved purchase draft with ${d.rows.length} items!`);
+  };
+
+  const handleDiscardDraft = () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("optical_purchase_autosave_draft");
+      } catch (e) {}
+    }
+    setRecoveredDraft(null);
+    toast.info("Unsaved draft discarded.");
+  };
 
   // Vendor selection handler
   const handleSelectVendor = (vendor: Vendor | null) => {
@@ -928,6 +1070,62 @@ export function PurchaseAddForm({
     };
   };
 
+  // Resilient submit helper that posts to /api/purchases directly to eliminate
+  // Next.js "Failed to find Server Action" hash mismatch errors during active sessions
+  const submitPurchasePayload = async (
+    payload: any
+  ): Promise<{ success: boolean; message: string; purchaseId?: string }> => {
+    // 1. Primary: Direct POST to permanent REST API endpoint (/api/purchases)
+    try {
+      const res = await fetch("/api/purchases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+
+      const errData = await res.json().catch(() => null);
+      if (errData?.message) {
+        return { success: false, message: errData.message };
+      }
+    } catch (apiErr: any) {
+      console.warn("Direct /api/purchases fetch error, attempting fallback...", apiErr);
+    }
+
+    // 2. Secondary: Fallback to Server Action
+    try {
+      if (payload.status === "DRAFT") {
+        return await savePurchaseDraftAction(payload);
+      } else {
+        return await createPurchaseAction(payload);
+      }
+    } catch (actionErr: any) {
+      console.error("Purchase submission error:", actionErr);
+      const msg = actionErr?.message || String(actionErr);
+
+      // If server action was invalidated by background code change/deploy, retry immediately via /api/purchases
+      if (msg.includes("was not found on the server") || msg.includes("failed-to-find-server-action")) {
+        try {
+          const retryRes = await fetch("/api/purchases", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (retryRes.ok) {
+            return await retryRes.json();
+          }
+        } catch (retryErr) {
+          console.error("Retry direct API failed:", retryErr);
+        }
+      }
+      return { success: false, message: msg || "Failed to record purchase order." };
+    }
+  };
+
   // Submit Handler: Add Purchase (Completed)
   const handleAddPurchase = () => {
     const payload = buildPayload("COMPLETED");
@@ -935,8 +1133,13 @@ export function PurchaseAddForm({
 
     startTransition(async () => {
       try {
-        const res = await createPurchaseAction(payload as any);
+        const res = await submitPurchasePayload(payload);
         if (res.success) {
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem("optical_purchase_autosave_draft");
+            } catch (e) {}
+          }
           toast.success(res.message);
           router.push("/shop/purchases");
         } else {
@@ -955,8 +1158,13 @@ export function PurchaseAddForm({
 
     startTransition(async () => {
       try {
-        const res = await savePurchaseDraftAction(payload as any);
+        const res = await submitPurchasePayload(payload);
         if (res.success) {
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem("optical_purchase_autosave_draft");
+            } catch (e) {}
+          }
           toast.success(res.message);
           router.push("/shop/purchases");
         } else {
@@ -1045,6 +1253,44 @@ export function PurchaseAddForm({
           </div>
         </div>
       </div>
+
+      {/* Recovered Unsaved Draft Banner */}
+      {recoveredDraft && (
+        <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-900">
+                Unsaved Purchase Draft Found ({recoveredDraft.itemCount} items • ₹{recoveredDraft.totalAmount})
+              </p>
+              <p className="text-[11px] text-amber-700">
+                Found an autosaved draft from your previous session. You can restore all items or start fresh.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleDiscardDraft}
+              className="text-xs h-8 text-amber-800 border-amber-300 hover:bg-amber-100/60"
+            >
+              Discard
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleRestoreDraft}
+              className="text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-xs"
+            >
+              Restore Draft
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* AI Extraction Banner */}
       {aiExtractedBanner && (
@@ -1553,6 +1799,7 @@ export function PurchaseAddForm({
         isOpen={isScanDrawerOpen}
         onClose={() => setIsScanDrawerOpen(false)}
         onApply={handleApplyExtractedBill}
+        existingItemCount={rows.filter((r) => !isRowEmpty(r)).length}
       />
 
       {/* Batch Barcode Printing Modal */}

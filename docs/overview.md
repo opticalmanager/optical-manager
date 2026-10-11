@@ -144,6 +144,12 @@ Optical Manager includes a complete, high-density Inward Supply & Purchases modu
 - **Vendor-Scoped Product Autocomplete & Ingestion**: Product code search autocomplete queries existing inventory with prioritization/scoping per selected vendor. Codes are unique per vendor rather than globally.
 - **Spacious Category-Rich Product Details Modal**: Unknown or edited codes open a `max-w-4xl` modal with dynamic category switcher tabs (`Frames`, `Lenses`, `Contact Lenses`, `Accessories`, `Solutions`), full category-specific spec panels (shapes, dimensions, lens design, index, coatings, contact lens BC/DIA, solution volumes, expiry tracking), and auto-filled HSN/GST rates from `product_categories`.
 - **Atomic Stock Increments & Ledger Auditing**: Completing a purchase order atomically increments inventory stock count (`+qty`), updates recent cost and retail prices, links vendor invoice references, and logs `STOCK_IN` movements in `stock_movements`.
+- **AI Bill Scanner & Multi-Image Batch OCR (`Scan Bill with AI`)**:
+  - High-density AI drawer powered by Google Gemini (`gemini-3.5-flash-lite` with fallbacks) for zero-latency invoice extraction.
+  - Multi-Image & Multi-Page Queue: select multiple invoice images/PDFs simultaneously with "+ Add More Images" appending to the batch at any time. Badge labeled cleanly as "Images".
+  - Resilient Sequential OCR Pipeline: processes queued bills one by one with failure isolation (one blurry or unreadable image does not abort the batch; successful items are merged and failed images can be retried individually).
+  - Smart Inward Append Mode: extracted line items append cleanly below existing table rows without overwriting previously entered products or supplier headers.
+  - Automated GST calculation, optical frame specs extraction (brand, model, size, color), HSN detection, and zero-hallucinated retail pricing (strictly blank in inward forms).
 - **Unified Internal SKU = Barcode Standard (`[CAT]-[BRAND]-[SEQ]`)**:
   - Unifies internal SKU and barcode into a single, canonical, collision-free identifier across inventory, purchases, barcode printing, and POS checkout.
   - Optical 3-letter category prefixes: `FRM` (Frames), `SNG` (Sunglasses), `LNS` (Ophthalmic Lenses), `CTL` (Contact Lenses), `ACC` (Accessories), and `SOL` (Solutions).
