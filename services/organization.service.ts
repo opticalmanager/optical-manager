@@ -76,7 +76,17 @@ export async function getOrganizationAiConfig(
     process.env.GEMINI_API_KEY?.trim() ||
     null;
 
-  const model = aiSettings.geminiModel?.trim() || "gemini-3.5-flash";
+  const rawModel = aiSettings.geminiModel?.trim();
+  const validModels = [
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "gemini-3.8-flash",
+  ];
+  const model =
+    rawModel && validModels.includes(rawModel)
+      ? rawModel
+      : "gemini-3.5-flash-lite";
 
   return {
     apiKey,

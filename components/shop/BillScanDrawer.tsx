@@ -49,7 +49,7 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
 
   // Setup Key state (for first-time integration)
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [modelInput, setModelInput] = useState("gemini-3.5-flash");
+  const [modelInput, setModelInput] = useState("gemini-3.5-flash-lite");
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [keyTestStatus, setKeyTestStatus] = useState<{
     tested: boolean;
@@ -73,13 +73,12 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
         }
         if (status.model) {
           const validModels = [
-            "gemini-3.5-flash",
             "gemini-3.5-flash-lite",
-            "gemini-3.1-flash-lite",
-            "gemini-flash-latest",
+            "gemini-2.5-flash",
+            "gemini-3.5-flash",
             "gemini-3.8-flash",
           ];
-          setModelInput(validModels.includes(status.model) ? status.model : "gemini-3.5-flash");
+          setModelInput(validModels.includes(status.model) ? status.model : "gemini-3.5-flash-lite");
         }
       });
     } else {
@@ -95,6 +94,31 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
       setKeyTestStatus(null);
     }
   }, [isOpen]);
+
+  // Dynamic status progression during scanning for reassuring feedback
+  useEffect(() => {
+    if (step !== "scanning") return;
+
+    const messages = [
+      "Optimizing document & compressing payload...",
+      "Analyzing invoice structure & supplier header...",
+      "Extracting invoice number, date, and tax types...",
+      "Reading line items, quantities, and HSN codes...",
+      "Parsing optical frame specs (brand, model, size, color)...",
+      "Running server math validation & GST calculations...",
+      "Finalizing line items for purchase table...",
+    ];
+
+    let index = 0;
+    setScanStatus(messages[0]);
+
+    const timer = setInterval(() => {
+      index = (index + 1) % messages.length;
+      setScanStatus(messages[index]);
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [step]);
 
   // Downsample large images client-side to minimize upload latency (<300KB)
   async function downscaleImageFile(sourceFile: File): Promise<string> {
@@ -148,7 +172,11 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
 
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        reject(new Error("Failed to load image for compression."));
+        // Resilient fallback: read raw file as data URL
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Failed to read image file."));
+        reader.readAsDataURL(sourceFile);
       };
     });
   }
@@ -399,11 +427,10 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                     onChange={(e) => setModelInput(e.target.value)}
                     className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-hidden cursor-pointer"
                   >
-                    <option value="gemini-3.5-flash">gemini-3.5-flash (Recommended - Ultra Fast &amp; Accurate)</option>
-                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Lightweight &amp; Fast)</option>
-                    <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Fast OCR)</option>
-                    <option value="gemini-flash-latest">gemini-flash-latest (Flash Latest)</option>
-                    <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash)</option>
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Recommended - Ultra-Fast OCR ~5-6s)</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash (High Reliability &amp; Structured Data)</option>
+                    <option value="gemini-3.5-flash">gemini-3.5-flash (Advanced Multi-Page Reasoning)</option>
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash Preview)</option>
                   </select>
                 </div>
 

@@ -161,6 +161,100 @@ function matchCategoryByHsn(
 }
 
 /**
+ * Intelligently extracts optical specifications (brand, model, color, eye size, and clean code)
+ * from product names or item descriptions when omitted or incomplete in the raw extraction.
+ */
+function extractOpticalSpecs(
+  name: string,
+  rawCode?: string | null,
+  rawBrand?: string | null,
+  rawModel?: string | null,
+  rawColor?: string | null,
+  rawSize?: string | null,
+  hsnCode?: string | null
+): {
+  brand?: string;
+  model?: string;
+  color?: string;
+  size?: string;
+  code: string;
+} {
+  let brand = sanitizeSpecString(rawBrand);
+  let model = sanitizeSpecString(rawModel);
+  let color = sanitizeSpecString(rawColor);
+  let size = sanitizeSpecString(rawSize);
+  let code = sanitizeCode(rawCode);
+
+  // If code is an exact HSN number (e.g. "90031100" or 8 digits), clear it so it doesn't get misidentified as model code
+  if (code && (code === (hsnCode || "").replace(/\D/g, "") || /^\d{6,8}$/.test(code))) {
+    code = "";
+  }
+
+  const cleanText = (name || "")
+    .replace(/\bwith\s+case\b/gi, "")
+    .replace(/\bcase\b/gi, "")
+    .replace(/\bframe\b/gi, "")
+    .replace(/\bsunglass(?:es)?\b/gi, "")
+    .trim();
+
+  // 1. Eye Size (standard optical frame sizes: 44 to 64 mm)
+  if (!size) {
+    const sizeMatch = cleanText.match(/\b([4-6]\d)(?:\s*(?:\[\]|[-xX/])\s*\d{2})?\b/);
+    if (sizeMatch) {
+      size = sizeMatch[1];
+    }
+  }
+
+  // 2. Color code (e.g. C1, C2, C4, C01, COL 04, Blk, Gold, etc.)
+  if (!color) {
+    const colorMatch =
+      cleanText.match(/\b(C\d{1,3}(?:\s+[A-Za-z]+)?)\b/i) ||
+      cleanText.match(/\b(?:COL|COLOR)[\s\-_.:]*([A-Z0-9]+)\b/i) ||
+      cleanText.match(/\b(BLK|GLD|SLV|GUN|BRN|TOR|DEMI|MATT|MATTE|BLACK|GOLD|SILVER|BLUE|GREY|GRAY)\b/i);
+    if (colorMatch) {
+      color = colorMatch[1].toUpperCase();
+    }
+  }
+
+  // 3. Brand (recognized optical brands or leading uppercase token)
+  if (!brand) {
+    const brandMatch = cleanText.match(
+      /\b(TH|RB|RAY[\s\-]?BAN|OAKLEY|VOGUE|GUCCI|PRADA|TOM[\s\-]?FORD|FASTRACK|TITAN|IDEAL|SCOTT|STEPPER|CARRERA|POLICE|ARMANI|BOSS|VINTAGE)\b/i
+    );
+    if (brandMatch) {
+      brand = brandMatch[1].toUpperCase();
+    } else {
+      const firstWord = cleanText.split(/\s+/)[0];
+      if (firstWord && /^[A-Z]{2,12}$/i.test(firstWord)) {
+        brand = firstWord.toUpperCase();
+      }
+    }
+  }
+
+  // 4. Model (e.g. TH 1111, RB 3025, 1111, 4410, M101)
+  if (!model) {
+    const modelMatch =
+      cleanText.match(/\b([A-Z]{1,4}\s*\d{3,5}[A-Z]?)\b/i) ||
+      cleanText.match(/\b(\d{3,5}[A-Z]?)\b/);
+    if (modelMatch) {
+      model = modelMatch[1].toUpperCase();
+    }
+  }
+
+  // 5. Clean Product Code (structured code for barcode printing and lookup)
+  if (!code) {
+    const parts = [model || brand, color, size].filter(Boolean);
+    if (parts.length >= 2) {
+      code = parts.join(" ").toUpperCase();
+    } else if (cleanText) {
+      code = cleanText.slice(0, 40).toUpperCase();
+    }
+  }
+
+  return { brand, model, color, size, code };
+}
+
+/**
  * Server Action: Extract vendor bill information from uploaded image or PDF.
  */
 export async function extractBillDataAction(
@@ -213,32 +307,31 @@ export async function extractBillDataAction(
     ? orgCategories.map((c) => `- ${c.name} (Code: "${c.code}", HSN: "${c.hsnCode || 'N/A'}", GST: ${c.igstPercent}%)`).join("\n")
     : `- Frames (Code: "FRAME", HSN: "9003", GST: 12%)\n- Sunglasses (Code: "SUNGLASSES", HSN: "9004", GST: 12%)\n- Lenses (Code: "LENS", HSN: "9001", GST: 12%)\n- Contact Lenses (Code: "CONTACT_LENS", HSN: "90013000", GST: 12%)\n- Solutions (Code: "SOLUTION", HSN: "3307", GST: 18%)\n- Accessories (Code: "ACCESSORY", HSN: "90049000", GST: 18%)`;
 
-  const prompt = `You are an expert optical retail bill & tax invoice reader for Indian optical stores.
-Extract header details and all purchase line items from this supplier bill/invoice.
-Return ONLY valid JSON matching this schema without any markdown formatting or code blocks:
+  const prompt = `You are an expert Indian optical store tax invoice OCR reader.
+Extract header details and all purchase line items from this supplier invoice image.
+Return ONLY clean JSON (no markdown formatting, no comments, no code fences):
 {
-  "vendorName": "Company / Supplier Name",
-  "vendorGstin": "15-digit Indian GSTIN if present",
-  "invoiceNumber": "Invoice / Bill / Challan / Memo number",
-  "invoiceDate": "YYYY-MM-DD format (convert dates like 24/09/2026 or 24-Sep-2026 to YYYY-MM-DD)",
-  "taxType": "SGST_CGST" (if intra-state, CGST+SGST) or "IGST" (if inter-state IGST),
+  "vendorName": "Supplier / Company Name",
+  "vendorGstin": "15-digit GSTIN if present",
+  "invoiceNumber": "Invoice / Bill number",
+  "invoiceDate": "YYYY-MM-DD format (e.g. convert 03/10/2026 to 2026-10-03)",
+  "taxType": "IGST" or "SGST_CGST",
   "items": [
     {
-      "productName": "Full name or description of optical product as printed",
-      "productCode": "SKU, Barcode, Article code, or Item Code if printed. If no separate product code column exists, but Description contains a code (e.g. 'SI-20050,50-15-135,F900'), extract that full code string here. Otherwise null",
+      "productName": "Item description or article name as printed",
+      "productCode": "Model number or article code if printed",
       "category": "FRAME" or "SUNGLASSES" or "LENS" or "CONTACT_LENS" or "ACCESSORY" or "SOLUTION",
-      "hsnCode": "HSN/SAC code if printed (e.g. 90031100, 90031900, 90041000, 90015000, 33077000)",
+      "hsnCode": "HSN code if printed",
       "quantity": 1,
       "unitPrice": 100.0,
-      "discountPercent": 0.0,
       "taxableValue": 100.0,
-      "gstPercent": 12.0,
-      "brand": "Brand name if printed or recognizable (e.g. Ray-Ban, Polaroid, Essilor, Bausch+Lomb), otherwise null",
-      "model": "Model name / code if printed, otherwise null",
-      "color": "Color code or name ONLY if printed, otherwise null",
-      "size": "Size or dimensions ONLY if printed (e.g. 52-18-140), otherwise null",
-      "batchNumber": "Batch or Lot number if printed (common on lenses/solutions), otherwise null",
-      "expiryDate": "YYYY-MM-DD if expiry date is printed, otherwise null"
+      "lineTotal": 105.0,
+      "discountPercent": 0.0,
+      "gstPercent": 5.0,
+      "brand": "Brand name if printed",
+      "model": "Model code/number if printed",
+      "color": "Color code if printed",
+      "size": "Eye size if printed"
     }
   ]
 }
@@ -246,40 +339,40 @@ Return ONLY valid JSON matching this schema without any markdown formatting or c
 Saved store categories and HSN reference:
 ${categoriesContext}
 
-CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
-1. ZERO HALLUCINATION: Extract ONLY data explicitly printed on the document. NEVER invent, extrapolate, or guess values.
-2. NO RETAIL PRICES: Supplier invoices NEVER contain retail selling prices / MRP. Do NOT extract or guess retail prices.
-3. PRODUCT CODES:
-   - If an explicit column for Product Code / Item Code / SKU / Article exists, extract it as "productCode".
-   - If NO dedicated product code column exists on the bill, but the item description / "Description of Goods" contains a structured code (e.g. "SI-20050,50-15-135,F900" or model number with dimensions/color), extract the complete code string as "productCode", and also use it in "productName".
-   - NEVER fabricate synthetic codes not printed on the document.
-4. LINE ITEM PRICE:
-   - Extract the final net price printed on the bill for the item (e.g. after any line trade discount). In supplier invoices where the line shows "Price" or "Amount" (e.g. 3240.00), extract that final net unit price as "unitPrice".
-   - Do NOT multiply by quantity for unitPrice.
-5. HSN CODE & CATEGORY:
-   - Always extract the exact HSN/SAC code printed for each line item (e.g. 90031100, 90031900, 90041000, 90015000).
-   - Match the HSN code and item description to the most appropriate store category from the list above.
-6. SPECIFICATIONS: If color, size, model, batch, or expiry are printed in the description or bill columns, extract them. If not printed, return null. Never output "N/A", "null", or "none".`;
+CRITICAL RULES:
+1. Extract ALL line item rows from top to bottom accurately.
+2. unitPrice is the net unit purchase rate before tax.
+3. lineTotal is the final line total including tax if printed.
+4. Omit empty or null properties (do NOT output fields that are not present on the document).
+5. Strictly ZERO hallucination. Return valid JSON only.`;
 
   try {
     const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
 
-    // List of model candidates to try: primary model first, followed by resilient fallbacks
-    const primaryModel = aiConfig.model?.trim() || "gemini-3.5-flash";
-    const candidateFallbackModels = [
-      "gemini-3.5-flash",
+    // Prioritized list of high-availability vision models:
+    // 1. Primary configured model
+    // 2. gemini-3.5-flash-lite (fastest, ultra-low latency ~5-6s, highly available)
+    // 3. gemini-2.5-flash (verified active on Google AI Studio)
+    // 4. gemini-3.5-flash (standard flash)
+    // 5. gemini-3.8-flash (current generation fallback)
+    const primaryModel = aiConfig.model?.trim() || "gemini-3.5-flash-lite";
+    const stableModels = [
       "gemini-3.5-flash-lite",
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
+      "gemini-2.5-flash",
+      "gemini-3.5-flash",
       "gemini-3.8-flash",
     ];
-    const fallbackList = candidateFallbackModels.filter((m) => m !== primaryModel);
-    const modelsToTry = [primaryModel, ...fallbackList];
+    // Prioritize gemini-3.5-flash-lite if primaryModel is gemini-3.5-flash (to avoid 503 high-demand errors),
+    // otherwise respect primaryModel, followed by remaining stable models
+    const candidateFallbackModels = [
+      primaryModel === "gemini-3.5-flash" ? "gemini-3.5-flash-lite" : primaryModel,
+      ...stableModels,
+    ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i);
 
     let responseText: string | null = null;
     const attemptedErrors: { model: string; error: string }[] = [];
 
-    for (const modelName of modelsToTry) {
+    for (const modelName of candidateFallbackModels) {
       try {
         const model = genAI.getGenerativeModel({
           model: modelName,
@@ -289,7 +382,7 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
           },
         });
 
-        const result = await model.generateContent([
+        const generatePromise = model.generateContent([
           {
             inlineData: {
               mimeType,
@@ -298,6 +391,15 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
           },
           prompt,
         ]);
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Timeout: Model "${modelName}" took longer than 22s`)),
+            22000
+          )
+        );
+
+        const result = await Promise.race([generatePromise, timeoutPromise]);
 
         responseText = result.response.text();
         if (responseText) {
@@ -475,15 +577,9 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
 
     const processedItems: ExtractedBillItem[] = rawItems.map((raw, idx) => {
       const qty = Math.max(1, Math.round(Number(raw.quantity) || 1));
-      let unitRate = Math.max(0, Number(raw.unitPrice) || 0);
-
-      // If unitRate was not extracted or 0, but line taxable value is present
-      if ((!unitRate || unitRate === 0) && Number(raw.taxableValue) > 0) {
-        unitRate = Number((Number(raw.taxableValue) / qty).toFixed(2));
-      } else if (raw.taxableValue && Number(raw.taxableValue) > 0 && raw.discountPercent && Number(raw.discountPercent) > 0) {
-        // Effective net taxable unit cost after trade discount
-        unitRate = Number((Number(raw.taxableValue) / qty).toFixed(2));
-      }
+      let rawUnitRate = Math.max(0, Number(raw.unitPrice) || 0);
+      const rawTaxable = Number(raw.taxableValue) || 0;
+      const rawDiscount = Number(raw.discountPercent) || 0;
 
       // 1. Category Detection: Match via HSN code against organization's saved categories first!
       const rawCat = (raw.category || "").toUpperCase().trim();
@@ -502,14 +598,32 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
       const catGst = catObj ? parseFloat(catObj.igstPercent) || 12 : 12;
       const rawGst = Number(raw.gstPercent) > 0 ? Number(raw.gstPercent) : catGst;
 
-      // 3. Purchase Cost & Base Price Math:
-      // The final net price extracted from the bill is the Purchase Cost per unit (inclusive of any trade discounts)
-      const purchasePricePerUnit = unitRate;
-      const totalPurchase = Number((purchasePricePerUnit * qty).toFixed(2));
-      const baseUnitPrice = rawGst > 0
-        ? Number((purchasePricePerUnit / (1 + rawGst / 100)).toFixed(2))
-        : purchasePricePerUnit;
-      const totalItemTax = Number(Math.max(0, totalPurchase - Number((baseUnitPrice * qty).toFixed(2))).toFixed(2));
+      // 3. Purchase Cost & Base Price Math Engine:
+      // In Indian B2B GST tax invoices (under Section 31 of CGST Act), the printed item rate
+      // is virtually always the TAX-EXCLUSIVE base price, with GST added to form the total.
+      let baseUnitPrice = 0;
+      let purchasePricePerUnit = 0;
+      let totalPurchase = 0;
+
+      if (rawTaxable > 0) {
+        // Line taxable amount before GST is explicitly available
+        baseUnitPrice = Number((rawTaxable / qty).toFixed(2));
+        const lineTax = Number(((rawTaxable * rawGst) / 100).toFixed(2));
+        totalPurchase = Number((rawTaxable + lineTax).toFixed(2));
+        purchasePricePerUnit = Number((totalPurchase / qty).toFixed(2));
+      } else if (rawUnitRate > 0) {
+        // Effective net taxable unit cost
+        baseUnitPrice = rawDiscount > 0
+          ? Number((rawUnitRate * (1 - rawDiscount / 100)).toFixed(2))
+          : rawUnitRate;
+        const lineTax = Number(((baseUnitPrice * qty * rawGst) / 100).toFixed(2));
+        totalPurchase = Number(((baseUnitPrice * qty) + lineTax).toFixed(2));
+        purchasePricePerUnit = Number((totalPurchase / qty).toFixed(2));
+      }
+
+      const totalItemTax = Number(
+        Math.max(0, totalPurchase - Number((baseUnitPrice * qty).toFixed(2))).toFixed(2)
+      );
 
       // System computes precise tax splits
       let cgstPercent = 0;
@@ -532,31 +646,30 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
       calculatedTotalAmount += totalPurchase;
       calculatedTotalGst += totalItemTax;
 
-      // 4. Product code: If not explicitly in a product code column, pick from description if structured
-      let cleanCode = sanitizeCode(raw.productCode);
-      if (!cleanCode && raw.productName) {
-        const trimmedName = String(raw.productName).trim();
-        if (/^[A-Z0-9\-_./,]{4,}$/i.test(trimmedName) || /^[A-Z0-9\-_]+[,;\s]+[0-9\-]+/i.test(trimmedName)) {
-          cleanCode = sanitizeCode(trimmedName);
-        }
-      }
+      // 4. Optical Specifications & Product Code Extraction
+      const rawName = sanitizeSpecString(raw.productName) || `Item ${idx + 1}`;
+      const specs = extractOpticalSpecs(
+        rawName,
+        raw.productCode,
+        raw.brand,
+        raw.model,
+        raw.color,
+        raw.size,
+        raw.hsnCode
+      );
 
-      // Optical Specs: sanitize out "N/A", "none", "null" strings
-      const brand = sanitizeSpecString(raw.brand);
-      const model = sanitizeSpecString(raw.model);
-      const color = sanitizeSpecString(raw.color);
-      const size = sanitizeSpecString(raw.size);
       const batchNumber = sanitizeSpecString(raw.batchNumber);
       const expiryDate = sanitizeSpecString(raw.expiryDate);
-      const cleanHsn = sanitizeSpecString(raw.hsnCode) || catObj?.hsnCode || defaultHsnMap[validCategory] || "90049000";
-
-      const fallbackName = [brand, model, validCategory].filter(Boolean).join(" ");
-      const productName = sanitizeSpecString(raw.productName) || fallbackName || `Item ${idx + 1}`;
+      const cleanHsn =
+        sanitizeSpecString(raw.hsnCode) ||
+        catObj?.hsnCode ||
+        defaultHsnMap[validCategory] ||
+        "90049000";
 
       return {
         id: crypto.randomUUID(),
-        productName,
-        productCode: cleanCode,
+        productName: rawName,
+        productCode: specs.code,
         category: validCategory,
         hsnCode: cleanHsn,
         quantity: qty,
@@ -571,16 +684,16 @@ CRITICAL EXTRACTION RULES (STRICT INDUSTRIAL ACCURACY):
         igstAmount,
         purchasePrice: purchasePricePerUnit,
         totalPurchasePrice: totalPurchase,
-        // STRICTLY 0: Supplier bills never dictate retail selling price. Field is kept blank in UI.
+        // STRICTLY 0: Supplier bills never dictate retail selling price. Kept blank in UI.
         retailPrice: 0,
-        discountPercent: Number(raw.discountPercent) || 0,
+        discountPercent: rawDiscount,
         taxableValue: Number((baseUnitPrice * qty).toFixed(2)),
 
         // Extended specs
-        brand,
-        model,
-        color,
-        size,
+        brand: specs.brand,
+        model: specs.model,
+        color: specs.color,
+        size: specs.size,
         batchNumber,
         expiryDate,
         requiresExpiryTracking: !!(batchNumber || expiryDate),
