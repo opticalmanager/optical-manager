@@ -89,3 +89,10 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
    - **Net Taxable Unit Rate**: Captures true inward purchase cost by computing net taxable unit rate after line-item trade discounts (`unitPrice = taxableValue / quantity`).
    - **Indian Date Normalizer**: Deterministically normalizes Indian invoice date formats (`DD/MM/YYYY`, `DD-MM-YYYY`, `DD.MM.YYYY`) into standard ISO `YYYY-MM-DD`.
    - **Spec Sanitizer**: Automatically strips placeholder tokens (`"N/A"`, `"none"`, `"null"`, `"-"`) to preserve clean database attributes.
+
+7. **Multi-Image Batch Scanning & Resilient Sequential Processing**:
+   - **Multi-File Queue**: Supports uploading multiple invoice images/PDFs simultaneously, with "+ Add More Images" appending to the active queue at any time. Badge labeled clearly as "Images".
+   - **Sequential One-by-One OCR**: Images are parsed sequentially one after another, eliminating 429 rate limits, memory spikes, and payload timeouts.
+   - **Isolated Failure Resilience**: If an individual image is blurry or unreadable, the failure is isolated to that specific file without failing the entire batch. Successful bills are extracted cleanly and failed images can be retried individually.
+   - **Multi-Bill Aggregation**: Aggregates all line items across scanned images into a unified bill payload, preserving vendor/invoice headers from the primary document and recalculating GST and purchase totals.
+   - **Smart Append Mode**: When applied to the purchase form, new scans append cleanly below existing items without overwriting previous entries or existing supplier configurations.

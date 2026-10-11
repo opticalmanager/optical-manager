@@ -53,6 +53,21 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 
 ---
 
+### 2.1. Inward Supply & Purchase Ingestion APIs
+
+#### `POST /api/purchases`
+- **Description**: Dedicated immutable REST endpoint for recording purchase orders (`status: "COMPLETED"`) and saving draft bills (`status: "DRAFT"`). Eliminates Next.js `"Failed to find Server Action"` hash-mismatch errors during active client sessions or background redeployments.
+- **Payload**: Full `PurchaseOrderFormValues` structure containing `purchaseNumber`, `purchaseDate`, `vendorId`, `vendorName`, `vendorGstin`, `taxRule`, `taxType`, `roundOff`, `notes`, `status`, and `items` array with serial numbers, unit costs, GST breakdowns, and quantities.
+- **Processing Logic**:
+  - Validates active user session and RBAC permission (`user.permissions.purchases !== false`).
+  - Auto-resolves or creates vendor records in `vendors` table.
+  - Generates deterministic sequential shop SKUs via `getNextSkuSequenceBatch`.
+  - Atomic stock updates and audit logging via `createPurchaseOrder` in `services/purchase.service.ts`.
+  - Automatically revalidates paths `/shop/purchases` and `/shop/inventory`.
+- **Response**: `200 OK` JSON `{ success: boolean, message: string, purchaseId?: string }`.
+
+---
+
 ### 3. Public Patient & Authentication APIs
 
 #### `GET /api/auth/callback`

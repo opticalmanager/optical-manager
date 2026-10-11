@@ -10,14 +10,16 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
-  Camera,
+  Image as ImageIcon,
   Layers,
   ArrowRight,
   ShieldCheck,
-  Eye,
   Trash2,
   KeyRound,
   ExternalLink,
+  Plus,
+  AlertTriangle,
+  FileUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { extractBillDataAction } from "@/actions/bill-scan.actions";
@@ -30,18 +32,107 @@ import type { ExtractedBillData, ExtractedBillItem } from "@/types/bill-scan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+export interface QueuedBillFile {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  status: "idle" | "scanning" | "success" | "error";
+  extractedData?: ExtractedBillData;
+  itemCount?: number;
+  error?: string;
+}
+
 interface BillScanDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (data: ExtractedBillData) => void;
+  existingItemCount?: number;
 }
 
 type DrawerStep = "upload" | "scanning" | "preview" | "setup_key";
 
-export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps) {
+/**
+ * Aggregates extracted bill data from multiple successfully processed files
+ * into a single unified ExtractedBillData payload.
+ */
+function aggregateExtractedData(
+  results: { file: File; data: ExtractedBillData }[]
+): ExtractedBillData {
+  if (results.length === 0) {
+    return {
+      items: [],
+      rawItemCount: 0,
+      totalAmount: 0,
+      totalGst: 0,
+    };
+  }
+
+  // Find first non-empty vendor and invoice headers
+  const firstWithVendor = results.find((r) => r.data.vendorName?.trim());
+  const firstWithGstin = results.find((r) => r.data.vendorGstin?.trim());
+  const firstWithInvoice = results.find((r) => r.data.invoiceNumber?.trim());
+  const firstWithDate = results.find((r) => r.data.invoiceDate?.trim());
+
+  // Check if any invoice used IGST
+  const hasIgst = results.some((r) => r.data.taxType === "IGST");
+
+  // Flatten and assign unique IDs to all items across all files
+  const allItems: ExtractedBillItem[] = [];
+  results.forEach((r, fileIdx) => {
+    (r.data.items || []).forEach((item, itemIdx) => {
+      allItems.push({
+        ...item,
+        id: item.id || `ext-${fileIdx}-${itemIdx}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      });
+    });
+  });
+
+  // Calculate sum of total purchase price & gst
+  const totalAmount = allItems.reduce(
+    (sum, it) => sum + (Number(it.totalPurchasePrice) || 0),
+    0
+  );
+  const totalGst = allItems.reduce(
+    (sum, it) =>
+      sum +
+      (Number(it.cgstAmount || 0) +
+        Number(it.sgstAmount || 0) +
+        Number(it.igstAmount || 0)),
+    0
+  );
+
+  return {
+    vendorName: firstWithVendor?.data.vendorName || results[0].data.vendorName,
+    vendorGstin: firstWithGstin?.data.vendorGstin || results[0].data.vendorGstin,
+    matchedVendorId: firstWithVendor?.data.matchedVendorId || results[0].data.matchedVendorId,
+    isNewVendor: firstWithVendor?.data.isNewVendor ?? results[0].data.isNewVendor,
+    invoiceNumber: firstWithInvoice?.data.invoiceNumber || results[0].data.invoiceNumber,
+    invoiceDate: firstWithDate?.data.invoiceDate || results[0].data.invoiceDate,
+    taxType: hasIgst ? "IGST" : "SGST_CGST",
+    taxRule: results[0].data.taxRule || "EXCLUDE",
+    items: allItems,
+    rawItemCount: allItems.length,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    totalGst: Math.round(totalGst * 100) / 100,
+    confidence: results.some((r) => r.data.confidence === "low")
+      ? "medium"
+      : results[0].data.confidence || "high",
+    notes: results
+      .map((r) => r.data.notes)
+      .filter(Boolean)
+      .join(" | "),
+  };
+}
+
+export function BillScanDrawer({
+  isOpen,
+  onClose,
+  onApply,
+  existingItemCount = 0,
+}: BillScanDrawerProps) {
   const [step, setStep] = useState<DrawerStep>("upload");
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [queuedFiles, setQueuedFiles] = useState<QueuedBillFile[]>([]);
+  const [activeScanIndex, setActiveScanIndex] = useState<number>(-1);
   const [isDragOver, setIsDragOver] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedBillData | null>(null);
   const [scanStatus, setScanStatus] = useState("Analyzing document with AI...");
@@ -59,12 +150,12 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
   const [isSavingKey, setIsSavingKey] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const addMoreInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Reset or initialize when drawer opens
+  // Reset or initialize when drawer opens/closes
   useEffect(() => {
     if (isOpen) {
-      // Check if AI is configured
       getOrganizationAiStatusAction().then((status) => {
         if (!status.isConfigured) {
           setStep("setup_key");
@@ -82,15 +173,17 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
         }
       });
     } else {
-      // Clean up object URL when closing
-      if (previewUrl && previewUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setFile(null);
-      setPreviewUrl(null);
+      // Clean up object URLs when closing
+      queuedFiles.forEach((qf) => {
+        if (qf.previewUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(qf.previewUrl);
+        }
+      });
+      setQueuedFiles([]);
       setExtractedData(null);
       setErrorMessage(null);
       setStep("upload");
+      setActiveScanIndex(-1);
       setKeyTestStatus(null);
     }
   }, [isOpen]);
@@ -110,12 +203,10 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
     ];
 
     let index = 0;
-    setScanStatus(messages[0]);
-
     const timer = setInterval(() => {
       index = (index + 1) % messages.length;
       setScanStatus(messages[index]);
-    }, 2000);
+    }, 2200);
 
     return () => clearInterval(timer);
   }, [step]);
@@ -156,7 +247,6 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
         canvas.height = height;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          // Fallback to direct FileReader if canvas unavailable
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
@@ -172,7 +262,6 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
 
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        // Resilient fallback: read raw file as data URL
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = () => reject(new Error("Failed to read image file."));
@@ -181,7 +270,8 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
     });
   }
 
-  function handleFileSelect(selectedFile: File) {
+  // Add one or more files to the queue, retaining any existing files
+  function addFilesToQueue(incomingFiles: FileList | File[]) {
     const validTypes = [
       "image/jpeg",
       "image/png",
@@ -189,68 +279,212 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
       "application/pdf",
     ];
 
-    if (!validTypes.includes(selectedFile.type)) {
-      toast.error("Please upload a valid JPG, PNG, WEBP image or a PDF bill.");
-      return;
+    const added: QueuedBillFile[] = [];
+    const rejectedNames: string[] = [];
+
+    Array.from(incomingFiles).forEach((f) => {
+      if (!validTypes.includes(f.type)) {
+        rejectedNames.push(`${f.name} (unsupported format)`);
+        return;
+      }
+      if (f.size > 15 * 1024 * 1024) {
+        rejectedNames.push(`${f.name} (> 15MB)`);
+        return;
+      }
+
+      // Prevent exact duplicate files in the current batch
+      const isDup = queuedFiles.some(
+        (qf) => qf.file.name === f.name && qf.file.size === f.size
+      );
+      if (isDup) return;
+
+      let previewUrl: string | null = null;
+      if (f.type.startsWith("image/")) {
+        previewUrl = URL.createObjectURL(f);
+      }
+
+      added.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        file: f,
+        previewUrl,
+        status: "idle",
+      });
+    });
+
+    if (rejectedNames.length > 0) {
+      toast.error(`Some files could not be added: ${rejectedNames.join(", ")}`);
     }
 
-    if (selectedFile.size > 15 * 1024 * 1024) {
-      toast.error("File is too large. Maximum supported size is 15MB.");
-      return;
-    }
-
-    setFile(selectedFile);
-    setErrorMessage(null);
-
-    if (selectedFile.type.startsWith("image/")) {
-      const url = URL.createObjectURL(selectedFile);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
+    if (added.length > 0) {
+      setQueuedFiles((prev) => [...prev, ...added]);
+      setErrorMessage(null);
+      toast.success(
+        added.length === 1
+          ? `Added "${added[0].file.name}" to queue.`
+          : `Added ${added.length} images to queue.`
+      );
     }
   }
 
-  async function handleStartExtraction() {
-    if (!file) return;
+  function handleRemoveFile(id: string) {
+    setQueuedFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((f) => f.id !== id);
+    });
+  }
+
+  function handleClearAllFiles() {
+    queuedFiles.forEach((qf) => {
+      if (qf.previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(qf.previewUrl);
+      }
+    });
+    setQueuedFiles([]);
+    setExtractedData(null);
+    setErrorMessage(null);
+  }
+
+  // Resilient One-by-One Sequential Extraction Loop
+  async function handleStartExtraction(targetFileId?: string) {
+    // If targetFileId is provided, scan only that single file (e.g. retry);
+    // otherwise scan all files that are "idle" or "error"
+    const filesToScan = targetFileId
+      ? queuedFiles.filter((f) => f.id === targetFileId)
+      : queuedFiles.filter((f) => f.status === "idle" || f.status === "error");
+
+    if (filesToScan.length === 0) {
+      if (queuedFiles.length === 0) {
+        toast.error("Please add at least one bill image or PDF.");
+        return;
+      }
+      // If all are already success, advance to preview
+      const successful = queuedFiles.filter((f) => f.status === "success" && f.extractedData);
+      if (successful.length > 0) {
+        const merged = aggregateExtractedData(
+          successful.map((s) => ({ file: s.file, data: s.extractedData! }))
+        );
+        setExtractedData(merged);
+        setStep("preview");
+        return;
+      }
+    }
 
     setStep("scanning");
-    setScanStatus("Optimizing document & compressing payload...");
+    setErrorMessage(null);
 
-    try {
-      const base64DataUrl = await downscaleImageFile(file);
-      const mimeType = file.type === "application/pdf" ? "application/pdf" : "image/jpeg";
+    let currentQueue = [...queuedFiles];
+    const successfulResults: { file: File; data: ExtractedBillData }[] = [];
 
-      setScanStatus("Gemini AI is reading items, rates, and tax breakdown...");
+    // Retain any previously successful files not in the active scan target
+    currentQueue.forEach((f) => {
+      if (f.status === "success" && f.extractedData && !filesToScan.some((ts) => ts.id === f.id)) {
+        successfulResults.push({ file: f.file, data: f.extractedData });
+      }
+    });
 
-      startTransition(async () => {
+    for (let i = 0; i < filesToScan.length; i++) {
+      const item = filesToScan[i];
+      setActiveScanIndex(i);
+      setScanStatus(
+        `Scanning image ${i + 1} of ${filesToScan.length}: "${item.file.name}"...`
+      );
+
+      // Set active file to scanning state
+      currentQueue = currentQueue.map((f) =>
+        f.id === item.id ? { ...f, status: "scanning", error: undefined } : f
+      );
+      setQueuedFiles([...currentQueue]);
+
+      try {
+        // 1. Client-side downscale/compression for fast upload
+        const base64DataUrl = await downscaleImageFile(item.file);
+        const mimeType =
+          item.file.type === "application/pdf" ? "application/pdf" : "image/jpeg";
+
+        // 2. Call server extraction action
         const result = await extractBillDataAction(base64DataUrl, mimeType);
 
-        if (!result.success) {
+        if (!result.success || !result.data) {
           if (result.needsKeySetup) {
             setErrorMessage(result.error || "Please configure your Gemini API Key.");
             setStep("setup_key");
             toast.error(result.error || "Please configure your Gemini API Key first.");
-          } else {
-            setErrorMessage(result.error || "Failed to parse bill.");
-            setStep("upload");
-            toast.error(result.error || "Extraction failed.");
+            return;
           }
-          return;
+
+          // Individual file failure isolation: mark error for this file, continue next!
+          console.warn(`Extraction error for ${item.file.name}:`, result.error);
+          currentQueue = currentQueue.map((f) =>
+            f.id === item.id
+              ? {
+                  ...f,
+                  status: "error",
+                  error: result.error || "Failed to extract items from image.",
+                }
+              : f
+          );
+          setQueuedFiles([...currentQueue]);
+          continue;
         }
 
-        if (result.data) {
-          setExtractedData(result.data);
-          setStep("preview");
-          toast.success(
-            `Extracted ${result.data.items.length} items from ${result.data.vendorName || "bill"}!`
-          );
-        }
-      });
-    } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || "Failed to process image.");
+        const billData = result.data;
+        // Record success for this file
+        currentQueue = currentQueue.map((f) =>
+          f.id === item.id
+            ? {
+                ...f,
+                status: "success",
+                extractedData: billData,
+                itemCount: billData.items?.length || 0,
+                error: undefined,
+              }
+            : f
+        );
+        setQueuedFiles([...currentQueue]);
+        successfulResults.push({ file: item.file, data: billData });
+      } catch (fileErr: any) {
+        console.error(`Error processing file ${item.file.name}:`, fileErr);
+        currentQueue = currentQueue.map((f) =>
+          f.id === item.id
+            ? {
+                ...f,
+                status: "error",
+                error: fileErr?.message || "Failed to process image.",
+              }
+            : f
+        );
+        setQueuedFiles([...currentQueue]);
+      }
+    }
+
+    // Process finished: evaluate batch results
+    setActiveScanIndex(-1);
+
+    if (successfulResults.length > 0) {
+      const merged = aggregateExtractedData(successfulResults);
+      setExtractedData(merged);
+      setStep("preview");
+
+      const failedCount = currentQueue.filter((f) => f.status === "error").length;
+      if (failedCount > 0) {
+        toast.warning(
+          `Extracted ${merged.items.length} items from ${successfulResults.length} bills. (${failedCount} image(s) unreadable).`
+        );
+      } else {
+        toast.success(
+          `Successfully extracted ${merged.items.length} items across ${successfulResults.length} bills!`
+        );
+      }
+    } else {
+      // All files failed
       setStep("upload");
-      toast.error("Processing error occurred.");
+      setErrorMessage(
+        "Could not extract line items from the selected images. Please ensure photos are sharp, clear, and well-lit, or retry."
+      );
+      toast.error("Scanning failed for selected images.");
     }
   }
 
@@ -322,18 +556,68 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
   function handleRemoveItem(id: string) {
     if (!extractedData) return;
     const filtered = extractedData.items.filter((item) => item.id !== id);
+    const newTotalAmount = filtered.reduce(
+      (sum, it) => sum + (Number(it.totalPurchasePrice) || 0),
+      0
+    );
+    const newTotalGst = filtered.reduce(
+      (sum, it) =>
+        sum +
+        (Number(it.cgstAmount || 0) +
+          Number(it.sgstAmount || 0) +
+          Number(it.igstAmount || 0)),
+      0
+    );
+
     setExtractedData({
       ...extractedData,
       items: filtered,
       rawItemCount: filtered.length,
+      totalAmount: Math.round(newTotalAmount * 100) / 100,
+      totalGst: Math.round(newTotalGst * 100) / 100,
     });
   }
 
   if (!isOpen) return null;
 
+  const totalFiles = queuedFiles.length;
+  const pendingFilesCount = queuedFiles.filter(
+    (f) => f.status === "idle" || f.status === "error"
+  ).length;
+  const successfulFilesCount = queuedFiles.filter((f) => f.status === "success").length;
+  const failedFilesCount = queuedFiles.filter((f) => f.status === "error").length;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
       <div className="relative flex h-full w-full max-w-xl flex-col bg-white shadow-2xl transition-all duration-300 sm:rounded-l-2xl border-l border-slate-200">
+        {/* Hidden inputs for multi-file selection */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              addFilesToQueue(e.target.files);
+              e.target.value = "";
+            }
+          }}
+          className="hidden"
+        />
+        <input
+          ref={addMoreInputRef}
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              addFilesToQueue(e.target.files);
+              e.target.value = "";
+            }
+          }}
+          className="hidden"
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 bg-gradient-to-r from-slate-50 via-white to-blue-50/30">
           <div className="flex items-center gap-2.5">
@@ -350,13 +634,13 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Auto-fill purchase invoice from vendor bills & challans
+                Multi-image batch OCR for vendor bills &amp; challans
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -490,122 +774,223 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
             </div>
           )}
 
-          {/* STEP 2: UPLOAD BILL */}
+          {/* STEP 2: UPLOAD & MULTI-IMAGE MANAGEMENT */}
           {step === "upload" && (
             <div className="space-y-4">
               {errorMessage && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-800">
                   <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
                   <div>
-                    <span className="font-semibold">Scan Error: </span>
+                    <span className="font-semibold">Scan Notice: </span>
                     {errorMessage}
                   </div>
                 </div>
               )}
 
-              {/* Drag & Drop Area */}
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragOver(true);
-                }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragOver(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleFileSelect(e.dataTransfer.files[0]);
-                  }
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-7 text-center transition-all cursor-pointer ${
-                  isDragOver
-                    ? "border-blue-500 bg-blue-50/50 scale-[1.01]"
-                    : file
-                    ? "border-emerald-400 bg-emerald-50/20"
-                    : "border-slate-300 bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/20"
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      handleFileSelect(e.target.files[0]);
+              {/* No files selected yet: Large initial dropzone */}
+              {queuedFiles.length === 0 ? (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(true);
+                  }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      addFilesToQueue(e.dataTransfer.files);
                     }
                   }}
-                  className="hidden"
-                />
-
-                {file ? (
-                  <div className="flex flex-col items-center space-y-2">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 shadow-xs">
-                      {file.type === "application/pdf" ? (
-                        <FileText className="h-6 w-6" />
-                      ) : (
-                        <CheckCircle2 className="h-6 w-6" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 line-clamp-1 max-w-[280px]">
-                        {file.name}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {(file.size / (1024 * 1024)).toFixed(2)} MB • Ready to scan
-                      </p>
-                    </div>
-                    <span className="text-[11px] font-semibold text-blue-600 hover:underline">
-                      Click to choose another file
-                    </span>
-                  </div>
-                ) : (
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all cursor-pointer ${
+                    isDragOver
+                      ? "border-blue-500 bg-blue-50/50 scale-[1.01]"
+                      : "border-slate-300 bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/20"
+                  }`}
+                >
                   <div className="flex flex-col items-center space-y-2.5">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-xs ring-4 ring-blue-50/50">
                       <Upload className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800">
-                        Upload or drag & drop vendor invoice
+                        Upload or drag &amp; drop vendor invoices
                       </p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Supports photo (JPG, PNG, WEBP) or single-page PDF up to 15MB
+                        Select one or more photos (JPG, PNG, WEBP) or PDF bills up to 15MB each
                       </p>
                     </div>
                     <div className="flex items-center gap-2 pt-1">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-2xs border border-slate-200">
-                        <Camera className="h-3 w-3 text-slate-400" /> Mobile Camera
+                      {/* Name changed from "Mobile Camera" to "Images" as requested */}
+                      <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-2xs border border-slate-200">
+                        <ImageIcon className="h-3 w-3 text-blue-600" /> Images
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-2xs border border-slate-200">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-2xs border border-slate-200">
                         <FileText className="h-3 w-3 text-slate-400" /> PDF Challan
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700 border border-blue-200">
+                        + Multi-Selection
                       </span>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Image Preview Thumbnail */}
-              {previewUrl && (
-                <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-900 relative group">
-                  <div className="flex items-center justify-between bg-slate-900/80 px-3 py-1.5 text-[11px] text-white">
-                    <span>Document Preview</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFile(null);
-                        setPreviewUrl(null);
-                      }}
-                      className="text-slate-400 hover:text-white"
-                    >
-                      Clear
-                    </button>
+                </div>
+              ) : (
+                /* Files selected: Queue Management & Add More list */
+                <div className="space-y-3">
+                  {/* Queue Header summary */}
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800">
+                        {queuedFiles.length} {queuedFiles.length === 1 ? "Image" : "Images"} in Queue
+                      </span>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-[11px] text-slate-500">
+                        {(
+                          queuedFiles.reduce((acc, f) => acc + f.file.size, 0) /
+                          (1024 * 1024)
+                        ).toFixed(1)}{" "}
+                        MB
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleClearAllFiles}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                      >
+                        Clear All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addMoreInputRef.current?.click()}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200/60 transition-colors cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3" /> Add More Images
+                      </button>
+                    </div>
                   </div>
-                  <div className="max-h-48 overflow-hidden flex items-center justify-center bg-slate-950 p-2">
-                    <img
-                      src={previewUrl}
-                      alt="Bill preview"
-                      className="max-h-44 object-contain rounded-sm"
-                    />
+
+                  {/* Queued Files List */}
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {queuedFiles.map((qf, idx) => (
+                      <div
+                        key={qf.id}
+                        className={`flex items-center justify-between rounded-xl border p-2.5 transition-all ${
+                          qf.status === "error"
+                            ? "border-rose-200 bg-rose-50/30"
+                            : qf.status === "success"
+                            ? "border-emerald-200 bg-emerald-50/20"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+                          {/* Thumbnail / Icon */}
+                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center">
+                            {qf.previewUrl ? (
+                              <img
+                                src={qf.previewUrl}
+                                alt={qf.file.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : qf.file.type === "application/pdf" ? (
+                              <FileText className="h-5 w-5 text-rose-500" />
+                            ) : (
+                              <ImageIcon className="h-5 w-5 text-slate-400" />
+                            )}
+                          </div>
+
+                          {/* File info and status */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-bold text-slate-500">
+                                #{idx + 1}
+                              </span>
+                              <p className="text-xs font-bold text-slate-800 truncate" title={qf.file.name}>
+                                {qf.file.name}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-slate-500">
+                                {(qf.file.size / (1024 * 1024)).toFixed(2)} MB
+                              </span>
+                              {qf.status === "idle" && (
+                                <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600">
+                                  Ready
+                                </span>
+                              )}
+                              {qf.status === "scanning" && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 animate-pulse">
+                                  <Loader2 className="h-2.5 w-2.5 animate-spin" /> Scanning...
+                                </span>
+                              )}
+                              {qf.status === "success" && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700">
+                                  <CheckCircle2 className="h-2.5 w-2.5" /> {qf.itemCount || 0} items
+                                </span>
+                              )}
+                              {qf.status === "error" && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
+                                  <AlertCircle className="h-2.5 w-2.5" /> Failed
+                                </span>
+                              )}
+                            </div>
+                            {qf.error && (
+                              <p className="text-[10px] text-rose-600 truncate mt-0.5" title={qf.error}>
+                                {qf.error}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* File Actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {qf.status === "error" && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartExtraction(qf.id)}
+                              className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 px-2 py-1 rounded bg-blue-50 border border-blue-200 transition-colors cursor-pointer"
+                              title="Retry scanning this image"
+                            >
+                              Retry
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(qf.id)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600 transition-colors cursor-pointer"
+                            title="Remove file from queue"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Drop more area below existing list */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(true);
+                    }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        addFilesToQueue(e.dataTransfer.files);
+                      }
+                    }}
+                    onClick={() => addMoreInputRef.current?.click()}
+                    className={`flex items-center justify-center gap-2 rounded-xl border border-dashed py-3 px-4 text-xs font-semibold cursor-pointer transition-colors ${
+                      isDragOver
+                        ? "border-blue-500 bg-blue-50/50 text-blue-700"
+                        : "border-slate-300 bg-slate-50/50 text-slate-600 hover:border-blue-400 hover:bg-blue-50/20 hover:text-blue-600"
+                    }`}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Click or drag &amp; drop to add more images to this bill</span>
                   </div>
                 </div>
               )}
@@ -613,24 +998,24 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
               {/* Extraction Benefits Box */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 text-xs text-slate-600 space-y-1.5">
                 <p className="font-semibold text-slate-800 flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-blue-600" /> What will be auto-filled:
+                  <ShieldCheck className="h-4 w-4 text-blue-600" /> Sequential AI Processing:
                 </p>
                 <ul className="grid grid-cols-2 gap-1.5 text-[11px] text-slate-600 pt-1">
                   <li className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                    Supplier Name & GSTIN
+                    Multi-Page Invoice Aggregation
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                    Invoice No. & Date
+                    Supplier Name &amp; GSTIN Match
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                    Frames, Lenses & Solutions
+                    Isolated Error Recovery per Image
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                    HSN Codes, Rates & GST%
+                    HSN Codes, Rates &amp; GST Auto-Calc
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
@@ -638,7 +1023,7 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                    Batch & Expiry for Lenses
+                    Batch &amp; Expiry for Lenses
                   </li>
                 </ul>
               </div>
@@ -648,43 +1033,96 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                 <button
                   type="button"
                   onClick={() => setStep("setup_key")}
-                  className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+                  className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                 >
                   Configure AI Key
                 </button>
                 <Button
                   type="button"
-                  onClick={handleStartExtraction}
-                  disabled={!file}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 shadow-sm shadow-blue-500/20"
+                  onClick={() => handleStartExtraction()}
+                  disabled={queuedFiles.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 shadow-sm shadow-blue-500/20 cursor-pointer"
                 >
                   <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                  Extract & Auto-Fill
+                  {pendingFilesCount > 0
+                    ? `Extract ${queuedFiles.length} ${queuedFiles.length === 1 ? "Image" : "Images"} with AI`
+                    : "View Extracted Results"}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* STEP 3: SCANNING (In Progress) */}
+          {/* STEP 3: SCANNING (Sequential In Progress) */}
           {step === "scanning" && (
-            <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
+            <div className="flex flex-col items-center justify-center py-10 text-center space-y-4">
               <div className="relative flex h-16 w-16 items-center justify-center">
                 <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping" />
                 <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/30">
                   <Sparkles className="h-6 w-6 animate-pulse" />
                 </div>
               </div>
-              <div className="space-y-1">
+
+              <div className="space-y-1 max-w-sm">
                 <h3 className="text-sm font-bold text-slate-900">
-                  Scanning Vendor Invoice
+                  Scanning Bills with Gemini AI
                 </h3>
-                <p className="text-xs text-slate-500 font-medium max-w-xs mx-auto">
+                <p className="text-xs text-blue-700 font-semibold">
                   {scanStatus}
                 </p>
               </div>
+
+              {/* Multi-Image Progress List */}
+              <div className="w-full max-w-md rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2 text-left">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 pb-1 border-b border-slate-200">
+                  <span>Batch Progress</span>
+                  <span>
+                    {Math.max(activeScanIndex + 1, 1)} of {queuedFiles.length}
+                  </span>
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {queuedFiles.map((f, idx) => (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white border border-slate-100"
+                    >
+                      <div className="flex items-center gap-2 truncate mr-2">
+                        <span className="text-[10px] font-mono text-slate-400">
+                          #{idx + 1}
+                        </span>
+                        <span className="truncate text-slate-700 text-[11px] font-medium">
+                          {f.file.name}
+                        </span>
+                      </div>
+                      <div className="shrink-0">
+                        {f.status === "scanning" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Reading...
+                          </span>
+                        )}
+                        {f.status === "success" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                            <CheckCircle2 className="h-3 w-3" /> {f.itemCount} items
+                          </span>
+                        )}
+                        {f.status === "error" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600">
+                            <AlertCircle className="h-3 w-3" /> Failed
+                          </span>
+                        )}
+                        {f.status === "idle" && (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            Queued
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700 border border-blue-100">
                 <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
-                Zero-math error verification running
+                Processing one-by-one with failure isolation
               </div>
             </div>
           )}
@@ -692,6 +1130,38 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
           {/* STEP 4: PREVIEW EXTRACTED DATA */}
           {step === "preview" && extractedData && (
             <div className="space-y-4">
+              {/* Existing items append indicator */}
+              {existingItemCount > 0 && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-xs text-indigo-900 flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-indigo-600 shrink-0" />
+                    <span>
+                      <strong>{existingItemCount} items</strong> already in purchase form. These {extractedData.items.length} items will be appended below (Total: <strong>{existingItemCount + extractedData.items.length}</strong>).
+                    </span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-200/70 text-indigo-800 px-2 py-0.5 rounded">
+                    Append Mode
+                  </span>
+                </div>
+              )}
+
+              {/* Multi-image status banner if any failed or if multiple processed */}
+              {queuedFiles.length > 1 && (
+                <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/60 px-3.5 py-2 text-xs text-blue-900">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Aggregated from <strong>{successfulFilesCount}</strong> of <strong>{queuedFiles.length}</strong> images.
+                    </span>
+                  </div>
+                  {failedFilesCount > 0 && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                      {failedFilesCount} unreadable
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Vendor & Invoice Summary Card */}
               <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-3.5 space-y-2.5">
                 <div className="flex items-start justify-between">
@@ -763,7 +1233,7 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                   <table className="w-full text-left text-xs">
                     <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-600">
                       <tr>
-                        <th className="py-2 px-3">Item & Code</th>
+                        <th className="py-2 px-3">Item &amp; Code</th>
                         <th className="py-2 px-2 text-center">Cat</th>
                         <th className="py-2 px-2 text-right">Qty</th>
                         <th className="py-2 px-2 text-right">Cost (Rate)</th>
@@ -824,7 +1294,7 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                             <button
                               type="button"
                               onClick={() => handleRemoveItem(item.id)}
-                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                              className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                               title="Remove item"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -844,19 +1314,28 @@ export function BillScanDrawer({ isOpen, onClose, onApply }: BillScanDrawerProps
                   variant="outline"
                   size="sm"
                   onClick={() => setStep("upload")}
-                  className="text-xs h-9"
+                  className="text-xs h-9 cursor-pointer"
                 >
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                  Scan Another Bill
+                  Manage Images / Add More
                 </Button>
                 <Button
                   type="button"
                   size="sm"
                   onClick={handleApplyExtractedData}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 shadow-sm shadow-blue-500/20"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 shadow-sm shadow-blue-500/20 cursor-pointer"
                 >
-                  Apply to Purchase Form
-                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  {existingItemCount > 0 ? (
+                    <>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Append {extractedData.items.length} Items to Form
+                    </>
+                  ) : (
+                    <>
+                      Apply {extractedData.items.length} Items to Purchase Form
+                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
