@@ -51,28 +51,41 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
 ## 3. Google Gemini Vision API & Smart Bill Scanning Architecture
 
 1. **Multimodal OCR & Resilient Model Architecture**:
-   - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-3.1-pro-preview`).
-   - If a tenant's configured model is temporarily unavailable or restricted (e.g. 403 Forbidden / 404 Not Found), the extraction engine automatically falls back across the stable candidate sequence (`gemini-2.5-flash` -> `gemini-2.5-pro` -> `gemini-1.5-flash`), eliminating scan failures.
+   - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience:
+     - `gemini-3.5-flash-lite` (Primary / Recommended: ultra-fast ~5-6s latency, high throughput, zero 503 overload errors)
+     - `gemini-2.5-flash` (High reliability & structured OCR accuracy)
+     - `gemini-3.5-flash` (Advanced multi-page complex document reasoning)
+     - `gemini-3.8-flash` (Next-generation preview fallback)
+   - Stale/retired models (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-3.1-flash-lite`, `gemini-flash-latest`) are sanitized and auto-migrated to `gemini-3.5-flash-lite`.
+   - **Timeout Protection**: Each candidate model call is wrapped with a 22-second `Promise.race` timeout, preventing stalls from overloaded servers.
    - Supports JPG, PNG, WEBP images and single-page PDF supplier bills.
    - Enforces structured JSON output via `generationConfig: { responseMimeType: "application/json" }`.
 
-2. **Zero-Math Hallucination Engine**:
-   - Gemini extracts raw text, item names, rates, quantities, and GST rates.
+2. **Zero-Math Hallucination Engine & Tax-Exclusive Rate Handling**:
+   - Gemini extracts raw document text, item names, rates, quantities, and GST rates.
+   - **B2B Indian Tax Invoices (Section 31 CGST Act)**: Printed item rates are standard tax-exclusive base prices. The server engine deterministically handles both tax-exclusive base prices and tax-inclusive bills by comparing taxable values with unit rates and quantities.
    - All arithmetic (CGST/SGST/IGST splitting, base price calculation, purchase price per unit, item totals, and bill rounding) is calculated on the server/client math engine to ensure 100% financial precision without floating-point errors.
 
-3. **Client-Side Image Optimization**:
-   - High-resolution mobile camera captures (8–15MB) are downscaled using an off-screen HTML5 canvas to a max dimension of 1800px at 85% JPEG quality before base64 encoding.
-   - Shrinks network payloads from ~10MB to <300KB, dropping network upload latency by up to 70%.
+3. **Intelligent Optical Specs Extraction (`extractOpticalSpecs`)**:
+   - Extracts structured optical frame attributes:
+     - **Eye Size**: Standard frame sizes (`44` to `64` mm).
+     - **Color**: Frame color codes (e.g. `C1`, `C2`, `C4`, `BLK`, `GLD`, `DEMI`).
+     - **Brand & Model**: Brand identifiers (`TH`, `RB`, `RAY-BAN`, `OAKLEY`, `VOGUE`, `GUCCI`) and model numbers (`TH 1111`, `3025`, `4410`).
+     - **Clean Product Code**: Strips HSN code misidentifications and synthesizes structured codes (e.g. `TH 1111 C4 53`) for immediate barcode generation.
 
-4. **Per-Account Credentials Isolation**:
+4. **Client-Side Image Optimization & Dynamic Feedback**:
+   - High-resolution mobile camera captures (8–15MB) are downscaled using an off-screen HTML5 canvas to a max dimension of 1800px at 85% JPEG quality before base64 encoding, with automatic fallback to `FileReader`.
+   - Shrinks network payloads from ~10MB to <300KB, dropping network upload latency by up to 70%.
+   - Live multi-stage progress messages keep the user informed during OCR processing.
+
+5. **Per-Account Credentials Isolation**:
    - Each tenant organization stores its private `geminiApiKey` and `geminiModel` in `organizations.settings.ai`.
    - Keys are managed and tested via `actions/ai-settings.actions.ts`.
    - Fallback to `process.env.GEMINI_API_KEY` for development and platform testing.
 
-5. **Zero-Hallucination & Clean Inward Rules (Optical Retail Standards)**:
+6. **Zero-Hallucination & Clean Inward Rules (Optical Retail Standards)**:
    - **No Fabricated Retail Prices**: Supplier bills are B2B wholesale tax invoices that do not contain consumer retail selling prices / MRP. The AI pipeline strictly sets `retailPrice: 0`, leaving the Retail Price field 100% blank in both the purchase table and inline modal for store management entry.
-   - **No Synthetic Product Codes**: If a line item does not print an explicit article code, SKU, or barcode on the bill, `productCode` remains empty `""`. Prevents hallucinated synthetic strings from obstructing barcode scanners or inventory autocomplete.
-   - **Optical Category Classification**: Accurately classifies sunglasses into the dedicated `SUNGLASSES` category alongside `FRAME`, `LENS`, `CONTACT_LENS`, `SOLUTION`, and `ACCESSORY`.
+   - **Optical Category Classification**: Accurately classifies items into `FRAME`, `SUNGLASSES`, `LENS`, `CONTACT_LENS`, `SOLUTION`, and `ACCESSORY` using HSN prefix matching against organization categories.
    - **Net Taxable Unit Rate**: Captures true inward purchase cost by computing net taxable unit rate after line-item trade discounts (`unitPrice = taxableValue / quantity`).
    - **Indian Date Normalizer**: Deterministically normalizes Indian invoice date formats (`DD/MM/YYYY`, `DD-MM-YYYY`, `DD.MM.YYYY`) into standard ISO `YYYY-MM-DD`.
    - **Spec Sanitizer**: Automatically strips placeholder tokens (`"N/A"`, `"none"`, `"null"`, `"-"`) to preserve clean database attributes.

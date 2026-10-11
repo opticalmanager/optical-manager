@@ -209,21 +209,20 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
   useEffect(() => {
     if (activeModal === "ai") {
       const validModels = [
-        "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-latest",
+        "gemini-2.5-flash",
+        "gemini-3.5-flash",
         "gemini-3.8-flash",
       ];
       getOrganizationAiStatusAction().then((status) => {
         if (status.model) {
-          setAiModel(validModels.includes(status.model) ? status.model : "gemini-3.5-flash");
+          setAiModel(validModels.includes(status.model) ? status.model : "gemini-3.5-flash-lite");
         }
       });
       const orgAi = organization?.settings?.ai;
       if (orgAi?.geminiApiKey) setAiApiKey(orgAi.geminiApiKey);
       if (orgAi?.geminiModel) {
-        setAiModel(validModels.includes(orgAi.geminiModel) ? orgAi.geminiModel : "gemini-3.5-flash");
+        setAiModel(validModels.includes(orgAi.geminiModel) ? orgAi.geminiModel : "gemini-3.5-flash-lite");
       }
     }
   }, [activeModal, organization]);
@@ -1487,11 +1486,10 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                   onChange={(e) => setAiModel(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-white cursor-pointer"
                 >
-                  <option value="gemini-3.5-flash">gemini-3.5-flash (Recommended - Ultra Fast &amp; Accurate)</option>
-                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Lightweight &amp; Fast)</option>
-                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Fast OCR)</option>
-                  <option value="gemini-flash-latest">gemini-flash-latest (Flash Latest)</option>
-                  <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash)</option>
+                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Recommended - Ultra-Fast OCR ~5-6s)</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash (High Reliability &amp; Structured Data)</option>
+                  <option value="gemini-3.5-flash">gemini-3.5-flash (Advanced Multi-Page Reasoning)</option>
+                  <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash Preview)</option>
                 </select>
               </div>
 
