@@ -59,6 +59,14 @@ export interface CreatePurchaseOrderInput {
   items: CreatePurchaseItemInput[];
 }
 
+function safeNum(val: any, fallback = 0): number {
+  if (typeof val === "number") return isNaN(val) ? fallback : val;
+  if (!val) return fallback;
+  const cleaned = String(val).replace(/[^0-9.-]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? fallback : num;
+}
+
 /**
  * Create a new purchase order with line items and optional atomic stock increments.
  */
@@ -66,7 +74,7 @@ export async function createPurchaseOrder(
   input: CreatePurchaseOrderInput
 ): Promise<{ order: PurchaseOrder; items: PurchaseOrderItem[] }> {
   return await db.transaction(async (tx) => {
-    // 1. Calculate summary totals
+    // 1. Calculate summary totals with defensive sanitization
     let totalQuantity = 0;
     let totalUnitAmount = 0;
     let totalBasePrice = 0;
@@ -74,14 +82,22 @@ export async function createPurchaseOrder(
     let totalPurchase = 0;
 
     for (const item of input.items) {
-      totalQuantity += item.quantity;
-      totalUnitAmount += item.unitPrice;
-      totalBasePrice += item.basePrice;
-      totalGstAmount += item.cgstAmount + item.sgstAmount + item.igstAmount;
-      totalPurchase += item.totalPurchasePrice;
+      const q = Math.max(1, Math.round(safeNum(item.quantity, 1)));
+      const up = Math.max(0, safeNum(item.unitPrice, 0));
+      const bp = Math.max(0, safeNum(item.basePrice, up));
+      const cg = Math.max(0, safeNum(item.cgstAmount, 0));
+      const sg = Math.max(0, safeNum(item.sgstAmount, 0));
+      const ig = Math.max(0, safeNum(item.igstAmount, 0));
+      const tp = Math.max(0, safeNum(item.totalPurchasePrice, up * q));
+
+      totalQuantity += q;
+      totalUnitAmount += up;
+      totalBasePrice += bp;
+      totalGstAmount += cg + sg + ig;
+      totalPurchase += tp;
     }
 
-    const roundOff = input.roundOff || 0;
+    const roundOff = safeNum(input.roundOff, 0);
     const totalNetPurchase = Number((totalPurchase + roundOff).toFixed(2));
 
     // 2. Insert purchase_orders header
@@ -243,26 +259,31 @@ export async function createPurchaseOrder(
             // Ensure canonical code is 100% collision-free in this shop
             canonicalCode = await ensureUniqueShopSku(input.shopId, canonicalCode);
 
+            const safeQty = Math.max(1, Math.round(safeNum(itemInput.quantity, 1)));
+            const safeUp = Math.max(0, safeNum(itemInput.unitPrice, 0));
+            const safeRetail = safeNum(itemInput.retailPrice, 0);
+            const resolvedName = (itemInput.productName || itemInput.productCode || "Product").trim();
+
             // Create new inventory item directly with both sku and productCode populated
             const [newItem] = await tx
               .insert(inventory)
               .values({
                 shopId: input.shopId,
                 organizationId: input.organizationId,
-                name: itemInput.productName,
-                productName: itemInput.productName,
+                name: resolvedName,
+                productName: resolvedName,
                 productCode: canonicalCode,
                 sku: canonicalCode,
                 category: itemInput.category || "FRAME",
-                price: String(itemInput.retailPrice || itemInput.unitPrice),
-                costPrice: String(itemInput.unitPrice),
-                quantity: itemInput.quantity,
+                price: String(safeRetail > 0 ? safeRetail : safeUp),
+                costPrice: String(safeUp),
+                quantity: safeQty,
                 minQuantity: 5,
                 isActive: true,
                 hsnCode: itemInput.hsnCode || null,
-                cgstPercent: String(itemInput.cgstPercent.toFixed(2)),
-                sgstPercent: String(itemInput.sgstPercent.toFixed(2)),
-                igstPercent: String(itemInput.igstPercent.toFixed(2)),
+                cgstPercent: String(safeNum(itemInput.cgstPercent, 0).toFixed(2)),
+                sgstPercent: String(safeNum(itemInput.sgstPercent, 0).toFixed(2)),
+                igstPercent: String(safeNum(itemInput.igstPercent, 0).toFixed(2)),
                 vendorName: input.vendorName || null,
                 purchaseInvoiceNo: input.purchaseNumber,
                 inwardDate: input.purchaseDate as any,
@@ -277,12 +298,12 @@ export async function createPurchaseOrder(
                 shopId: input.shopId,
                 organizationId: input.organizationId,
                 movementType: "INITIAL",
-                quantityChange: itemInput.quantity,
-                balanceAfter: itemInput.quantity,
+                quantityChange: safeQty,
+                balanceAfter: safeQty,
                 referenceType: "PURCHASE_INVOICE",
                 referenceNumber: input.purchaseNumber,
                 vendorParty: input.vendorName || null,
-                costPriceAtTime: String(itemInput.unitPrice),
+                costPriceAtTime: String(safeUp),
                 notes: `Initial stock inward via purchase invoice #${input.purchaseNumber}`,
                 performedBy: input.createdBy || null,
               },
@@ -292,6 +313,13 @@ export async function createPurchaseOrder(
         }
       }
 
+      const rowQty = Math.max(1, Math.round(safeNum(itemInput.quantity, 1)));
+      const rowUp = Math.max(0, safeNum(itemInput.unitPrice, 0));
+      const rowBp = Math.max(0, safeNum(itemInput.basePrice, rowUp));
+      const rowPp = Math.max(0, safeNum(itemInput.purchasePrice, rowUp));
+      const rowTotal = Math.max(0, safeNum(itemInput.totalPurchasePrice, rowPp * rowQty));
+      const rowName = (itemInput.productName || itemInput.productCode || `Item #${itemInput.serialNumber || i + 1}`).trim();
+
       // Insert line item with guaranteed canonicalCode
       const [insertedItem] = await tx
         .insert(purchaseOrderItems)
@@ -300,24 +328,24 @@ export async function createPurchaseOrder(
           inventoryId: linkedInventoryId,
           shopId: input.shopId,
           organizationId: input.organizationId,
-          serialNumber: itemInput.serialNumber,
-          productName: itemInput.productName,
+          serialNumber: itemInput.serialNumber || i + 1,
+          productName: rowName,
           productCode: canonicalCode,
           category: itemInput.category || null,
           details: itemInput.details || null,
-          unitPrice: String(itemInput.unitPrice.toFixed(2)),
-          basePrice: String(itemInput.basePrice.toFixed(2)),
+          unitPrice: String(rowUp.toFixed(2)),
+          basePrice: String(rowBp.toFixed(2)),
           hsnCode: itemInput.hsnCode || null,
-          gstPercent: String(itemInput.gstPercent.toFixed(2)),
-          cgstPercent: String(itemInput.cgstPercent.toFixed(2)),
-          cgstAmount: String(itemInput.cgstAmount.toFixed(2)),
-          sgstPercent: String(itemInput.sgstPercent.toFixed(2)),
-          sgstAmount: String(itemInput.sgstAmount.toFixed(2)),
-          igstPercent: String(itemInput.igstPercent.toFixed(2)),
-          igstAmount: String(itemInput.igstAmount.toFixed(2)),
-          purchasePrice: String(itemInput.purchasePrice.toFixed(2)),
-          quantity: itemInput.quantity,
-          totalPurchasePrice: String(itemInput.totalPurchasePrice.toFixed(2)),
+          gstPercent: String(safeNum(itemInput.gstPercent, 0).toFixed(2)),
+          cgstPercent: String(safeNum(itemInput.cgstPercent, 0).toFixed(2)),
+          cgstAmount: String(safeNum(itemInput.cgstAmount, 0).toFixed(2)),
+          sgstPercent: String(safeNum(itemInput.sgstPercent, 0).toFixed(2)),
+          sgstAmount: String(safeNum(itemInput.sgstAmount, 0).toFixed(2)),
+          igstPercent: String(safeNum(itemInput.igstPercent, 0).toFixed(2)),
+          igstAmount: String(safeNum(itemInput.igstAmount, 0).toFixed(2)),
+          purchasePrice: String(rowPp.toFixed(2)),
+          quantity: rowQty,
+          totalPurchasePrice: String(rowTotal.toFixed(2)),
           retailPrice: String(itemInput.retailPrice.toFixed(2)),
         })
         .returning();
