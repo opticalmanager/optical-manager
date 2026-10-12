@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 
 import { ServiceWorkerRegistrar } from "@/components/providers/ServiceWorkerRegistrar";
 
@@ -37,6 +38,7 @@ export default function RootLayout({
         {children}
         <Toaster position="top-right" richColors />
         <SpeedInsights />
+        <GoogleAnalytics />
       </body>
     </html>
   );

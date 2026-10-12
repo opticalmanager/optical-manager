@@ -13,6 +13,7 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 | **Deployment / Hosting**| **AWS Amplify / EC2**| CI/CD build pipelines, SSR edge deployment (`amplify.yml`), domain SSL certificates. | Pay-as-you-go | **~$5.00 – $20.00 / mo** |
 | **Deployment (Alt)** | **Vercel** | Edge network hosting for Next.js App Router. | Pro / Hobby | **$0.00 – $20.00 / mo** |
 | **Performance RUM** | **Vercel Speed Insights** | Real-time Core Web Vitals and user performance tracking. | Included | **$0.00 / mo** |
+| **Web Analytics**   | **Google Analytics 4 (GA4)** | Client-side traffic, visitor telemetry, and conversion analytics (`G-8C5QB8TZ1E`). | Standard Free Tier | **$0.00 / mo** |
 | **Offline Databank**| **Dexie.js / IndexedDB** | Local in-browser client database for offline POS checkout & cache. | Browser API (MIT) | **$0.00 / mo** |
 | **Typography & Icons** | **Google Fonts / Lucide**| Custom fonts (Inter, Outfit) and UI vector iconography. | Open Source (MIT) | **$0.00** |
 
@@ -60,3 +61,10 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 - **Cost Analysis**:
   - **Google AI Studio Free Tier**: 1,500 requests/day, 1M tokens/minute (**$0.00 / month**).
   - **Pay-as-you-go Tier**: ~$0.00015 per 1,000 input tokens (< $1.00/month for retail stores).
+
+### 6. Google Analytics 4 (GA4)
+- **Primary Function**: Tracks anonymous web visitor telemetry, marketing landing page traffic, bounce rates, session engagement, and conversion flows on `https://opticalmanager.in`.
+- **Implementation**: Implemented via `@/components/analytics/GoogleAnalytics.tsx` using Next.js `next/script` with `strategy="afterInteractive"`. Asynchronously injected post-hydration to protect POS terminal rendering performance.
+- **Measurement ID**: `G-8C5QB8TZ1E` (configured via `NEXT_PUBLIC_GA_MEASUREMENT_ID`).
+- **Cost Analysis**: Standard Google Analytics free tier (**$0.00 / month**).
+
