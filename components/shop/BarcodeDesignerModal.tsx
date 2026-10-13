@@ -33,6 +33,10 @@ import {
   DEFAULT_DGUM_CONFIG,
   type DGumFlapConfig,
   recalculateDGumSections,
+  loadBarcodePreferences,
+  saveBarcodePreferences,
+  DEFAULT_BARCODE_PRESET,
+  DEFAULT_PAPER_SIZE,
 } from "@/utils/barcode.utils";
 
 export interface InventoryItem {
@@ -74,30 +78,31 @@ export function BarcodeSVG({ text, height = 36, className, barScale = 1.0 }: Bar
 
 // ─── Main Modal Component ──────────────────────────────────────────────────────
 export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }: BarcodeDesignerModalProps) {
-  if (!item) return null;
-
-  const defaultCustomHeader = item.category === "FRAME" ? "CLINICAL OPTICAL" : "SPECIAL VALUE";
-  const formattedPrice = `Rs. ${Number(item.price).toLocaleString("en-IN")}/-`;
-  const defaultQuantity = initialQuantity ?? (item.quantity && item.quantity > 0 ? item.quantity : 1);
+  const defaultCustomHeader = item?.category === "FRAME" ? "CLINICAL OPTICAL" : "SPECIAL VALUE";
+  const formattedPrice = item?.price ? `Rs. ${Number(item.price).toLocaleString("en-IN")}/-` : "Rs. 0/-";
+  const defaultQuantity = initialQuantity ?? (item?.quantity && item.quantity > 0 ? item.quantity : 1);
   const displaySku =
-    item.sku ||
-    (item.category
+    item?.sku ||
+    (item?.category
       ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
       : "FRM-GEN-00001");
-  const displayTitle = resolveDisplayTitle(
-    item.name,
-    item.category,
-    item.brand,
-    item.model,
-    item.productCode || item.sku
-  );
+  const displayTitle = item
+    ? resolveDisplayTitle(
+        item.name,
+        item.category,
+        item.brand,
+        item.model,
+        item.productCode || item.sku
+      )
+    : "";
 
-  // UI state - Default to industry standard A4 Sheet & 100x15 mm Butterfly Tag
-  const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">("a4");
-  const [labelSize, setLabelSize] = useState<LabelSizePreset>("100x15 mm (Tag)");
+  // UI state - Default to 81x12 mm (D-Gum Flap Tag) on Continuous Thermal Roll
+  const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">(DEFAULT_PAPER_SIZE);
+  const [labelSize, setLabelSize] = useState<LabelSizePreset>(DEFAULT_BARCODE_PRESET);
   const [printQuantity, setPrintQuantity] = useState<number | "">(defaultQuantity);
   const [activeTab, setActiveTab] = useState<"single" | "sheet">("single");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Dedicated D-Gum Flap Configuration State (81mm × 12mm)
   const [dGumConfig, setDGumConfig] = useState<DGumFlapConfig>(DEFAULT_DGUM_CONFIG);
@@ -111,7 +116,8 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
   }, [item, initialQuantity]);
 
   // Active Label Spec Configuration
-  const currentSpec = LABEL_SPECS[labelSize] || LABEL_SPECS["100x15 mm (Tag)"];
+  const currentSpec = LABEL_SPECS[labelSize] || LABEL_SPECS[DEFAULT_BARCODE_PRESET];
+  const initialSpec = LABEL_SPECS[DEFAULT_BARCODE_PRESET];
 
   // Element visibility
   const [showBrand, setShowBrand] = useState(true);
@@ -121,16 +127,89 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
   const [showBarcodeText, setShowBarcodeText] = useState(true);
 
   // Typography & Dimensions
-  const [brandFontSize, setBrandFontSize] = useState(currentSpec.defaultBrandFontSize);
-  const [priceFontSize, setPriceFontSize] = useState(currentSpec.defaultPriceFontSize);
-  const [descriptionFontSize, setDescriptionFontSize] = useState(currentSpec.defaultDescFontSize);
-  const [barcodeHeight, setBarcodeHeight] = useState(currentSpec.defaultBarcodeHeight);
+  const [brandFontSize, setBrandFontSize] = useState(initialSpec.defaultBrandFontSize);
+  const [priceFontSize, setPriceFontSize] = useState(initialSpec.defaultPriceFontSize);
+  const [descriptionFontSize, setDescriptionFontSize] = useState(initialSpec.defaultDescFontSize);
+  const [barcodeHeight, setBarcodeHeight] = useState(initialSpec.defaultBarcodeHeight);
 
   const [alignment, setAlignment] = useState<"left" | "center" | "right">("center");
   const [borderStyle, setBorderStyle] = useState<"dashed" | "solid" | "none">("dashed");
   const [fontFamily, setFontFamily] = useState<"modern" | "mono" | "classic">("modern");
   const [fontWeight, setFontWeight] = useState<"regular" | "bold">("bold");
   const [customHeader, setCustomHeader] = useState(defaultCustomHeader);
+
+  // Restore saved preferences automatically on mount
+  useEffect(() => {
+    const saved = loadBarcodePreferences();
+    if (saved) {
+      if (saved.preset && LABEL_SPECS[saved.preset]) {
+        setLabelSize(saved.preset);
+        const spec = LABEL_SPECS[saved.preset];
+        if (spec.dGumConfig) {
+          setDGumConfig(spec.dGumConfig);
+        }
+      }
+      if (saved.paperSize) {
+        setPaperSize(saved.paperSize);
+      }
+      if (saved.showBrand !== undefined) setShowBrand(saved.showBrand);
+      if (saved.showItemName !== undefined) setShowItemName(saved.showItemName);
+      if (saved.showPrice !== undefined) setShowPrice(saved.showPrice);
+      if (saved.showSKU !== undefined) setShowSKU(saved.showSKU);
+      if (saved.showBarcodeText !== undefined) setShowBarcodeText(saved.showBarcodeText);
+      if (saved.customHeader !== undefined) setCustomHeader(saved.customHeader);
+      if (saved.brandFontSize !== undefined) setBrandFontSize(saved.brandFontSize);
+      if (saved.priceFontSize !== undefined) setPriceFontSize(saved.priceFontSize);
+      if (saved.descriptionFontSize !== undefined) setDescriptionFontSize(saved.descriptionFontSize);
+      if (saved.barcodeHeight !== undefined) setBarcodeHeight(saved.barcodeHeight);
+      if (saved.alignment !== undefined) setAlignment(saved.alignment);
+      if (saved.borderStyle !== undefined) setBorderStyle(saved.borderStyle);
+      if (saved.fontFamily !== undefined) setFontFamily(saved.fontFamily);
+      if (saved.fontWeight !== undefined) setFontWeight(saved.fontWeight);
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Auto-persist barcode preferences whenever key designer options change
+  useEffect(() => {
+    if (!isLoaded) return;
+    saveBarcodePreferences({
+      preset: labelSize,
+      paperSize,
+      showBrand,
+      showItemName,
+      showPrice,
+      showSKU,
+      showBarcodeText,
+      customHeader,
+      brandFontSize,
+      priceFontSize,
+      descriptionFontSize,
+      barcodeHeight,
+      alignment,
+      borderStyle,
+      fontFamily,
+      fontWeight,
+    });
+  }, [
+    isLoaded,
+    labelSize,
+    paperSize,
+    showBrand,
+    showItemName,
+    showPrice,
+    showSKU,
+    showBarcodeText,
+    customHeader,
+    brandFontSize,
+    priceFontSize,
+    descriptionFontSize,
+    barcodeHeight,
+    alignment,
+    borderStyle,
+    fontFamily,
+    fontWeight,
+  ]);
 
   // Close on Escape
   useEffect(() => {
@@ -269,6 +348,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
   };
 
   const handlePrint = () => {
+    if (!item) return;
     const qty = Math.max(1, Number(printQuantity) || 1);
     const fullHtml = buildBulkLabelsHtml(
       [{
@@ -306,10 +386,15 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
     );
 
     printBarcodeDocument(fullHtml);
+    if (paperSize === "continuous") {
+      toast.info("Thermal Print: In the print dialog, select your Thermal Printer & set Margins to 'None'.", {
+        duration: 6000,
+      });
+    }
     toast.success(`Dispatched ${qty} barcode labels to printer.`);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !item) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4">

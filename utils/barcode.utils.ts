@@ -156,6 +156,53 @@ export function recalculateDGumSections(
   };
 }
 
+// ─── User Barcode Preference Persistence System ─────────────────────────────
+export interface UserBarcodePreferences {
+  preset?: LabelSizePreset;
+  paperSize?: "continuous" | "a4" | "a5";
+  showBrand?: boolean;
+  showItemName?: boolean;
+  showPrice?: boolean;
+  showSKU?: boolean;
+  showBarcodeText?: boolean;
+  customHeader?: string;
+  brandFontSize?: number;
+  priceFontSize?: number;
+  descriptionFontSize?: number;
+  barcodeHeight?: number;
+  alignment?: "left" | "center" | "right";
+  borderStyle?: "dashed" | "solid" | "none";
+  fontFamily?: "modern" | "mono" | "classic";
+  fontWeight?: "regular" | "bold";
+}
+
+export const BARCODE_PREFERENCES_STORAGE_KEY = "optical_barcode_preferences_v1";
+export const DEFAULT_BARCODE_PRESET: LabelSizePreset = "81x12 mm (D-Gum Flap Tag)";
+export const DEFAULT_PAPER_SIZE: "continuous" | "a4" | "a5" = "continuous";
+
+export function loadBarcodePreferences(): UserBarcodePreferences | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(BARCODE_PREFERENCES_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as UserBarcodePreferences;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveBarcodePreferences(prefs: Partial<UserBarcodePreferences>): void {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = loadBarcodePreferences() || {};
+    const merged = { ...existing, ...prefs };
+    localStorage.setItem(BARCODE_PREFERENCES_STORAGE_KEY, JSON.stringify(merged));
+  } catch {
+    // Gracefully ignore local storage quota / access limits
+  }
+}
+
 export interface LabelSpec {
   id: LabelSizePreset;
   displayName: string;
@@ -1228,127 +1275,67 @@ export function buildBulkLabelsHtml(
     pageCSS = `
       @page {
         size: ${rollWidth}mm ${rollHeight}mm;
-        margin: 0;
+        margin: 0mm;
       }
-      html, body {
-        width: ${rollWidth}mm;
-        height: ${rollHeight}mm;
+      *, *:before, *:after {
+        -webkit-box-sizing: border-box;
+        box-sizing: border-box;
         margin: 0;
         padding: 0;
-        background: #ffffff;
+      }
+      html {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: ${rollWidth}mm !important;
+        background: #ffffff !important;
+      }
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: ${rollWidth}mm !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
       }
       .barcode-continuous-page {
-        width: ${rollWidth}mm;
-        height: ${rollHeight}mm;
-        max-width: ${rollWidth}mm;
-        min-width: ${rollWidth}mm;
-        max-height: ${rollHeight}mm;
-        min-height: ${rollHeight}mm;
-        page-break-after: always;
-        break-after: page;
-        page-break-inside: avoid;
-        break-inside: avoid;
-        margin: 0;
-        padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"};
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        align-items: stretch;
-        justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "center"};
-        gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"};
-        overflow: hidden;
+        width: ${rollWidth}mm !important;
+        height: ${rollHeight}mm !important;
+        max-width: ${rollWidth}mm !important;
+        min-width: ${rollWidth}mm !important;
+        max-height: ${rollHeight}mm !important;
+        min-height: ${rollHeight}mm !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin: 0 !important;
+        padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"} !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: flex-start !important;
+        justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "flex-start"} !important;
+        gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"} !important;
+        overflow: hidden !important;
       }
-      .barcode-vertical-tag {
-        width: ${spec.widthMm}mm;
-        max-width: ${spec.widthMm}mm;
-        min-width: ${spec.widthMm}mm;
-        height: ${spec.heightMm}mm;
-        max-height: ${spec.heightMm}mm;
-        min-height: ${spec.heightMm}mm;
-        flex-shrink: 0;
-        flex-grow: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: center;
-        box-sizing: border-box;
+      .barcode-continuous-page:last-child {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
-      .barcode-dgum-label {
-        width: ${spec.widthMm}mm;
-        height: ${spec.heightMm}mm;
-        max-width: ${spec.widthMm}mm;
-        min-width: ${spec.widthMm}mm;
-        max-height: ${spec.heightMm}mm;
-        min-height: ${spec.heightMm}mm;
-        flex-shrink: 0;
-        box-sizing: border-box;
-      }
-      @media print {
-        @page {
-          size: ${rollWidth}mm ${rollHeight}mm;
-          margin: 0;
-        }
-        html, body {
-          width: ${rollWidth}mm !important;
-          height: ${rollHeight}mm !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        .barcode-continuous-page {
-          width: ${rollWidth}mm !important;
-          height: ${rollHeight}mm !important;
-          max-width: ${rollWidth}mm !important;
-          min-width: ${rollWidth}mm !important;
-          max-height: ${rollHeight}mm !important;
-          min-height: ${rollHeight}mm !important;
-          page-break-after: always !important;
-          break-after: page !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-          margin: 0 !important;
-          padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"} !important;
-          box-sizing: border-box !important;
-          display: flex !important;
-          flex-direction: row !important;
-          flex-wrap: nowrap !important;
-          align-items: stretch !important;
-          justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "center"} !important;
-          gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"} !important;
-          overflow: hidden !important;
-        }
-        .barcode-vertical-tag {
-          width: ${spec.widthMm}mm !important;
-          max-width: ${spec.widthMm}mm !important;
-          min-width: ${spec.widthMm}mm !important;
-          height: ${spec.heightMm}mm !important;
-          max-height: ${spec.heightMm}mm !important;
-          min-height: ${spec.heightMm}mm !important;
-          flex-shrink: 0 !important;
-          flex-grow: 0 !important;
-          display: flex !important;
-          flex-direction: column !important;
-          justify-content: space-between !important;
-          align-items: center !important;
-          box-sizing: border-box !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
-        .barcode-dgum-label {
-          width: ${spec.widthMm}mm !important;
-          height: ${spec.heightMm}mm !important;
-          max-width: ${spec.widthMm}mm !important;
-          min-width: ${spec.widthMm}mm !important;
-          max-height: ${spec.heightMm}mm !important;
-          min-height: ${spec.heightMm}mm !important;
-          flex-shrink: 0 !important;
-          box-sizing: border-box !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
+      .barcode-vertical-tag, .barcode-dgum-label {
+        width: ${spec.widthMm}mm !important;
+        height: ${spec.heightMm}mm !important;
+        max-width: ${spec.widthMm}mm !important;
+        min-width: ${spec.widthMm}mm !important;
+        max-height: ${spec.heightMm}mm !important;
+        min-height: ${spec.heightMm}mm !important;
+        flex-shrink: 0 !important;
+        box-sizing: border-box !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin: 0 !important;
       }
     `;
 
@@ -1432,7 +1419,7 @@ export function buildBulkLabelsHtml(
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Optical Manager - Barcode Print Spool (${spec.displayName})</title>
+  <title></title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #ffffff; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -1455,18 +1442,22 @@ export function printBarcodeDocument(htmlContent: string): boolean {
 
   try {
     let iframe = document.getElementById("barcode-print-frame") as HTMLIFrameElement | null;
-    if (!iframe) {
-      iframe = document.createElement("iframe");
-      iframe.id = "barcode-print-frame";
-      iframe.style.position = "fixed";
-      iframe.style.right = "0";
-      iframe.style.bottom = "0";
-      iframe.style.width = "0";
-      iframe.style.height = "0";
-      iframe.style.border = "0";
-      iframe.style.visibility = "hidden";
-      document.body.appendChild(iframe);
+    if (iframe) {
+      try {
+        iframe.remove();
+      } catch {}
     }
+    iframe = document.createElement("iframe");
+    iframe.id = "barcode-print-frame";
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "-9999px";
+    iframe.style.width = "400px";
+    iframe.style.height = "200px";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
 
     const frameDoc = iframe.contentDocument || iframe.contentWindow?.document;
     if (frameDoc) {
@@ -1481,7 +1472,7 @@ export function printBarcodeDocument(htmlContent: string): boolean {
         } catch {
           openBarcodePrintWindow(htmlContent);
         }
-      }, 100);
+      }, 150);
       return true;
     }
   } catch (err) {

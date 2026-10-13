@@ -88,9 +88,14 @@ This document details the functional, non-functional, and compliance requirement
 - **Hardware & Print Specifications**:
   - Separation of physical label dimensions from printer media stock dimensions (`mediaWidthMm: 81`, `feedLengthMm: 12`).
   - Dual stock feed support: Horizontal feed (81×12 mm web) and Vertical feed.
-  - Millimetric physical print DOM styling (`@page { size: 81mm 12mm; margin: 0; }`) ensuring 1:1 hardware output with zero browser scale-to-fit distortions.
+  - Continuous Thermal Roll Engine: Top-level `@page { size: 81mm 12mm; margin: 0mm; }`, zero fixed body heights allowing clean multi-label stream pagination, and `:last-child` page-break avoidance to eliminate trailing blank feeds.
+  - Modernized Offscreen Layout Iframe: Replaces 0×0 hidden iframes with active-layout offscreen nodes (`left: -9999px; width: 400px; height: 200px; opacity: 0`) ensuring Chromium accurately evaluates media page dimensions instead of falling back to parent viewport Letter/A4 defaults.
+  - Blank Title Suppression: Emits clean `<title></title>` to eliminate accidental browser title header printing.
+  - Interactive In-Modal Thermal Roll Checklist: Visual step-by-step guidance reminding operators to select their Thermal Printer destination, set Margins to "None", uncheck Headers & Footers, and maintain 100% scale.
   - Interactive Calibration Inspector with real-time sliders and geometric validation readout ($25.5 + 25.5 + 30.0 = 81.0\text{ mm ✅}$).
   - Full support in both individual label designer (`BarcodeDesignerModal`) and purchase inwarding batch printer (`PurchaseBulkBarcodeModal`).
+  - **Default Format & Media**: Out-of-the-box system default is set to **`81x12 mm (D-Gum Flap Tag)`** on **Continuous Thermal Roll** (`DEFAULT_BARCODE_PRESET` and `DEFAULT_PAPER_SIZE = "continuous"`), while preserving full flexibility for users to select any other preset or paper size.
+  - **Automatic User Preference Persistence (`localStorage`)**: Any operator selection—such as barcode preset, paper size (`continuous`, `A4`, `A5`), element visibility toggles (Brand, Price, SKU, Barcode Text), typography sizes, borders, and custom header—is automatically saved to `localStorage` under `optical_barcode_preferences_v1` and restored automatically on subsequent visits across both single-item and bulk batch printing interfaces.
 
 ---
 

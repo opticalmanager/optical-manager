@@ -433,7 +433,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Single Item Barcode Modal (`BarcodeDesignerModal`)**: Clicking the barcode action icon on any row automatically detects and prefills the label count with that item's added inward quantity (`item.quantity`), with an editable number input stepper supporting up to 500 labels.
    - **Vibrant Batch Barcode Center (`PurchaseBulkBarcodeModal`)**:
      - Accessed via the top modern gradient "Print All Barcodes" button (`bg-gradient-to-r from-blue-600 to-indigo-600`).
-     - Defaulted to optical gold standard settings: `100x15 mm (Tag)` and `Continuous Roll (Thermal Tag)`.
+     - Defaulted to eyewear industry gold standard settings: **`81x12 mm (D-Gum Flap Tag)`** on **Continuous Thermal Roll** (`paperSize: "continuous"`), with automatic `localStorage` preference persistence (`optical_barcode_preferences_v1`) that remembers any format or size selected by the user.
      - 2-Column responsive split layout featuring a dedicated **Live Barcode Preview Panel on the right side** with carousel item switcher (`< Prev` / `Next >`), realistic dual-wing fold tag mockup, and real-time SVG barcode rendering.
      - Uncluttered inward products summary table on the left with per-item editable quantity steppers and quick batch tools (`Inward Qty`, `+1 All`, `Zero`).
      - Zero-lag isolated hidden iframe print engine dispatching thermal jobs directly to the printer spooler without popup blocking or browser freezes.
@@ -801,11 +801,11 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - Pre-populated with authentic inward product quantities editable in real-time with quick actions (`Inward Qty`, `+1 All`, `Zero`).
      - **Dual Segmented Preview Tabs**: Features `Single Label` (carousel through individual product labels with butterfly tag fold line or retail box mockup) and `Sheet Preview` (realistic A4/A5 sticker sheet grid miniature with `aspect-[1/1.414]` proportions, numbered cell highlights, and multi-page pagination controls).
      - **Authentic Labels-Per-Page Calculations**: Clearly displays exact sheet capacity (e.g., A4: 36 labels/page on 2×18 grid for 100×15 mm Tag; 30 labels/page on 3×10 grid for 50×25 mm) and total physical sheets required.
-     - **Industrial Standard Defaults**: Out-of-the-box defaults to `100x15 mm (Tag)` and `A4 Sheet` layout for standard desktop sticker sheet printers, with seamless one-click switching to Continuous Thermal Roll mode (TSC/Zebra).
+     - **Industrial Standard Defaults & Auto-Memory**: Out-of-the-box defaults to **`81x12 mm (D-Gum Flap Tag)`** on **Continuous Thermal Roll** (`paperSize: "continuous"`), with automatic `localStorage` preference persistence (`optical_barcode_preferences_v1`) that auto-saves and restores any format, size, or paper layout changes selected by the operator.
      - **Zero-Lag Hidden IFrame Spooling**: Dispatches print jobs directly through an isolated hidden iframe with CSS page-break prevention and `table` row flow, eliminating popup blocking and lag.
    - **Individual Product Barcode Designer (`BarcodeDesignerModal`)**:
      - Pre-populated with the row item's inward quantity, canonical optical SKU, category, and retail price.
-     - Defaults to A4 Sheet layout and 100×15 mm butterfly optical tag, with instant sheet vs single label preview and zero-lag printing matching the bulk barcode system.
+     - Defaults to **`81x12 mm (D-Gum Flap Tag)`** on **Continuous Thermal Roll**, restoring any customized user preferences (toggles, typography, header) from `localStorage`.
 
 4. **Inward Transaction Editing & Stock Reversal**:
    - **In-Place Editing**: Clicking "Edit" enables bidirectional inline editing across supplier details, invoice metadata, and line-item prices with automatic recalculation. Saving changes updates the purchase order and re-calibrates inventory stock.
