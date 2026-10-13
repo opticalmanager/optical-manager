@@ -38,6 +38,8 @@ import { Button } from "@/components/ui/button";
 import { BillScanDrawer } from "@/components/shop/BillScanDrawer";
 import type { ExtractedBillData } from "@/types/bill-scan";
 import { handleEnterKeyNavigation } from "@/utils/form-navigation";
+import { getStateFromGSTIN } from "@/utils/gstin";
+import { offlineDB } from "@/lib/offline/db";
 
 export interface PurchaseTableRow {
   id: string; // temporary row key
@@ -982,14 +984,29 @@ export function PurchaseAddForm({
   };
 
   // Vendor selection handler
-  const handleSelectVendor = (vendor: Vendor | null) => {
+  const handleSelectVendor = async (vendor: Vendor | null) => {
     if (vendor) {
       setSelectedVendorId(vendor.id);
       setVendorName(vendor.name);
       setVendorGstin(vendor.gstin || "");
       // Auto-set Tax Type based on GSTIN state code if available
       if (vendor.gstin && vendor.gstin.length >= 2) {
-        setTaxType("SGST_CGST"); // standard default
+        const vendorState = getStateFromGSTIN(vendor.gstin);
+        if (vendorState) {
+          try {
+            const profile = await offlineDB.cached_shop_profile.get(shopId);
+            const shopState = profile?.settings?.state || (profile?.gstNumber ? getStateFromGSTIN(profile.gstNumber) : null);
+            if (shopState && shopState.toLowerCase() !== vendorState.toLowerCase()) {
+              setTaxType("IGST");
+            } else {
+              setTaxType("SGST_CGST");
+            }
+          } catch {
+            setTaxType("SGST_CGST");
+          }
+        } else {
+          setTaxType("SGST_CGST");
+        }
       }
     } else {
       setSelectedVendorId(null);
@@ -1371,6 +1388,13 @@ export function PurchaseAddForm({
               selectedVendorName={vendorName}
               onSelectVendor={handleSelectVendor}
             />
+            {vendorGstin && vendorGstin.length >= 2 && getStateFromGSTIN(vendorGstin) && (
+              <div className="mt-1 flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Supplier State: {getStateFromGSTIN(vendorGstin)}</span>
+                <span className="text-emerald-500 font-mono">({vendorGstin.slice(0, 2)})</span>
+              </div>
+            )}
           </div>
 
           {/* Purchase Bill Number */}

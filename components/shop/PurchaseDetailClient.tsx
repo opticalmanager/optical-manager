@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { updatePurchaseAction, deletePurchaseAction } from "@/actions/purchase.actions";
+import { getStateFromGSTIN } from "@/utils/gstin";
 import { BarcodeDesignerModal } from "@/components/shop/BarcodeDesignerModal";
 import { PurchaseBulkBarcodeModal } from "@/components/shop/PurchaseBulkBarcodeModal";
 import type { PurchaseOrder, PurchaseOrderItem } from "@/types";
@@ -438,7 +439,14 @@ export function PurchaseDetailClient({
             </div>
             <div>
               <span className="text-[11px] font-semibold text-slate-400 block">Vendor GSTIN</span>
-              <span className="font-mono font-bold text-slate-800">{vendorGstin || "Unregistered"}</span>
+              <span className="font-mono font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                {vendorGstin || "Unregistered"}
+                {vendorGstin && vendorGstin.length >= 2 && getStateFromGSTIN(vendorGstin) && (
+                  <span className="font-sans font-semibold text-[9.5px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                    {getStateFromGSTIN(vendorGstin)}
+                  </span>
+                )}
+              </span>
             </div>
             <div>
               <span className="text-[11px] font-semibold text-slate-400 block">Invoice Number</span>
@@ -476,10 +484,19 @@ export function PurchaseDetailClient({
               <label className="text-[11px] font-bold text-slate-500 mb-1 block">Vendor GSTIN</label>
               <input
                 type="text"
+                placeholder="27AAAAA0000A1Z5"
+                maxLength={15}
                 value={vendorGstin}
-                onChange={(e) => setVendorGstin(e.target.value.toUpperCase())}
+                onChange={(e) => setVendorGstin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15))}
                 className="w-full h-8.5 px-2.5 rounded-lg border border-slate-200 bg-white font-mono font-semibold text-slate-800 focus:outline-hidden focus:border-[#2563eb]"
               />
+              {vendorGstin.length >= 2 && getStateFromGSTIN(vendorGstin) && (
+                <div className="mt-1 flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>State: {getStateFromGSTIN(vendorGstin)}</span>
+                  <span className="text-emerald-500 font-mono">({vendorGstin.slice(0, 2)})</span>
+                </div>
+              )}
             </div>
             <div>
               <label className="text-[11px] font-bold text-slate-500 mb-1 block">Invoice #</label>

@@ -40,45 +40,7 @@ import {
   NEAR_VN_OPTIONS,
   ADD_OPTIONS,
 } from "@/utils/optometry";
-
-const INDIAN_STATES = [
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chhattisgarh",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal",
-  "Andaman and Nicobar Islands",
-  "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu",
-  "Delhi",
-  "Jammu and Kashmir",
-  "Ladakh",
-  "Lakshadweep",
-  "Puducherry"
-];
+import { INDIAN_STATES, getStateFromGSTIN } from "@/utils/gstin";
 
 interface PatientRegistrationFormProps {
   initialPatientData?: {
@@ -777,8 +739,19 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                 onChange={(e) => {
                   const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 15);
                   setValue("customer.gstin", cleaned, { shouldValidate: true });
+                  const detectedState = getStateFromGSTIN(cleaned);
+                  if (detectedState) {
+                    setValue("customer.state", detectedState, { shouldValidate: true });
+                  }
                 }}
               />
+              {watch("customer.gstin") && (watch("customer.gstin") || "").length >= 2 && getStateFromGSTIN(watch("customer.gstin")) && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>State Detected: {getStateFromGSTIN(watch("customer.gstin"))}</span>
+                  <span className="text-emerald-500 font-mono">({(watch("customer.gstin") || "").slice(0, 2)})</span>
+                </div>
+              )}
               {errors.customer?.gstin?.message && (
                 <span className="text-[10px] font-bold text-rose-500 mt-1.5 block">
                   {String(errors.customer.gstin.message)}
