@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   X,
   Printer,
@@ -32,6 +32,10 @@ import {
   printBarcodeDocument,
   resolveDisplayTitle,
   BarcodeItem,
+  loadBarcodePreferences,
+  saveBarcodePreferences,
+  DEFAULT_BARCODE_PRESET,
+  DEFAULT_PAPER_SIZE,
 } from "@/utils/barcode.utils";
 
 export interface BulkBarcodeProduct {
@@ -57,11 +61,24 @@ export function PurchaseBulkBarcodeModal({
   invoiceNumber,
   products: initialProducts,
 }: PurchaseBulkBarcodeModalProps) {
-  if (!isOpen) return null;
+  // Selected preset and paper size - Default to the 81x12 mm D-Gum Flap Tag on Continuous Thermal Roll
+  const [selectedPreset, setSelectedPreset] = useState<LabelSizePreset>(DEFAULT_BARCODE_PRESET);
+  const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">(DEFAULT_PAPER_SIZE);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
-  // Selected preset and paper size - Default to the 3-Across vertical barbell roll (industry gold standard)
-  const [selectedPreset, setSelectedPreset] = useState<LabelSizePreset>("100x15 mm (Vertical 3-Up)");
-  const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">("continuous");
+  // Hydrate preferences automatically from localStorage on client mount
+  useEffect(() => {
+    const saved = loadBarcodePreferences();
+    if (saved) {
+      if (saved.preset && LABEL_SPECS[saved.preset]) {
+        setSelectedPreset(saved.preset);
+      }
+      if (saved.paperSize) {
+        setPaperSize(saved.paperSize);
+      }
+    }
+    setIsLoaded(true);
+  }, []);
 
   // Preview tab toggle: Single Label vs Sheet/Roll Preview
   const [activePreviewTab, setActivePreviewTab] = useState<"single" | "sheet">("single");
@@ -79,7 +96,7 @@ export function PurchaseBulkBarcodeModal({
     return initial;
   });
 
-  const currentSpec = LABEL_SPECS[selectedPreset] || LABEL_SPECS["100x15 mm (Vertical 3-Up)"];
+  const currentSpec = LABEL_SPECS[selectedPreset] || LABEL_SPECS[DEFAULT_BARCODE_PRESET];
 
   // Calculate total labels to print
   const totalLabels = useMemo(() => {
@@ -116,14 +133,24 @@ export function PurchaseBulkBarcodeModal({
     currentPreviewProduct.productCode || currentPreviewProduct.sku
   );
 
-  // Handle preset change: auto-select "continuous" for vertical tags & D-Gum flap tags
+  // Handle preset change: auto-select "continuous" for vertical tags & D-Gum flap tags + auto-save preference
   const handleSelectPreset = (preset: LabelSizePreset) => {
     setSelectedPreset(preset);
     setSheetPage(1);
     const spec = LABEL_SPECS[preset];
+    let nextPaper = paperSize;
     if (spec?.type === "vertical-tag" || spec?.type === "dgum-flap") {
+      nextPaper = "continuous";
       setPaperSize("continuous");
     }
+    saveBarcodePreferences({ preset, paperSize: nextPaper });
+  };
+
+  // Handle paper size change + auto-save preference
+  const handleSelectPaperSize = (newPaper: "continuous" | "a4" | "a5") => {
+    setPaperSize(newPaper);
+    setSheetPage(1);
+    saveBarcodePreferences({ preset: selectedPreset, paperSize: newPaper });
   };
 
   // Handle single item quantity change
@@ -210,6 +237,11 @@ export function PurchaseBulkBarcodeModal({
     if (!success) {
       toast.error("Could not trigger printer. Please check browser print permissions.");
     } else {
+      if (paperSize === "continuous") {
+        toast.info("Thermal Print: In the print dialog, select your Thermal Printer & set Margins to 'None'.", {
+          duration: 6000,
+        });
+      }
       toast.success(`Dispatched ${totalLabels} barcode labels (${currentSpec.displayName}) to printer.`);
       onClose();
     }
@@ -236,6 +268,8 @@ export function PurchaseBulkBarcodeModal({
     "40x30 mm (Medium Box)",
     "50x50 mm (Square Box)",
   ];
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
@@ -378,10 +412,7 @@ export function PurchaseBulkBarcodeModal({
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      setPaperSize("continuous");
-                      setSheetPage(1);
-                    }}
+                    onClick={() => handleSelectPaperSize("continuous")}
                     className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
                       paperSize === "continuous"
                         ? "bg-[#2563eb] text-white shadow-2xs"
@@ -392,10 +423,7 @@ export function PurchaseBulkBarcodeModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setPaperSize("a4");
-                      setSheetPage(1);
-                    }}
+                    onClick={() => handleSelectPaperSize("a4")}
                     className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
                       paperSize === "a4"
                         ? "bg-[#2563eb] text-white shadow-2xs"
@@ -406,10 +434,7 @@ export function PurchaseBulkBarcodeModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setPaperSize("a5");
-                      setSheetPage(1);
-                    }}
+                    onClick={() => handleSelectPaperSize("a5")}
                     className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
                       paperSize === "a5"
                         ? "bg-[#2563eb] text-white shadow-2xs"
@@ -421,13 +446,36 @@ export function PurchaseBulkBarcodeModal({
                 </div>
               </div>
 
-              {/* 3. Thermal Printer Setup Tip Box */}
-              <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 flex items-start gap-2 text-amber-900 text-xs">
-                <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-[11px] leading-tight">
-                  <span className="font-bold">Thermal Printer Setup Tip:</span> When your printer dialog opens, set <strong>Destination: Your Thermal Printer</strong>, <strong>Paper size: {currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm}mm (or Match Media)</strong>, and <strong>Margins: None</strong> for 100% precision.
+              {/* 3. Thermal Printer Setup Guidance Card */}
+              {paperSize === "continuous" ? (
+                <div className="p-3 rounded-xl bg-amber-50/95 border border-amber-300 text-amber-950 text-xs space-y-1.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900 text-xs">
+                    <Info className="h-4 w-4 text-amber-700 shrink-0" />
+                    <span>Continuous Thermal Roll Setup Checklist (Avoids A4 / Blank Pages):</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] pt-0.5">
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
+                      <strong className="text-slate-800">1. Destination:</strong> Select your <strong>Thermal Printer</strong> (TSC, Zebra, Xprinter, etc.) — <em>not</em> Microsoft Print to PDF.
+                    </div>
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
+                      <strong className="text-slate-800">2. Margins:</strong> In <em>More settings</em>, set <strong>Margins: None</strong> (removes blank space &amp; headers).
+                    </div>
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
+                      <strong className="text-slate-800">3. Headers &amp; Footers:</strong> <strong>Uncheck</strong> (stops date, URL, and page count from printing).
+                    </div>
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
+                      <strong className="text-slate-800">4. Paper Size:</strong> <strong>{currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm}mm</strong> • Scale: <strong>100%</strong>.
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2 text-slate-700 text-xs">
+                  <Info className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-tight">
+                    <span className="font-bold">Sheet Printer Setup Tip:</span> In print dialog, select <strong>Paper size: {paperSize.toUpperCase()}</strong>, <strong>Scale: 100% (Actual Size)</strong>, and <strong>Margins: Default/None</strong>.
+                  </div>
+                </div>
+              )}
 
               {/* 4. Products List & Stepper Controls */}
               <div className="space-y-2">
