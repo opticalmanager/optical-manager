@@ -8,6 +8,7 @@ import { getShopById } from "./shop.service";
 import { getCustomerById } from "./customer.service";
 import { getPrescriptionsByCustomer } from "./prescription.service";
 import { getReceiptById } from "./receipt.service";
+import { getCustomizationSettings, type CustomizationConfig } from "./customization.service";
 import type { Invoice, Shop, Customer, Prescription, Receipt, Order } from "@/types";
 
 export interface LineItemWithInventory {
@@ -41,6 +42,7 @@ export interface DocumentData {
   receipt?: Receipt | null;
   allReceipts?: Receipt[];
   order?: Order | null;
+  customizationConfig?: CustomizationConfig | null;
 }
 
 /**
@@ -58,7 +60,7 @@ export async function getInvoiceDocumentData(
   if (!invoice) return null;
 
   // 2. Fetch all related entities in parallel for optimal latency with strict null guards
-  const [shop, customer, lineItems, prescriptions, orderRecord, receiptsList] = await Promise.all([
+  const [shop, customer, lineItems, prescriptions, orderRecord, receiptsList, customizationConfig] = await Promise.all([
     invoice.shopId ? getShopById(invoice.shopId, organizationId) : Promise.resolve(null),
     invoice.customerId ? getCustomerById(invoice.customerId, organizationId) : Promise.resolve(null),
     db
@@ -106,6 +108,7 @@ export async function getInvoiceDocumentData(
       .where(and(eq(receipts.invoiceId, invoice.id), eq(receipts.organizationId, organizationId)))
       .orderBy(receipts.createdAt)
       .catch(() => []),
+    getCustomizationSettings(organizationId, invoice.shopId).catch(() => null),
   ]);
 
   return {
@@ -116,6 +119,7 @@ export async function getInvoiceDocumentData(
     prescriptions: prescriptions || [],
     order: orderRecord || null,
     allReceipts: receiptsList || [],
+    customizationConfig: customizationConfig || null,
   };
 }
 
@@ -167,6 +171,118 @@ export async function getPublicInvoiceDocumentData(
     return getInvoiceDocumentData(invoice.id, invoice.organizationId);
   } catch (error) {
     console.error("[getPublicInvoiceDocumentData] error:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetches data for a Receipt / Order Booking Form without checking organization session (for public sharing).
+ * Resilient multi-lookup: checks receipt ID/number, order ID/number, or invoice ID/number.
+ */
+export async function getPublicReceiptDocumentData(
+  id: string
+): Promise<DocumentData | null> {
+  if (!id) return null;
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+    // 1. Try finding by receipt ID or receiptNumber
+    const rcptCondition = isUuid ? eq(receipts.id, id) : eq(receipts.receiptNumber, id);
+    const [receipt] = await db
+      .select()
+      .from(receipts)
+      .where(rcptCondition)
+      .limit(1);
+
+    if (receipt) {
+      const invoiceData = await getInvoiceDocumentData(receipt.invoiceId, receipt.organizationId);
+      if (invoiceData) {
+        return {
+          ...invoiceData,
+          receipt,
+        };
+      }
+    }
+
+    // 2. Try finding by order ID or orderNumber
+    const orderCondition = isUuid ? eq(orders.id, id) : eq(orders.orderNumber, id);
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(orderCondition)
+      .limit(1);
+
+    if (order && order.invoiceId) {
+      const invoiceData = await getInvoiceDocumentData(order.invoiceId, order.organizationId);
+      if (invoiceData) {
+        const matchingReceipt =
+          (order.receiptId ? invoiceData.allReceipts?.find((r) => r.id === order.receiptId) : null) ||
+          invoiceData.allReceipts?.[0] ||
+          null;
+
+        const resolvedReceipt =
+          matchingReceipt ||
+          ({
+            id: order.id,
+            receiptNumber: order.orderNumber,
+            invoiceId: order.invoiceId,
+            amountPaid: invoiceData.invoice.amountPaid || "0.00",
+            balanceDue: invoiceData.invoice.balanceDue || invoiceData.invoice.total,
+            paymentMethod: (invoiceData.invoice.paymentMethod as any) || "CASH",
+            transactionId: null,
+            createdAt: order.createdAt,
+            organizationId: order.organizationId,
+            shopId: order.shopId,
+            notes: null,
+            updatedAt: order.updatedAt,
+          } as Receipt);
+
+        return {
+          ...invoiceData,
+          receipt: resolvedReceipt,
+          order,
+        };
+      }
+    }
+
+    // 3. Fallback: try finding by invoice ID or invoiceNumber
+    const invCondition = isUuid ? eq(invoices.id, id) : eq(invoices.invoiceNumber, id);
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(invCondition)
+      .limit(1);
+
+    if (invoice) {
+      const invoiceData = await getInvoiceDocumentData(invoice.id, invoice.organizationId);
+      if (invoiceData) {
+        const primaryReceipt =
+          invoiceData.allReceipts?.[0] ||
+          ({
+            id: invoice.id,
+            receiptNumber: invoiceData.order?.orderNumber || invoice.invoiceNumber,
+            invoiceId: invoice.id,
+            amountPaid: invoice.amountPaid || "0.00",
+            balanceDue: invoice.balanceDue || invoice.total,
+            paymentMethod: (invoice.paymentMethod as any) || "CASH",
+            transactionId: null,
+            createdAt: invoice.createdAt,
+            organizationId: invoice.organizationId,
+            shopId: invoice.shopId,
+            notes: null,
+            updatedAt: invoice.updatedAt,
+          } as Receipt);
+
+        return {
+          ...invoiceData,
+          receipt: primaryReceipt,
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error("[getPublicReceiptDocumentData] error:", error);
     return null;
   }
 }

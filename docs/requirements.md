@@ -76,7 +76,21 @@ This document details the functional, non-functional, and compliance requirement
 - Direct 1-click icon buttons under `DOCUMENTS` (Order Form and Tax Invoice) and `ACTION` (WhatsApp and Edit) eliminating cumbersome nested dropdowns.
 - WhatsApp multi-template contextual popover supporting 5 optical message actions (Send Order Form, Send Tax Invoice, Send Clinical Eye Prescription with OD/OS powers & PD, Order Ready for Pickup, and Outstanding Payment Reminder).
 - Dedicated Shop Settings WhatsApp Customizer supporting 7 customizable message templates with clinical optometry token variables (`re_sph`, `re_cyl`, `re_axis`, `re_add`, `le_sph`, `le_cyl`, `le_axis`, `le_add`, `pd`, `doctor_name`, `order_form_url`) and live smartphone preview.
-- Low-stress, high-density industrial table styling adhering to Linear/Stripe design standards with silky hairline dividers (`divide-y divide-slate-100/80`) and soft HSL status badges.
+### FR-13: Production-Accurate D-Gum Flap Label Printing (81×12 mm NTK Standard)
+- **81×12 mm NTK D-Gum Flap Optical Tag (Industry Standard for Spectacle Frames)**:
+  - *Physical Geometry*: 81 mm total unfolded length × 12 mm tag body height.
+  - *51 mm Foldable Head (Printable Wings)*: Located on the left side of the tag, divided symmetrically by a 25.5 mm dotted center fold line into two 25.5×12 mm wings:
+    - *Wing 1 (Front)*: 25.5×12 mm printable area displaying Brand name, category, model/specs, and retail MRP.
+    - *Wing 2 (Back)*: 25.5×12 mm printable area rendering high-density vector Code 128 barcode (with required quiet zones) and human-readable monospace SKU.
+  - *30 mm Adhesive-Free Tail (Loop Strap)*: Centered vertically on the right side (~2.8 mm thick), engineered completely adhesive-free within the 12 mm height boundary. Wraps around spectacle temple arm and is sealed between Wing 1 and Wing 2 when the 51 mm head is folded in half at 25.5 mm.
+  - *Mathematical Invariant*: $\text{Wing 1 (25.5 mm)} + \text{Wing 2 (25.5 mm)} + \text{Adhesive-Free Tail (30.0 mm)} = 81.0\text{ mm}$.
+  - *Content Scaling Rules*: Automatic refitting of all internal block variables (`CLINICAL OPTICAL`, `PRICE`, `BARCODE`, `FRAME TEXT`) within the 25.5×12 mm wing boundaries with zero bleeding across the 25.5 mm central fold divider.
+- **Hardware & Print Specifications**:
+  - Separation of physical label dimensions from printer media stock dimensions (`mediaWidthMm: 81`, `feedLengthMm: 12`).
+  - Dual stock feed support: Horizontal feed (81×12 mm web) and Vertical feed.
+  - Millimetric physical print DOM styling (`@page { size: 81mm 12mm; margin: 0; }`) ensuring 1:1 hardware output with zero browser scale-to-fit distortions.
+  - Interactive Calibration Inspector with real-time sliders and geometric validation readout ($25.5 + 25.5 + 30.0 = 81.0\text{ mm ✅}$).
+  - Full support in both individual label designer (`BarcodeDesignerModal`) and purchase inwarding batch printer (`PurchaseBulkBarcodeModal`).
 
 ---
 

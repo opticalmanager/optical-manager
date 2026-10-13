@@ -22,18 +22,21 @@ interface SharedInvoiceViewerProps {
 }
 
 export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceViewerProps) {
+  const isReceiptMode = mode === "RECEIPT";
   const shopDetails = getShopBusinessDetails(data?.shop);
   const storeName = shopDetails.name || (data?.shop as any)?.organizationName || "Optical_Store";
-  const invoiceNumber = data?.invoice?.invoiceNumber || "Invoice";
+  const docNumber = isReceiptMode
+    ? (data?.receipt?.receiptNumber || data?.order?.orderNumber || data?.invoice?.invoiceNumber || "Order_Form")
+    : (data?.invoice?.invoiceNumber || "Invoice");
 
-  // Build clean downloadable filename: [Store/Org_Name]_[Invoice_Number].pdf
+  // Build clean downloadable filename: [Store/Org_Name]_[Doc_Number].pdf
   const cleanStore = storeName.trim().replace(/[\/\\:*?"<>|#\s]+/g, "_").replace(/^_+|_+$/g, "");
-  const cleanInv = invoiceNumber.trim().replace(/[\/\\:*?"<>|#\s]+/g, "_").replace(/^_+|_+$/g, "");
-  const pdfFileName = `${cleanStore}_${cleanInv}.pdf`;
+  const cleanDoc = docNumber.trim().replace(/[\/\\:*?"<>|#\s]+/g, "_").replace(/^_+|_+$/g, "");
+  const pdfFileName = `${cleanStore}_${cleanDoc}.pdf`;
 
   const [scale, setScale] = useState<number>(1);
   const [fitScale, setFitScale] = useState<number>(1);
-  const [docHeight, setDocHeight] = useState<number>(2300);
+  const [docHeight, setDocHeight] = useState<number>(1150);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
@@ -160,7 +163,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
   const handlePrint = () => {
     if (typeof window === "undefined") return;
     const originalTitle = document.title;
-    document.title = `${cleanStore}_${cleanInv}`;
+    document.title = `${cleanStore}_${cleanDoc}`;
     window.print();
     setTimeout(() => {
       document.title = originalTitle;
@@ -173,7 +176,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
     setIsDownloading(true);
 
     const originalTitle = document.title;
-    document.title = `${cleanStore}_${cleanInv}`;
+    document.title = `${cleanStore}_${cleanDoc}`;
 
     // Temporarily reset zoom scale to 1 for high-res unscaled canvas capture
     const currentScale = scale;
@@ -242,14 +245,15 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-50 text-[#2563eb] tracking-wider">
-                {mode === "RECEIPT" ? "Order Form / Receipt" : "Tax Invoice"}
+                {isReceiptMode ? "Order Form / Receipt" : "Tax Invoice"}
               </span>
               <span className="text-xs font-bold text-slate-800 truncate max-w-[200px]">
                 {storeName}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium">
-              Invoice No: <span className="font-bold text-slate-900">{invoiceNumber}</span>
+              {isReceiptMode ? "Order Form / Receipt No: " : "Invoice No: "}
+              <span className="font-bold text-slate-900">{docNumber}</span>
             </p>
           </div>
 
@@ -259,7 +263,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
               type="button"
               onClick={handlePrint}
               className="flex-1 sm:flex-initial h-10 px-4 font-bold text-xs uppercase tracking-wider text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200/80 shadow-2xs"
-              title="Print Invoice"
+              title={isReceiptMode ? "Print Order Form" : "Print Invoice"}
             >
               <Printer className="h-4 w-4 text-slate-600" />
               <span>Print</span>

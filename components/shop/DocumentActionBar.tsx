@@ -61,7 +61,12 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
     );
 
     const invoiceUrl = `${window.location.origin}/share/invoice/${data.invoice?.id}`;
-    const orderFormUrl = `${window.location.origin}/shop/receipts/${data.receipt?.id || data.invoice?.id}`;
+    const primaryReceiptId = data.receipt?.id || data.allReceipts?.[0]?.id || data.invoice?.id;
+    const orderFormUrl = `${window.location.origin}/share/receipt/${primaryReceiptId}`;
+    const targetMediaUrl = isInvoice ? invoiceUrl : orderFormUrl;
+
+    const prescriptions = data.prescriptions || [];
+    const latestRx = prescriptions[0] || null;
 
     // 2. Parse template with variables
     const formattedMessage = parseWhatsAppTemplate(templateText, {
@@ -70,16 +75,26 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       phone: data.shop?.phone || "",
       shop_address: data.shop?.address || "",
       invoice_number: data.invoice?.invoiceNumber || "",
-      receipt_number: data.receipt?.receiptNumber || data.invoice?.invoiceNumber || "",
+      receipt_number: data.receipt?.receiptNumber || data.allReceipts?.[0]?.receiptNumber || data.order?.orderNumber || data.invoice?.invoiceNumber || "",
       order_number: data.order?.orderNumber || data.invoice?.invoiceNumber || "",
       amount: formatCurrency(parseFloat(data.invoice?.total || "0")),
-      amount_paid: formatCurrency(parseFloat(data.receipt?.amountPaid ?? data.invoice?.amountPaid ?? "0")),
-      balance_due: formatCurrency(parseFloat(data.invoice?.balanceDue || "0")),
-      payment_method: data.receipt?.paymentMethod || data.invoice?.paymentMethod || "CASH",
+      amount_paid: formatCurrency(parseFloat(data.receipt?.amountPaid ?? data.allReceipts?.[0]?.amountPaid ?? data.invoice?.amountPaid ?? "0")),
+      balance_due: formatCurrency(parseFloat(data.receipt?.balanceDue ?? data.allReceipts?.[0]?.balanceDue ?? data.invoice?.balanceDue ?? "0")),
+      payment_method: data.receipt?.paymentMethod || data.allReceipts?.[0]?.paymentMethod || data.invoice?.paymentMethod || "CASH",
       fulfillment_status: data.invoice?.fulfillmentStatus || "PROCESSING",
       estimated_delivery: safeFormatDateLocale(data.invoice?.estimatedDelivery, "N/A"),
       invoice_url: invoiceUrl,
       order_form_url: orderFormUrl,
+      re_sph: latestRx?.rightSphere ? String(latestRx.rightSphere) : "0.00",
+      re_cyl: latestRx?.rightCylinder ? String(latestRx.rightCylinder) : "0.00",
+      re_axis: latestRx?.rightAxis ? `${latestRx.rightAxis}°` : "-",
+      re_add: latestRx?.rightAdd ? String(latestRx.rightAdd) : "-",
+      le_sph: latestRx?.leftSphere ? String(latestRx.leftSphere) : "0.00",
+      le_cyl: latestRx?.leftCylinder ? String(latestRx.leftCylinder) : "0.00",
+      le_axis: latestRx?.leftAxis ? `${latestRx.leftAxis}°` : "-",
+      le_add: latestRx?.leftAdd ? String(latestRx.leftAdd) : "-",
+      pd: latestRx?.pd ? String(latestRx.pd) : (latestRx?.pdRight ? `${latestRx.pdRight}/${latestRx?.pdLeft}` : "-"),
+      doctor_name: latestRx?.prescribedBy || latestRx?.doctorName || "Optometrist",
     });
 
     setIsSendingWhatsApp(true);
@@ -88,7 +103,7 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
         {
           phoneNumber,
           messageText: formattedMessage,
-          mediaUrl: invoiceUrl,
+          mediaUrl: targetMediaUrl,
           mediaType: "DOCUMENT",
           templateKey,
           recipientName: data.customer?.fullName,
@@ -97,7 +112,8 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
           metadata: {
             documentType,
             invoiceId: data.invoice?.id,
-            receiptId: data.receipt?.id,
+            receiptId: data.receipt?.id || primaryReceiptId,
+            publicUrl: targetMediaUrl,
           },
           showToast: false,
         },

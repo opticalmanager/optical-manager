@@ -116,12 +116,12 @@ export function PurchaseBulkBarcodeModal({
     currentPreviewProduct.productCode || currentPreviewProduct.sku
   );
 
-  // Handle preset change: auto-select "continuous" for vertical tags
+  // Handle preset change: auto-select "continuous" for vertical tags & D-Gum flap tags
   const handleSelectPreset = (preset: LabelSizePreset) => {
     setSelectedPreset(preset);
     setSheetPage(1);
     const spec = LABEL_SPECS[preset];
-    if (spec?.type === "vertical-tag") {
+    if (spec?.type === "vertical-tag" || spec?.type === "dgum-flap") {
       setPaperSize("continuous");
     }
   };
@@ -203,6 +203,7 @@ export function PurchaseBulkBarcodeModal({
 
     const html = buildBulkLabelsHtml(itemsToPrint, currentSpec, {
       paperSize,
+      dGumConfig: currentSpec.dGumConfig,
     });
 
     const success = printBarcodeDocument(html);
@@ -222,6 +223,7 @@ export function PurchaseBulkBarcodeModal({
 
   // Groups of presets
   const tagPresets: LabelSizePreset[] = [
+    "81x12 mm (D-Gum Flap Tag)",
     "100x15 mm (Vertical 3-Up)",
     "100x15 mm (Vertical 1-Up)",
     "100x15 mm (Vertical 2-Up)",
@@ -291,6 +293,7 @@ export function PurchaseBulkBarcodeModal({
                     if (!spec) return null;
                     const isSelected = selectedPreset === key;
                     const isPhotoStandard = key === "100x15 mm (Vertical 3-Up)";
+                    const isDGumFlap = spec.type === "dgum-flap";
                     return (
                       <button
                         key={key}
@@ -306,12 +309,17 @@ export function PurchaseBulkBarcodeModal({
                           <span className={`text-xs font-bold ${isSelected ? "text-[#2563eb]" : "text-slate-800"}`}>
                             {spec.displayName}
                           </span>
+                          {isDGumFlap && (
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">
+                              NTK Flap ⭐
+                            </span>
+                          )}
                           {isPhotoStandard && (
                             <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
                               3-Up Roll ⭐
                             </span>
                           )}
-                          {isSelected && !isPhotoStandard && <Check className="h-3.5 w-3.5 text-[#2563eb]" />}
+                          {isSelected && !isPhotoStandard && !isDGumFlap && <Check className="h-3.5 w-3.5 text-[#2563eb]" />}
                         </div>
                         <span className="text-[10px] text-slate-500 block mt-0.5 truncate">
                           {spec.description}
@@ -614,7 +622,123 @@ export function PurchaseBulkBarcodeModal({
                   </div>
 
                   <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200/90 shadow-xs min-h-[220px]">
-                    {currentSpec.type === "vertical-tag" ? (
+                    {currentSpec.type === "dgum-flap" ? (
+                      (() => {
+                        const previewSku =
+                          currentPreviewProduct.sku ||
+                          currentPreviewProduct.productCode ||
+                          (currentPreviewProduct.category
+                            ? `${currentPreviewProduct.category.slice(0, 3).toUpperCase()}-GEN-00001`
+                            : "FRM-GEN-00001");
+
+                        const headMm = currentSpec.dGumConfig?.headLengthMm || 51;
+                        const tailMm = currentSpec.dGumConfig?.tailLengthMm || 30;
+                        const s1Mm = currentSpec.dGumConfig?.section1LengthMm || 25.5;
+                        const s2Mm = currentSpec.dGumConfig?.section2LengthMm || 25.5;
+                        const totalMm = headMm + tailMm; // 81mm
+
+                        return (
+                          <div className="w-full flex flex-col items-center">
+                            {/* Physical Label HUD Metric Tags */}
+                            <div className="w-full max-w-[540px] flex items-center justify-between text-[8px] font-mono font-bold text-slate-500 mb-1.5 px-1">
+                              <span className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                                <span>81 mm × 12 mm NTK D-Gum Flap Tag</span>
+                              </span>
+                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                Wing 1 ({s1Mm}mm) + Wing 2 ({s2Mm}mm) + Tail ({tailMm}mm) = {totalMm}mm
+                              </span>
+                            </div>
+
+                            {/* Authentic NTK Die-Cut Tag Outline (540px × 72px scaled for 81×12 mm) */}
+                            <div
+                              className="w-full max-w-[540px] h-[72px] flex items-stretch select-none font-sans overflow-hidden"
+                              style={{ fontFamily: "Inter, sans-serif" }}
+                            >
+                              {/* Left Foldable Head (51mm / 81mm ≈ 62.96%) */}
+                              <div
+                                style={{ width: `${(headMm / totalMm) * 100}%` }}
+                                className="h-full bg-white border border-slate-300 rounded-l-md shadow-xs flex items-stretch overflow-hidden"
+                              >
+                                {/* Wing 1 (0 to 25.5mm): Front Wing */}
+                                <div
+                                  style={{ width: `${(s1Mm / headMm) * 100}%` }}
+                                  className="h-full flex flex-col justify-between p-1.5 pr-1 text-left overflow-hidden bg-white"
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <span className="text-[5.5px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[70px]">
+                                      CLINICAL OPTICAL
+                                    </span>
+                                    <span className="text-[9px] font-extrabold text-[#2563eb] shrink-0">
+                                      {formatPrice(currentPreviewProduct.price)}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col w-full overflow-hidden leading-tight">
+                                    <span className="text-[7.5px] font-extrabold text-slate-900 truncate block">
+                                      {currentPreviewProduct.category || "OPTICAL FRAME"}
+                                    </span>
+                                    <span className="text-[6.5px] text-slate-500 block truncate" title={currentPreviewTitle}>
+                                      {currentPreviewTitle}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Center Dotted Fold Guideline (at 25.5mm) */}
+                                <div className="w-0 h-full border-r border-dashed border-blue-400 relative flex items-center justify-center">
+                                  <span className="text-[5px] font-extrabold text-blue-600 tracking-widest uppercase bg-white px-0.5 py-0.5 rounded shadow-2xs z-2 border border-blue-200 absolute -translate-x-1/2">
+                                    FOLD
+                                  </span>
+                                </div>
+
+                                {/* Wing 2 (25.5mm to 51mm): Back Wing (Barcode + SKU) */}
+                                <div
+                                  style={{ width: `${(s2Mm / headMm) * 100}%` }}
+                                  className="h-full flex flex-col items-center justify-center text-center overflow-hidden bg-white p-1 pl-1"
+                                >
+                                  <div
+                                    className="w-full max-w-[140px] h-6 flex items-center justify-center overflow-hidden"
+                                    dangerouslySetInnerHTML={{
+                                      __html: buildBarcodeSvgString(previewSku, 20, 0.85, "code128"),
+                                    }}
+                                  />
+                                  <span className="text-[6.5px] font-mono tracking-[0.12em] font-bold text-slate-800 mt-0.5 truncate">
+                                    {previewSku}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Right Tail: Narrow Adhesive-Free Loop Strap (30mm / 81mm ≈ 37.04%) */}
+                              <div
+                                style={{ width: `${(tailMm / totalMm) * 100}%` }}
+                                className="h-full flex items-center justify-start overflow-hidden relative pl-0"
+                              >
+                                <div className="w-full h-[18px] bg-amber-50/90 border-t border-b border-r border-dashed border-amber-300 rounded-r-full shadow-2xs flex items-center justify-center px-1 text-center relative">
+                                  <span className="text-[7px] font-mono font-bold text-amber-700 tracking-wide uppercase select-none truncate">
+                                    ◀ Adhesive Free ▶
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Bottom Dimension Rulers (51mm Head [25.5mm Front + 25.5mm Back] + 30mm Tail) */}
+                            <div className="w-full max-w-[540px] flex items-center justify-between text-[7.5px] font-mono font-bold text-slate-400 mt-1 px-1">
+                              <div
+                                style={{ width: `${(headMm / totalMm) * 100}%` }}
+                                className="flex items-center justify-between text-indigo-600 border-t border-indigo-200 pt-0.5"
+                              >
+                                <span className="w-1/2 text-left">├── {s1Mm}mm Front</span>
+                                <span className="w-1/2 text-right">{s2Mm}mm Back ──┤</span>
+                              </div>
+                              <div
+                                style={{ width: `${(tailMm / totalMm) * 100}%` }}
+                                className="text-center text-amber-700 truncate border-t border-amber-300 pt-0.5 ml-1"
+                              >
+                                ├── {tailMm}mm Tail ──┤
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : currentSpec.type === "vertical-tag" ? (
                       // 1. VERTICAL DUMBBELL / BUTTERFLY OPTICAL TAG (15x100mm Narrow Strip Standard)
                       <div className="flex flex-col items-center">
                         <div className="flex items-center gap-2 mb-1">
@@ -786,7 +910,87 @@ export function PurchaseBulkBarcodeModal({
                 // ─── TAB 2: SHEET / ROLL PREVIEW ───
                 <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200/90 shadow-xs min-h-[220px]">
                   {paperSize === "continuous" ? (
-                    currentSpec.type === "vertical-tag" ? (
+                    currentSpec.type === "dgum-flap" ? (
+                      // ─── AUTHENTIC D-GUM FLAP CONTINUOUS ROLL MOCKUP ───
+                      <div className="w-full flex flex-col items-center justify-center py-1">
+                        <div className="w-[300px] bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden transition-all">
+                          {/* Spool Header */}
+                          <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 text-white px-2.5 py-1.5 flex items-center justify-between text-[8px] font-bold">
+                            <span className="flex items-center gap-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <span>FEED DIRECTION ↓</span>
+                            </span>
+                            <span className="font-mono text-slate-300 text-[8px]">
+                              {currentSpec.rollWidthMm || currentSpec.widthMm}mm Web (Horizontal)
+                            </span>
+                          </div>
+
+                          {/* Continuous Liner Web */}
+                          <div className="bg-slate-200/90 px-2.5 py-2 border-b border-slate-300 space-y-2">
+                            {[0, 1, 2].map((idx) => {
+                              const prod = initialProducts[(previewIndex + idx) % initialProducts.length] || currentPreviewProduct;
+                              const sku = prod.sku || prod.productCode || (prod.category ? `${prod.category.slice(0, 3).toUpperCase()}-GEN-00001` : "FRM-GEN-00001");
+                              const headMm = currentSpec.dGumConfig?.headLengthMm || 51;
+                              const tailMm = currentSpec.dGumConfig?.tailLengthMm || 30;
+                              const totalMm = headMm + tailMm;
+                              const headPct = Math.round((headMm / totalMm) * 100);
+                              const tailPct = 100 - headPct;
+
+                              return (
+                                <div key={idx} className="w-full bg-white rounded-[2px] border border-slate-300 shadow-2xs p-1 flex items-stretch h-[34px]">
+                                  {/* Head Section (51mm / ~63%) */}
+                                  <div style={{ width: `${headPct}%` }} className="flex items-stretch border-r border-dashed border-slate-300 pr-1">
+                                    {/* Wing 1 (25.5mm Front Flap) */}
+                                    <div className="w-1/2 text-[5.5px] text-slate-600 truncate pr-1 flex flex-col justify-center leading-tight">
+                                      <span className="font-bold text-slate-800 truncate">{prod.category || "FRAME"}</span>
+                                      <span className="text-[#2563eb] font-extrabold">{formatPrice(prod.price)}</span>
+                                    </div>
+                                    {/* Central Fold Indicator */}
+                                    <div className="border-r border-dashed border-blue-400 my-0.5" />
+                                    {/* Wing 2 (25.5mm Back Flap Barcode) */}
+                                    <div className="w-1/2 flex flex-col items-center justify-center pl-1">
+                                      <div
+                                        className="w-full max-w-[65px] h-3 flex items-center justify-center overflow-hidden"
+                                        dangerouslySetInnerHTML={{
+                                          __html: buildBarcodeSvgString(sku, 12, 0.7, "code128"),
+                                        }}
+                                      />
+                                      <span className="text-[4px] font-mono font-bold text-slate-700 tracking-wider truncate">
+                                        {sku}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {/* Tail Section (30mm / ~37%) */}
+                                  <div style={{ width: `${tailPct}%` }} className="flex items-center justify-center pl-1">
+                                    <div className="w-full h-[12px] bg-amber-50/90 border border-dashed border-amber-300 rounded-r-full flex items-center justify-center">
+                                      <span className="text-[4.5px] font-mono font-bold text-amber-700 tracking-wider uppercase truncate">
+                                        ◀ Tail ▶
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Perforation Cut Guideline */}
+                            <div className="pt-1 border-t-2 border-dashed border-indigo-400 flex items-center justify-between text-[7px] font-bold text-indigo-600 px-1">
+                              <span>- - -</span>
+                              <span className="uppercase tracking-wider">
+                                {currentSpec.rollHeightMm || currentSpec.heightMm}mm Feed Pitch Cut
+                              </span>
+                              <span>- - -</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] font-extrabold text-slate-700 mt-2 text-center">
+                          Continuous Thermal Roll ({currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm} mm)
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-medium text-center">
+                          D-Gum Flap Tag Roll • {currentSpec.rollHeightMm || currentSpec.heightMm}mm feed pitch • Total <strong className="text-slate-700">{totalLabels} labels</strong>
+                        </p>
+                      </div>
+                    ) : currentSpec.type === "vertical-tag" ? (
                       // ─── AUTHENTIC MULTI-COLUMN VERTICAL ROLL MOCKUP (IMAGE 2 STANDARD) ───
                       <div className="w-full flex flex-col items-center justify-center py-1">
                         <div className={`${currentSpec.rollCols === 1 ? "w-[68px]" : currentSpec.rollCols === 2 ? "w-[110px]" : "w-[154px]"} bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden transition-all`}>
@@ -942,7 +1146,9 @@ export function PurchaseBulkBarcodeModal({
                             <div
                               key={i}
                               className={`border rounded-[1px] transition-all flex items-center justify-center ${
-                                currentSpec.type === "vertical-tag"
+                                currentSpec.type === "dgum-flap"
+                                  ? "aspect-[81/12]"
+                                  : currentSpec.type === "vertical-tag"
                                   ? "aspect-[1/6]"
                                   : currentSpec.type === "tag"
                                   ? "aspect-[6/1]"

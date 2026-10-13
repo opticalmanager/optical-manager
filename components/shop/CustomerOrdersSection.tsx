@@ -250,14 +250,18 @@ function WhatsAppRowAction({
         payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
         fulfillment_status: order.fulfillmentStatus ? order.fulfillmentStatus.replace("_", " ") : "PROCESSING",
         estimated_delivery: safeFormatDateLocale(order.estimatedDelivery, "N/A"),
-        invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`
+        invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`,
+        order_form_url: `${window.location.origin}/share/receipt/${order.receiptId || order.invoiceId}`,
       });
+
+      const orderFormUrl = `${window.location.origin}/share/receipt/${order.receiptId || order.invoiceId}`;
+      const invoiceUrl = `${window.location.origin}/share/invoice/${order.invoiceId}`;
 
       const res = await sendUniversalWhatsAppMessage(
         {
           phoneNumber: targetPhone,
           messageText: parsedText,
-          mediaUrl: `${window.location.origin}/share/invoice/${order.invoiceId}`,
+          mediaUrl: (key as string) === "order_form_sent" ? orderFormUrl : invoiceUrl,
           mediaType: "DOCUMENT",
           templateKey: key,
           recipientName: customerName || order.customerName,
