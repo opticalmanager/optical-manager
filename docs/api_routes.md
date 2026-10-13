@@ -84,6 +84,24 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Branch Scoping**: Automatically retrieves and displays active store branches (`where(and(eq(shops.organizationId, org.id), eq(shops.isActive, true)))`) with authentic branch names, addresses, and contact numbers.
 - **Submission Action**: `submitAppointmentAction` persists booking records scoped to the selected `shopId` and `organizationId`, with automatic cache revalidation for `/shop/appointments` and `/shop/dashboard`.
 
+---
+
+### 3.1. Public Document Sharing & Customer Self-Service Routes
+
+#### `GET /share/invoice/[id]`
+- **Description**: Public zero-authentication portal for retail customers to view, print, and download official A4 Tax Invoices.
+- **Identifier Resolution**: Accepts invoice UUID or human-readable invoice number (`INV-shopNum-YYYY-NNNN`).
+- **Query Parameters**:
+  - `mode` / `type` / `view` (optional): Set to `"RECEIPT"` to render the booking order form & payment receipt layout instead of the tax invoice.
+- **Features**: Interactive zoom controls, multi-touch pinch-to-zoom for mobile/tablet, vector 300 DPI PDF generation with standardized naming (`[StoreName]_[DocNumber].pdf`).
+
+#### `GET /share/receipt/[id]` & `GET /share/order/[id]`
+- **Description**: Dedicated public zero-authentication portals for retail customers to inspect optical booking details, clinical Rx prescription powers (OD/OS), advance payments, pending balance, and estimated delivery dates.
+- **Identifier Resolution**: Multi-level resolution against receipt ID/number, order ID/number, or invoice ID/number with automated fallback receipt synthesis for zero-advance bookings.
+- **Features**: Live clinical optometry Rx grid (SPH, CYL, AXIS, ADD, NV, CADD, PD), payment transaction details, responsive mobile viewing, and 1-click PDF download.
+
+---
+
 #### Shorthand Route Normalizer (`proxy.ts`)
 - **Description**: Middleware normalizes root-level convenience endpoints (`/setting`, `/settings`, `/inventory`, `/orders`, `/customers`, `/patients`, `/reports`, `/analytics`, `/purchases`, `/returns`, `/appointments`, `/support`, `/dashboard`) to their canonical workspace routes based on the authenticated session role (`/owner/*` vs `/shop/*`), enforcing authorization guards on destination pages.
 

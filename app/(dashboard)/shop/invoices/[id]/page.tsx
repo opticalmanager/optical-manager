@@ -77,7 +77,7 @@ export default async function InvoiceDetailPage({
   }
 
   return (
-    <div className="bg-slate-100 min-h-screen py-8 px-4 flex flex-col items-center gap-8 print:bg-white print:py-0 print:px-0 font-sans text-black">
+    <div className="bg-slate-100 min-h-screen py-6 px-2 sm:px-4 flex flex-col items-center gap-6 print:bg-white print:py-0 print:px-0 font-sans text-black w-full min-w-0">
       <DocumentActionBar documentType="Invoice" data={data} />
       <InvoiceDocument data={data} mode="INVOICE" />
     </div>

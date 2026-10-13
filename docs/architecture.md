@@ -377,26 +377,36 @@ Optical Manager features an offline-first architecture designed for uninterrupte
 
 ---
 
-## 9. 📄 Responsive A4 Document Rendering & PDF Generation (`/share/invoice/[id]`)
+## 9. 📄 Responsive A4 Document Rendering, Public Sharing & PDF Generation (`/share/invoice/[id]` & `/share/receipt/[id]`)
 
-Optical Manager renders official tax invoices and receipts as authentic A4 physical documents (`210mm x 297mm`) accessible directly across both desktop and mobile viewports with zero layout shifts or separate simplified mobile views.
+Optical Manager renders official tax invoices and booking order forms as authentic physical A4 documents (`210mm x 297mm`) accessible directly across both desktop and mobile viewports with zero layout shifts or separate simplified mobile views.
 
 ### Architectural Highlights:
-1. **Direct Authentic A4 Rendering (`components/shop/InvoiceDocument.tsx`)**:
-   - Renders the exact legal GST Tax Invoice layout conforming to Indian GST specifications (Tax Summary table by category, SAC/HSN codes, buyer/seller details, lens prescriptions).
-   - Eliminates redundant card-based mobile summaries in favor of the actual legal document.
+1. **Direct Authentic A4 Rendering & Single-Page Retail Format (`components/shop/InvoiceDocument.tsx`)**:
+   - **Strict Single-Page A4 Guarantee**: Formatted to industry optical retail standards (Titan Eyeplus / Lenskart standard), containing the complete transaction onto exactly 1 sheet of A4 paper (`210mm x 297mm`) without spilling over into Page 2. Bulky multi-page legal terms, terms & conditions, and redundant authorized signatory blocks have been removed from the invoice mode to maximize vertical content density while ensuring clean, computer-generated tax compliance.
+   - **Responsive & Table-Fixed 11-Column Items Ledger**: Replaces the previous overflowing 14-column layout with a strict `table-fixed w-full` 11-column budget totaling exactly 100% (`Sr. 4%`, `Order Details 14%`, `Product Description 24%`, `Qty 5%`, `Rate 8%`, `Sub Total 8%`, `Disc. 7%`, `Taxable 8%`, `GST % 7%`, `GST Amt 7%`, `Amount 8%`). Word wrapping (`break-words`) prevents text blowout. Product descriptions strictly display product titles and HSN codes, avoiding cluttered or empty prescription strings.
+   - **Configurable Clinical Prescription Presentation (`services/customization.service.ts` & `lib/document-config.ts`)**:
+     - **Invoice Prescription Toggle (`print_show_prescription_invoice`)**: Configurable under `/owner/settings/customization?tab=invoices`, default **OFF** (`false`). When enabled, renders a dedicated clinical optical Rx table (Eye, SPH, CYL, AXIS, ADD, NV, CADD, PD) in a compact, responsive high-density grid positioned above the ledger table.
+     - **Booking Form Prescription Toggle (`print_show_prescription_booking`)**: Configurable under `/owner/settings/customization?tab=invoices`, default **ON** (`true`). Renders the clinical optical Rx details on the receipt / booking order document.
+   - **Universal Multi-Device Responsiveness**: The document canvas is housed inside a responsive `overflow-x-auto` wrapper, ensuring mobile and tablet users can pan and inspect full-bleed A4 layout smoothly with zero viewport clipping.
+   - **Statutory GST Tax Summary**: Full breakdown of CGST, SGST, IGST per optical category slab positioned directly below line items alongside bank transfer details and payment settlement logs.
 
-2. **Touch-Responsive Pinch-to-Zoom & Pan Viewer (`components/shop/SharedInvoiceViewer.tsx`)**:
+2. **Zero-Login Public Document Sharing (`/share/invoice/[id]`, `/share/receipt/[id]`, `/share/order/[id]`)**:
+   - **Authentication Bypass for Public Access**: Public sharing endpoints live outside the `(dashboard)` route group, allowing customers to open order forms, booking receipts, and tax invoices directly without facing login redirects.
+   - **Resilient Multi-Key Document Resolvers (`services/document.service.ts`)**: `getPublicInvoiceDocumentData` and `getPublicReceiptDocumentData` resolve records against UUIDs, human-readable numbers (`INV-shopNum-YYYY-NNNN`, `PPS-shopNum-YYYY-NNNN`, `ORD-shopNum-YYYY-NNNN`), or linked order identifiers with automated fallback receipt synthesis.
+   - **Context-Aware WhatsApp Utility Dispatch**: When clicking "Send on WhatsApp" from an Order Form / Receipt, the system transmits the public `/share/receipt/[id]` link and attaches the receipt media document, preventing invoice URL collisions.
+
+3. **Touch-Responsive Pinch-to-Zoom & Pan Viewer (`components/shop/SharedInvoiceViewer.tsx`)**:
    - **Auto-Fit Viewport Scaling**: On mount and window resize, calculates screen width relative to A4 (794px). On mobile devices, automatically scales the document (e.g. 0.46x on ~390px screens) so the full A4 sheet fits horizontally with comfortable padding.
    - **Multi-Touch Gestures**: Listens to 2-finger touch events (`touchstart`, `touchmove`, `touchend`) to calculate real-time hypotenuse distances, enabling fluid pinch-to-zoom (0.35x to 2.5x).
    - **Double-Tap Quick Toggle**: Double tapping seamlessly toggles between fit-to-screen and 100% full scale.
    - **Interactive Quick Zoom Toolbar**: Floating sticky controls for Zoom In (`+`), Zoom Out (`-`), Zoom percentage pill, `Fit`, and `100%`.
    - **Dynamic Sizer Geometry**: Parent container measures unscaled document dimensions via `ResizeObserver` and adjusts parent bounds dynamically (`width: contentWidth * scale`, `height: contentHeight * scale`), eliminating phantom vertical scrolling or clipping.
 
-3. **High-Resolution PDF Download & Print**:
+4. **High-Resolution PDF Download & Print**:
    - **Client-Side High-Res Export**: Uses `html2pdf.js` with `html2canvas` 2x scale and jsPDF A4 portrait specifications.
    - **Automatic Scale Reset During Export**: Temporarily un-zooms the document during canvas capture to guarantee pristine vector-like 300 DPI resolution, then restores user zoom scale seamlessly.
-   - **Standardized Enterprise File Naming**: Generated PDF files are strictly formatted as `[Organization_Or_Store_Name]_[Invoice_Number].pdf` (e.g. `Eye_Care_Opticals_INV-2026-0042.pdf`).
+   - **Standardized Enterprise File Naming**: Generated PDF files are strictly formatted as `[Organization_Or_Store_Name]_[Document_Number].pdf` (e.g. `Eye_Care_Opticals_INV-2026-0042.pdf` or `Eye_Care_Opticals_PPS-1-2026-0015.pdf`).
    - **Native Print Integration**: `handlePrint()` updates `document.title` to the standardized filename before calling `window.print()`, so browser "Save as PDF" dialogs also pre-populate the exact standardized file name. In `@media print`, all transforms and zoom controls are bypassed for 100% physical A4 printing.
 
 ---

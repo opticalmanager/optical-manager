@@ -28,6 +28,39 @@ export function getShopBusinessDetails(shop: Shop | null | undefined) {
     // Toggle flags from JSONB settings
     enableBankDetails: settings.enableBankDetails ?? false,
     enableTerms: settings.enableTerms ?? true,
+    showPrescriptionOnInvoice:
+      settings?.customization?.invoices?.items?.find?.((i: any) => i.id === "print_show_prescription_invoice")?.enabled ??
+      settings.showPrescriptionOnInvoice ??
+      false,
+    showPrescriptionOnBooking:
+      settings?.customization?.invoices?.items?.find?.((i: any) => i.id === "print_show_prescription_booking")?.enabled ??
+      settings.showPrescriptionOnBooking ??
+      true,
+  };
+}
+
+/**
+ * Resolves prescription display flags from DocumentData (merging customizationConfig and shop settings).
+ */
+export function resolvePrescriptionDisplaySettings(data: any) {
+  const customization = data?.customizationConfig;
+  const invItems = customization?.invoices?.items || [];
+
+  const customInvRx = invItems.find((i: any) => i.id === "print_show_prescription_invoice");
+  const customBookingRx = invItems.find((i: any) => i.id === "print_show_prescription_booking");
+
+  const shopSettings = (data?.shop?.settings as Record<string, any>) || {};
+  const shopCustomizationItems = shopSettings?.customization?.invoices?.items;
+  const shopInvRx = Array.isArray(shopCustomizationItems)
+    ? shopCustomizationItems.find((i: any) => i.id === "print_show_prescription_invoice")?.enabled
+    : undefined;
+  const shopBookingRx = Array.isArray(shopCustomizationItems)
+    ? shopCustomizationItems.find((i: any) => i.id === "print_show_prescription_booking")?.enabled
+    : undefined;
+
+  return {
+    showPrescriptionOnInvoice: customInvRx?.enabled ?? shopInvRx ?? shopSettings.showPrescriptionOnInvoice ?? false,
+    showPrescriptionOnBooking: customBookingRx?.enabled ?? shopBookingRx ?? shopSettings.showPrescriptionOnBooking ?? true,
   };
 }
 

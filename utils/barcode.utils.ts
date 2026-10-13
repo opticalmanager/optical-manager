@@ -14,21 +14,154 @@ export interface BarcodeItem {
 }
 
 export type LabelSizePreset =
+  | "100x15 mm (D-Gum Flap Tag)"
   | "100x15 mm (Vertical 3-Up)"
   | "100x15 mm (Vertical 1-Up)"
   | "100x15 mm (Vertical 2-Up)"
   | "100x15 mm (Tag)"
+  | "81x12 mm (D-Gum Flap Tag)"
   | "50x25 mm (Standard)"
   | "38x25 mm (Compact Jewel)"
   | "40x30 mm (Medium Box)"
   | "50x50 mm (Square Box)";
+
+// ─── D-Gum Flap Label Specification & Configuration Engine ───────────────────
+export interface DGumBarcodeConfig {
+  orientation: "horizontal" | "vertical";
+  widthMm: number;        // e.g. 28-30 mm physical print width
+  heightMm: number;       // e.g. 7.0 mm physical print height
+  quietZoneMm: number;    // e.g. 2.0 mm quiet zone margins
+  symbology: "code128" | "code39";
+}
+
+export interface DGumPrinterMediaConfig {
+  mediaWidthMm: number;   // Stock web width (e.g. 100 mm horizontal roll)
+  feedLengthMm: number;   // Feed length per label pitch (e.g. 15 mm)
+  pitchGapMm: number;     // Physical gap between labels (standard 2 mm)
+  rollCols: number;       // Number of tags across roll (1 or 2)
+}
+
+export interface DGumFlapConfig {
+  type: "D_GUM_FLAP";
+  
+  // Total physical label dimensions (never distorted by responsive layout)
+  totalLengthMm: number;  // 100 mm (NTK standard) or 81 mm
+  widthMm: number;        // 15 mm (NTK standard) or 12 mm
+
+  // Asymmetric Head + Tail Architecture (NTK Optical Standard):
+  headLengthMm?: number;     // 70 mm (wide printable foldable body)
+  tailLengthMm?: number;     // 30 mm (narrow adhesive-free loop tail)
+  tailThicknessMm?: number;  // 3.5 mm (thickness of the narrow tail)
+
+  // Configurable physical sections:
+  section1LengthMm: number;     // e.g. 35 mm (Front Wing: Brand, Specs, Price)
+  foldSectionLengthMm: number;  // fold indicator / divider (0 for dotted line on 100mm, or 15 for 81mm)
+  section2LengthMm: number;     // e.g. 35 mm (Back Wing: Barcode + SKU)
+  
+  // Section min/max bounds for calibration
+  printableSectionMinMm: number; // 30 mm
+  printableSectionMaxMm: number; // 40 mm
+
+  // Fold and adhesive positions
+  foldPositionMm: number;          // e.g. 35 mm (dotted fold guideline)
+  adhesiveSectionLengthMm: number; // e.g. 30 mm (Adhesive-Free Tail)
+
+  // Physical orientation & feed direction
+  orientation: "horizontal" | "vertical";
+
+  // Barcode specific physical configuration
+  barcode: DGumBarcodeConfig;
+
+  // Printer media dimensions (separated from label dimensions)
+  media: DGumPrinterMediaConfig;
+
+  // Calibration fine adjustments (in mm)
+  calibration: {
+    offsetXmm: number;  // horizontal shift +/- mm
+    offsetYmm: number;  // vertical shift +/- mm
+  };
+}
+
+export const DEFAULT_DGUM_CONFIG: DGumFlapConfig = {
+  type: "D_GUM_FLAP",
+  totalLengthMm: 81,
+  widthMm: 12,
+  headLengthMm: 51,
+  tailLengthMm: 30,
+  tailThicknessMm: 2.8,
+  section1LengthMm: 25.5,
+  foldSectionLengthMm: 0,
+  section2LengthMm: 25.5,
+  printableSectionMinMm: 20,
+  printableSectionMaxMm: 30,
+  foldPositionMm: 25.5,
+  adhesiveSectionLengthMm: 30,
+  orientation: "horizontal",
+  barcode: {
+    orientation: "horizontal",
+    widthMm: 21,
+    heightMm: 5.5,
+    quietZoneMm: 1.5,
+    symbology: "code128",
+  },
+  media: {
+    mediaWidthMm: 81,
+    feedLengthMm: 12,
+    pitchGapMm: 2,
+    rollCols: 1,
+  },
+  calibration: {
+    offsetXmm: 0,
+    offsetYmm: 0,
+  },
+};
+
+export const DEFAULT_DGUM_81X12_CONFIG: DGumFlapConfig = DEFAULT_DGUM_CONFIG;
+
+/**
+ * Validates and recalculates D-Gum flap label sections to ensure the sum of all sections
+ * always strictly equals totalLengthMm (81mm NTK standard: 51mm head [25.5mm + 25.5mm] + 30mm tail).
+ */
+export function recalculateDGumSections(
+  section1: number,
+  foldOrHead: number,
+  total: number = 81
+): {
+  section1LengthMm: number;
+  foldSectionLengthMm: number;
+  section2LengthMm: number;
+  headLengthMm: number;
+  tailLengthMm: number;
+  totalMm: number;
+  isValid: boolean;
+} {
+  const safeTotal = Math.max(70, Math.min(120, Number(total) || 81));
+  // NTK Optical Standard: 51mm Head (25.5mm + 25.5mm) + 30mm Tail = 81mm
+  const defaultHead = safeTotal >= 95 ? 70 : 51;
+  const safeHead = Math.max(35, Math.min(safeTotal - 15, foldOrHead > 30 ? Number(foldOrHead) : defaultHead));
+  const defaultS1 = Number((safeHead / 2).toFixed(1));
+  const safeS1 = Math.max(15, Math.min(safeHead - 10, Number(section1) || defaultS1));
+  const safeS2 = Number((safeHead - safeS1).toFixed(1));
+  const safeTail = Number((safeTotal - safeHead).toFixed(1));
+  const sum = Number((safeS1 + safeS2 + safeTail).toFixed(1));
+
+  return {
+    section1LengthMm: safeS1,
+    foldSectionLengthMm: 0,
+    section2LengthMm: safeS2,
+    headLengthMm: safeHead,
+    tailLengthMm: safeTail,
+    totalMm: sum,
+    isValid: Math.abs(sum - safeTotal) < 0.01,
+  };
+}
 
 export interface LabelSpec {
   id: LabelSizePreset;
   displayName: string;
   widthMm: number;
   heightMm: number;
-  type: "tag" | "vertical-tag" | "standard" | "compact" | "box";
+  type: "tag" | "vertical-tag" | "dgum-flap" | "standard" | "compact" | "box";
   description: string;
   defaultBarcodeHeight: number;
   maxBarcodeHeight: number;
@@ -44,6 +177,7 @@ export interface LabelSpec {
   rollCols?: number;
   rollWidthMm?: number;
   rollHeightMm?: number;
+  dGumConfig?: DGumFlapConfig;
 }
 
 export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
@@ -134,6 +268,52 @@ export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
     rollCols: 1,
     rollWidthMm: 100,
     rollHeightMm: 15,
+  },
+  "100x15 mm (D-Gum Flap Tag)": {
+    id: "100x15 mm (D-Gum Flap Tag)",
+    displayName: "81×12 mm D-Gum Flap Tag (NTK Standard)",
+    widthMm: 81,
+    heightMm: 12,
+    type: "dgum-flap",
+    description: "NTK Optical Frame Flap Tag (51mm Head [25.5mm + 25.5mm] + 30mm Tail)",
+    defaultBarcodeHeight: 14,
+    maxBarcodeHeight: 18,
+    defaultBrandFontSize: 6.5,
+    defaultPriceFontSize: 7.5,
+    defaultDescFontSize: 5.5,
+    a4Cols: 2,
+    a4Rows: 22,
+    a4Total: 44,
+    a5Cols: 1,
+    a5Rows: 15,
+    a5Total: 15,
+    rollCols: 1,
+    rollWidthMm: 81,
+    rollHeightMm: 12,
+    dGumConfig: DEFAULT_DGUM_CONFIG,
+  },
+  "81x12 mm (D-Gum Flap Tag)": {
+    id: "81x12 mm (D-Gum Flap Tag)",
+    displayName: "81×12 mm D-Gum Flap Tag (NTK Standard)",
+    widthMm: 81,
+    heightMm: 12,
+    type: "dgum-flap",
+    description: "NTK Optical Frame Flap Tag (51mm Head [25.5mm + 25.5mm] + 30mm Tail)",
+    defaultBarcodeHeight: 14,
+    maxBarcodeHeight: 18,
+    defaultBrandFontSize: 6.5,
+    defaultPriceFontSize: 7.5,
+    defaultDescFontSize: 5.5,
+    a4Cols: 2,
+    a4Rows: 22,
+    a4Total: 44,
+    a5Cols: 1,
+    a5Rows: 15,
+    a5Total: 15,
+    rollCols: 1,
+    rollWidthMm: 81,
+    rollHeightMm: 12,
+    dGumConfig: DEFAULT_DGUM_CONFIG,
   },
   "50x25 mm (Standard)": {
     id: "50x25 mm (Standard)",
@@ -369,6 +549,7 @@ export interface BarcodeLabelOptions {
   borderStyle?: "dashed" | "solid" | "none";
   currencySymbol?: string;
   symbology?: "code128" | "code39";
+  dGumConfig?: DGumFlapConfig;
 }
 
 /**
@@ -556,6 +737,305 @@ export function buildOneVerticalTagHtml(
     </div>`;
 }
 
+/**
+ * Generates a production-accurate D-Gum Flap Label for optical spectacle frames (81mm × 12mm).
+ * Engineered as a multi-section fold-over tag with:
+ * - Printable Section 1 (~30-35mm): Brand, model, size specs, and retail price.
+ * - Non-Printable Fold / Flap Section (~10-20mm): Wraps around frame temple/arm.
+ * - Printable Section 2 (~30-35mm): Physical mm barcode with quiet zones and human-readable code.
+ * Sum of all physical sections strictly equals totalLengthMm (81mm) without distortion.
+ */
+export function buildOneDGumFlapTagHtml(
+  item: BarcodeItem,
+  spec: LabelSpec,
+  options?: BarcodeLabelOptions
+): string {
+  const dGumConfig = options?.dGumConfig || spec.dGumConfig || DEFAULT_DGUM_CONFIG;
+  const sections = recalculateDGumSections(
+    dGumConfig.section1LengthMm,
+    dGumConfig.foldSectionLengthMm,
+    dGumConfig.totalLengthMm
+  );
+  const s1Mm = sections.section1LengthMm;
+  const foldMm = sections.foldSectionLengthMm;
+  const s2Mm = sections.section2LengthMm;
+  const totalLengthMm = dGumConfig.totalLengthMm || 81;
+  const tagWidthMm = dGumConfig.widthMm || 12;
+
+  const isVerticalFeed = dGumConfig.orientation === "vertical";
+  const calX = dGumConfig.calibration?.offsetXmm || 0;
+  const calY = dGumConfig.calibration?.offsetYmm || 0;
+
+  const showBrand = options?.showBrand ?? true;
+  const showItemName = options?.showItemName ?? true;
+  const showPrice = options?.showPrice ?? true;
+  const showSKU = options?.showSKU ?? true;
+  const showBarcodeText = options?.showBarcodeText ?? true;
+  const customHeader = options?.customHeader ?? "";
+  const brandFontSize = options?.brandFontSize ?? spec.defaultBrandFontSize;
+  const priceFontSize = options?.priceFontSize ?? spec.defaultPriceFontSize;
+  const descriptionFontSize = options?.descriptionFontSize ?? spec.defaultDescFontSize;
+  const fontWeight = options?.fontWeight ?? "bold";
+  const fontFamily = options?.fontFamily ?? "sans";
+  const borderStyle = options?.borderStyle ?? "dashed";
+  const currencySymbol = options?.currencySymbol ?? "₹";
+
+  const numPrice = item.price ? parseFloat(item.price) : 0;
+  const formattedPrice = numPrice > 0 ? `${currencySymbol}${numPrice.toLocaleString("en-IN")}/-` : "";
+
+  const fontFamilyCss =
+    fontFamily === "mono"
+      ? "'Courier New', Courier, monospace"
+      : fontFamily === "classic"
+      ? "Georgia, 'Times New Roman', Times, serif"
+      : "Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif";
+  const fontWeightCss = fontWeight === "bold" ? "700" : "400";
+
+  const outerBorderCss =
+    borderStyle === "dashed"
+      ? "1px dashed #cbd5e1"
+      : borderStyle === "solid"
+      ? "1px solid #000000"
+      : "1px solid transparent";
+
+  const dividerBorderCss =
+    borderStyle === "none"
+      ? "1px dashed #e2e8f0"
+      : "1px dashed #cbd5e1";
+
+  const headerHtml = customHeader
+    ? `<span style="font-size:4.5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16mm;line-height:1;">${customHeader}</span>`
+    : `<span style="font-size:4.5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16mm;line-height:1;">OPTICAL FRAME</span>`;
+
+  const brandHtml = showBrand
+    ? `<span style="font-size:${Math.min(brandFontSize, 7.5)}px;color:#0f172a;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};display:block;">${item.brand || item.category || "OPTICAL"}</span>`
+    : "";
+
+  const displayTitle = resolveDisplayTitle(
+    item.name,
+    item.category,
+    item.brand,
+    item.model,
+    item.productCode || item.sku
+  );
+  const itemNameHtml = showItemName
+    ? `<span style="font-size:${Math.min(descriptionFontSize, 6)}px;color:#475569;line-height:1.05;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;margin-top:0.3mm;">${displayTitle}</span>`
+    : "";
+
+  const priceHtml =
+    showPrice && formattedPrice
+      ? `<span style="font-size:${Math.min(priceFontSize, 7.5)}px;color:#2563eb;font-weight:800;white-space:nowrap;flex-shrink:0;">${formattedPrice}</span>`
+      : "";
+
+  const fallbackSku = item.category
+    ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
+    : "FRM-GEN-00001";
+  const skuCode = item.sku || fallbackSku;
+
+  // Physical Barcode: Uses millimeter-based container dimensions with quiet zones
+  const barcodeMaxW = Math.max(16, s2Mm - 5);
+  const barcodeHeight = dGumConfig.barcode?.heightMm || 6.2;
+  const barcodeSvg = buildBarcodeSvgString(
+    skuCode,
+    22,
+    0.85,
+    dGumConfig.barcode?.symbology || options?.symbology || "code128"
+  );
+
+  const skuTextHtml =
+    showSKU && showBarcodeText
+      ? `<span style="font-size:4.6px;font-family:'Courier New',monospace;letter-spacing:0.08em;font-weight:700;color:#1e293b;display:block;margin-top:0.2mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
+      : "";
+
+  // Calibration transform
+  const calTransform = (calX !== 0 || calY !== 0) ? `transform: translate(${calX}mm, ${calY}mm);` : "";
+
+  // NTK 81x12mm standard: 51mm foldable head (25.5mm + 25.5mm) + 30mm adhesive-free tail
+  const headLengthMm = sections.headLengthMm || 51;
+  const tailLengthMm = sections.tailLengthMm || 30;
+
+  // If vertical feed, rotate content 90° for continuous longitudinal roll feed
+  if (isVerticalFeed) {
+    return `
+      <div class="barcode-dgum-label barcode-dgum-vertical" style="
+        width:${tagWidthMm}mm;
+        max-width:${tagWidthMm}mm;
+        min-width:${tagWidthMm}mm;
+        height:${totalLengthMm}mm;
+        max-height:${totalLengthMm}mm;
+        min-height:${totalLengthMm}mm;
+        flex-shrink:0;
+        flex-grow:0;
+        box-sizing:border-box;
+        background:#ffffff;
+        font-family:${fontFamilyCss};
+        display:flex;
+        flex-direction:column;
+        justify-content:flex-start;
+        align-items:center;
+        overflow:hidden;
+        break-inside:avoid;
+        page-break-inside:avoid;
+        ${calTransform}
+      ">
+        <!-- Foldable Head (Top along feed: ${headLengthMm}mm) -->
+        <div style="width:100%;height:${headLengthMm}mm;box-sizing:border-box;display:flex;flex-direction:column;border:${outerBorderCss};border-radius:1mm 1mm 0 0;overflow:hidden;background:#ffffff;">
+          <!-- Top Section (Printable Wing 1 rotated: ${s1Mm}mm length along feed) -->
+          <div style="width:100%;height:${s1Mm}mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+            <div style="width:${Math.max(16, s1Mm - 2)}mm;height:${tagWidthMm - 1}mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;padding:0.3mm 0.6mm;transform:rotate(90deg);transform-origin:center center;overflow:hidden;line-height:1.15;flex-shrink:0;">
+              <div style="display:flex;justify-content:space-between;align-items:center;width:100%;min-width:0;">
+                ${headerHtml}
+                ${priceHtml}
+              </div>
+              <div style="display:flex;flex-direction:column;width:100%;min-width:0;overflow:hidden;">
+                ${brandHtml}
+                ${itemNameHtml}
+              </div>
+            </div>
+          </div>
+
+          <!-- Dotted Fold Line Divider at ${s1Mm}mm -->
+          <div style="width:100%;height:0;border-top:${dividerBorderCss};position:relative;"></div>
+
+          <!-- Bottom Section (Printable Wing 2 rotated: ${s2Mm}mm length along feed) -->
+          <div style="width:100%;height:${s2Mm}mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+            <div style="width:${Math.max(16, s2Mm - 2)}mm;height:${tagWidthMm - 1}mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(90deg);transform-origin:center center;overflow:hidden;flex-shrink:0;">
+              <div style="width:${barcodeMaxW}mm;height:${barcodeHeight}mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                ${barcodeSvg}
+              </div>
+              ${skuTextHtml}
+            </div>
+          </div>
+        </div>
+
+        <!-- 30mm Adhesive-Free Tail (Narrow Non-Printable Loop along Feed aligned within ${tagWidthMm}mm) -->
+        <div style="width:100%;height:${tailLengthMm}mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;background:transparent;">
+          <div style="width:2.8mm;height:100%;border-left:${outerBorderCss};border-right:${outerBorderCss};border-bottom:${outerBorderCss};border-radius:0 0 1.4mm 1.4mm;background:#ffffff;"></div>
+        </div>
+      </div>`;
+  }
+
+  // Standard Horizontal Layout (81mm total: 51mm head [25.5mm + 25.5mm] + 30mm tail, 12mm height)
+  return `
+    <div class="barcode-dgum-label barcode-dgum-horizontal" style="
+      width:${totalLengthMm}mm;
+      max-width:${totalLengthMm}mm;
+      min-width:${totalLengthMm}mm;
+      height:${tagWidthMm}mm;
+      max-height:${tagWidthMm}mm;
+      min-height:${tagWidthMm}mm;
+      flex-shrink:0;
+      flex-grow:0;
+      box-sizing:border-box;
+      background:#ffffff;
+      font-family:${fontFamilyCss};
+      display:flex;
+      flex-direction:row;
+      align-items:stretch;
+      justify-content:flex-start;
+      overflow:hidden;
+      break-inside:avoid;
+      page-break-inside:avoid;
+      ${calTransform}
+    ">
+      <!-- 51mm Foldable Head (Wide Rectangular Body) -->
+      <div style="
+        width:${headLengthMm}mm;
+        max-width:${headLengthMm}mm;
+        min-width:${headLengthMm}mm;
+        height:100%;
+        box-sizing:border-box;
+        display:flex;
+        flex-direction:row;
+        align-items:stretch;
+        border:${outerBorderCss};
+        border-radius:1mm 0 0 1mm;
+        background:#ffffff;
+        overflow:hidden;
+      ">
+        <!-- Section 1 (Front Wing): ${s1Mm}mm length -->
+        <div style="
+          width:${s1Mm}mm;
+          max-width:${s1Mm}mm;
+          min-width:${s1Mm}mm;
+          height:100%;
+          box-sizing:border-box;
+          padding:0.4mm 0.8mm;
+          display:flex;
+          flex-direction:column;
+          justify-content:space-between;
+          overflow:hidden;
+          text-align:left;
+          background:#ffffff;
+        ">
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;min-width:0;">
+            ${headerHtml}
+            ${priceHtml}
+          </div>
+          <div style="display:flex;flex-direction:column;width:100%;min-width:0;overflow:hidden;">
+            ${brandHtml}
+            ${itemNameHtml}
+          </div>
+        </div>
+
+        <!-- Dotted Fold Line at ${s1Mm}mm -->
+        <div style="
+          width:0;
+          height:100%;
+          border-left:${dividerBorderCss};
+          flex-shrink:0;
+          position:relative;
+        "></div>
+
+        <!-- Section 2 (Back Wing): ${s2Mm}mm length -->
+        <div style="
+          width:${s2Mm}mm;
+          max-width:${s2Mm}mm;
+          min-width:${s2Mm}mm;
+          height:100%;
+          box-sizing:border-box;
+          padding:0.3mm 0.6mm;
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          overflow:hidden;
+          text-align:center;
+          background:#ffffff;
+        ">
+          <div style="width:${barcodeMaxW}mm;height:${barcodeHeight}mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            ${barcodeSvg}
+          </div>
+          ${skuTextHtml}
+        </div>
+      </div>
+
+      <!-- 30mm Adhesive-Free Tail (Narrow Non-Printable Loop aligned within ${tagWidthMm}mm height) -->
+      <div style="
+        width:${tailLengthMm}mm;
+        max-width:${tailLengthMm}mm;
+        min-width:${tailLengthMm}mm;
+        height:100%;
+        box-sizing:border-box;
+        display:flex;
+        align-items:center;
+        justify-content:flex-start;
+        overflow:hidden;
+        background:transparent;
+      ">
+        <div style="
+          width:100%;
+          height:2.8mm;
+          border-top:${outerBorderCss};
+          border-bottom:${outerBorderCss};
+          border-right:${outerBorderCss};
+          border-radius:0 1.4mm 1.4mm 0;
+          background:#ffffff;
+        "></div>
+      </div>
+    </div>`;
+}
+
 export function buildOneLabelHtml(
   item: BarcodeItem,
   spec: LabelSpec,
@@ -563,6 +1043,9 @@ export function buildOneLabelHtml(
 ): string {
   if (spec.type === "vertical-tag") {
     return buildOneVerticalTagHtml(item, spec, options);
+  }
+  if (spec.type === "dgum-flap") {
+    return buildOneDGumFlapTagHtml(item, spec, options);
   }
 
   const { widthMm, heightMm, type, maxBarcodeHeight } = spec;
@@ -730,17 +1213,26 @@ export function buildBulkLabelsHtml(
 
   if (paperSize === "continuous") {
     // Industrial Standard Continuous Roll (Zebra / TSC / Citizen / TVS / Godex / Xprinter)
-    const rollWidth = spec.rollWidthMm ?? spec.widthMm;
-    const rollHeight = spec.rollHeightMm ?? spec.heightMm;
-    const rollCols = spec.rollCols ?? 1;
+    const isDGum = spec.type === "dgum-flap";
+    const dGumCfg = options?.dGumConfig || spec.dGumConfig;
+    const rollWidth = (isDGum && dGumCfg?.media?.mediaWidthMm)
+      ? dGumCfg.media.mediaWidthMm
+      : (spec.rollWidthMm ?? spec.widthMm);
+    const rollHeight = (isDGum && dGumCfg?.media?.feedLengthMm)
+      ? dGumCfg.media.feedLengthMm
+      : (spec.rollHeightMm ?? spec.heightMm);
+    const rollCols = (isDGum && dGumCfg?.media?.rollCols)
+      ? dGumCfg.media.rollCols
+      : (spec.rollCols ?? 1);
 
     pageCSS = `
       @page {
-        size: ${rollWidth}mm ${rollHeight}mm portrait;
+        size: ${rollWidth}mm ${rollHeight}mm;
         margin: 0;
       }
       html, body {
         width: ${rollWidth}mm;
+        height: ${rollHeight}mm;
         margin: 0;
         padding: 0;
         background: #ffffff;
@@ -750,6 +1242,8 @@ export function buildBulkLabelsHtml(
         height: ${rollHeight}mm;
         max-width: ${rollWidth}mm;
         min-width: ${rollWidth}mm;
+        max-height: ${rollHeight}mm;
+        min-height: ${rollHeight}mm;
         page-break-after: always;
         break-after: page;
         page-break-inside: avoid;
@@ -780,9 +1274,19 @@ export function buildBulkLabelsHtml(
         align-items: center;
         box-sizing: border-box;
       }
+      .barcode-dgum-label {
+        width: ${spec.widthMm}mm;
+        height: ${spec.heightMm}mm;
+        max-width: ${spec.widthMm}mm;
+        min-width: ${spec.widthMm}mm;
+        max-height: ${spec.heightMm}mm;
+        min-height: ${spec.heightMm}mm;
+        flex-shrink: 0;
+        box-sizing: border-box;
+      }
       @media print {
         @page {
-          size: ${rollWidth}mm ${rollHeight}mm portrait;
+          size: ${rollWidth}mm ${rollHeight}mm;
           margin: 0;
         }
         html, body {
@@ -799,6 +1303,8 @@ export function buildBulkLabelsHtml(
           height: ${rollHeight}mm !important;
           max-width: ${rollWidth}mm !important;
           min-width: ${rollWidth}mm !important;
+          max-height: ${rollHeight}mm !important;
+          min-height: ${rollHeight}mm !important;
           page-break-after: always !important;
           break-after: page !important;
           page-break-inside: avoid !important;
@@ -827,6 +1333,18 @@ export function buildBulkLabelsHtml(
           flex-direction: column !important;
           justify-content: space-between !important;
           align-items: center !important;
+          box-sizing: border-box !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+        .barcode-dgum-label {
+          width: ${spec.widthMm}mm !important;
+          height: ${spec.heightMm}mm !important;
+          max-width: ${spec.widthMm}mm !important;
+          min-width: ${spec.widthMm}mm !important;
+          max-height: ${spec.heightMm}mm !important;
+          min-height: ${spec.heightMm}mm !important;
+          flex-shrink: 0 !important;
           box-sizing: border-box !important;
           page-break-inside: avoid !important;
           break-inside: avoid !important;

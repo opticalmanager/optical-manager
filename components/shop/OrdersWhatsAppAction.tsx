@@ -135,7 +135,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
       const bookingReceipt = chronologicalReceipts[0] || (order.receiptId ? { id: order.receiptId, receiptNumber: order.orderNumber } : null);
       const primaryReceiptId = bookingReceipt?.id || order.receiptId || order.invoiceId;
       const primaryReceiptNumber = (bookingReceipt as any)?.receiptNumber || order.receipts?.[0]?.receiptNumber || order.orderNumber || "ORDER FORM";
-      const orderFormUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/shop/receipts/${primaryReceiptId}`;
+      const orderFormUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/share/receipt/${primaryReceiptId}`;
 
       const parsedText = parseWhatsAppTemplate(templateText, {
         customer_name: order.customerName || "Valued Customer",

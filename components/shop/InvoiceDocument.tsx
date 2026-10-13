@@ -2,7 +2,11 @@
 
 import React, { useState } from "react";
 import type { DocumentData } from "@/services/document.service";
-import { getShopBusinessDetails, getCustomerTaxDetails } from "@/lib/document-config";
+import {
+  getShopBusinessDetails,
+  getCustomerTaxDetails,
+  resolvePrescriptionDisplaySettings,
+} from "@/lib/document-config";
 import {
   convertNumberToWords,
   formatDateDMY,
@@ -16,6 +20,14 @@ import {
 import { formatCurrency, cn } from "@/lib/utils";
 import { resolveOpticalCategory } from "@/lib/optical-category-resolver";
 import { Printer } from "lucide-react";
+
+const formatRxPower = (val: number | string | null | undefined): string => {
+  if (val === null || val === undefined || val === "") return "-";
+  const num = typeof val === "string" ? parseFloat(val) : val;
+  if (isNaN(num)) return typeof val === "string" && val.trim() ? val : "-";
+  if (num === 0) return "0.00";
+  return num > 0 ? `+${num.toFixed(2)}` : num.toFixed(2);
+};
 
 interface InvoiceDocumentProps {
   data: DocumentData;
@@ -38,6 +50,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
     );
   }
 
+  const { showPrescriptionOnInvoice, showPrescriptionOnBooking } = resolvePrescriptionDisplaySettings(data);
   const shopDetails = getShopBusinessDetails(shop);
   const customerTax = getCustomerTaxDetails(customer);
 
@@ -61,12 +74,27 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
     // -------------------------------------------------------------
     // INVOICE MODE CALCULATIONS
     // -------------------------------------------------------------
-    const distancePrescription = prescriptions.find(
-      (p) => p.prescriptionType === "DISTANCE"
+    const distRx = prescriptions.slice().reverse().find((p) => p.prescriptionType === "DISTANCE") || null;
+    const nearRx = prescriptions.slice().reverse().find((p) => p.prescriptionType === "NEAR") || null;
+
+    const hasDistanceRx = Boolean(
+      distRx && (
+        distRx.rightSphere || distRx.rightCylinder || distRx.rightAxis || distRx.rightAdd || distRx.rightNv ||
+        distRx.leftSphere || distRx.leftCylinder || distRx.leftAxis || distRx.leftAdd || distRx.leftNv
+      )
     );
-    const nearPrescription = prescriptions.find(
-      (p) => p.prescriptionType === "NEAR"
+
+    const hasNearRx = Boolean(
+      nearRx && (
+        nearRx.rightSphere || nearRx.rightCylinder || nearRx.rightAxis || nearRx.rightAdd || nearRx.rightNv ||
+        nearRx.leftSphere || nearRx.leftCylinder || nearRx.leftAxis || nearRx.leftAdd || nearRx.leftNv
+      )
     );
+
+    const hasPrescription = hasDistanceRx || hasNearRx;
+    const rxCategory = distRx?.rxCategory || nearRx?.rxCategory || "";
+    const rxDoctorName = distRx?.doctorName || nearRx?.doctorName || "";
+    const rxNumber = distRx?.rxNumber || nearRx?.rxNumber || "";
 
     const totals = lineItems.reduce(
       (acc, item) => {
@@ -154,7 +182,6 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
       (a, b) => a.sortOrder - b.sortOrder || a.particularsName.localeCompare(b.particularsName)
     );
     const invoiceRefId = `${customer?.registrationId || "AXIS-KOL"} | ${invoice.invoiceNumber}`;
-    let lensItemCount = 0;
 
     const balanceDueNum = parseFloat(invoice.balanceDue) || 0;
     const amountPaidNum = parseFloat(invoice.amountPaid) || 0;
@@ -229,8 +256,13 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 .print-page {
                   width: 210mm;
                   height: 297mm;
-                  page-break-after: always;
-                  break-after: page;
+                  max-height: 297mm;
+                  page-break-before: avoid;
+                  page-break-after: avoid;
+                  page-break-inside: avoid;
+                  break-before: avoid;
+                  break-after: avoid;
+                  break-inside: avoid;
                   position: relative;
                   box-sizing: border-box;
                   background: white !important;
@@ -258,12 +290,13 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
         {/* ========================================================================= */}
         {/* OFFICIAL A4 DOCUMENT VIEW (Authentic A4 Paper Layout for Mobile & Desktop) */}
         {/* ========================================================================= */}
-        <div
-          id="invoice-print-area"
-          className="flex flex-col gap-8 print:gap-0 items-center w-[794px] max-w-[794px] print:w-auto print:max-w-none"
-        >
-          {/* ================= PAGE 1 ================= */}
-          <div className="w-[794px] min-h-[1123px] max-w-[794px] bg-white border border-slate-200 shadow-xl p-[12mm] flex flex-col justify-between print:w-[210mm] print:h-[297mm] print:border-none print:shadow-none print:p-[12mm] print-page shrink-0">
+        <div className="w-full max-w-full overflow-x-auto flex justify-center py-2 print:overflow-visible print:p-0 print:w-auto">
+          <div
+            id="invoice-print-area"
+            className="flex flex-col gap-0 items-center w-[794px] max-w-[794px] shrink-0 print:w-auto print:max-w-none"
+          >
+            {/* ================= SINGLE PAGE A4 TAX INVOICE ================= */}
+            <div className="w-[794px] min-h-[1123px] max-w-[794px] bg-white border border-slate-200 shadow-xl p-[10mm] flex flex-col justify-between print:w-[210mm] print:h-[297mm] print:max-h-[297mm] print:border-none print:shadow-none print:p-[8mm] print-page shrink-0">
             <div className="flex-1 flex flex-col">
               {/* Header Block */}
               <div className="flex justify-between items-start border-b border-black pb-2.5">
@@ -410,25 +443,192 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 </div>
               </div>
 
+              {/* OPTICAL PRESCRIPTION TABLE (Controlled by customization toggle, default OFF) */}
+              {showPrescriptionOnInvoice && hasPrescription && (
+                <div className="mt-2.5 border border-black text-black">
+                  <div className="flex items-center justify-between bg-slate-100 border-b border-black px-2 py-0.5 text-[8px] font-black uppercase tracking-wider">
+                    <div className="flex items-center gap-2">
+                      <span>Optical Prescription (Rx Details)</span>
+                      {rxCategory && (
+                        <span className="text-[7.5px] font-bold px-1 py-0.2 bg-white border border-black/40 rounded">
+                          {rxCategory}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-[7.5px] font-bold text-slate-700">
+                      {rxDoctorName && (
+                        <span>Doctor/Optom: <span className="text-black font-black">{rxDoctorName}</span></span>
+                      )}
+                      {rxNumber && (
+                        <span>Rx No: <span className="text-black font-black">{rxNumber}</span></span>
+                      )}
+                    </div>
+                  </div>
+
+                  <table className="w-full table-fixed text-center border-collapse text-[8.5px] font-semibold leading-tight">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-black text-[8px] font-bold uppercase text-slate-800">
+                        <th className="border-r border-black py-0.5 px-1 w-[14%] text-left">Type / Eye</th>
+                        <th className="border-r border-black py-0.5 px-1 w-[11%]">SPH</th>
+                        <th className="border-r border-black py-0.5 px-1 w-[11%]">CYL</th>
+                        <th className="border-r border-black py-0.5 px-1 w-[10%]">AXIS</th>
+                        <th className="border-r border-black py-0.5 px-1 w-[11%]">ADD</th>
+                        <th className="border-r border-black py-0.5 px-1 w-[11%]">V/N</th>
+                        <th className="border-r border-black py-0.5 px-1 w-[14%]">CADD</th>
+                        <th className="py-0.5 px-1 w-[18%]">P.D. (mm)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hasDistanceRx && (
+                        <>
+                          <tr className="border-b border-black/50">
+                            <td className="border-r border-black py-0.5 px-1 text-left font-black bg-slate-50/50">
+                              DIST (RE / OD)
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(distRx?.rightSphere)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(distRx?.rightCylinder)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {distRx?.rightAxis ? `${distRx.rightAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold text-[#0a52c3]">
+                              {formatRxPower(distRx?.rightAdd)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {distRx?.rightNv || "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {distRx?.caddRight || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-slate-800">
+                              {distRx?.pdRight ? `R: ${distRx.pdRight}mm` : (distRx?.pd ? `${distRx.pd}mm` : "-")}
+                            </td>
+                          </tr>
+                          <tr className={hasNearRx ? "border-b border-black" : ""}>
+                            <td className="border-r border-black py-0.5 px-1 text-left font-black bg-slate-50/50">
+                              DIST (LE / OS)
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(distRx?.leftSphere)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(distRx?.leftCylinder)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {distRx?.leftAxis ? `${distRx.leftAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold text-[#0a52c3]">
+                              {formatRxPower(distRx?.leftAdd)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {distRx?.leftNv || "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {distRx?.caddLeft || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-slate-800">
+                              {distRx?.pdLeft ? `L: ${distRx.pdLeft}mm` : (distRx?.pd ? `${distRx.pd}mm` : "-")}
+                            </td>
+                          </tr>
+                        </>
+                      )}
+                      {hasNearRx && (
+                        <>
+                          <tr className="border-b border-black/50 bg-blue-50/20">
+                            <td className="border-r border-black py-0.5 px-1 text-left font-black bg-slate-50/50">
+                              NEAR (RE / OD)
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(nearRx?.rightSphere)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(nearRx?.rightCylinder)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {nearRx?.rightAxis ? `${nearRx.rightAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold text-[#0a52c3]">
+                              {formatRxPower(nearRx?.rightAdd)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {nearRx?.rightNv || "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {nearRx?.caddRight || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-slate-800">
+                              {nearRx?.pdRight ? `R: ${nearRx.pdRight}mm` : "-"}
+                            </td>
+                          </tr>
+                          <tr className="bg-blue-50/20">
+                            <td className="border-r border-black py-0.5 px-1 text-left font-black bg-slate-50/50">
+                              NEAR (LE / OS)
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(nearRx?.leftSphere)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {formatRxPower(nearRx?.leftCylinder)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold">
+                              {nearRx?.leftAxis ? `${nearRx.leftAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 font-bold text-[#0a52c3]">
+                              {formatRxPower(nearRx?.leftAdd)}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {nearRx?.leftNv || "-"}
+                            </td>
+                            <td className="border-r border-black py-0.5 px-1 text-slate-700">
+                              {nearRx?.caddLeft || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-slate-800">
+                              {nearRx?.pdLeft ? `L: ${nearRx.pdLeft}mm` : "-"}
+                            </td>
+                          </tr>
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {(distRx?.lensType || distRx?.frameName || distRx?.notes || distRx?.specialInstructions) && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[7.5px] font-semibold text-slate-700 px-2 py-0.5 bg-slate-50 border-t border-black/40">
+                      {distRx.lensType && (
+                        <span>Lens Type: <span className="font-black text-black">{distRx.lensType}</span></span>
+                      )}
+                      {distRx.frameName && (
+                        <span>Frame: <span className="font-black text-black">{distRx.frameName}</span></span>
+                      )}
+                      {distRx.notes && (
+                        <span>Notes: <span className="font-black text-black">{distRx.notes}</span></span>
+                      )}
+                      {distRx.specialInstructions && (
+                        <span>Instructions: <span className="font-black text-black">{distRx.specialInstructions}</span></span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Items Ledger Table */}
-              <div className="mt-3">
-                <table className="w-full text-[10px] text-black border-collapse border border-black font-semibold leading-tight">
+              <div className="mt-2.5">
+                <table className="w-full table-fixed text-[9.5px] text-black border-collapse border border-black font-semibold leading-tight">
                   <thead>
-                    <tr className="border-b border-black bg-slate-50 font-bold text-[9px] uppercase">
-                      <th className="border-r border-black px-1 py-1 text-center w-[4%]">Sr. No.</th>
+                    <tr className="border-b border-black bg-slate-50 font-bold text-[8.5px] uppercase">
+                      <th className="border-r border-black px-1 py-1 text-center w-[4%]">Sr.</th>
                       <th className="border-r border-black px-1.5 py-1 text-left w-[14%]">Order Details</th>
-                      <th className="border-r border-black px-2 py-1 text-left w-[26%]">Product Description</th>
-                      <th className="border-r border-black px-1 py-1 text-center w-[6%]">Qty</th>
-                      <th className="border-r border-black px-1.5 py-1 text-right w-[8%]">Rate/<br />Pcs</th>
-                      <th className="border-r border-black px-1.5 py-1 text-right w-[8%]">Sub Total</th>
-                      <th className="border-r border-black px-1.5 py-1 text-right w-[7%]">Discount</th>
-                      <th className="border-r border-black px-1.5 py-1 text-right w-[7%]">Additional Amount</th>
-                      <th className="border-r border-black px-1.5 py-1 text-right w-[8%]">Taxable value</th>
-                      <th className="border-r border-black px-1 py-1 text-center w-[5%]">SGST %</th>
-                      <th className="border-r border-black px-1 py-1 text-center w-[5%]">CGST %</th>
-                      <th className="border-r border-black px-1 py-1 text-center w-[5%]">IGST %</th>
-                      <th className="border-r border-black px-1.5 py-1 text-right w-[7%]">GST</th>
-                      <th className="px-1.5 py-1 text-right w-[9%]">Amount</th>
+                      <th className="border-r border-black px-1.5 py-1 text-left w-[24%]">Product Description</th>
+                      <th className="border-r border-black px-1 py-1 text-center w-[5%]">Qty</th>
+                      <th className="border-r border-black px-1 py-1 text-right w-[8%]">Rate</th>
+                      <th className="border-r border-black px-1 py-1 text-right w-[8%]">Sub Total</th>
+                      <th className="border-r border-black px-1 py-1 text-right w-[7%]">Disc.</th>
+                      <th className="border-r border-black px-1 py-1 text-right w-[8%]">Taxable</th>
+                      <th className="border-r border-black px-0.5 py-1 text-center w-[7%]">GST %</th>
+                      <th className="border-r border-black px-1 py-1 text-right w-[7%]">GST Amt</th>
+                      <th className="px-1.5 py-1 text-right w-[8%]">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -436,6 +636,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                       const cgstPercent = parseFloat(item.cgstPercent) || 0;
                       const sgstPercent = parseFloat(item.sgstPercent) || 0;
                       const igstPercent = parseFloat(item.igstPercent) || 0;
+                      const totalGstPercent = igstPercent > 0 ? igstPercent : (cgstPercent + sgstPercent);
 
                       const cgst = parseFloat(item.cgstAmount) || 0;
                       const sgst = parseFloat(item.sgstAmount) || 0;
@@ -447,109 +648,74 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                       const taxable = subtotal - discount;
                       const totalAmount = taxable + rowGst;
 
-                      // Match prescription RE/LE details dynamically for Lens categories
-                      let rowPrescription = null;
-                      if (item.category === "LENS" || item.description.toUpperCase().includes("LENS")) {
-                        lensItemCount++;
-                        if (lensItemCount === 1) {
-                          rowPrescription = distancePrescription || nearPrescription || null;
-                        } else if (lensItemCount === 2) {
-                          rowPrescription = nearPrescription || distancePrescription || null;
-                        }
-                      }
-
                       return (
                         <tr key={item.id} className="border-b border-black align-top hover:bg-slate-50/10">
                           {/* Sr No */}
-                          <td className="border-r border-black px-1 py-1.5 text-center font-bold">
+                          <td className="border-r border-black px-1 py-1 text-center font-bold">
                             {idx + 1}
                           </td>
 
                           {/* Order Details */}
-                          <td className="border-r border-black px-1.5 py-1.5 whitespace-pre-line text-[9px] leading-relaxed">
-                            <div>{item.sku || "01260008416"}</div>
-                            <div>{formatDateDMY(rowPrescription?.createdAt || invoice.createdAt)}</div>
-                            <div className="font-bold">{item.brand || "smart view"}</div>
+                          <td className="border-r border-black px-1.5 py-1 text-[8.5px] leading-tight break-words">
+                            <div className="font-mono font-bold text-black">{item.sku || "—"}</div>
+                            {item.brand && <div className="font-bold text-slate-800 uppercase">{item.brand}</div>}
+                            <div className="text-[7.5px] text-slate-500">{formatDateDMY(invoice.createdAt)}</div>
                           </td>
 
                           {/* Product Description */}
-                          <td className="border-r border-black px-2 py-1.5 text-[9px] leading-relaxed">
+                          <td className="border-r border-black px-1.5 py-1 text-[8.5px] leading-tight break-words">
                             <div className="font-bold text-black uppercase">{item.description}</div>
-                            {rowPrescription && (
-                              <div className="text-[8px] font-bold text-slate-600 mt-1 leading-normal uppercase">
-                                <div>
-                                  RE: {formatPrescriptionVal(rowPrescription.rightSphere)} {formatPrescriptionVal(rowPrescription.rightCylinder)}
-                                  {rowPrescription.rightAxis ? ` x ${rowPrescription.rightAxis}°` : ""}
-                                  {rowPrescription.rightAdd ? ` Add ${formatPrescriptionVal(rowPrescription.rightAdd)}` : ""}
-                                  {rowPrescription.rightNv ? ` (${rowPrescription.rightNv})` : ""}
-                                  {rowPrescription.pdRight ? ` PD: ${rowPrescription.pdRight}mm` : ""}
-                                </div>
-                                <div>
-                                  LE: {formatPrescriptionVal(rowPrescription.leftSphere)} {formatPrescriptionVal(rowPrescription.leftCylinder)}
-                                  {rowPrescription.leftAxis ? ` x ${rowPrescription.leftAxis}°` : ""}
-                                  {rowPrescription.leftAdd ? ` Add ${formatPrescriptionVal(rowPrescription.leftAdd)}` : ""}
-                                  {rowPrescription.leftNv ? ` (${rowPrescription.leftNv})` : ""}
-                                  {rowPrescription.pdLeft ? ` PD: ${rowPrescription.pdLeft}mm` : ""}
-                                </div>
+                            {item.hsnCode && (
+                              <div className="text-[7.5px] font-bold text-black mt-0.5">
+                                HSN: {item.hsnCode}
                               </div>
                             )}
-                            <div className="text-[8px] font-bold text-black mt-0.5">
-                              HSN: {item.hsnCode || "90015000"}
-                            </div>
                           </td>
 
                           {/* Qty */}
-                          <td className="border-r border-black px-1 py-1.5 text-center">
+                          <td className="border-r border-black px-1 py-1 text-center text-[8.5px]">
                             {item.quantity} pcs
                           </td>
 
                           {/* Rate/Pcs */}
-                          <td className="border-r border-black px-1.5 py-1.5 text-right font-medium">
+                          <td className="border-r border-black px-1 py-1 text-right text-[8.5px] font-medium">
                             {formatDecimal(item.unitPrice)}
                           </td>
 
                           {/* Sub Total */}
-                          <td className="border-r border-black px-1.5 py-1.5 text-right font-medium">
+                          <td className="border-r border-black px-1 py-1 text-right text-[8.5px] font-medium">
                             {formatDecimal(item.subtotal)}
                           </td>
 
                           {/* Discount */}
-                          <td className="border-r border-black px-1.5 py-1.5 text-right font-medium">
+                          <td className="border-r border-black px-1 py-1 text-right text-[8.5px] font-medium">
                             {formatDecimal(item.discountAmount)}
                           </td>
 
-                          {/* Additional Amount */}
-                          <td className="border-r border-black px-1.5 py-1.5 text-right font-medium">
-                            0.00
-                          </td>
-
                           {/* Taxable value */}
-                          <td className="border-r border-black px-1.5 py-1.5 text-right font-bold">
+                          <td className="border-r border-black px-1 py-1 text-right text-[8.5px] font-bold">
                             {formatDecimal(taxable)}
                           </td>
 
-                          {/* SGST % */}
-                          <td className="border-r border-black px-1 py-1.5 text-center">
-                            {sgstPercent > 0 ? `${sgstPercent.toFixed(2)} %` : ""}
-                          </td>
-
-                          {/* CGST % */}
-                          <td className="border-r border-black px-1 py-1.5 text-center">
-                            {cgstPercent > 0 ? `${cgstPercent.toFixed(2)} %` : ""}
-                          </td>
-
-                          {/* IGST % */}
-                          <td className="border-r border-black px-1 py-1.5 text-center">
-                            {igstPercent > 0 ? `${igstPercent.toFixed(2)} %` : ""}
+                          {/* GST % */}
+                          <td className="border-r border-black px-0.5 py-1 text-center text-[8.5px] leading-tight">
+                            <div className="font-bold">{totalGstPercent > 0 ? `${totalGstPercent.toFixed(1)}%` : "0%"}</div>
+                            {igstPercent > 0 ? (
+                              <div className="text-[7px] text-slate-500 font-semibold uppercase">IGST</div>
+                            ) : cgstPercent > 0 || sgstPercent > 0 ? (
+                              <div className="text-[7px] text-slate-500 font-semibold">
+                                {cgstPercent > 0 ? `C:${cgstPercent.toFixed(0)}% ` : ""}{sgstPercent > 0 ? `S:${sgstPercent.toFixed(0)}%` : ""}
+                              </div>
+                            ) : null}
                           </td>
 
                           {/* GST Amount */}
-                          <td className="border-r border-black px-1.5 py-1.5 text-right font-medium">
+                          <td className="border-r border-black px-1 py-1 text-right text-[8.5px] font-medium">
                             {formatDecimal(rowGst)}
                           </td>
 
                           {/* Amount */}
-                          <td className="px-1.5 py-1.5 text-right font-black">
+                          <td className="px-1.5 py-1 text-right text-[8.5px] font-black">
                             {formatDecimal(totalAmount)}
                           </td>
                         </tr>
@@ -557,30 +723,29 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                     })}
 
                     {/* Summary Totals Row */}
-                    <tr className="border-b border-black font-black bg-slate-50 text-[9px]">
-                      <td className="border-r border-black px-1 py-1.5 text-center"></td>
-                      <td className="border-r border-black px-1.5 py-1.5" colSpan={2}>
+                    <tr className="border-b border-black font-black bg-slate-50 text-[8.5px]">
+                      <td className="border-r border-black px-1 py-1 text-center"></td>
+                      <td className="border-r border-black px-1.5 py-1 uppercase" colSpan={2}>
                         Line Total
                       </td>
-                      <td className="border-r border-black px-1 py-1.5 text-center">
+                      <td className="border-r border-black px-1 py-1 text-center">
                         {totals.qty}
                       </td>
-                      <td className="border-r border-black px-1.5 py-1.5"></td>
-                      <td className="border-r border-black px-1.5 py-1.5 text-right">
+                      <td className="border-r border-black px-1 py-1"></td>
+                      <td className="border-r border-black px-1 py-1 text-right">
                         {formatDecimal(totals.subtotal)}
                       </td>
-                      <td className="border-r border-black px-1.5 py-1.5 text-right">
+                      <td className="border-r border-black px-1 py-1 text-right">
                         {formatDecimal(totals.discount)}
                       </td>
-                      <td className="border-r border-black px-1.5 py-1.5 text-right">0.00</td>
-                      <td className="border-r border-black px-1.5 py-1.5 text-right">
+                      <td className="border-r border-black px-1 py-1 text-right">
                         {formatDecimal(totals.taxable)}
                       </td>
-                      <td className="border-r border-black px-1.5 py-1.5" colSpan={3}></td>
-                      <td className="border-r border-black px-1.5 py-1.5 text-right">
+                      <td className="border-r border-black px-0.5 py-1 text-center"></td>
+                      <td className="border-r border-black px-1 py-1 text-right">
                         {formatDecimal(totals.gst)}
                       </td>
-                      <td className="px-1.5 py-1.5 text-right">
+                      <td className="px-1.5 py-1 text-right">
                         {formatDecimal(totals.amount)}
                       </td>
                     </tr>
@@ -589,11 +754,11 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
               </div>
 
               {/* Bottom Calculations & Tax Summary */}
-              <div className="grid grid-cols-[1.3fr_1fr] gap-4 mt-3">
+              <div className="grid grid-cols-[1.3fr_1fr] gap-3 mt-2.5">
                 {/* Left Column: Words, Tax Slab summary, bank details */}
-                <div className="flex flex-col gap-3 font-semibold text-[10px]">
+                <div className="flex flex-col gap-2 font-semibold text-[9px]">
                   {/* Amount in words */}
-                  <div>
+                  <div className="leading-tight">
                     <span className="text-black font-bold">Amount in words: </span>
                     <span className="text-black font-black italic">
                       {convertNumberToWords(databaseTotal)}
@@ -602,54 +767,54 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
 
                   {/* Tax summary table */}
                   <div className="border border-black">
-                    <div className="bg-slate-50 border-b border-black p-1 text-[9px] font-bold uppercase">
-                      Tax Summary
+                    <div className="bg-slate-50 border-b border-black px-1.5 py-0.5 text-[8.5px] font-bold uppercase">
+                      Statutory GST Breakdown
                     </div>
-                    <table className="w-full text-[9px] text-black border-collapse">
+                    <table className="w-full text-[8.5px] text-black border-collapse">
                       <thead>
                         <tr className="border-b border-black text-center font-bold bg-slate-50">
-                          <th className="border-r border-black px-1.5 py-1 text-left">Particular Name</th>
-                          <th className="border-r border-black px-1.5 py-1">GST %</th>
-                          <th className="border-r border-black px-1.5 py-1 text-right">Taxable Value</th>
-                          <th className="border-r border-black px-1.5 py-1 text-right">CGST</th>
-                          <th className="border-r border-black px-1.5 py-1 text-right">SGST</th>
-                          <th className="border-r border-black px-1.5 py-1 text-right">IGST</th>
-                          <th className="px-1.5 py-1 text-right">Total</th>
+                          <th className="border-r border-black px-1.5 py-0.5 text-left">Particular Name</th>
+                          <th className="border-r border-black px-1 py-0.5">GST %</th>
+                          <th className="border-r border-black px-1.5 py-0.5 text-right">Taxable</th>
+                          <th className="border-r border-black px-1.5 py-0.5 text-right">CGST</th>
+                          <th className="border-r border-black px-1.5 py-0.5 text-right">SGST</th>
+                          <th className="border-r border-black px-1.5 py-0.5 text-right">IGST</th>
+                          <th className="px-1.5 py-0.5 text-right">Total Tax</th>
                         </tr>
                       </thead>
                       <tbody>
                         {taxSummaryRows.map((row, idx) => (
                           <tr key={idx} className="border-b border-black text-center">
-                            <td className="border-r border-black px-1.5 py-1 text-left">{row.particularsName}</td>
-                            <td className="border-r border-black px-1.5 py-1">{row.gstPercent.toFixed(2)}</td>
-                            <td className="border-r border-black px-1.5 py-1 text-right">{formatDecimal(row.taxableValue)}</td>
-                            <td className="border-r border-black px-1.5 py-1 text-right">{formatDecimal(row.cgst)}</td>
-                            <td className="border-r border-black px-1.5 py-1 text-right">{formatDecimal(row.sgst)}</td>
-                            <td className="border-r border-black px-1.5 py-1 text-right">{formatDecimal(row.igst)}</td>
-                            <td className="px-1.5 py-1 text-right font-bold">{formatDecimal(row.total)}</td>
+                            <td className="border-r border-black px-1.5 py-0.5 text-left font-medium">{row.particularsName}</td>
+                            <td className="border-r border-black px-1 py-0.5">{row.gstPercent.toFixed(1)}%</td>
+                            <td className="border-r border-black px-1.5 py-0.5 text-right">{formatDecimal(row.taxableValue)}</td>
+                            <td className="border-r border-black px-1.5 py-0.5 text-right">{formatDecimal(row.cgst)}</td>
+                            <td className="border-r border-black px-1.5 py-0.5 text-right">{formatDecimal(row.sgst)}</td>
+                            <td className="border-r border-black px-1.5 py-0.5 text-right">{formatDecimal(row.igst)}</td>
+                            <td className="px-1.5 py-0.5 text-right font-bold">{formatDecimal(row.total)}</td>
                           </tr>
                         ))}
                         {/* Total row */}
                         <tr className="font-bold bg-slate-50 text-center">
-                          <td className="border-r border-black px-1.5 py-1 text-left">Total</td>
-                          <td className="border-r border-black px-1.5 py-1"></td>
-                          <td className="border-r border-black px-1.5 py-1 text-right">{formatDecimal(totals.taxable)}</td>
-                          <td className="border-r border-black px-1.5 py-1 text-right">
+                          <td className="border-r border-black px-1.5 py-0.5 text-left">Total</td>
+                          <td className="border-r border-black px-1.5 py-0.5"></td>
+                          <td className="border-r border-black px-1.5 py-0.5 text-right">{formatDecimal(totals.taxable)}</td>
+                          <td className="border-r border-black px-1.5 py-0.5 text-right">
                             {formatDecimal(
                               lineItems.reduce((s, i) => s + (parseFloat(i.cgstAmount) || 0), 0)
                             )}
                           </td>
-                          <td className="border-r border-black px-1.5 py-1 text-right">
+                          <td className="border-r border-black px-1.5 py-0.5 text-right">
                             {formatDecimal(
                               lineItems.reduce((s, i) => s + (parseFloat(i.sgstAmount) || 0), 0)
                             )}
                           </td>
-                          <td className="border-r border-black px-1.5 py-1 text-right">
+                          <td className="border-r border-black px-1.5 py-0.5 text-right">
                             {formatDecimal(
                               lineItems.reduce((s, i) => s + (parseFloat(i.igstAmount) || 0), 0)
                             )}
                           </td>
-                          <td className="px-1.5 py-1 text-right">{formatDecimal(totals.gst)}</td>
+                          <td className="px-1.5 py-0.5 text-right">{formatDecimal(totals.gst)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -657,11 +822,11 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
 
                   {/* Bank Account Details */}
                   {shopDetails.enableBankDetails && shopDetails.bankAccountNumber ? (
-                    <div className="border border-black p-2 flex flex-col gap-0.5">
-                      <span className="font-bold border-b border-black pb-0.5 mb-1 block uppercase">
-                        Bank Account Details:
+                    <div className="border border-black p-1.5 flex flex-col gap-0.5 text-[8.5px]">
+                      <span className="font-bold border-b border-black pb-0.5 mb-0.5 block uppercase">
+                        Bank Details:
                       </span>
-                      <div className="grid grid-cols-[80px_8px_1fr] gap-y-0.5">
+                      <div className="grid grid-cols-[65px_6px_1fr] gap-y-0.5">
                         {shopDetails.bankName && (
                           <>
                             <div>Bank Name</div>
@@ -669,11 +834,9 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                             <div>{shopDetails.bankName}</div>
                           </>
                         )}
-
                         <div>Account No.</div>
                         <div>:</div>
                         <div className="font-bold">{shopDetails.bankAccountNumber}</div>
-
                         {shopDetails.bankIfsc && (
                           <>
                             <div>IFS Code</div>
@@ -686,9 +849,9 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                   ) : null}
                 </div>
 
-                {/* Right Column: Ledger calculations */}
-                <div className="flex flex-col gap-1 text-[10px] font-bold pl-8">
-                  <div className="grid grid-cols-[120px_10px_1fr] text-black">
+                {/* Right Column: Ledger calculations & Settlement */}
+                <div className="flex flex-col gap-1 text-[9.5px] font-bold pl-4">
+                  <div className="grid grid-cols-[105px_8px_1fr] text-black">
                     <div>Sub Total</div>
                     <div>:</div>
                     <div className="text-right">{formatDecimal(totals.subtotal)}</div>
@@ -715,9 +878,9 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
 
                     {parseFloat(invoice.creditApplied || "0") > 0 && (
                       <>
-                        <div className="text-[9px] font-bold text-emerald-800">Store Credit Applied</div>
-                        <div className="text-[9px] font-bold text-emerald-800">:</div>
-                        <div className="text-[9px] font-bold text-emerald-800 text-right">
+                        <div className="text-[8.5px] font-bold text-emerald-800">Store Credit Applied</div>
+                        <div className="text-[8.5px] font-bold text-emerald-800">:</div>
+                        <div className="text-[8.5px] font-bold text-emerald-800 text-right">
                           -{formatDecimal(parseFloat(invoice.creditApplied))}
                         </div>
 
@@ -729,48 +892,62 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                       </>
                     )}
                   </div>
+
+                  {/* Payment status badge */}
+                  <div className="mt-1 pt-1 border-t border-black/20 text-[8.5px]">
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-slate-600 font-semibold uppercase">Amount Paid:</span>
+                      <span className="font-bold text-black">{formatCurrency(amountPaidNum)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-slate-600 font-semibold uppercase">Balance Due:</span>
+                      <span className={`font-black ${balanceDueNum > 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                        {formatCurrency(balanceDueNum)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Installment Payment History Log */}
               {data.allReceipts && data.allReceipts.length > 0 && (
-                <div className="border border-black mt-3 text-[9px]">
-                  <div className="bg-slate-100 border-b border-black px-2 py-1 font-bold text-black uppercase flex items-center justify-between">
+                <div className="border border-black mt-2 text-[8.5px]">
+                  <div className="bg-slate-100 border-b border-black px-1.5 py-0.5 font-bold text-black uppercase flex items-center justify-between text-[8px]">
                     <span>Payment Settlement History ({data.allReceipts.length} Installments)</span>
-                    <span className="text-[8px] font-extrabold text-emerald-800 uppercase">
-                      {parseFloat(invoice.balanceDue) <= 0 ? "Account Fully Settled (Balance: ₹0.00)" : `Pending Balance: ₹${parseFloat(invoice.balanceDue).toFixed(2)}`}
+                    <span className="font-extrabold text-emerald-800 uppercase">
+                      {balanceDueNum <= 0 ? "Account Fully Settled" : `Pending Balance: ₹${balanceDueNum.toFixed(2)}`}
                     </span>
                   </div>
-                  <table className="w-full text-center border-collapse">
+                  <table className="w-full text-center border-collapse text-[8px]">
                     <thead>
-                      <tr className="border-b border-black font-bold bg-slate-50 text-slate-700 text-[8px] uppercase">
-                        <th className="py-0.5 px-1.5 border-r border-black text-left">Receipt #</th>
-                        <th className="py-0.5 px-1.5 border-r border-black">Payment Date</th>
-                        <th className="py-0.5 px-1.5 border-r border-black">Payment Mode</th>
-                        <th className="py-0.5 px-1.5 border-r border-black text-right">Amount Paid</th>
-                        <th className="py-0.5 px-1.5 text-right">Remaining Dues</th>
+                      <tr className="border-b border-black font-bold bg-slate-50 text-slate-700 uppercase">
+                        <th className="py-0.5 px-1 border-r border-black text-left">Receipt #</th>
+                        <th className="py-0.5 px-1 border-r border-black">Payment Date</th>
+                        <th className="py-0.5 px-1 border-r border-black">Payment Mode</th>
+                        <th className="py-0.5 px-1 border-r border-black text-right">Amount Paid</th>
+                        <th className="py-0.5 px-1 text-right">Remaining Dues</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.allReceipts.map((r) => (
                         <tr key={r.id} className="border-b border-black/30 font-semibold text-slate-800">
-                          <td className="py-1 px-1.5 border-r border-black text-left font-mono font-bold text-black">
+                          <td className="py-0.5 px-1 border-r border-black text-left font-mono font-bold text-black">
                             {r.receiptNumber}
                           </td>
-                          <td className="py-1 px-1.5 border-r border-black">
+                          <td className="py-0.5 px-1 border-r border-black">
                             {safeFormatDateLocale(r.createdAt, "—", {
                               day: "2-digit",
                               month: "short",
                               year: "numeric",
                             })}
                           </td>
-                          <td className="py-1 px-1.5 border-r border-black font-bold text-slate-700 uppercase">
+                          <td className="py-0.5 px-1 border-r border-black font-bold text-slate-700 uppercase">
                             {r.paymentMethod}
                           </td>
-                          <td className="py-1 px-1.5 border-r border-black text-right font-black text-emerald-800">
+                          <td className="py-0.5 px-1 border-r border-black text-right font-black text-emerald-800">
                             {formatCurrency(parseFloat(r.amountPaid))}
                           </td>
-                          <td className="py-1 px-1.5 text-right font-extrabold text-slate-700">
+                          <td className="py-0.5 px-1 text-right font-extrabold text-slate-700">
                             {formatCurrency(parseFloat(r.balanceDue))}
                           </td>
                         </tr>
@@ -779,150 +956,21 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                   </table>
                 </div>
               )}
+
             </div>
 
-            {/* Footer of Page 1 */}
-            <div className="border-t border-black pt-1 flex justify-between text-[9px] font-bold text-black mt-2">
+            {/* Single-Page Footer */}
+            <div className="border-t border-black pt-1 flex justify-between items-center text-[8.5px] font-bold text-black mt-2">
               <div>{invoiceRefId}</div>
-              <div>Page 1 of 2</div>
-            </div>
-          </div>
-
-          {/* ================= PAGE 2 ================= */}
-          <div className="w-[794px] min-h-[1123px] max-w-[794px] bg-white border border-slate-200 shadow-xl p-[12mm] flex flex-col justify-between print:w-[210mm] print:h-[297mm] print:border-none print:shadow-none print:p-[12mm] print-page shrink-0">
-            <div className="flex-1 flex flex-col">
-              {/* Header Block (Branding Duplicate) */}
-              <div className="flex justify-between items-start border-b border-black pb-2.5">
-                <div className="flex gap-3">
-                  <div className="mt-1">
-                    <svg width="42" height="32" viewBox="0 0 100 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        d="M50 10C25 10 5 40 5 40C5 40 25 70 50 70C75 70 95 40 95 40C95 40 75 10 50 10Z"
-                        stroke="#a17c24"
-                        strokeWidth="8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <circle cx="50" cy="40" r="16" stroke="#a17c24" strokeWidth="8" />
-                      <circle cx="50" cy="40" r="6" fill="#a17c24" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h1 className="text-sm font-black text-black leading-tight tracking-tight uppercase">
-                      {shopName}
-                    </h1>
-                    <div className="grid grid-cols-[60px_8px_1fr] gap-y-0.5 text-[10px] text-black font-semibold mt-1">
-                      {shopAddress && (
-                        <>
-                          <div>Address</div>
-                          <div>:</div>
-                          <div className="whitespace-pre-line leading-tight">{shopAddress}</div>
-                        </>
-                      )}
-
-                      {shopGstin && (
-                        <>
-                          <div>GSTIN</div>
-                          <div>:</div>
-                          <div>{shopGstin}</div>
-                        </>
-                      )}
-
-                      {shopCin && (
-                        <>
-                          <div>CIN</div>
-                          <div>:</div>
-                          <div>{shopCin}</div>
-                        </>
-                      )}
-
-                      {shopMsme && (
-                        <>
-                          <div>MSME No.</div>
-                          <div>:</div>
-                          <div>{shopMsme}</div>
-                        </>
-                      )}
-
-                      {shopPhone && (
-                        <>
-                          <div>Phone</div>
-                          <div>:</div>
-                          <div>{shopPhone}</div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <h2 className="text-2xl font-black text-black tracking-wide leading-none">
-                    INVOICE
-                  </h2>
-                  <p className="text-[11px] font-bold text-black mt-1.5 uppercase">
-                    Invoice # - {invoice.invoiceNumber}
-                  </p>
-                </div>
+              <div className="text-slate-600 font-semibold uppercase text-[7.5px]">
+                This is a computer-generated tax invoice
               </div>
-
-              {/* Terms and conditions (respects enableTerms toggle) */}
-              {shopDetails.enableTerms && (
-              <div className="mt-4 font-semibold text-[10px] text-black">
-                <h3 className="text-[11px] font-black border-b border-black pb-0.5 mb-2 uppercase">
-                  Terms and conditions:
-                </h3>
-                <ol className="list-none pl-0 space-y-1.5 text-justify leading-relaxed">
-                  <li>
-                    <span className="font-bold">1. Payment Terms:</span> All payments must be made within 30 days from the date of the invoice. Late payments may attract a penalty of 1.5% per month on the outstanding balance.
-                  </li>
-                  <li>
-                    <span className="font-bold">2. Taxes:</span> All applicable taxes, including but not limited to Goods and Services Tax (GST) or Value Added Tax (VAT), are included as per government regulations. Any changes in tax rates or additional levies introduced by law after the invoice date will be applicable and payable by the customer.
-                  </li>
-                  <li>
-                    <span className="font-bold">3. Delivery and Risk:</span> Goods delivered are considered accepted unless objections are raised within 24 Hours of delivery. Risk of loss or damage to goods passes to the buyer upon delivery.
-                  </li>
-                  <li>
-                    <span className="font-bold">4. Rounding Off:</span> Invoice totals may be rounded off to the nearest currency unit as per standard accounting practices.
-                  </li>
-                  <li>
-                    <span className="font-bold">5. Returns and Refunds:</span> Any returns must be initiated within 14 days of delivery, subject to approval and as per our return policy. Refunds will be processed within 10 business days for eligible returns unless it is deliberately tempered.
-                  </li>
-                  <li>
-                    <span className="font-bold">6. Modification of Terms:</span> These terms are subject to change without prior notice and as per regulatory or business requirements.
-                  </li>
-                  <li>
-                    <span className="font-bold">7. Liability:</span> {shopName} is not liable for any indirect, incidental, or consequential damages arising from the use of the products or services provided.
-                  </li>
-                  <li>
-                    <span className="font-bold">8. Disputes:</span> Any disputes arising out of this invoice must be reported within 180 days of receipt. All disputes will be governed by the applicable laws of jurisdiction.
-                  </li>
-                  <li>
-                    <span className="font-bold">9. Ownership of Goods:</span> Ownership of goods remains with {shopName} until full payment is received.
-                  </li>
-                  <li>
-                    <span className="font-bold">10. Contact Information:</span> For inquiries or clarifications regarding this invoice, please contact us at: {shopName}{shopPhone ? `, ${shopPhone}` : ""}{shopDetails.email ? `, ${shopDetails.email}` : ""}.
-                  </li>
-                </ol>
-              </div>
-              )}
-
-              {/* Signature Area */}
-              <div className="mt-20 self-end mr-4 text-center font-semibold text-[10px] text-black">
-                <div>For {shopName}</div>
-                <div className="h-16" />
-                <div className="border-t border-black pt-1 w-48 font-bold">
-                  Authority Signature
-                </div>
-              </div>
-            </div>
-
-            {/* Footer of Page 2 */}
-            <div className="border-t border-black pt-1 flex justify-between text-[9px] font-bold text-black mt-2">
-              <div>{invoiceRefId}</div>
-              <div>Page 2 of 2</div>
+              <div>Page 1 of 1</div>
             </div>
           </div>
         </div>
-      </>
+      </div>
+    </>
     );
   } else {
     // -------------------------------------------------------------
@@ -974,14 +1022,6 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
     const rxDoctorName = distRx?.doctorName || nearRx?.doctorName || "";
     const rxNumber = distRx?.rxNumber || nearRx?.rxNumber || "";
 
-    const formatRxPower = (val: number | string | null | undefined): string => {
-      if (val === null || val === undefined || val === "") return "-";
-      const num = typeof val === "string" ? parseFloat(val) : val;
-      if (isNaN(num)) return typeof val === "string" && val.trim() ? val : "-";
-      if (num === 0) return "0.00";
-      return num > 0 ? `+${num.toFixed(2)}` : num.toFixed(2);
-    };
-
     return (
       <>
         {/* Strict Print CSS Overrides for Receipt */}
@@ -1011,11 +1051,12 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
           }}
         />
 
-        {/* Receipt Paper Card Container */}
-        <div
-          id="invoice-print-area"
-          className="print-container bg-white border border-slate-200 shadow-md rounded-xl p-8 w-[794px] max-w-[794px] flex flex-col gap-6 text-[10px] leading-tight select-none print:w-auto print:max-w-none"
-        >
+        <div className="w-full max-w-full overflow-x-auto flex justify-center py-2 print:overflow-visible print:p-0 print:w-auto">
+          {/* Receipt Paper Card Container */}
+          <div
+            id="invoice-print-area"
+            className="print-container bg-white border border-slate-200 shadow-md rounded-xl p-8 w-[794px] max-w-[794px] shrink-0 flex flex-col gap-6 text-[10px] leading-tight select-none print:w-auto print:max-w-none"
+          >
           {/* HEADER SECTION */}
           <div className="flex justify-between items-start gap-4">
             {/* Logo & Company info */}
@@ -1159,8 +1200,8 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
             </div>
           </div>
 
-          {/* OPTICAL PRESCRIPTION BLOCK (If prescription details are recorded) */}
-          {hasPrescription && (
+          {/* OPTICAL PRESCRIPTION BLOCK (Controlled by customization toggle, default ON) */}
+          {showPrescriptionOnBooking && hasPrescription && (
             <div className="space-y-1.5 border border-slate-300 rounded-lg p-2.5 bg-slate-50/30">
               <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                 <div className="flex items-center gap-2">
@@ -1559,7 +1600,8 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
             </div>
           </div>
         </div>
-      </>
+      </div>
+    </>
     );
   }
 }
