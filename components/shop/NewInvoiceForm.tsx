@@ -89,83 +89,7 @@ const formatRxDate = (dateVal: string | Date | null | undefined) => {
   return safeFormatDateLocale(dateVal, "Unknown Date");
 };
 
-const INDIAN_STATES = [
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chhattisgarh",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal",
-  "Andaman and Nicobar Islands",
-  "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu",
-  "Delhi",
-  "Jammu and Kashmir",
-  "Ladakh",
-  "Lakshadweep",
-  "Puducherry"
-];
-
-const GSTIN_STATE_MAP: Record<string, string> = {
-  "01": "Jammu and Kashmir",
-  "02": "Himachal Pradesh",
-  "03": "Punjab",
-  "04": "Chandigarh",
-  "05": "Uttarakhand",
-  "06": "Haryana",
-  "07": "Delhi",
-  "08": "Rajasthan",
-  "09": "Uttar Pradesh",
-  "10": "Bihar",
-  "11": "Sikkim",
-  "12": "Arunachal Pradesh",
-  "13": "Nagaland",
-  "14": "Manipur",
-  "15": "Mizoram",
-  "16": "Tripura",
-  "17": "Meghalaya",
-  "18": "Assam",
-  "19": "West Bengal",
-  "20": "Jharkhand",
-  "21": "Odisha",
-  "22": "Chhattisgarh",
-  "23": "Madhya Pradesh",
-  "24": "Gujarat",
-  "26": "Dadra and Nagar Haveli and Daman and Diu",
-  "27": "Maharashtra",
-  "29": "Karnataka",
-  "30": "Goa",
-  "31": "Lakshadweep",
-  "32": "Kerala",
-  "33": "Tamil Nadu",
-  "34": "Puducherry",
-  "35": "Andaman and Nicobar Islands",
-  "36": "Telangana",
-  "37": "Andhra Pradesh",
-  "38": "Ladakh",
-};
+import { INDIAN_STATES, GSTIN_STATE_MAP, getStateFromGSTIN } from "@/utils/gstin";
 
 /**
  * Returns true only if customer state is present, shop state is present, and they differ.
@@ -2472,11 +2396,25 @@ export function NewInvoiceForm() {
                   maxLength={15}
                   placeholder="07AAAAA0000A1Z5"
                   value={gstin}
-                  onChange={(e) => setGstin(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 15))}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 15);
+                    setGstin(cleaned);
+                    const detectedState = getStateFromGSTIN(cleaned);
+                    if (detectedState) {
+                      setState(detectedState);
+                    }
+                  }}
                   className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />
                 <Building className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
+              {gstin.length >= 2 && getStateFromGSTIN(gstin) && (
+                <div className="mt-1 flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>State: {getStateFromGSTIN(gstin)}</span>
+                  <span className="text-emerald-500 font-mono">({gstin.slice(0, 2)})</span>
+                </div>
+              )}
             </div>
           </div>
 

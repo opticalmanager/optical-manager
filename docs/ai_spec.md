@@ -52,12 +52,17 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
 
 1. **Multimodal OCR & Resilient Model Architecture**:
    - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience:
-     - `gemini-3.5-flash-lite` (Primary / Recommended: ultra-fast ~5-6s latency, high throughput, zero 503 overload errors)
-     - `gemini-2.5-flash` (High reliability & structured OCR accuracy)
-     - `gemini-3.5-flash` (Advanced multi-page complex document reasoning)
+     - `gemini-3.6-flash` (Primary / Recommended: rock-solid uptime, zero 503 overload errors, high-precision OCR extraction)
+     - `gemini-3.5-flash` (Fast standard multimodal flash, ~2.5s response time)
+     - `gemini-3.7-flash` (Next-generation high-capability vision reasoning)
      - `gemini-3.8-flash` (Next-generation preview fallback)
-   - Stale/retired models (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-3.1-flash-lite`, `gemini-flash-latest`) are sanitized and auto-migrated to `gemini-3.5-flash-lite`.
-   - **Timeout Protection**: Each candidate model call is wrapped with a 22-second `Promise.race` timeout, preventing stalls from overloaded servers.
+     - `gemini-3.5-flash-lite` (Ultra-fast lightweight fallback)
+   - Stale/retired models (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-3.1-flash-lite`, `gemini-flash-latest`) are sanitized and auto-migrated to `gemini-3.6-flash`.
+   - **Transient 503 Spike Backoff**: Applies a 500ms delay retry upon encountering Google endpoint 503 high-demand surges before cascading to the next fallback candidate.
+   - **Timeout Protection**: Each candidate model call is wrapped with a 32-second `Promise.race` timeout, preventing stalls while allowing complex dense multi-item invoices ample time to generate.
+   - **Large Payload Ingestion**: `next.config.ts` configures `serverActions.bodySizeLimit: "15mb"`, ensuring multi-page PDFs and high-resolution camera captures bypass default 1MB limits without HTTP 413 errors.
+   - **Resilient JSON & Numerical Parser**: Extracts outermost JSON structures and scrubs currency signs, percentage characters, and commas (e.g. `₹ 1,200.50`), preventing `NaN` math corruptions.
+   - **Batch Rate-Limit Throttling**: Automatically introduces a 400ms pause between sequential batch uploads in `BillScanDrawer.tsx` to maintain safety margins under Google Gemini RPM quotas.
    - Supports JPG, PNG, WEBP images and single-page PDF supplier bills.
    - Enforces structured JSON output via `generationConfig: { responseMimeType: "application/json" }`.
 
@@ -78,10 +83,11 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
    - Shrinks network payloads from ~10MB to <300KB, dropping network upload latency by up to 70%.
    - Live multi-stage progress messages keep the user informed during OCR processing.
 
-5. **Per-Account Credentials Isolation**:
+5. **Per-Account Credentials Isolation & Pure Utility Architecture**:
    - Each tenant organization stores its private `geminiApiKey` and `geminiModel` in `organizations.settings.ai`.
    - Keys are managed and tested via `actions/ai-settings.actions.ts`.
    - Fallback to `process.env.GEMINI_API_KEY` for development and platform testing.
+   - Synchronous string sanitization (`sanitizeGeminiApiKey`) and model resolution (`resolveGeminiModel`) are isolated in `utils/ai.utils.ts` without `"use server"` directives, ensuring zero Turbopack Server Action Ecmascript compilation errors across server boundaries.
 
 6. **Zero-Hallucination & Clean Inward Rules (Optical Retail Standards)**:
    - **No Fabricated Retail Prices**: Supplier bills are B2B wholesale tax invoices that do not contain consumer retail selling prices / MRP. The AI pipeline strictly sets `retailPrice: 0`, leaving the Retail Price field 100% blank in both the purchase table and inline modal for store management entry.

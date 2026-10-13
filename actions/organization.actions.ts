@@ -2,8 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/services/auth.service";
-import { updateOrganization } from "@/services/organization.service";
+import { updateOrganization, getOrganizationById } from "@/services/organization.service";
 import type { FormState } from "@/utils/validators";
+
+/**
+ * Server Action: Get active organization name for the current authenticated user.
+ */
+export async function getActiveOrganizationNameAction(): Promise<string> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) return "";
+    const org = await getOrganizationById(user.organizationId);
+    return org?.name ? org.name.trim() : "";
+  } catch (error) {
+    console.error("[getActiveOrganizationNameAction] Error fetching org name:", error);
+    return "";
+  }
+}
 
 /**
  * Server Action: Update organization settings.

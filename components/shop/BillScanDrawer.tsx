@@ -140,7 +140,7 @@ export function BillScanDrawer({
 
   // Setup Key state (for first-time integration)
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [modelInput, setModelInput] = useState("gemini-3.5-flash-lite");
+  const [modelInput, setModelInput] = useState("gemini-3.6-flash");
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [keyTestStatus, setKeyTestStatus] = useState<{
     tested: boolean;
@@ -164,12 +164,13 @@ export function BillScanDrawer({
         }
         if (status.model) {
           const validModels = [
-            "gemini-3.5-flash-lite",
-            "gemini-2.5-flash",
+            "gemini-3.6-flash",
             "gemini-3.5-flash",
+            "gemini-3.7-flash",
             "gemini-3.8-flash",
+            "gemini-3.5-flash-lite",
           ];
-          setModelInput(validModels.includes(status.model) ? status.model : "gemini-3.5-flash-lite");
+          setModelInput(validModels.includes(status.model) ? status.model : "gemini-3.6-flash");
         }
       });
     } else {
@@ -254,10 +255,17 @@ export function BillScanDrawer({
           return;
         }
 
-        ctx.drawImage(img, 0, 0, width, height);
-        // 85% JPEG provides crisp text with minimal payload
-        const base64DataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        resolve(base64DataUrl);
+        try {
+          ctx.drawImage(img, 0, 0, width, height);
+          // 85% JPEG provides crisp text with minimal payload
+          const base64DataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          resolve(base64DataUrl);
+        } catch (_) {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(sourceFile);
+        }
       };
 
       img.onerror = () => {
@@ -386,6 +394,10 @@ export function BillScanDrawer({
     });
 
     for (let i = 0; i < filesToScan.length; i++) {
+      if (i > 0) {
+        // Brief pause between sequential items to stay safely within Google AI rate limits
+        await new Promise((r) => setTimeout(r, 400));
+      }
       const item = filesToScan[i];
       setActiveScanIndex(i);
       setScanStatus(
@@ -711,10 +723,11 @@ export function BillScanDrawer({
                     onChange={(e) => setModelInput(e.target.value)}
                     className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-hidden cursor-pointer"
                   >
-                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Recommended - Ultra-Fast OCR ~5-6s)</option>
-                    <option value="gemini-2.5-flash">gemini-2.5-flash (High Reliability &amp; Structured Data)</option>
-                    <option value="gemini-3.5-flash">gemini-3.5-flash (Advanced Multi-Page Reasoning)</option>
+                    <option value="gemini-3.6-flash">gemini-3.6-flash (Recommended - High Reliability &amp; Structured OCR)</option>
+                    <option value="gemini-3.5-flash">gemini-3.5-flash (Ultra-Fast ~2.5s Standard Flash)</option>
+                    <option value="gemini-3.7-flash">gemini-3.7-flash (Next-Gen Flash OCR)</option>
                     <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash Preview)</option>
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Flash Lite)</option>
                   </select>
                 </div>
 

@@ -146,7 +146,7 @@ Optical Manager includes a complete, high-density Inward Supply & Purchases modu
 - **Spacious Category-Rich Product Details Modal**: Unknown or edited codes open a `max-w-4xl` modal with dynamic category switcher tabs (`Frames`, `Lenses`, `Contact Lenses`, `Accessories`, `Solutions`), full category-specific spec panels (shapes, dimensions, lens design, index, coatings, contact lens BC/DIA, solution volumes, expiry tracking), and auto-filled HSN/GST rates from `product_categories`.
 - **Atomic Stock Increments & Ledger Auditing**: Completing a purchase order atomically increments inventory stock count (`+qty`), updates recent cost and retail prices, links vendor invoice references, and logs `STOCK_IN` movements in `stock_movements`.
 - **AI Bill Scanner & Multi-Image Batch OCR (`Scan Bill with AI`)**:
-  - High-density AI drawer powered by Google Gemini (`gemini-3.5-flash-lite` with fallbacks) for zero-latency invoice extraction.
+  - High-density AI drawer powered by Google Gemini (`gemini-3.6-flash` with multi-tier fallbacks and 503 spike resilience) for zero-latency invoice extraction.
   - Multi-Image & Multi-Page Queue: select multiple invoice images/PDFs simultaneously with "+ Add More Images" appending to the batch at any time. Badge labeled cleanly as "Images".
   - Resilient Sequential OCR Pipeline: processes queued bills one by one with failure isolation (one blurry or unreadable image does not abort the batch; successful items are merged and failed images can be retried individually).
   - Smart Inward Append Mode: extracted line items append cleanly below existing table rows without overwriting previously entered products or supplier headers.
@@ -211,3 +211,20 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 - **Self-Hosted Zero-Latency Media**: The public landing page hero section features an embedded high-density product demonstration video (`public/videos/hero-intro.mp4`), eliminating third-party iframe latency and rate limiting.
 - **Browser-Compliant Smart Autoplay & Audio Management**: Starts playing immediately on load with browser-compliant muted autoplay; features an animated floating glassmorphism pill (`🔊 Sound Off • Click to Unmute`) and full-frame click-to-unmute interaction.
 - **Cinematic Micro-Controls**: Custom hover overlay with progress scrubber, time counter (`MM:SS`), play/pause toggle, volume controls, and native fullscreen support.
+
+---
+
+## 9. Industrial Thermal Barcode & Label Printing Engine
+- **Dedicated Multi-Roll Architecture**:
+  - *81×12 mm Vertical (2-Across Continuous Roll)*: Default format engineered specifically for standard 2-column optical flap tag rolls (28×81 mm web). Features 90°-rotated Wing 1 (Brand, Model, Retail Price) and Wing 2 (Vector Barcode & Monospace SKU) along the 25.5 mm printable flaps, with an adhesive-free 30 mm tail looping around frame temples.
+  - *81×12 mm Vertical (1-Across Roll)*: Single-column continuous roll (12×81 mm web).
+  - *81×12 mm D-Gum Flap Tag (Horizontal Roll)*: Full-width horizontal roll (81×12 mm web) supporting both Ladder (90° rotated) and Picket-Fence barcode orientations.
+- **1-Bit Thermal Monochrome Pure Black Policy (`#000000`)**:
+  - Direct thermal and thermal transfer printheads operate strictly in binary 1-bit mode. All typography, prices, store headers, borders, and barcodes use pure `#000000` with bold weights (`700`–`900`), eliminating driver halftoning and invisible blue/gray text.
+- **Run-Length Vector Barcode Architecture**:
+  - Code 128 and Code 39 engines synthesize consolidated integer-module `<rect>` vectors with `shape-rendering: crispEdges`, eliminating sub-pixel anti-aliasing blur and solid black smears.
+- **Continuous Thermal Roll Spooling & Zero-Lag Printing**:
+  - Pure CSS `@page { size: ${rollWidth}mm ${rollHeight}mm; margin: 0mm; }` with active-layout offscreen iframes preventing Letter/A4 fallback.
+- **Automatic Preference Persistence (`localStorage`)**:
+  - Operator preset, paper size, and barcode orientation preferences are automatically remembered under `optical_barcode_preferences_v1`.
+

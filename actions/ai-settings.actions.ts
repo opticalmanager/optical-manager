@@ -6,6 +6,7 @@ import {
   getOrganizationAiConfig,
   updateOrganizationAiSettings,
 } from "@/services/organization.service";
+import { sanitizeGeminiApiKey, resolveGeminiModel } from "@/utils/ai.utils";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
@@ -13,28 +14,28 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
  */
 export async function testGeminiApiKeyAction(
   apiKey: string,
-  modelName: string = "gemini-3.5-flash-lite"
+  modelName: string = "gemini-3.6-flash"
 ): Promise<{
   success: boolean;
   message: string;
   latencyMs?: number;
 }> {
-  if (!apiKey || !apiKey.trim()) {
+  const cleanKey = sanitizeGeminiApiKey(apiKey);
+  if (!cleanKey) {
     return { success: false, message: "Please enter a valid Gemini API Key." };
   }
-
-  const cleanKey = apiKey.trim();
   const startTime = Date.now();
 
   try {
     const genAI = new GoogleGenerativeAI(cleanKey);
     const candidateModels = [
       modelName,
-      "gemini-3.5-flash-lite",
-      "gemini-2.5-flash",
+      "gemini-3.6-flash",
       "gemini-3.5-flash",
+      "gemini-3.7-flash",
       "gemini-3.8-flash",
-    ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i);
+      "gemini-3.5-flash-lite",
+    ].filter((m, i, arr) => Boolean(m) && m !== "gemini-2.5-flash" && arr.indexOf(m) === i);
 
     let lastError: any = null;
     for (const name of candidateModels) {
@@ -114,7 +115,7 @@ export async function getOrganizationAiStatusAction(): Promise<{
 }> {
   const user = await getCurrentUser();
   if (!user || !user.organizationId) {
-    return { isConfigured: false, model: "gemini-2.5-flash" };
+    return { isConfigured: false, model: "gemini-3.6-flash" };
   }
 
   const config = await getOrganizationAiConfig(user.organizationId);
@@ -151,9 +152,12 @@ export async function updateOrganizationAiSettingsAction(data: {
   }
 
   try {
+    const sanitizedModel = resolveGeminiModel(data.geminiModel);
+    const sanitizedKey = sanitizeGeminiApiKey(data.geminiApiKey);
+
     await updateOrganizationAiSettings(user.organizationId, {
-      geminiApiKey: data.geminiApiKey?.trim() || undefined,
-      geminiModel: data.geminiModel?.trim() || "gemini-2.5-flash",
+      geminiApiKey: sanitizedKey || undefined,
+      geminiModel: sanitizedModel,
     });
 
     revalidatePath("/owner/settings");

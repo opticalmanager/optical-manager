@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { handleEnterKeyNavigation } from "@/utils/form-navigation";
+import { getStateFromGSTIN } from "@/utils/gstin";
 
 interface PurchaseVendorComboboxProps {
   vendors: Vendor[];
@@ -157,7 +158,9 @@ export function PurchaseVendorCombobox({
               </span>
               {selectedVendor.gstin && (
                 <span className="ml-2 text-[10px] font-mono text-slate-400">
-                  ({selectedVendor.gstin})
+                  ({selectedVendor.gstin}
+                  {getStateFromGSTIN(selectedVendor.gstin) ? ` • ${getStateFromGSTIN(selectedVendor.gstin)}` : ""}
+                  )
                 </span>
               )}
             </div>
@@ -229,9 +232,9 @@ export function PurchaseVendorCombobox({
                     <div>
                       <div className="font-semibold flex items-center gap-1.5">
                         <span>{vendor.name}</span>
-                        {vendor.state && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-500">
-                            {vendor.state}
+                        {(vendor.state || getStateFromGSTIN(vendor.gstin)) && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-500 font-medium">
+                            {vendor.state || getStateFromGSTIN(vendor.gstin)}
                           </span>
                         )}
                       </div>
@@ -356,15 +359,26 @@ export function PurchaseVendorCombobox({
                   <Input
                     type="text"
                     maxLength={15}
+                    placeholder="27AAAAA0000A1Z5"
                     value={newVendorData.gstin}
-                    onChange={(e) =>
-                      setNewVendorData({
-                        ...newVendorData,
-                        gstin: e.target.value.toUpperCase().trim(),
-                      })
-                    }
+                    onChange={(e) => {
+                      const cleaned = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15);
+                      const detectedState = getStateFromGSTIN(cleaned);
+                      setNewVendorData((prev) => ({
+                        ...prev,
+                        gstin: cleaned,
+                        ...(detectedState ? { state: detectedState } : {}),
+                      }));
+                    }}
                     className="h-9 border-slate-200 text-xs font-mono uppercase"
                   />
+                  {newVendorData.gstin.length >= 2 && getStateFromGSTIN(newVendorData.gstin) && (
+                    <div className="mt-1 flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>State: {getStateFromGSTIN(newVendorData.gstin)}</span>
+                      <span className="text-emerald-500 font-mono">({newVendorData.gstin.slice(0, 2)})</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>

@@ -5,6 +5,7 @@ import { organizations } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { Organization, NewOrganization } from "@/types";
 import type { OrganizationSettings, OrganizationAISettings } from "@/types/bill-scan";
+import { sanitizeGeminiApiKey, resolveGeminiModel } from "@/utils/ai.utils";
 
 let isSettingsColumnEnsured = false;
 
@@ -56,6 +57,8 @@ export async function updateOrganization(
   return org;
 }
 
+
+
 /**
  * Get the AI configuration for an organization.
  * Falls back to process.env.GEMINI_API_KEY if not configured in DB.
@@ -72,21 +75,11 @@ export async function getOrganizationAiConfig(
   const aiSettings = settings.ai || {};
 
   const apiKey =
-    aiSettings.geminiApiKey?.trim() ||
-    process.env.GEMINI_API_KEY?.trim() ||
+    sanitizeGeminiApiKey(aiSettings.geminiApiKey) ||
+    sanitizeGeminiApiKey(process.env.GEMINI_API_KEY) ||
     null;
 
-  const rawModel = aiSettings.geminiModel?.trim();
-  const validModels = [
-    "gemini-3.5-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-3.5-flash",
-    "gemini-3.8-flash",
-  ];
-  const model =
-    rawModel && validModels.includes(rawModel)
-      ? rawModel
-      : "gemini-3.5-flash-lite";
+  const model = resolveGeminiModel(aiSettings.geminiModel);
 
   return {
     apiKey,
@@ -111,6 +104,14 @@ export async function updateOrganizationAiSettings(
     ai: {
       ...(currentSettings.ai || {}),
       ...aiSettingsUpdate,
+      geminiApiKey:
+        aiSettingsUpdate.geminiApiKey !== undefined
+          ? sanitizeGeminiApiKey(aiSettingsUpdate.geminiApiKey) || undefined
+          : currentSettings.ai?.geminiApiKey,
+      geminiModel:
+        aiSettingsUpdate.geminiModel !== undefined
+          ? resolveGeminiModel(aiSettingsUpdate.geminiModel)
+          : currentSettings.ai?.geminiModel,
     },
   };
 

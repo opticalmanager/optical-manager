@@ -1,4 +1,4 @@
-# User Journeys & Workflows
+﻿# User Journeys & Workflows
 
 This document outlines the end-to-end user workflows for System Owners, Store Managers, and Public Patients in Optical Manager.
 
@@ -7,10 +7,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 1. System Owner Onboarding & Multi-Shop Setup
 
 ```
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Sign Up /    │───>│ Create          │───>│ Add Shop        │───>│ Invite & Assign  │
-│ Login        │    │ Organization    │    │ Outlets         │    │ Shop Managers    │
-└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Sign Up /    ââââ>â Create          ââââ>â Add Shop        ââââ>â Invite & Assign  â
+â Login        â    â Organization    â    â Outlets         â    â Shop Managers    â
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Owner Registration**: System Owner registers via `/signup` or authenticates via `/login`.
@@ -32,10 +32,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 2. Store POS Billing & Patient Prescription Workflow
 
 ```
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Select / Add │───>│ Record Eye      │───>│ Add Frame &     │───>│ Generate GST     │
-│ Patient      │    │ Prescription    │    │ Lens Items      │    │ Invoice          │
-└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Select / Add ââââ>â Record Eye      ââââ>â Add Frame &     ââââ>â Generate GST     â
+â Patient      â    â Prescription    â    â Lens Items      â    â Invoice          â
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Customer Selection & Billing Timestamp**:
@@ -46,22 +46,22 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Smart Past Prescription Dropdown**: When an existing patient is loaded from the database or via URL (`?customerId=...`), a high-density prescription selection bar displays all historical exams with date, doctor, and OD/OS power previews. Optometrists can switch between past records to auto-populate refraction inputs or select `+ Blank / Fresh Prescription Exam` to test and save fresh readings.
    - Features the unified high-density **Clinical Prescription Card** (`SPECT(S) RX / CLINICAL PRESCRIPTION`) across `/shop/invoices/new`, `/shop/patients/new`, `/shop/customers/[id]`, and printable invoices.
    - Refraction tabs (`Spect(s) Rx`, `CL Rx`, `Distance`, `Near`) and sequential Rx ID tracking (`Rx #PR-XXXX`).
-   - 8-column optometry grid (`EYE/TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`) for Right (`• RE (OD)`) and Left (`• LE (OS)`) eyes.
+   - 8-column optometry grid (`EYE/TYPE`, `SPHL. (SPH)`, `CYL. (CYL)`, `AXIS (Â°)`, `ADDN. (ADD)`, `VISION (V/N)`, `P.D. (MM)`, `CADD`) for Right (`â¢ RE (OD)`) and Left (`â¢ LE (OS)`) eyes.
    - Smart industrial logic: highlighted ADD column, bilateral ADD diopter auto-sync, monocular PD auto-split (`31.5mm / 31.5mm`), lens design selection (`Single Vision`, `Bifocal`, `Progressive`, `Blue-cut`, etc.), and doctor attribution.
    - **Zero-Latency Reactive Syncing**: Removed manual "Apply to Job" button; all prescription data continuously updates form state and commits automatically when saving bills or patients.
 3. **Line Item Assembly & Pricing Controls (11-Column ERP Ledger Grid)**:
    - Manager adds optical inventory items (spectacle frames, lenses, contact lenses, accessories) from `/shop/invoices/new` via live search autocomplete or barcode scanner.
-   - **Column 1 — Product Search & Item Code**: Search input with instant 0ms IndexedDB local lookup and cloud enrichment. Once an item is chosen, displays exclusively the item code badge (Barcode, Product Code, or SKU) below the input, leaving product names and brands for the description column.
-   - **Column 2 — Category Auto-Suggest & State-Aware GST Sync**: Category combobox/dropdown pre-loaded with defaults (`Frames`, `Lenses`, `Sunglasses`, etc.) and custom categories. Selecting a category automatically computes tax rates according to customer state vs shop state (Intra-State: CGST + SGST; Inter-State: IGST).
-   - **Column 3 — Item Description**: Clean editable input formatted with product name, brand, model, and specifications, with full hover tooltips (`title`) so long text is never truncated or hidden.
-   - **Columns 4 & 5 — Qty & Price (₹)**: Centered integer input for quantity and right-aligned decimal input for unit price, without rupee glyphs inside the input cell.
-   - **Columns 6 & 7 — Dual Discount Synchronization**: Supports discount entry in Rupees (`Disc (₹)`) and percentage (`Disc (%)`) with bi-directional syncing, strictly capped to line subtotal and 100%.
-   - **Columns 8, 9 & 10 — Dual-Editable Taxes (CGST, SGST, IGST)**: Both the tax amount (top) and percentage rate (bottom) are fully editable with bi-directional recalculation. No rupee symbols inside the inputs.
-   - **Column 11 — Direct Editable Total Price & Auto-Backcalculation**: Directly editable numeric cell allowing staff to enter negotiated all-inclusive customer totals (e.g. ₹1,000 flat). The system instantly back-calculates taxable base price and statutory GST amounts according to the selected item category with zero penny discrepancy. Selecting or changing category with an entered total automatically updates base price and tax amounts in zero latency while maintaining the user's total price.
+   - **Column 1 â Product Search & Item Code**: Search input with instant 0ms IndexedDB local lookup and cloud enrichment. Once an item is chosen, displays exclusively the item code badge (Barcode, Product Code, or SKU) below the input, leaving product names and brands for the description column.
+   - **Column 2 â Category Auto-Suggest & State-Aware GST Sync**: Category combobox/dropdown pre-loaded with defaults (`Frames`, `Lenses`, `Sunglasses`, etc.) and custom categories. Selecting a category automatically computes tax rates according to customer state vs shop state (Intra-State: CGST + SGST; Inter-State: IGST).
+   - **Column 3 â Item Description**: Clean editable input formatted with product name, brand, model, and specifications, with full hover tooltips (`title`) so long text is never truncated or hidden.
+   - **Columns 4 & 5 â Qty & Price (â¹)**: Centered integer input for quantity and right-aligned decimal input for unit price, without rupee glyphs inside the input cell.
+   - **Columns 6 & 7 â Dual Discount Synchronization**: Supports discount entry in Rupees (`Disc (â¹)`) and percentage (`Disc (%)`) with bi-directional syncing, strictly capped to line subtotal and 100%.
+   - **Columns 8, 9 & 10 â Dual-Editable Taxes (CGST, SGST, IGST)**: Both the tax amount (top) and percentage rate (bottom) are fully editable with bi-directional recalculation. No rupee symbols inside the inputs.
+   - **Column 11 â Direct Editable Total Price & Auto-Backcalculation**: Directly editable numeric cell allowing staff to enter negotiated all-inclusive customer totals (e.g. â¹1,000 flat). The system instantly back-calculates taxable base price and statutory GST amounts according to the selected item category with zero penny discrepancy. Selecting or changing category with an entered total automatically updates base price and tax amounts in zero latency while maintaining the user's total price.
    - **Horizontal Responsiveness**: Table container includes `min-w-[1280px]` and silky horizontal scrolling, ensuring no columns are squeezed or obscured on smaller viewports.
 4. **Checkout, Delivery Date & Payment**:
    - **Salesperson Attribution ("Sold By")**: Staff can record the name of the sales representative who completed the order, stamped permanently into the invoice database and printed on tax invoices and payment receipts.
-   - **Expected Delivery Scheduling**: Selects or enters estimated dispatch date with zero default assumptions. Supports interactive calendar picker (`showPicker()`), dynamic day interval readout (`X Days (DD MMM YYYY)`), and quick preset pills (`0D Today`, `3D`, `7D`, `✕ Clear`).
+   - **Expected Delivery Scheduling**: Selects or enters estimated dispatch date with zero default assumptions. Supports interactive calendar picker (`showPicker()`), dynamic day interval readout (`X Days (DD MMM YYYY)`), and quick preset pills (`0D Today`, `3D`, `7D`, `â Clear`).
    - **Payment Execution & Draft Saving**: Selects payment method (Cash, Card, UPI, Bank Transfer) and payment type (`Full Payment` or `Partial Payment` with auto-calculated balance due). Offers bottom actions `[ Save Draft ]` and `[ Book Order ]`. Clicking `Book Order` executes the atomic booking transaction, generates the customer's optical **Order Form** with complete prescription data, and immediately redirects the user to the Order Form preview (`/shop/receipts/[id]`) for printing or WhatsApp transmission. In partial payment scenarios, the final Tax Invoice is generated once all dues are settled; in full payment scenarios, both the Order Form and Tax Invoice are generated simultaneously and remain accessible in the Orders Table.
    - Generates digital document links and dispatches WhatsApp/Email notifications.
 
@@ -70,10 +70,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 3. Public Patient Appointment Booking
 
 ```
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Visit        │───>│ Select Date &   │───>│ Enter Patient   │───>│ Instant Slot     │
-│ /book/[slug] │    │ Time Slot       │    │ Details         │    │ Confirmation     │
-└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Visit        ââââ>â Select Date &   ââââ>â Enter Patient   ââââ>â Instant Slot     â
+â /book/[slug] â    â Time Slot       â    â Details         â    â Confirmation     â
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Public Landing**: Patient accesses store booking URL (`/book/sarita-vihar-optical`).
@@ -91,17 +91,17 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 4. **Pick Dual Windows**:
    - Select **Primary Period (A)** (e.g. `Week 29 (Jul 13 - Jul 19)`).
    - Select **Baseline Period (B)** (e.g. `Week 28 (Jul 6 - Jul 12)`).
-5. **Analyze Telemetry**: Review side-by-side KPI values, growth percentages (`↑ +14.2%`), and dual-line revenue trajectory charts.
+5. **Analyze Telemetry**: Review side-by-side KPI values, growth percentages (`â +14.2%`), and dual-line revenue trajectory charts.
 
 ---
 
 ## 5. Promotion & WhatsApp Automation Workflow
 
 ```
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Configure    │───>│ Create WhatsApp │───>│ Set Event       │───>│ Monitor Sent,    │
-│ Connection   │    │ Template        │    │ Trigger Rules   │    │ Delivered & Read │
-└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Configure    ââââ>â Create WhatsApp ââââ>â Set Event       ââââ>â Monitor Sent,    â
+â Connection   â    â Template        â    â Trigger Rules   â    â Delivered & Read â
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Access Promotion Portal**: System Owner navigates to `/owner/promotions`.
@@ -118,10 +118,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 6. Super Admin Store Provisioning & Branch Management Workflow
 
 ```
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Admin Panel  │───>│ Input Store &   │───>│ Auto Auth User  │───>│ Live Dashboard   │
-│ /admin/orgs  │    │ Owner Details   │    │ & Branch Setup  │    │ Instant Access   │
-└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Admin Panel  ââââ>â Input Store &   ââââ>â Auto Auth User  ââââ>â Live Dashboard   â
+â /admin/orgs  â    â Owner Details   â    â & Branch Setup  â    â Instant Access   â
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Access Tenant Stores**: Super Admin navigates to `/admin/organizations`.
@@ -149,10 +149,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 7. Orders Management Hub & Multi-Criteria Industrial Filtering Workflow
 
 ```
-┌──────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Orders Hub       │───>│ Filter Popover  │───>│ Active Chips    │───>│ Filtered Table & │
-│ /shop/orders     │    │ Multi-Criteria  │    │ 1-Click Remove  │    │ CSV Export Sync  │
-└──────────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Orders Hub       ââââ>â Filter Popover  ââââ>â Active Chips    ââââ>â Filtered Table & â
+â /shop/orders     â    â Multi-Criteria  â    â 1-Click Remove  â    â CSV Export Sync  â
+ââââââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Interactive Filter Popover (`OrdersFilterPopover`)**:
@@ -167,7 +167,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Pending Balance Dues Toggle**: Instant toggle switch isolating orders with outstanding dues (`hasDues=true` where `balanceDue > 0`).
 3. **Active Filter Chips Bar (`ActiveOrderFilterChips`)**:
    - Rendered directly above the main table card.
-   - Shows active criteria badges with label, value, and interactive `×` removal button.
+   - Shows active criteria badges with label, value, and interactive `Ã` removal button.
    - Includes a one-click "Clear All Filters" button.
 4. **URL Synchronization & Export Integrity**:
    - All criteria are synchronized bi-directionally with URL query parameters (`searchParams`).
@@ -179,10 +179,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 8. Order Editing, Stock Re-balancing & Update Audit History Workflow
 
 ```
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Orders Table │───>│ Edit Order Page │───>│ Modify Items,   │───>│ Save, Rebalance  │
-│ Click "Edit" │    │ Permissions Chk │    │ Customer & Dues │    │ & Audit History  │
-└──────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Orders Table ââââ>â Edit Order Page ââââ>â Modify Items,   ââââ>â Save, Rebalance  â
+â Click "Edit" â    â Permissions Chk â    â Customer & Dues â    â & Audit History  â
+ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Access & Permissions**:
@@ -196,10 +196,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - Pre-populated with current order items.
      - Add new products via real-time autocomplete search or create custom fee/repair items.
      - Delete line items or adjust quantities and unit prices.
-     - Edit dual discounts (`DISC %` and `DISC ₹`) with real-time bi-directional recalculation.
+     - Edit dual discounts (`DISC %` and `DISC â¹`) with real-time bi-directional recalculation.
      - Edit CGST, SGST, and IGST percentages with live rupee tax amount recalculations.
 3. **Payment Settlement & Invoice / Receipt Regeneration**:
-   - **Paid in Full**: Sets balance due to ₹0.00, marks invoice `PAID`, removes old receipts, and regenerates full Tax Invoice.
+   - **Paid in Full**: Sets balance due to â¹0.00, marks invoice `PAID`, removes old receipts, and regenerates full Tax Invoice.
    - **Partial Advance**: User inputs amount paid, computes remaining balance due, marks invoice `PENDING`, replaces old receipts, and generates a fresh sequential payment receipt (`PPS-shopNum-YYYY-NNNN`).
 4. **Automated Inventory Stock Re-balancing**:
    - Reconciled atomically within a database transaction:
@@ -214,10 +214,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 8. Order Record Deletion & Deleted Records Retrieval Workflow
 
 ```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Order Edit Page  │───>│ In-Theme Warning │───>│ Soft-Delete &    │───>│ "Deleted Records"│
-│ Delete Trigger   │    │ Confirmation     │    │ Auto Restock Inv │    │ Retrieve/Restore │
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
+â Order Edit Page  ââââ>â In-Theme Warning ââââ>â Soft-Delete &    ââââ>â "Deleted Records"â
+â Delete Trigger   â    â Confirmation     â    â Auto Restock Inv â    â Retrieve/Restore â
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Permissions & Access Control**:
@@ -239,7 +239,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - In the Deleted Records modal, clicking **Retrieve** opens an in-theme confirmation prompt detailing the reverse synchronization.
    - Upon confirmation:
      - Clears soft-delete timestamps (`deleted_at = NULL`, `deleted_by = NULL`).
-     - Restores invoice status to `PAID` (if balance is ₹0) or `PENDING`.
+     - Restores invoice status to `PAID` (if balance is â¹0) or `PENDING`.
      - Automatically deducts items from current inventory stock (`quantity - item.quantity`) and logs a `SOLD` movement (`ORDER_RESTORED_SALE`).
      - An audit log entry records the restoration.
      - Telemetry, order tables, and inventory counts update with zero latency.
@@ -249,10 +249,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 9. Sales Returns & Store Credit Management Workflow
 
 ```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Select Invoice   │───>│ Select Items to  │───>│ Refund Method:   │───>│ Generate Return  │
-│ & Patient        │    │ Return & Restock │    │ Cash vs Credit   │    │ Receipt / Note   │
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
+â Select Invoice   ââââ>â Select Items to  ââââ>â Refund Method:   ââââ>â Generate Return  â
+â & Patient        â    â Return & Restock â    â Cash vs Credit   â    â Receipt / Note   â
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Processing Sales Return (`/shop/returns/new`)**:
@@ -281,10 +281,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 10. PWA Offline Billing & Device Synchronization Workflow
 
 ```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Network Drops /  │───>│ Search Cached    │───>│ Save to Local    │───>│ Reconnect & Sync│
-│ Go Offline       │    │ Patients & Stock │    │ Device Queue     │    │ to Cloud Engine  │
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
+â Network Drops /  ââââ>â Search Cached    ââââ>â Save to Local    ââââ>â Reconnect & Syncâ
+â Go Offline       â    â Patients & Stock â    â Device Queue     â    â to Cloud Engine  â
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Automatic Offline Detection & Session Retention**:
@@ -319,10 +319,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 11. Category GST Rates & Custom Product Categories Master Workflow
 
 ```
-┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
-│ Settings: Category GST  │───>│ Add Custom Category /   │───>│ Auto-Filled Rates on    │
-│ Matrix & 50/50 Sync     │    │ Edit Existing Rates     │    │ Add Product & Ledger    │
-└─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
+âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ
+â Settings: Category GST  ââââ>â Add Custom Category /   ââââ>â Auto-Filled Rates on    â
+â Matrix & 50/50 Sync     â    â Edit Existing Rates     â    â Add Product & Ledger    â
+âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ
 ```
 
 1. **High-Density Category GST Rates Matrix (`/shop/settings`, `/owner/settings`)**:
@@ -359,10 +359,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 12. Purchases & Inward Supply Navigation Workflow
 
 ```
-┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
-│ Left Navigation:        │───>│ Hover on Purchases:     │───>│ Route Placeholder      │
-│ "Purchases" Below Sales │    │ "Purchases Add" / Vendor│    │ Ready for Page Logic    │
-└─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
+âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ
+â Left Navigation:        ââââ>â Hover on Purchases:     ââââ>â Route Placeholder      â
+â "Purchases" Below Sales â    â "Purchases Add" / Vendorâ    â Ready for Page Logic    â
+âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ    âââââââââââââââââââââââââââ
 ```
 
 1. **Sidebar Navigation Placement**:
@@ -424,7 +424,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - **Automatic Ledger Redirection**: Automatically redirects the operator to `/shop/purchases` upon successful submission with a confirmation toast.
 
 4. **Purchase Ledger & Transaction Hub (`/shop/purchases`)**:
-   - **Real-Time KPI Cards**: Top metrics for Total Purchases count, Net Inward Valuation (₹), Current Month Inward count, and Top Supplier identifier with interactive active selection border states (`border-2 border-[#2563eb]`).
+   - **Real-Time KPI Cards**: Top metrics for Total Purchases count, Net Inward Valuation (â¹), Current Month Inward count, and Top Supplier identifier with interactive active selection border states (`border-2 border-[#2563eb]`).
    - **Multi-Condition Filter Bar**: Zero-latency filtering by Vendor, Date Range (From/To), Tax Rule (`INCLUDE`/`EXCLUDE`), Status (`COMPLETED`/`DRAFT`/`CANCELLED`), and keyword search.
    - **High-Density Zero-Scroll Table**: Compact 8-column layout (`Date`, `Bill #`, `Vendor`, `Amount`, `GST Type`, `Inward Qty`, `Status`, `Action`) rendering 20 records per page without horizontal scrolling on standard laptop displays.
 
@@ -444,10 +444,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 13. Customer Onboarding & Bulk CSV Import Workflow
 
 ```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Customer Records │───>│ Select Add Mode  │───>│ 4-Phase Wizard:  │───>│ Sequential Reg   │
-│ (/shop/customers)│    │ (Single vs Bulk) │    │ Upload/Map/Edit  │    │ IDs & Ingestion  │
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
+â Customer Records ââââ>â Select Add Mode  ââââ>â 4-Phase Wizard:  ââââ>â Sequential Reg   â
+â (/shop/customers)â    â (Single vs Bulk) â    â Upload/Map/Edit  â    â IDs & Ingestion  â
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Customer Records Add Dropdown (`/shop/customers`)**:
@@ -484,10 +484,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 14. Customer Profile & Orders Management Workflow
 
 ```
-┌───────────────────────────┐    ┌───────────────────────────┐    ┌───────────────────────────┐
-│ Customer Profile Overview │───>│ Orders Parity Table Grid  │───>│ Quick Actions: WhatsApp, │
-│ (/shop/customers/[id])    │    │ (Filters, Search & CSV)   │    │ Status, Edit & Receipts   │
-└───────────────────────────┘    └───────────────────────────┘    └───────────────────────────┘
+âââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââ
+â Customer Profile Overview ââââ>â Orders Parity Table Grid  ââââ>â Quick Actions: WhatsApp, â
+â (/shop/customers/[id])    â    â (Filters, Search & CSV)   â    â Status, Edit & Receipts   â
+âââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââ
 ```
 
 1. **Profile Layout Structure (`/shop/customers/[id]`)**:
@@ -518,10 +518,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 15. Custom Document Numbering & ID Series Configuration Workflow
 
 ```
-┌────────────────────────────────┐    ┌────────────────────────────────┐    ┌────────────────────────────────┐
-│ Owner Portal (/owner/settings) │───>│ Real-Time Live Preview Badge   │───>│ Safe Sequence Resolution &    │
-│ or Shop Settings (Store Tab)   │    │ & CGST Rule 46 16-Char Counter │    │ Anti-Collision Guarantee       │
-└────────────────────────────────┘    └────────────────────────────────┘    └────────────────────────────────┘
+ââââââââââââââââââââââââââââââââââ    ââââââââââââââââââââââââââââââââââ    ââââââââââââââââââââââââââââââââââ
+â Owner Portal (/owner/settings) ââââ>â Real-Time Live Preview Badge   ââââ>â Safe Sequence Resolution &    â
+â or Shop Settings (Store Tab)   â    â & CGST Rule 46 16-Char Counter â    â Anti-Collision Guarantee       â
+ââââââââââââââââââââââââââââââââââ    ââââââââââââââââââââââââââââââââââ    ââââââââââââââââââââââââââââââââââ
 ```
 
 1. **Access Locations**:
@@ -548,10 +548,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 16. Multi-Option Inventory Ingestion & CSV Bulk Purchase Inwarding Workflow
 
 ```
-┌─────────────────────────────────┐    ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
-│ Store Inventory Dashboard       │───>│ "+ Add Item" Dropdown Selector  │───>│ Choice: Single / Bulk Purchase   │
-│ (/shop/inventory)               │    │ (Click or Hover Trigger)        │    │ or 4-Step CSV Inward Wizard     │
-└─────────────────────────────────┘    └─────────────────────────────────┘    └─────────────────────────────────┘
+âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ
+â Store Inventory Dashboard       ââââ>â "+ Add Item" Dropdown Selector  ââââ>â Choice: Single / Bulk Purchase   â
+â (/shop/inventory)               â    â (Click or Hover Trigger)        â    â or 4-Step CSV Inward Wizard     â
+âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ
 ```
 
 1. **Top-Right Dynamic Dropdown Trigger**:
@@ -573,8 +573,8 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - Live validation of all parsed rows with instant duplicate detection and format sanitization.
      - **Smart Catalog Matching (0ms lookup)**:
        - Checks `productCode` against current shop inventory.
-       - 🟢 **Refill Stock**: Existing product identified in store. Inwarding will atomically increment stock quantity and update cost/retail rates without duplicating records.
-       - 🟡 **New Item**: Unrecognized product code. Inwarding will create a fresh catalog entry with auto-generated SKU sequence.
+       - ð¢ **Refill Stock**: Existing product identified in store. Inwarding will atomically increment stock quantity and update cost/retail rates without duplicating records.
+       - ð¡ **New Item**: Unrecognized product code. Inwarding will create a fresh catalog entry with auto-generated SKU sequence.
      - **Inline Data Rectification**: Directly modify quantity, unit cost price, retail price, and rack shelf locations right within the spreadsheet cells.
      - **`+ Specs` Specification Enrichment Drawer**: Allows staff to configure category-specific attributes before saving:
        - *Frames*: Frame shape, size, color, material, gender, model number.
@@ -594,11 +594,11 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 17. CSV Bulk Invoices Import & Historical Sales Onboarding Workflow
 
 ```
-┌─────────────────────────────────┐    ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
-│ Entry Points:                   │───>│ 4-Step Invoices Wizard          │───>│ Atomic Transaction:             │
-│ /shop/customers (Add Dropdown)  │    │ (/shop/invoices/import)         │    │ • Auto-Registers New Patients   │
-│ /shop/orders (Billing Dropdown) │    │ Upload -> Map -> Review -> Sync │    │ • Writes Invoices, Items, Rects │
-└─────────────────────────────────┘    └─────────────────────────────────┘    └─────────────────────────────────┘
+âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ
+â Entry Points:                   ââââ>â 4-Step Invoices Wizard          ââââ>â Atomic Transaction:             â
+â /shop/customers (Add Dropdown)  â    â (/shop/invoices/import)         â    â â¢ Auto-Registers New Patients   â
+â /shop/orders (Billing Dropdown) â    â Upload -> Map -> Review -> Sync â    â â¢ Writes Invoices, Items, Rects â
+âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ
 ```
 
 1. **Multi-Dashboard Entry Points**:
@@ -623,12 +623,12 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Step 3: High-Density Spreadsheet Review & Smart Verification**:
      - **0ms Customer Matching**:
        - Compares 10-digit phone number against the store's patient directory.
-       - 🟢 **Existing Patient**: Displays matched patient name and registration ID. The invoice is atomically mapped to their existing profile.
-       - 🟡 **New Patient (Auto-Register)**: Unrecognized phone number. The wizard flags the row for automatic customer creation upon import, generating a collision-safe registration ID (`OP-shopNum-YYYY-NNNN`).
+       - ð¢ **Existing Patient**: Displays matched patient name and registration ID. The invoice is atomically mapped to their existing profile.
+       - ð¡ **New Patient (Auto-Register)**: Unrecognized phone number. The wizard flags the row for automatic customer creation upon import, generating a collision-safe registration ID (`OP-shopNum-YYYY-NNNN`).
      - **Legacy Bill Number Preservation & Collision Checks**:
        - Existing external invoice numbers (`INV-2023-01`, `BILL-1049`, `1249`) are preserved exactly as provided.
        - Rows missing an invoice number are automatically assigned next available sequence numbers from the store's configured series (`INV-shopNum-YYYY-NNNN`).
-       - 🔴 **Collision Alert**: If an invoice number already exists in the shop database, it is flagged with an error badge and given a one-click **Fix Dupes** button to auto-suffix numbers with `-OLD`.
+       - ð´ **Collision Alert**: If an invoice number already exists in the shop database, it is flagged with an error badge and given a one-click **Fix Dupes** button to auto-suffix numbers with `-OLD`.
      - **Inline Data Rectification**: Directly modify customer names, phone numbers, bill numbers, dates, descriptions, quantities, totals, and paid amounts directly in the spreadsheet grid.
      - **`+ Details` Specification Modal**: Allows staff to review or enrich customer email, city, address, salesperson attribution, and prescription notes.
    - **Step 4: Atomic Execution & Financial Ledger Sync**:
@@ -649,17 +649,17 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 18. AI Bill Scanning & Smart Purchase Inward Flow
 
 ```
-┌──────────────────────────────┐    ┌──────────────────────────────┐    ┌──────────────────────────────┐
-│ Add Purchase Page            │───>│ AI Bill Scanner Drawer       │───>│ Form Auto-Fill               │
-│ (/shop/purchases/new)        │    │ Client Canvas Downsampling   │    │ • Auto-Matches DB Vendor     │
-│ [Scan Bill with AI] CTA      │    │ -> Gemini Vision API Call    │    │ • Populates Line Items & Math│
-└──────────────────────────────┘    └──────────────────────────────┘    │ • Enriches Modal Specs       │
-                                                                        └──────────────────────────────┘
+ââââââââââââââââââââââââââââââââ    ââââââââââââââââââââââââââââââââ    ââââââââââââââââââââââââââââââââ
+â Add Purchase Page            ââââ>â AI Bill Scanner Drawer       ââââ>â Form Auto-Fill               â
+â (/shop/purchases/new)        â    â Client Canvas Downsampling   â    â â¢ Auto-Matches DB Vendor     â
+â [Scan Bill with AI] CTA      â    â -> Gemini Vision API Call    â    â â¢ Populates Line Items & Mathâ
+ââââââââââââââââââââââââââââââââ    ââââââââââââââââââââââââââââââââ    â â¢ Enriches Modal Specs       â
+                                                                        ââââââââââââââââââââââââââââââââ
 ```
 
 1. **Owner Configuration & API Key Management (`/owner/settings`)**:
    - Store owners navigate to **Owner Settings** and access the **AI & Automations** category card.
-   - Owners can configure their private **Google Gemini API Key** and preferred model (`gemini-2.5-flash`, `gemini-1.5-flash`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-flash-latest`, or custom).
+   - Owners can configure their private **Google Gemini API Key** and preferred model (`gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`, or `gemini-3.5-flash-lite`).
    - "Test Connection" button performs a lightweight round-trip test to verify connectivity and display latency in milliseconds.
    - Credentials are saved securely to the database in `organizations.settings.ai`. Each organization's key remains completely isolated.
 
@@ -668,7 +668,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - A slide-over drawer opens:
      - **Setup Fallback**: If the organization hasn't added a Gemini API key yet, the drawer immediately displays an inline "Connect Google Gemini AI" card with an API key input, Google AI Studio link, and "Test Connection" tool, allowing the user to configure and proceed without leaving the page.
      - **File Upload**: Accepts photo formats (`.jpg`, `.jpeg`, `.png`, `.webp`) and single-page `.pdf` bills or challans up to 15MB.
-     - **Client-Side Canvas Downsampling**: High-resolution camera photos (8–15MB) are automatically downscaled to a max dimension of 1800px at 85% JPEG quality via an off-screen HTML5 canvas, reducing transmission size to ~300KB and dropping network transfer latency by up to 70%.
+     - **Client-Side Canvas Downsampling**: High-resolution camera photos (8â15MB) are automatically downscaled to a max dimension of 1800px at 85% JPEG quality via an off-screen HTML5 canvas, reducing transmission size to ~300KB and dropping network transfer latency by up to 70%.
      - **Gemini Vision Extraction**: Calls `extractBillDataAction` with structured JSON schema enforcement (`responseMimeType: "application/json"`).
      - **System-Side Arithmetic Engine**: Gemini extracts raw item names, rates, quantities, and GST rates. The system calculates exact CGST, SGST, IGST, base price, unit purchase price, and item totals without floating-point math hallucinations.
      - **Smart Vendor Matching**:
@@ -687,22 +687,22 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 19. High-Density Optical Store Dashboard Navigation & Analytics Workflow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ High-Density Optical Dashboard Experience                                                   │
-│                                                                                             │
-│ [ Good morning, User! 👋 ] ───────────────────────── [ Date Range Picker: Apr 1 - Jun 30 ▾ ]│
-│                                                                                             │
-│ [ 5 KPI Summary Cards ]: Revenue, Invoices, Receivables, Active Customers, Total Stores    │
-│                                                                                             │
-│ [ Row 2 ]: Customer Bifurcation ─── Dead Stock (90 Days) ─── Stock Valuation                │
-│            (Frames/Lenses/Both)     (Count + % Total Stock)  (Category Asset Distribution)  │
-│                                                                                             │
-│ [ Row 3 ]: Return Rate ──────────── Sales Bifurcation ────── Low Stock Alerts               │
-│            (% Products Returned)    (5 Interactive Tabs)     (Compliant / Restock Action)   │
-│                                                                                             │
-│ [ Row 4 ]: Retention Rate ────────────────────────────────── Recent Transactions            │
-│            (Repeat Customers vs Total)                       (High-Density Live Table)      │
-└─────────────────────────────────────────────────────────────────────────────────────────────┘
+âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+â High-Density Optical Dashboard Experience                                                   â
+â                                                                                             â
+â [ Good morning, User! ð ] âââââââââââââââââââââââââ [ Date Range Picker: Apr 1 - Jun 30 â¾ ]â
+â                                                                                             â
+â [ 5 KPI Summary Cards ]: Revenue, Invoices, Receivables, Active Customers, Total Stores    â
+â                                                                                             â
+â [ Row 2 ]: Customer Bifurcation âââ Dead Stock (90 Days) âââ Stock Valuation                â
+â            (Frames/Lenses/Both)     (Count + % Total Stock)  (Category Asset Distribution)  â
+â                                                                                             â
+â [ Row 3 ]: Return Rate ââââââââââââ Sales Bifurcation ââââââ Low Stock Alerts               â
+â            (% Products Returned)    (5 Interactive Tabs)     (Compliant / Restock Action)   â
+â                                                                                             â
+â [ Row 4 ]: Retention Rate ââââââââââââââââââââââââââââââââââ Recent Transactions            â
+â            (Repeat Customers vs Total)                       (High-Density Live Table)      â
+âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 ```
 
 1. **Date Range Scoping**:
@@ -722,11 +722,11 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 10. High-Speed "Enter-as-Tab" Keyboard Form Navigation Flow
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│ Active Input    │───>│ Next Focusable  │───>│ Submit / Action │───>│ Save / Form      │
-│ [Enter]         │    │ Control (Auto-  │    │ Primary Button  │    │ Execution        │
-│                 │    │ Selected Text)  │    │ [Enter]         │    │                  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+âââââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
+â Active Input    ââââ>â Next Focusable  ââââ>â Submit / Action ââââ>â Save / Form      â
+â [Enter]         â    â Control (Auto-  â    â Primary Button  â    â Execution        â
+â                 â    â Selected Text)  â    â [Enter]         â    â                  â
+âââââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Continuous Touch-Type Ingestion**:
@@ -745,10 +745,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 11. Add Purchase, AI Bill Scanning & Auto-Vendor Onboarding Flow
 
 ```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Upload Bill      │───>│ Review & Confirm │───>│ Bidirectional    │───>│ Auto-Create New  │
-│ (Image / PDF)    │    │ AI Extraction    │    │ Table Editing    │    │ Vendor & Finalize│
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
+â Upload Bill      ââââ>â Review & Confirm ââââ>â Bidirectional    ââââ>â Auto-Create New  â
+â (Image / PDF)    â    â AI Extraction    â    â Table Editing    â    â Vendor & Finalizeâ
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **AI Bill Scanning (`/shop/purchases/new` -> "Insert with AI")**:
@@ -761,7 +761,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Staff reviews the extracted vendor info and line items table with real-time category badges and purchase cost rates.
    - Clicking **Apply to Purchase Form** populates the entire purchase ledger grid in 0ms.
 3. **Universal Interactive Table Editing**:
-   - **Interactive Column 10 (Total Purchase Cost)**: Staff can directly type into the Total Cost column (e.g. ₹32,400 with Qty 10), which automatically computes unit Purchase Cost (₹3,240), Base Price (₹2,892.86), and GST amounts down to the exact paise.
+   - **Interactive Column 10 (Total Purchase Cost)**: Staff can directly type into the Total Cost column (e.g. â¹32,400 with Qty 10), which automatically computes unit Purchase Cost (â¹3,240), Base Price (â¹2,892.86), and GST amounts down to the exact paise.
    - **Purchase Cost & Base Price Editing**: Typing in Purchase Cost auto-derives Base Price; typing in Base Price auto-derives Purchase Cost.
    - **Dynamic HSN & Category Updates**: Typing an HSN code auto-detects and switches the category; changing the category preserves user Purchase Cost and recalculates Base Price with the new category GST rate.
 4. **Auto-Detect & Auto-Save New Vendors**:
@@ -773,15 +773,15 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 12. Purchase Ledger, Transaction Details & Barcode Printing Workflow
 
 ```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Purchase Ledger  │───>│ Transaction Card │───>│ Multi-Preset     │───>│ Inline Edit or   │
-│ KPI & Filters    │    │ & Items Ledger   │    │ Barcode Printing │    │ Atomic Reversal  │
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
+â Purchase Ledger  ââââ>â Transaction Card ââââ>â Multi-Preset     ââââ>â Inline Edit or   â
+â KPI & Filters    â    â & Items Ledger   â    â Barcode Printing â    â Atomic Reversal  â
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Browsing the Purchase Ledger (`/shop/purchases`)**:
    - Accessed directly via **Purchases -> Purchase Ledger** in the left navigation sidebar.
-   - **Interactive KPI Deck**: Displays real-time aggregate metrics for Total Purchases count, Net Inward Valuation (₹), Current Month Inward count, and Top Supplier name. Clicking KPI cards activates an active selection border (`border-2 border-[#2563eb]`) and instantaneously filters the transactions table.
+   - **Interactive KPI Deck**: Displays real-time aggregate metrics for Total Purchases count, Net Inward Valuation (â¹), Current Month Inward count, and Top Supplier name. Clicking KPI cards activates an active selection border (`border-2 border-[#2563eb]`) and instantaneously filters the transactions table.
    - **Multi-Filter Bar**: Enables zero-latency filtering by Vendor, GST Pricing Rule (Inclusive/Exclusive), Status (Draft/Completed/Cancelled), Date Range (From/To), and full-text search across invoice numbers and vendor names.
    - **High-Density Table**: 8-column layout (Date, Bill #, Vendor with GSTIN, Amount, GST Type pill badge, Item Quantity, Payment Status, and Status Badge) rendering 20 records per page with zero mock data.
    - **Post-Purchase Auto-Navigation**: Completing an inward purchase form or saving a draft on `/shop/purchases/new` automatically navigates staff to `/shop/purchases` with immediate visibility of the newly recorded transaction.
@@ -800,7 +800,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - **Batch "Print All Barcodes" (`PurchaseBulkBarcodeModal`)**:
      - Pre-populated with authentic inward product quantities editable in real-time with quick actions (`Inward Qty`, `+1 All`, `Zero`).
      - **Dual Segmented Preview Tabs**: Features `Single Label` (carousel through individual product labels with butterfly tag fold line or retail box mockup) and `Sheet Preview` (realistic A4/A5 sticker sheet grid miniature with `aspect-[1/1.414]` proportions, numbered cell highlights, and multi-page pagination controls).
-     - **Authentic Labels-Per-Page Calculations**: Clearly displays exact sheet capacity (e.g., A4: 36 labels/page on 2×18 grid for 100×15 mm Tag; 30 labels/page on 3×10 grid for 50×25 mm) and total physical sheets required.
+     - **Authentic Labels-Per-Page Calculations**: Clearly displays exact sheet capacity (e.g., A4: 36 labels/page on 2Ã18 grid for 100Ã15 mm Tag; 30 labels/page on 3Ã10 grid for 50Ã25 mm) and total physical sheets required.
      - **Industrial Standard Defaults & Auto-Memory**: Out-of-the-box defaults to **`81x12 mm (D-Gum Flap Tag)`** on **Continuous Thermal Roll** (`paperSize: "continuous"`), with automatic `localStorage` preference persistence (`optical_barcode_preferences_v1`) that auto-saves and restores any format, size, or paper layout changes selected by the operator.
      - **Zero-Lag Hidden IFrame Spooling**: Dispatches print jobs directly through an isolated hidden iframe with CSS page-break prevention and `table` row flow, eliminating popup blocking and lag.
    - **Individual Product Barcode Designer (`BarcodeDesignerModal`)**:
@@ -816,10 +816,10 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 13. Offline Invoicing, Outbox Hub & Multi-Device Orders Hydration Workflow
 
 ```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Offline Billing  │───>│ Dexie Outbox     │───>│ Dual-Source      │───>│ Auto / 1-Click   │
-│ & Local Storage  │    │ Queue Storage    │    │ Orders Table     │    │ Cloud Push       │
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
+â Offline Billing  ââââ>â Dexie Outbox     ââââ>â Dual-Source      ââââ>â Auto / 1-Click   â
+â & Local Storage  â    â Queue Storage    â    â Orders Table     â    â Cloud Push       â
+ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
 1. **Uninterrupted Offline Billing (`/shop/invoices/new`)**:
@@ -860,31 +860,34 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ## 20. Industrial Vertical Roll Barcode Printing & Add Purchase Integration Workflow
 
 ```
-┌─────────────────────────────────┐    ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
-│ Entry Points:                   │───>│ Barcode Modal (Single/Batch)    │───>│ Industrial Thermal Output:      │
-│ • Add Purchase (/purchases/new) │    │ • Select Preset: Vertical 3-Up ⭐│    │ • Exact Page Size: 50×100mm     │
-│ • Purchase Detail (/[id])       │    │ • Auto-Set Continuous Roll      │    │ • Razor-Sharp Code 128 (Subset B)│
-│ • Inventory Designer Modal      │    │ • Live Dumbbell Tag Preview     │    │ • Spool to Hidden Iframe        │
-└─────────────────────────────────┘    └─────────────────────────────────┘    └─────────────────────────────────┘
+âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ
+â Entry Points:                   ââââ>â Barcode Modal (Single/Batch)    ââââ>â Industrial Thermal Output:      â
+â â¢ Add Purchase (/purchases/new) â    â â¢ Select Preset: Vertical 3-Up â­â    â â¢ Exact Page Size: 50Ã100mm     â
+â â¢ Purchase Detail (/[id])       â    â â¢ Auto-Set Continuous Roll      â    â â¢ Razor-Sharp Code 128 (Subset B)â
+â â¢ Inventory Designer Modal      â    â â¢ Live Dumbbell Tag Preview     â    â â¢ Spool to Hidden Iframe        â
+âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ    âââââââââââââââââââââââââââââââââââ
 ```
 
 1. **Multi-Column & Vertical Continuous Roll Support**:
-   - Eyewear and jewelry barbell tags typically come on **multi-column vertical rolls** (e.g. 3 tags side-by-side on a continuous web, 50mm web width × 100mm feed length).
+   - Eyewear barbell and flap tags typically come on **multi-column vertical rolls** (e.g. 2 tags side-by-side on a continuous web, 28mm web width Ã 81mm feed length, or 3 tags side-by-side on 50Ã100mm web).
    - The engine provides specialized vertical roll presets:
-     - **`100x15 mm (Vertical 3-Up)` ⭐**: Exact 3-across eyewear barbell tag roll (`50mm` web width × `100mm` feed length).
-     - **`100x15 mm (Vertical 1-Up)`**: Single-column vertical roll (`15mm` width × `100mm` feed length).
-     - **`100x15 mm (Vertical 2-Up)`**: Two-across vertical roll (`34mm` width × `100mm` feed length). Features two 15×100mm labels rendered strictly side-by-side horizontally across the 34mm roll web (`1.5mm left margin + 15mm Col 1 + 1mm center slit gap + 15mm Col 2 + 1.5mm right margin = 34mm`). Enforces `flex-wrap: nowrap !important;` and `flex-shrink: 0 !important;` in print spool CSS to ensure labels are never vertically stacked by thermal printer drivers.
+     - **`81x12 mm (Vertical 2-Up)` â­**: Default standard for 2-column continuous optical flap tags (`28mm` web width Ã `81mm` feed length). Features two 12Ã81mm labels rendered side-by-side across the roll web, each containing a 25.5mm Front Wing, central fold line, 25.5mm Back Wing with 90Â°-rotated barcode, and 30mm loop tail.
+     - **`81x12 mm (Vertical 1-Up)`**: Single-column vertical flap tag (`12mm` width Ã `81mm` feed length).
+     - **`81x12 mm (D-Gum Flap Tag)`**: Horizontal continuous roll layout (81mm width Ã 12mm feed length).
+     - **`100x15 mm (Vertical 3-Up)`**: Exact 3-across eyewear barbell tag roll (`50mm` web width Ã `100mm` feed length).
+     - **`100x15 mm (Vertical 1-Up)`**: Single-column vertical barbell tag (`15mm` width Ã `100mm` feed length).
+     - **`100x15 mm (Vertical 2-Up)`**: Two-across vertical barbell tag (`34mm` width Ã `100mm` feed length). Features two 15Ã100mm labels rendered strictly side-by-side horizontally across the 34mm roll web (`1.5mm left margin + 15mm Col 1 + 1mm center slit gap + 15mm Col 2 + 1.5mm right margin = 34mm`). Enforces `flex-wrap: nowrap !important;` and `flex-shrink: 0 !important;` in print spool CSS to ensure labels are never vertically stacked by thermal printer drivers.
      - **`100x15 mm (Tag)`**: Horizontal tag layout for 4" continuous rolls or A4/A5 laser/inkjet sticker sheets.
      - **`50x25 mm`**, **`38x25 mm`**, **`40x30 mm`**, **`50x50 mm`**: Standard retail boxes and frame case labels.
 
-2. **Dumbbell Tag Geometry & 15×100mm Narrow Strip Physical Proportions**:
-   - The barbell tag format is strictly proportioned as a **15mm wide × 100mm long narrow strip** (`1:6.67` aspect ratio), eliminating square flap distortion.
+2. **Dumbbell Tag Geometry & 15Ã100mm Narrow Strip Physical Proportions**:
+   - The barbell tag format is strictly proportioned as a **15mm wide Ã 100mm long narrow strip** (`1:6.67` aspect ratio), eliminating square flap distortion.
    - Divided symmetrically into **two 50mm folded sections** via a narrow center fold bridge:
-     - **Top Flap (~38mm length × 15mm width)**: Vertical slender flap (`2.53:1` length-to-width ratio, not a square). Rotated 90° along the 38mm length to provide 36mm of horizontal text width (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Displays store header (`CLINICAL OPTICAL`) on the left, bold retail price on the right, and brand name + model/item description running along the flap length without text clipping.
-     - **Narrow Center Bridge (~24mm length × 5mm width)**: Narrow 5mm fold-around strap with dashed borders, a dashed center fold guideline at the exact 50mm midpoint, and a rotated `FOLD` indicator matching the reading direction. When folded in half around an optical frame bridge, each side measures exactly 50mm (38mm flap + 12mm strap half).
-     - **Bottom Barcode Flap (~38mm length × 15mm width)**: Vertical slender flap (`2.53:1` ratio). Rotated 90° along the 38mm length (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Renders a high-density 34mm-wide Code 128 (Subset B) native vector SVG barcode with 8.5mm bar height across the tag width, paired with a parallel monospace SKU beneath. This prevents barcode distortion and ensures 100% reliable scanner reads compared to squeezing across a 15mm width.
+     - **Top Flap (~38mm length Ã 15mm width)**: Vertical slender flap (`2.53:1` length-to-width ratio, not a square). Rotated 90Â° along the 38mm length to provide 36mm of horizontal text width (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Displays store header (`PUNJAB OPTICS / Adaptive Store Header`) on the left, bold retail price on the right, and brand name + model/item description running along the flap length without text clipping.
+     - **Narrow Center Bridge (~24mm length Ã 5mm width)**: Narrow 5mm fold-around strap with dashed borders, a dashed center fold guideline at the exact 50mm midpoint, and a rotated `FOLD` indicator matching the reading direction. When folded in half around an optical frame bridge, each side measures exactly 50mm (38mm flap + 12mm strap half).
+     - **Bottom Barcode Flap (~38mm length Ã 15mm width)**: Vertical slender flap (`2.53:1` ratio). Rotated 90Â° along the 38mm length (`width: 36mm; height: 13mm; transform: rotate(90deg);`). Renders a high-density 34mm-wide Code 128 (Subset B) native vector SVG barcode with 8.5mm bar height across the tag width, paired with a parallel monospace SKU beneath. This prevents barcode distortion and ensures 100% reliable scanner reads compared to squeezing across a 15mm width.
    - Code 128 (Subset B) uses 11 modules per character, ensuring crisp vector bars rendered along the 34mm length at standard 203 DPI and 300 DPI thermal resolutions.
-   - **Continuous Roll Representation**: On the 50×100mm thermal web (`100x15 mm (Vertical 3-Up Roll)`), three narrow strips (40px wide × 270px long each) render side-by-side with 1.5mm liner margins and 1mm center slit gaps, accurately mirroring the physical 3-across continuous roll feed.
+   - **Continuous Roll Representation**: On the 50Ã100mm thermal web (`100x15 mm (Vertical 3-Up Roll)`), three narrow strips (40px wide Ã 270px long each) render side-by-side with 1.5mm liner margins and 1mm center slit gaps, accurately mirroring the physical 3-across continuous roll feed.
 
 3. **Direct Add Purchase Header Action (`/shop/purchases/new`)**:
    - In the top action bar of the Add Purchase page, staff can click **`Print Barcodes`** (`Barcode` icon).

@@ -16,6 +16,7 @@ import { DEFAULT_WHATSAPP_TEMPLATES } from "@/utils/whatsapp-templates";
 import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
 import { DocumentSeriesSettings } from "@/components/shop/DocumentSeriesSettings";
 import { generateShopPairingKeyAction, checkDesktopAssistantStatusAction, triggerDesktopAssistantDisconnectAction } from "@/actions/desktop-wa.actions";
+import { getStateFromGSTIN } from "@/utils/gstin";
 
 interface SettingsPageClientProps {
   shop: any;
@@ -564,10 +565,19 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                           <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">GSTIN Number</label>
                           <input 
                             type="text" 
+                            maxLength={15}
+                            placeholder="27AAAAA0000A1Z5"
                             value={profileGstin} 
-                            onChange={(e) => setProfileGstin(e.target.value.toUpperCase())}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
+                            onChange={(e) => setProfileGstin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold font-mono text-slate-700 outline-none focus:border-indigo-500 focus:bg-white"
                           />
+                          {profileGstin.length >= 2 && getStateFromGSTIN(profileGstin) && (
+                            <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              <span>State: {getStateFromGSTIN(profileGstin)}</span>
+                              <span className="text-emerald-500 font-mono">({profileGstin.slice(0, 2)})</span>
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">Corporate CIN</label>

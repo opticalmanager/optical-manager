@@ -9,6 +9,8 @@ import { getCustomerById } from "./customer.service";
 import { getPrescriptionsByCustomer } from "./prescription.service";
 import { getReceiptById } from "./receipt.service";
 import { getCustomizationSettings, type CustomizationConfig } from "./customization.service";
+import { getOrganizationCategories } from "./category.service";
+import { resolveOpticalCategory } from "@/lib/optical-category-resolver";
 import type { Invoice, Shop, Customer, Prescription, Receipt, Order } from "@/types";
 
 export interface LineItemWithInventory {
@@ -60,7 +62,7 @@ export async function getInvoiceDocumentData(
   if (!invoice) return null;
 
   // 2. Fetch all related entities in parallel for optimal latency with strict null guards
-  const [shop, customer, lineItems, prescriptions, orderRecord, receiptsList, customizationConfig] = await Promise.all([
+  const [shop, customer, rawLineItems, prescriptions, orderRecord, receiptsList, customizationConfig, orgCategories] = await Promise.all([
     invoice.shopId ? getShopById(invoice.shopId, organizationId) : Promise.resolve(null),
     invoice.customerId ? getCustomerById(invoice.customerId, organizationId) : Promise.resolve(null),
     db
@@ -109,7 +111,45 @@ export async function getInvoiceDocumentData(
       .orderBy(receipts.createdAt)
       .catch(() => []),
     getCustomizationSettings(organizationId, invoice.shopId).catch(() => null),
+    getOrganizationCategories(organizationId).catch(() => []),
   ]);
+
+  // Build authentic statutory category HSN lookup from the organization's database configuration
+  const categoryHsnMap = new Map<string, string>();
+  for (const cat of orgCategories || []) {
+    if (cat.code && cat.hsnCode && cat.hsnCode.trim()) {
+      categoryHsnMap.set(cat.code.trim().toUpperCase(), cat.hsnCode.trim());
+    }
+  }
+
+  // Resolve authentic HSN codes with strict no-hardcoded fallback
+  const lineItems: LineItemWithInventory[] = (rawLineItems || []).map((item) => {
+    let resolvedHsn: string | null = null;
+
+    // 1. Explicit item-level HSN code from inventory record
+    if (item.hsnCode && item.hsnCode.trim()) {
+      resolvedHsn = item.hsnCode.trim();
+    }
+
+    // 2. Organization category statutory HSN via explicit category
+    if (!resolvedHsn && item.category) {
+      const catCode = item.category.trim().toUpperCase();
+      resolvedHsn = categoryHsnMap.get(catCode) || null;
+    }
+
+    // 3. Organization category statutory HSN via optical domain classification
+    if (!resolvedHsn) {
+      const opticalCat = resolveOpticalCategory(item.category, item.description);
+      if (opticalCat?.code) {
+        resolvedHsn = categoryHsnMap.get(opticalCat.code.toUpperCase()) || null;
+      }
+    }
+
+    return {
+      ...item,
+      hsnCode: resolvedHsn,
+    };
+  });
 
   return {
     invoice,

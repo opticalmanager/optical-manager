@@ -76,26 +76,37 @@ This document details the functional, non-functional, and compliance requirement
 - Direct 1-click icon buttons under `DOCUMENTS` (Order Form and Tax Invoice) and `ACTION` (WhatsApp and Edit) eliminating cumbersome nested dropdowns.
 - WhatsApp multi-template contextual popover supporting 5 optical message actions (Send Order Form, Send Tax Invoice, Send Clinical Eye Prescription with OD/OS powers & PD, Order Ready for Pickup, and Outstanding Payment Reminder).
 - Dedicated Shop Settings WhatsApp Customizer supporting 7 customizable message templates with clinical optometry token variables (`re_sph`, `re_cyl`, `re_axis`, `re_add`, `le_sph`, `le_cyl`, `le_axis`, `le_add`, `pd`, `doctor_name`, `order_form_url`) and live smartphone preview.
-### FR-13: Production-Accurate D-Gum Flap Label Printing (81×12 mm NTK Standard)
+### FR-13: Production-Accurate D-Gum Flap Label Printing (81×12 mm NTK Standard) & Thermal Barcode Engine
 - **81×12 mm NTK D-Gum Flap Optical Tag (Industry Standard for Spectacle Frames)**:
   - *Physical Geometry*: 81 mm total unfolded length × 12 mm tag body height.
   - *51 mm Foldable Head (Printable Wings)*: Located on the left side of the tag, divided symmetrically by a 25.5 mm dotted center fold line into two 25.5×12 mm wings:
     - *Wing 1 (Front)*: 25.5×12 mm printable area displaying Brand name, category, model/specs, and retail MRP.
-    - *Wing 2 (Back)*: 25.5×12 mm printable area rendering high-density vector Code 128 barcode (with required quiet zones) and human-readable monospace SKU.
+    - *Wing 2 (Back)*: 25.5×12 mm printable area rendering high-density vector Code 128 barcode (with required quiet zones) and human-readable monospace SKU. Supports both **Vertical (Ladder 90° Rotated)** and **Horizontal (Picket-Fence)** barcode orientations.
   - *30 mm Adhesive-Free Tail (Loop Strap)*: Centered vertically on the right side (~2.8 mm thick), engineered completely adhesive-free within the 12 mm height boundary. Wraps around spectacle temple arm and is sealed between Wing 1 and Wing 2 when the 51 mm head is folded in half at 25.5 mm.
-  - *Mathematical Invariant*: $\text{Wing 1 (25.5 mm)} + \text{Wing 2 (25.5 mm)} + \text{Adhesive-Free Tail (30.0 mm)} = 81.0\text{ mm}$.
-  - *Content Scaling Rules*: Automatic refitting of all internal block variables (`CLINICAL OPTICAL`, `PRICE`, `BARCODE`, `FRAME TEXT`) within the 25.5×12 mm wing boundaries with zero bleeding across the 25.5 mm central fold divider.
-- **Hardware & Print Specifications**:
-  - Separation of physical label dimensions from printer media stock dimensions (`mediaWidthMm: 81`, `feedLengthMm: 12`).
-  - Dual stock feed support: Horizontal feed (81×12 mm web) and Vertical feed.
-  - Continuous Thermal Roll Engine: Top-level `@page { size: 81mm 12mm; margin: 0mm; }`, zero fixed body heights allowing clean multi-label stream pagination, and `:last-child` page-break avoidance to eliminate trailing blank feeds.
-  - Modernized Offscreen Layout Iframe: Replaces 0×0 hidden iframes with active-layout offscreen nodes (`left: -9999px; width: 400px; height: 200px; opacity: 0`) ensuring Chromium accurately evaluates media page dimensions instead of falling back to parent viewport Letter/A4 defaults.
-  - Blank Title Suppression: Emits clean `<title></title>` to eliminate accidental browser title header printing.
-  - Interactive In-Modal Thermal Roll Checklist: Visual step-by-step guidance reminding operators to select their Thermal Printer destination, set Margins to "None", uncheck Headers & Footers, and maintain 100% scale.
-  - Interactive Calibration Inspector with real-time sliders and geometric validation readout ($25.5 + 25.5 + 30.0 = 81.0\text{ mm ✅}$).
-  - Full support in both individual label designer (`BarcodeDesignerModal`) and purchase inwarding batch printer (`PurchaseBulkBarcodeModal`).
-  - **Default Format & Media**: Out-of-the-box system default is set to **`81x12 mm (D-Gum Flap Tag)`** on **Continuous Thermal Roll** (`DEFAULT_BARCODE_PRESET` and `DEFAULT_PAPER_SIZE = "continuous"`), while preserving full flexibility for users to select any other preset or paper size.
-  - **Automatic User Preference Persistence (`localStorage`)**: Any operator selection—such as barcode preset, paper size (`continuous`, `A4`, `A5`), element visibility toggles (Brand, Price, SKU, Barcode Text), typography sizes, borders, and custom header—is automatically saved to `localStorage` under `optical_barcode_preferences_v1` and restored automatically on subsequent visits across both single-item and bulk batch printing interfaces.
+  - *Content Scaling Rules*: Automatic refitting of all internal block variables (`ORGANIZATION/STORE HEADER`, `PRICE`, `BARCODE`, `FRAME TEXT`) within the 25.5×12 mm wing boundaries with zero bleeding across the 25.5 mm central fold divider.
+- **Hardware & Thermal Printer Engine Specifications**:
+  - *Dynamic Multi-Tenant Organization Store Header Policy*: All barcode label tags (both individual and bulk batch inwarding spools) dynamically resolve and print the authenticated store's real business name (e.g. `PUNJAB OPTICS`, `PRECISION OPTICS`) fetched from `organizations.name` / cached session profile (`om_organization_name`), strictly eliminating hardcoded dummy placeholders like `CLINICAL OPTICAL`. Operators retain full freedom to edit or override the header in the barcode modal at any time. Legacy browser localStorage values of `"CLINICAL OPTICAL"` are automatically migrated to the real organization name on mount.
+  - *Smart Adaptive Store Header Compacting & Abbreviation Algorithm (`formatStoreHeaderForLabel`)*:
+    - Micro frame tags allocate at most ~14 mm physical width for the store header alongside the retail price badge (approx 15 characters at 4.8px bold).
+    - Automatically cleans URL protocols and domain extensions (e.g., `https://`, `.store`, `www.`), auto-generated metadata fluff (`'s Organization`, `Organization`), and corporate legal entity suffixes (`Pvt Ltd`, `Private Limited`, `LLP`, `Enterprises`).
+    - Standard 1-to-2 word store names up to 15 characters (e.g. `PUNJAB OPTICS` [13 chars], `PUNJAB OPTICALS` [15 chars], `ROYAL EYEWEAR` [13 chars], `GAURAV TIWARI` [13 chars]) print completely intact in uppercase.
+    - Names exceeding 15 characters undergo intelligent optical industry compression: `OPTICALS`/`OPTICIANS` $\to$ `OPTICS` or `OPT`, `EYEWEAR`/`EYECARE` $\to$ `EYE`, `CLINIC` $\to$ `CLN`, and `STORE`/`SHOP`/`CENTRE` are stripped.
+    - Multi-word long names condense secondary words (`CHANDIGARH OPT.`) or acronymize initial honorifics (`S.V. OPT` for `Sri Venkateshwara Optical Store`).
+    - Enforces a hard fallback cap $\le 15$ characters with a period indicator (`MAX HEALTHCAR.`), guaranteeing zero collision with the retail price badge.
+  - *1-Bit Thermal Monochrome Pure Black Policy (`#000000`)*: Direct thermal and thermal transfer printheads operate strictly in binary 1-bit mode (burn or don't burn). All label text, retail prices, store headers, borders, and barcodes strictly use pure `#000000` with bold/black font weights (`700`–`900`), eliminating color halftoning/dithering where non-black CSS colors (e.g., `#2563eb` blue or `#64748b` gray) caused dropped text, invisible prices, or broken printouts.
+  - *Run-Length Vector Barcode Architecture*: Code 128 and Code 39 engines synthesize consolidated integer-module `<rect>` vectors with `shape-rendering: crispEdges` rather than sub-pixel 1-bit slices, preventing browser anti-aliasing blur and solid black smear in thermal drivers.
+  - *Multi-Column Continuous Thermal Roll Support*:
+    - **`81x12 mm (Vertical 2-Up)`**: 2-Across continuous roll (28×81 mm thermal web) feeding longitudinally in the 81 mm direction. Features 90°-rotated Wing 1 (Brand/Price) and Wing 2 (Barcode/SKU) along the 25.5 mm flaps, perfectly matching 2-column optical roll stock.
+    - **`81x12 mm (Vertical 1-Up)`**: Single-column continuous roll (12×81 mm web).
+    - **`81x12 mm (D-Gum Flap Tag)`**: Horizontal continuous roll (81×12 mm web).
+  - *Continuous Thermal Roll Engine*: Top-level `@page { size: ${rollWidth}mm ${rollHeight}mm; margin: 0mm; }`, zero fixed body heights allowing clean multi-label stream pagination, and `:last-child` page-break avoidance to eliminate trailing blank feeds.
+  - *Modernized Offscreen Layout Iframe*: Replaces 0×0 hidden iframes with active-layout offscreen nodes (`left: -9999px; width: 400px; height: 200px; opacity: 0`) ensuring Chromium accurately evaluates media page dimensions instead of falling back to parent viewport Letter/A4 defaults.
+  - *Blank Title Suppression*: Emits clean `<title></title>` to eliminate accidental browser title header printing.
+  - *Interactive In-Modal Thermal Roll Checklist*: Visual step-by-step guidance reminding operators to select their Thermal Printer destination, set Margins to "None", uncheck Headers & Footers, and maintain 100% scale.
+  - *Interactive Calibration Inspector with real-time sliders and geometric validation readout ($25.5 + 25.5 + 30.0 = 81.0\text{ mm ✅}$).
+  - *Full support in both individual label designer (`BarcodeDesignerModal`) and purchase inwarding batch printer (`PurchaseBulkBarcodeModal`).
+  - **Default Format & Media**: Out-of-the-box system default is set to **`81x12 mm (Vertical 2-Up)`** on **Continuous Thermal Roll** (`DEFAULT_BARCODE_PRESET` and `DEFAULT_PAPER_SIZE = "continuous"`), while preserving full flexibility for users to select any other preset or paper size.
+  - **Automatic User Preference Persistence (`localStorage`)**: Any operator selection—such as barcode preset, paper size (`continuous`, `A4`, `A5`), barcode orientation (`vertical` vs `horizontal`), element visibility toggles (Brand, Price, SKU, Barcode Text), typography sizes, borders, and custom header—is automatically saved to `localStorage` under `optical_barcode_preferences_v1` and restored automatically on subsequent visits across both single-item and bulk batch printing interfaces.
 
 ---
 
