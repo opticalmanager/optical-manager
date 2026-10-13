@@ -83,10 +83,11 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
    - Shrinks network payloads from ~10MB to <300KB, dropping network upload latency by up to 70%.
    - Live multi-stage progress messages keep the user informed during OCR processing.
 
-5. **Per-Account Credentials Isolation**:
+5. **Per-Account Credentials Isolation & Pure Utility Architecture**:
    - Each tenant organization stores its private `geminiApiKey` and `geminiModel` in `organizations.settings.ai`.
    - Keys are managed and tested via `actions/ai-settings.actions.ts`.
    - Fallback to `process.env.GEMINI_API_KEY` for development and platform testing.
+   - Synchronous string sanitization (`sanitizeGeminiApiKey`) and model resolution (`resolveGeminiModel`) are isolated in `utils/ai.utils.ts` without `"use server"` directives, ensuring zero Turbopack Server Action Ecmascript compilation errors across server boundaries.
 
 6. **Zero-Hallucination & Clean Inward Rules (Optical Retail Standards)**:
    - **No Fabricated Retail Prices**: Supplier bills are B2B wholesale tax invoices that do not contain consumer retail selling prices / MRP. The AI pipeline strictly sets `retailPrice: 0`, leaving the Retail Price field 100% blank in both the purchase table and inline modal for store management entry.

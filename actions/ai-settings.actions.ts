@@ -5,9 +5,8 @@ import { getCurrentUser } from "@/services/auth.service";
 import {
   getOrganizationAiConfig,
   updateOrganizationAiSettings,
-  sanitizeGeminiApiKey,
-  resolveGeminiModel,
 } from "@/services/organization.service";
+import { sanitizeGeminiApiKey, resolveGeminiModel } from "@/utils/ai.utils";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
