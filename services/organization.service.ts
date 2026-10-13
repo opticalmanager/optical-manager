@@ -56,6 +56,38 @@ export async function updateOrganization(
   return org;
 }
 
+const RETIRED_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-1.0-pro",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-latest",
+];
+
+export function sanitizeGeminiApiKey(key?: string | null): string | null {
+  if (!key) return null;
+  let clean = key.trim();
+  clean = clean.replace(/^bearer\s+/i, "");
+  clean = clean.replace(/^GEMINI_API_KEY\s*=\s*/i, "");
+  clean = clean.replace(/^['"]|['"]$/g, "");
+  clean = clean.trim();
+  return clean || null;
+}
+
+export function resolveGeminiModel(rawModel?: string | null): string {
+  const trimmed = rawModel?.trim();
+  if (!trimmed) return "gemini-3.6-flash";
+  if (RETIRED_MODELS.includes(trimmed)) return "gemini-3.6-flash";
+  // Allow any valid gemini model identifier (ensures future-proof support for newer Google models)
+  if (trimmed.startsWith("gemini-") || trimmed.startsWith("models/gemini-")) {
+    return trimmed.replace(/^models\//, "");
+  }
+  return "gemini-3.6-flash";
+}
+
 /**
  * Get the AI configuration for an organization.
  * Falls back to process.env.GEMINI_API_KEY if not configured in DB.
@@ -72,21 +104,11 @@ export async function getOrganizationAiConfig(
   const aiSettings = settings.ai || {};
 
   const apiKey =
-    aiSettings.geminiApiKey?.trim() ||
-    process.env.GEMINI_API_KEY?.trim() ||
+    sanitizeGeminiApiKey(aiSettings.geminiApiKey) ||
+    sanitizeGeminiApiKey(process.env.GEMINI_API_KEY) ||
     null;
 
-  const rawModel = aiSettings.geminiModel?.trim();
-  const validModels = [
-    "gemini-3.5-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-3.5-flash",
-    "gemini-3.8-flash",
-  ];
-  const model =
-    rawModel && validModels.includes(rawModel)
-      ? rawModel
-      : "gemini-3.5-flash-lite";
+  const model = resolveGeminiModel(aiSettings.geminiModel);
 
   return {
     apiKey,
@@ -111,6 +133,14 @@ export async function updateOrganizationAiSettings(
     ai: {
       ...(currentSettings.ai || {}),
       ...aiSettingsUpdate,
+      geminiApiKey:
+        aiSettingsUpdate.geminiApiKey !== undefined
+          ? sanitizeGeminiApiKey(aiSettingsUpdate.geminiApiKey) || undefined
+          : currentSettings.ai?.geminiApiKey,
+      geminiModel:
+        aiSettingsUpdate.geminiModel !== undefined
+          ? resolveGeminiModel(aiSettingsUpdate.geminiModel)
+          : currentSettings.ai?.geminiModel,
     },
   };
 

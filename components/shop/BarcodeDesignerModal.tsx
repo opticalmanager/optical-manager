@@ -37,7 +37,10 @@ import {
   saveBarcodePreferences,
   DEFAULT_BARCODE_PRESET,
   DEFAULT_PAPER_SIZE,
+  getDefaultStoreHeader,
+  formatStoreHeaderForLabel,
 } from "@/utils/barcode.utils";
+import { getActiveOrganizationNameAction } from "@/actions/organization.actions";
 
 export interface InventoryItem {
   id: string;
@@ -78,7 +81,7 @@ export function BarcodeSVG({ text, height = 36, className, barScale = 1.0 }: Bar
 
 // ─── Main Modal Component ──────────────────────────────────────────────────────
 export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }: BarcodeDesignerModalProps) {
-  const defaultCustomHeader = item?.category === "FRAME" ? "CLINICAL OPTICAL" : "SPECIAL VALUE";
+  const defaultCustomHeader = useMemo(() => getDefaultStoreHeader("OPTICAL STORE"), []);
   const formattedPrice = item?.price ? `Rs. ${Number(item.price).toLocaleString("en-IN")}/-` : "Rs. 0/-";
   const defaultQuantity = initialQuantity ?? (item?.quantity && item.quantity > 0 ? item.quantity : 1);
   const displaySku =
@@ -141,6 +144,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
   // Restore saved preferences automatically on mount
   useEffect(() => {
     const saved = loadBarcodePreferences();
+    const storeHeader = getDefaultStoreHeader();
     if (saved) {
       if (saved.preset && LABEL_SPECS[saved.preset]) {
         setLabelSize(saved.preset);
@@ -157,7 +161,11 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
       if (saved.showPrice !== undefined) setShowPrice(saved.showPrice);
       if (saved.showSKU !== undefined) setShowSKU(saved.showSKU);
       if (saved.showBarcodeText !== undefined) setShowBarcodeText(saved.showBarcodeText);
-      if (saved.customHeader !== undefined) setCustomHeader(saved.customHeader);
+      if (saved.customHeader !== undefined && saved.customHeader.trim().toUpperCase() !== "CLINICAL OPTICAL") {
+        setCustomHeader(saved.customHeader);
+      } else if (storeHeader && storeHeader !== "OPTICAL STORE") {
+        setCustomHeader(storeHeader);
+      }
       if (saved.brandFontSize !== undefined) setBrandFontSize(saved.brandFontSize);
       if (saved.priceFontSize !== undefined) setPriceFontSize(saved.priceFontSize);
       if (saved.descriptionFontSize !== undefined) setDescriptionFontSize(saved.descriptionFontSize);
@@ -166,7 +174,26 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
       if (saved.borderStyle !== undefined) setBorderStyle(saved.borderStyle);
       if (saved.fontFamily !== undefined) setFontFamily(saved.fontFamily);
       if (saved.fontWeight !== undefined) setFontWeight(saved.fontWeight);
+    } else if (storeHeader && storeHeader !== "OPTICAL STORE") {
+      setCustomHeader(storeHeader);
     }
+
+    // Live server query for organization name to guarantee zero-latency accuracy
+    getActiveOrganizationNameAction().then((name) => {
+      if (name && name.trim()) {
+        const cleanName = formatStoreHeaderForLabel(name);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("om_organization_name", name.trim());
+        }
+        setCustomHeader((prev) => {
+          if (!prev || prev === "CLINICAL OPTICAL" || prev === "OPTICAL STORE" || prev === "SPECIAL VALUE") {
+            return cleanName;
+          }
+          return prev;
+        });
+      }
+    });
+
     setIsLoaded(true);
   }, []);
 
@@ -243,6 +270,16 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
         ...prev.media,
         mediaWidthMm: orientation === "horizontal" ? prev.totalLengthMm : prev.widthMm,
         feedLengthMm: orientation === "horizontal" ? prev.widthMm : prev.totalLengthMm,
+      },
+    }));
+  };
+
+  const handleUpdateDGumBarcodeOrientation = (barcodeOrientation: "horizontal" | "vertical") => {
+    setDGumConfig((prev) => ({
+      ...prev,
+      barcode: {
+        ...prev.barcode,
+        orientation: barcodeOrientation,
       },
     }));
   };
@@ -474,8 +511,10 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     onChange={(e) => handleLabelSizeChange(e.target.value as LabelSizePreset)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
                   >
-                    <optgroup label="Optical Frame & Eyewear Barbell Tags">
-                      <option value="81x12 mm (D-Gum Flap Tag)">81×12 mm D-Gum Flap Tag (NTK Standard) ⭐</option>
+                    <optgroup label="Optical Frame & Eyewear Flap / Barbell Tags">
+                      <option value="81x12 mm (Vertical 2-Up)">81×12 mm Vertical (2-Across Roll) ⭐</option>
+                      <option value="81x12 mm (Vertical 1-Up)">81×12 mm Vertical (1-Across Roll)</option>
+                      <option value="81x12 mm (D-Gum Flap Tag)">81×12 mm D-Gum Flap Tag (Horizontal Roll)</option>
                       <option value="100x15 mm (Vertical 3-Up)">100×15 mm (Vertical 3-Up Roll)</option>
                       <option value="100x15 mm (Vertical 1-Up)">100×15 mm (Vertical 1-Up Roll)</option>
                       <option value="100x15 mm (Vertical 2-Up)">100×15 mm (Vertical 2-Up Roll)</option>
@@ -633,18 +672,32 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                   </div>
 
                   {/* Calibration Shifts & Stock Orientation */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1">
                     <div>
                       <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                        Stock Feed Direction
+                        Stock Feed
                       </label>
                       <select
                         value={dGumConfig.orientation}
                         onChange={(e) => handleUpdateDGumOrientation(e.target.value as "horizontal" | "vertical")}
                         className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-700 cursor-pointer"
                       >
-                        <option value="horizontal">Horizontal Feed (81×12 mm)</option>
-                        <option value="vertical">Vertical Feed (12×81 mm)</option>
+                        <option value="horizontal">Horizontal (81×12)</option>
+                        <option value="vertical">Vertical (12×81)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        Barcode Wing 2
+                      </label>
+                      <select
+                        value={dGumConfig.barcode?.orientation || "vertical"}
+                        onChange={(e) => handleUpdateDGumBarcodeOrientation(e.target.value as "horizontal" | "vertical")}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-700 cursor-pointer"
+                      >
+                        <option value="vertical">Vertical (90° Ladder) ⭐</option>
+                        <option value="horizontal">Horizontal (Picket)</option>
                       </select>
                     </div>
 
@@ -930,11 +983,12 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                         type="text"
                         value={customHeader}
                         onChange={(e) => setCustomHeader(e.target.value.toUpperCase())}
-                        placeholder="e.g. CLINICAL OPTICAL • 100% UV PROTECTION • BOSTON EYE CLINIC"
-                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500 outline-none transition-all placeholder-slate-300"
+                        maxLength={25}
+                        placeholder="e.g. PUNJAB OPTICS"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500 outline-none transition-all placeholder-slate-300 uppercase font-mono"
                       />
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1.5 italic">
-                        Appears aligned at the top of the label tag (or on the left wing of optical frame tags).
+                      <p className="text-[10px] text-slate-500 font-medium mt-1.5 leading-relaxed">
+                        Top header printed on frame wing (fits up to 14mm / 15 chars, e.g. <span className="font-bold text-slate-700">PUNJAB OPTICS</span>). Longer names are intelligently abbreviated so they never overlap the price.
                       </p>
                     </div>
                   </section>
@@ -1022,7 +1076,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                           >
                             <div className="flex items-center justify-between w-full">
                               <span className="text-[6px] uppercase tracking-wider text-slate-400 font-bold truncate max-w-[80px]">
-                                {customHeader || "CLINICAL OPTICAL"}
+                                {formatStoreHeaderForLabel(customHeader || defaultCustomHeader, 15)}
                               </span>
                               {showPrice && (
                                 <span style={{ fontSize: `${Math.min(priceFontSize, 8.5)}px` }} className="text-indigo-600 font-extrabold shrink-0">
@@ -1054,13 +1108,26 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                           {/* Wing 2 (25.5mm to 51mm): Back Wing (Barcode + SKU) (50% of head) */}
                           <div
                             style={{ width: `${(dGumConfig.section2LengthMm / (dGumConfig.headLengthMm || 51)) * 100}%` }}
-                            className="h-full flex flex-col items-center justify-center text-center overflow-hidden bg-white p-1.5 pl-1"
+                            className="h-full flex flex-col items-center justify-center text-center overflow-hidden bg-white p-1 pl-1"
                           >
-                            <BarcodeSVG text={displaySku} height={16} barScale={0.9} className="w-full max-w-[140px]" />
-                            {showSKU && showBarcodeText && (
-                              <span className="text-[7px] font-mono tracking-[0.1em] font-bold text-slate-800 mt-0.5 truncate">
-                                {displaySku}
-                              </span>
+                            {dGumConfig.barcode?.orientation === "vertical" ? (
+                              <div className="w-[64px] h-[64px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none">
+                                <BarcodeSVG text={displaySku} height={14} barScale={0.8} className="w-[58px] h-4 flex items-center justify-center overflow-hidden" />
+                                {showSKU && showBarcodeText && (
+                                  <span className="text-[6px] font-mono tracking-widest font-bold text-black mt-0.5 truncate">
+                                    {displaySku}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <BarcodeSVG text={displaySku} height={16} barScale={0.9} className="w-full max-w-[140px]" />
+                                {showSKU && showBarcodeText && (
+                                  <span className="text-[7px] font-mono tracking-[0.1em] font-bold text-slate-800 mt-0.5 truncate">
+                                    {displaySku}
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -1101,68 +1168,140 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                       </div>
                     </div>
                   ) : currentSpec.type === "vertical-tag" ? (
-                    // Specialized Vertical 100x15 mm Barbell Tag (15x100mm Narrow Strip Standard)
-                    <div className="flex flex-col items-center">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[8px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                          15mm × 100mm Tag
-                        </span>
-                        <span className="text-[8px] font-mono font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                          Fold at 50mm Center
-                        </span>
-                      </div>
-                      <div
-                        className={`w-[48px] h-[320px] flex flex-col justify-between items-center select-none font-sans shadow-sm ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
-                      >
-                        {/* Top Wing (Wing 1 - 48px wide x 122px tall: Vertical Rectangle, Rotated 90° along length) */}
-                        <div className="w-full h-[122px] bg-white border border-dashed border-slate-400 rounded-t-sm shadow-xs flex items-center justify-center overflow-hidden relative">
-                          <div className="w-[114px] h-[42px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
-                            <div className="flex justify-between items-center w-full">
-                              <span className="text-[6px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[50px]">
-                                {customHeader || "CLINICAL OPTICAL"}
-                              </span>
-                              {showPrice && (
-                                <span style={{ fontSize: `${Math.min(priceFontSize, 8.5)}px` }} className="text-indigo-600 font-extrabold shrink-0">
-                                  {formattedPrice}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-col w-full overflow-hidden">
-                              {showBrand && (
-                                <span style={{ fontSize: `${Math.min(brandFontSize, 7.5)}px` }} className="text-slate-900 truncate block font-extrabold">
-                                  {item.brand || "GENERIC"}
-                                </span>
-                              )}
-                              {showItemName && (
-                                <span style={{ fontSize: `${Math.min(descriptionFontSize, 6.5)}px` }} className="text-slate-600 truncate block mt-0.5">
-                                  {displayTitle}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Center Narrow Tail / Strap (16px wide x 76px tall with 50mm Center Fold Divider) */}
-                        <div className="w-[16px] h-[76px] bg-white border-x border-dashed border-slate-400 shadow-2xs flex flex-col items-center justify-center my-[-1px] z-1 relative">
-                          <div className="w-full border-t border-dashed border-slate-400 absolute top-1/2 left-0 -translate-y-1/2" />
-                          <span className="text-[5px] text-slate-400 font-bold uppercase tracking-widest rotate-90 select-none bg-white px-0.5 z-2">
-                            FOLD
+                    currentSpec.heightMm === 81 ? (
+                      // Specialized Vertical 81x12 mm NTK Flap Tag (12x81mm Continuous Roll)
+                      <div className="flex flex-col items-center">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[8px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                            12mm × 81mm Flap Tag
+                          </span>
+                          <span className="text-[8px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            NTK Flap Standard ⭐
                           </span>
                         </div>
+                        <div
+                          className={`w-[44px] h-[304px] flex flex-col justify-start items-center select-none font-sans shadow-sm ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
+                        >
+                          {/* 51mm Head Body = Wing 1 (25.5mm) + Fold + Wing 2 (25.5mm) */}
+                          <div className="w-full h-[192px] bg-white border border-dashed border-slate-700 rounded-t-sm shadow-xs flex flex-col overflow-hidden">
+                            {/* Top Wing (Wing 1 - 96px tall, Rotated 90° along length) */}
+                            <div className="w-full h-[96px] flex items-center justify-center overflow-hidden relative">
+                              <div className="w-[88px] h-[38px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
+                                <div className="flex justify-between items-center w-full">
+                                  <span className="text-[5.5px] uppercase font-bold text-black tracking-wider truncate max-w-[46px]">
+                                    {formatStoreHeaderForLabel(customHeader || defaultCustomHeader, 15)}
+                                  </span>
+                                  {showPrice && (
+                                    <span style={{ fontSize: `${Math.min(priceFontSize, 8.5)}px` }} className="text-black font-extrabold shrink-0">
+                                      {formattedPrice}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-col w-full overflow-hidden">
+                                  {showBrand && (
+                                    <span style={{ fontSize: `${Math.min(brandFontSize, 7.5)}px` }} className="text-black truncate block font-extrabold">
+                                      {item.brand || "GENERIC"}
+                                    </span>
+                                  )}
+                                  {showItemName && (
+                                    <span style={{ fontSize: `${Math.min(descriptionFontSize, 6.5)}px` }} className="text-black truncate block mt-0.5">
+                                      {displayTitle}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
 
-                        {/* Bottom Wing (Wing 2 - 48px wide x 122px tall: Vertical Rectangle, Barcode Rotated 90° along length) */}
-                        <div className="w-full h-[122px] bg-white border border-dashed border-slate-400 rounded-b-sm shadow-xs flex items-center justify-center overflow-hidden relative">
-                          <div className="w-[114px] h-[42px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-1">
-                            <BarcodeSVG text={displaySku} height={22} barScale={0.85} className="w-[104px] h-6 flex items-center justify-center overflow-hidden" />
-                            {showSKU && showBarcodeText && (
-                              <span className="text-[7px] font-mono font-bold text-slate-800 tracking-widest mt-0.5 truncate">
-                                {displaySku}
+                            {/* Center Dotted Fold Guideline at 25.5mm */}
+                            <div className="w-full h-0 border-t border-dashed border-slate-500 relative shrink-0" />
+
+                            {/* Bottom Wing (Wing 2 - 96px tall, Barcode Rotated 90° along length) */}
+                            <div className="w-full h-[96px] flex items-center justify-center overflow-hidden relative">
+                              <div className="w-[88px] h-[38px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-0.5">
+                                <BarcodeSVG text={displaySku} height={18} barScale={0.8} className="w-[80px] h-5 flex items-center justify-center overflow-hidden" />
+                                {showSKU && showBarcodeText && (
+                                  <span className="text-[6.5px] font-mono font-bold text-black tracking-widest mt-0.5 truncate">
+                                    {displaySku}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Adhesive-Free Tail (30mm = 112px, narrow 12px loop) */}
+                          <div className="w-full h-[112px] flex flex-col items-center justify-start overflow-hidden bg-transparent shrink-0">
+                            <div className="w-[12px] h-full border-x border-b border-dashed border-amber-400 bg-amber-50/80 rounded-b-md flex items-center justify-center">
+                              <span className="text-[5px] font-mono font-bold text-amber-800 rotate-90 uppercase tracking-widest whitespace-nowrap">
+                                TAIL
                               </span>
-                            )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      // Specialized Vertical 100x15 mm Barbell Tag (15x100mm Narrow Strip Standard)
+                      <div className="flex flex-col items-center">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[8px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            15mm × 100mm Tag
+                          </span>
+                          <span className="text-[8px] font-mono font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                            Fold at 50mm Center
+                          </span>
+                        </div>
+                        <div
+                          className={`w-[48px] h-[320px] flex flex-col justify-between items-center select-none font-sans shadow-sm ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
+                        >
+                          {/* Top Wing (Wing 1 - 48px wide x 122px tall: Vertical Rectangle, Rotated 90° along length) */}
+                          <div className="w-full h-[122px] bg-white border border-dashed border-slate-400 rounded-t-sm shadow-xs flex items-center justify-center overflow-hidden relative">
+                            <div className="w-[114px] h-[42px] rotate-90 transform-gpu flex flex-col justify-between p-1 select-none leading-tight">
+                              <div className="flex justify-between items-center w-full">
+                                <span className="text-[6px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-[50px]">
+                                  {formatStoreHeaderForLabel(customHeader || defaultCustomHeader, 15)}
+                                </span>
+                                {showPrice && (
+                                  <span style={{ fontSize: `${Math.min(priceFontSize, 8.5)}px` }} className="text-indigo-600 font-extrabold shrink-0">
+                                    {formattedPrice}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-col w-full overflow-hidden">
+                                {showBrand && (
+                                  <span style={{ fontSize: `${Math.min(brandFontSize, 7.5)}px` }} className="text-slate-900 truncate block font-extrabold">
+                                    {item.brand || "GENERIC"}
+                                  </span>
+                                )}
+                                {showItemName && (
+                                  <span style={{ fontSize: `${Math.min(descriptionFontSize, 6.5)}px` }} className="text-slate-600 truncate block mt-0.5">
+                                    {displayTitle}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Center Narrow Tail / Strap (16px wide x 76px tall with 50mm Center Fold Divider) */}
+                          <div className="w-[16px] h-[76px] bg-white border-x border-dashed border-slate-400 shadow-2xs flex flex-col items-center justify-center my-[-1px] z-1 relative">
+                            <div className="w-full border-t border-dashed border-slate-400 absolute top-1/2 left-0 -translate-y-1/2" />
+                            <span className="text-[5px] text-slate-400 font-bold uppercase tracking-widest rotate-90 select-none bg-white px-0.5 z-2">
+                              FOLD
+                            </span>
+                          </div>
+
+                          {/* Bottom Wing (Wing 2 - 48px wide x 122px tall: Vertical Rectangle, Barcode Rotated 90° along length) */}
+                          <div className="w-full h-[122px] bg-white border border-dashed border-slate-400 rounded-b-sm shadow-xs flex items-center justify-center overflow-hidden relative">
+                            <div className="w-[114px] h-[42px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none p-1">
+                              <BarcodeSVG text={displaySku} height={22} barScale={0.85} className="w-[104px] h-6 flex items-center justify-center overflow-hidden" />
+                              {showSKU && showBarcodeText && (
+                                <span className="text-[7px] font-mono font-bold text-slate-800 tracking-widest mt-0.5 truncate">
+                                  {displaySku}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
                   ) : currentSpec.type === "tag" ? (
                     // Specialized 100x15 mm Butterfly Optical Tag
                     <div
@@ -1178,7 +1317,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                       {/* Left Wing */}
                       <div className="w-[160px] flex flex-col justify-center text-left leading-tight overflow-hidden pr-1">
                         {customHeader && (
-                          <span className="text-[6px] uppercase tracking-wider text-slate-400 font-bold block truncate">{customHeader}</span>
+                          <span className="text-[6px] uppercase tracking-wider text-slate-400 font-bold block truncate">
+                            {formatStoreHeaderForLabel(customHeader, 15)}
+                          </span>
                         )}
                         {showBrand && (
                           <span style={{ fontSize: `${brandFontSize}px` }} className="text-slate-900 truncate block font-extrabold">{item.brand || "GENERIC"}</span>
@@ -1224,7 +1365,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                       <div className="flex justify-between items-start">
                         <div className="flex flex-col min-w-0">
                           {customHeader && (
-                            <span className="text-[7px] uppercase tracking-wider text-slate-400 mb-0.5 truncate block font-bold">{customHeader}</span>
+                            <span className="text-[7px] uppercase tracking-wider text-slate-400 mb-0.5 truncate block font-bold">
+                              {formatStoreHeaderForLabel(customHeader, 20)}
+                            </span>
                           )}
                           {showBrand && (
                             <span style={{ fontSize: `${brandFontSize}px` }} className="text-slate-800 truncate block font-extrabold">{item.brand || "GENERIC"}</span>

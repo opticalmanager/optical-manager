@@ -666,8 +666,9 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                           <td className="border-r border-black px-1.5 py-1 text-[8.5px] leading-tight break-words">
                             <div className="font-bold text-black uppercase">{item.description}</div>
                             {item.hsnCode && (
-                              <div className="text-[7.5px] font-bold text-black mt-0.5">
-                                HSN: {item.hsnCode}
+                              <div className="text-[7px] leading-none font-bold text-slate-700 mt-0.5 inline-flex items-center gap-0.5 tracking-tight">
+                                <span className="text-[6.5px] uppercase font-bold text-slate-500">HSN:</span>
+                                <span className="font-mono font-bold text-black">{item.hsnCode}</span>
                               </div>
                             )}
                           </td>
@@ -1433,21 +1434,10 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                           {item.description}
                         </div>
 
-                        {/* Render Prescription details if Frame or Lens and has a prescription */}
-                        {(item.category === "FRAME" || item.category === "LENS") && latestPrescription && (
-                          <div className="text-[7.5px] text-slate-500 font-bold mt-1 space-y-0.5 border-t border-slate-100 pt-1">
-                            <div className="flex justify-between">
-                              <span>RE: {latestPrescription.rightSphere ? `SPH ${latestPrescription.rightSphere}` : ""} {latestPrescription.rightCylinder ? `CYL ${latestPrescription.rightCylinder}` : ""} {latestPrescription.rightAxis ? `AX ${latestPrescription.rightAxis}°` : ""}{latestPrescription.rightAdd ? ` ADD ${latestPrescription.rightAdd}` : ""}{latestPrescription.pdRight ? ` PD ${latestPrescription.pdRight}mm` : ""}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>LE: {latestPrescription.leftSphere ? `SPH ${latestPrescription.leftSphere}` : ""} {latestPrescription.leftCylinder ? `CYL ${latestPrescription.leftCylinder}` : ""} {latestPrescription.leftAxis ? `AX ${latestPrescription.leftAxis}°` : ""}{latestPrescription.leftAdd ? ` ADD ${latestPrescription.leftAdd}` : ""}{latestPrescription.pdLeft ? ` PD ${latestPrescription.pdLeft}mm` : ""}</span>
-                            </div>
-                          </div>
-                        )}
-
                         {item.hsnCode && (
-                          <div className="text-[7px] text-slate-400 mt-1 uppercase font-bold">
-                            HSN: {item.hsnCode}
+                          <div className="text-[7px] leading-none font-bold text-slate-600 mt-0.5 inline-flex items-center gap-0.5 tracking-tight">
+                            <span className="text-[6.5px] uppercase font-bold text-slate-400">HSN:</span>
+                            <span className="font-mono font-bold text-slate-800">{item.hsnCode}</span>
                           </div>
                         )}
                       </td>

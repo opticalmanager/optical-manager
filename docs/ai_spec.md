@@ -52,12 +52,17 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
 
 1. **Multimodal OCR & Resilient Model Architecture**:
    - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience:
-     - `gemini-3.5-flash-lite` (Primary / Recommended: ultra-fast ~5-6s latency, high throughput, zero 503 overload errors)
-     - `gemini-2.5-flash` (High reliability & structured OCR accuracy)
-     - `gemini-3.5-flash` (Advanced multi-page complex document reasoning)
+     - `gemini-3.6-flash` (Primary / Recommended: rock-solid uptime, zero 503 overload errors, high-precision OCR extraction)
+     - `gemini-3.5-flash` (Fast standard multimodal flash, ~2.5s response time)
+     - `gemini-3.7-flash` (Next-generation high-capability vision reasoning)
      - `gemini-3.8-flash` (Next-generation preview fallback)
-   - Stale/retired models (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-3.1-flash-lite`, `gemini-flash-latest`) are sanitized and auto-migrated to `gemini-3.5-flash-lite`.
-   - **Timeout Protection**: Each candidate model call is wrapped with a 22-second `Promise.race` timeout, preventing stalls from overloaded servers.
+     - `gemini-3.5-flash-lite` (Ultra-fast lightweight fallback)
+   - Stale/retired models (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-3.1-flash-lite`, `gemini-flash-latest`) are sanitized and auto-migrated to `gemini-3.6-flash`.
+   - **Transient 503 Spike Backoff**: Applies a 500ms delay retry upon encountering Google endpoint 503 high-demand surges before cascading to the next fallback candidate.
+   - **Timeout Protection**: Each candidate model call is wrapped with a 32-second `Promise.race` timeout, preventing stalls while allowing complex dense multi-item invoices ample time to generate.
+   - **Large Payload Ingestion**: `next.config.ts` configures `serverActions.bodySizeLimit: "15mb"`, ensuring multi-page PDFs and high-resolution camera captures bypass default 1MB limits without HTTP 413 errors.
+   - **Resilient JSON & Numerical Parser**: Extracts outermost JSON structures and scrubs currency signs, percentage characters, and commas (e.g. `₹ 1,200.50`), preventing `NaN` math corruptions.
+   - **Batch Rate-Limit Throttling**: Automatically introduces a 400ms pause between sequential batch uploads in `BillScanDrawer.tsx` to maintain safety margins under Google Gemini RPM quotas.
    - Supports JPG, PNG, WEBP images and single-page PDF supplier bills.
    - Enforces structured JSON output via `generationConfig: { responseMimeType: "application/json" }`.
 

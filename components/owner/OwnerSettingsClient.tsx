@@ -199,7 +199,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
 
   // AI Settings Modal state
   const [aiApiKey, setAiApiKey] = useState("");
-  const [aiModel, setAiModel] = useState("gemini-3.5-flash");
+  const [aiModel, setAiModel] = useState("gemini-3.6-flash");
   const [showAiKey, setShowAiKey] = useState(false);
   const [isTestingAiKey, setIsTestingAiKey] = useState(false);
   const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -209,20 +209,21 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
   useEffect(() => {
     if (activeModal === "ai") {
       const validModels = [
-        "gemini-3.5-flash-lite",
-        "gemini-2.5-flash",
+        "gemini-3.6-flash",
         "gemini-3.5-flash",
+        "gemini-3.7-flash",
         "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
       ];
       getOrganizationAiStatusAction().then((status) => {
         if (status.model) {
-          setAiModel(validModels.includes(status.model) ? status.model : "gemini-3.5-flash-lite");
+          setAiModel(validModels.includes(status.model) ? status.model : "gemini-3.6-flash");
         }
       });
       const orgAi = organization?.settings?.ai;
       if (orgAi?.geminiApiKey) setAiApiKey(orgAi.geminiApiKey);
       if (orgAi?.geminiModel) {
-        setAiModel(validModels.includes(orgAi.geminiModel) ? orgAi.geminiModel : "gemini-3.5-flash-lite");
+        setAiModel(validModels.includes(orgAi.geminiModel) ? orgAi.geminiModel : "gemini-3.6-flash");
       }
     }
   }, [activeModal, organization]);
@@ -1486,10 +1487,11 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                   onChange={(e) => setAiModel(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-white cursor-pointer"
                 >
-                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Recommended - Ultra-Fast OCR ~5-6s)</option>
-                  <option value="gemini-2.5-flash">gemini-2.5-flash (High Reliability &amp; Structured Data)</option>
-                  <option value="gemini-3.5-flash">gemini-3.5-flash (Advanced Multi-Page Reasoning)</option>
+                  <option value="gemini-3.6-flash">gemini-3.6-flash (Recommended - High Reliability &amp; Structured OCR)</option>
+                  <option value="gemini-3.5-flash">gemini-3.5-flash (Ultra-Fast ~2.5s Standard Flash)</option>
+                  <option value="gemini-3.7-flash">gemini-3.7-flash (Next-Gen Flash OCR)</option>
                   <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash Preview)</option>
+                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Flash Lite)</option>
                 </select>
               </div>
 

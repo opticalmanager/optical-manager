@@ -11,9 +11,10 @@ interface ShopLayoutClientProps {
   children: React.ReactNode;
   user: any;
   shop: any;
+  organizationName?: string;
 }
 
-export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps) {
+export function ShopLayoutClient({ children, user, shop, organizationName }: ShopLayoutClientProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
@@ -30,6 +31,8 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
   useEffect(() => {
     if (user) {
       const activeShopId = shop?.id || user?.shopId || null;
+      const effectiveOrgName = organizationName || shop?.name || "Optical Store";
+
       offlineDB.saveUserSession({
         id: user.id,
         email: user.email,
@@ -40,6 +43,9 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
         shopName: shop?.name || "Corporate Outlet",
       });
       if (typeof window !== "undefined") {
+        if (effectiveOrgName) {
+          localStorage.setItem("om_organization_name", effectiveOrgName);
+        }
         if (activeShopId) {
           localStorage.setItem("om_active_shop_id", activeShopId);
         }
@@ -52,11 +58,12 @@ export function ShopLayoutClient({ children, user, shop }: ShopLayoutClientProps
             role: user.role,
             shopId: activeShopId,
             shopName: shop?.name || "Corporate Outlet",
+            organizationName: effectiveOrgName,
           })
         );
       }
     }
-  }, [user, shop]);
+  }, [user, shop, organizationName]);
 
   const handleToggleCollapse = () => {
     setIsCollapsed((prev) => {

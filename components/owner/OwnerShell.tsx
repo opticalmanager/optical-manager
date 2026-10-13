@@ -27,6 +27,12 @@ export function OwnerShell({
 }: OwnerShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  React.useEffect(() => {
+    if (organizationName && typeof window !== "undefined") {
+      localStorage.setItem("om_organization_name", organizationName);
+    }
+  }, [organizationName]);
+
   return (
     <OfflineProvider shopId={shopId}>
       <div className="min-h-screen flex bg-[#F7F8FA] text-slate-800 font-sans">

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/services/auth.service";
 import { getShopById } from "@/services/shop.service";
+import { getOrganizationById } from "@/services/organization.service";
 import { ShopLayoutClient } from "@/components/layout/ShopLayoutClient";
 import { exitShopConsoleAction } from "@/actions/auth.actions";
 import { Sparkles, ArrowLeft } from "lucide-react";
@@ -53,6 +54,25 @@ export default async function ShopDashboardLayout({
     }
   }
 
+  // Fetch organization metadata with offline resilience
+  let organization: any = null;
+  if (user.organizationId) {
+    try {
+      const orgTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Org lookup timeout")), 8000)
+      );
+      organization = await Promise.race([
+        getOrganizationById(user.organizationId),
+        orgTimeoutPromise,
+      ]);
+    } catch (orgErr) {
+      console.warn("[ShopDashboardLayout] Org lookup offline fallback:", orgErr);
+    }
+  }
+
+  const effectiveOrganizationName =
+    organization?.name || shop?.name || "OPTICAL STORE";
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#F6F7F9]">
       {user.isImpersonating && (
@@ -75,7 +95,11 @@ export default async function ShopDashboardLayout({
           </form>
         </div>
       )}
-      <ShopLayoutClient user={user} shop={shop}>
+      <ShopLayoutClient
+        user={user}
+        shop={shop}
+        organizationName={effectiveOrganizationName}
+      >
         {children}
       </ShopLayoutClient>
     </div>

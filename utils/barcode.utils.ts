@@ -14,12 +14,14 @@ export interface BarcodeItem {
 }
 
 export type LabelSizePreset =
-  | "100x15 mm (D-Gum Flap Tag)"
+  | "81x12 mm (Vertical 2-Up)"
+  | "81x12 mm (Vertical 1-Up)"
+  | "81x12 mm (D-Gum Flap Tag)"
   | "100x15 mm (Vertical 3-Up)"
   | "100x15 mm (Vertical 1-Up)"
   | "100x15 mm (Vertical 2-Up)"
   | "100x15 mm (Tag)"
-  | "81x12 mm (D-Gum Flap Tag)"
+  | "100x15 mm (D-Gum Flap Tag)"
   | "50x25 mm (Standard)"
   | "38x25 mm (Compact Jewel)"
   | "40x30 mm (Medium Box)"
@@ -98,7 +100,7 @@ export const DEFAULT_DGUM_CONFIG: DGumFlapConfig = {
   adhesiveSectionLengthMm: 30,
   orientation: "horizontal",
   barcode: {
-    orientation: "horizontal",
+    orientation: "vertical",
     widthMm: 21,
     heightMm: 5.5,
     quietZoneMm: 1.5,
@@ -174,11 +176,124 @@ export interface UserBarcodePreferences {
   borderStyle?: "dashed" | "solid" | "none";
   fontFamily?: "modern" | "mono" | "classic";
   fontWeight?: "regular" | "bold";
+  barcodeOrientation?: "horizontal" | "vertical";
 }
 
 export const BARCODE_PREFERENCES_STORAGE_KEY = "optical_barcode_preferences_v1";
-export const DEFAULT_BARCODE_PRESET: LabelSizePreset = "81x12 mm (D-Gum Flap Tag)";
+export const DEFAULT_BARCODE_PRESET: LabelSizePreset = "81x12 mm (Vertical 2-Up)";
 export const DEFAULT_PAPER_SIZE: "continuous" | "a4" | "a5" = "continuous";
+
+/**
+ * Smart adaptive organization / store name formatting for micro barcode labels.
+ * Frame tags have strict physical printable boundaries (e.g. 14mm / ~15 chars max alongside the retail price badge).
+ *
+ * Rules:
+ * 1. Strips URL protocols and domain extensions (e.g., https://, .store, www.)
+ * 2. Strips automated metadata fluff like "'s Organization" or standalone "Organization"
+ * 3. Strips corporate/legal entity suffixes (e.g. "Pvt Ltd", "Private Limited", "LLP", "Enterprises")
+ * 4. If clean name <= maxLen (e.g. "Punjab Optics" = 13 chars <= 15), preserves completely in uppercase.
+ * 5. If > maxLen, intelligently compresses optical retail terms:
+ *    - "OPTICALS" / "OPTICIANS" -> "OPTICS" (if candidate <= maxLen)
+ *    - "OPTICALS" / "OPTICIANS" / "OPTICAL" / "OPTICS" -> "OPT"
+ *    - "EYEWEAR" / "EYECARE" -> "EYE"
+ *    - "CLINIC" -> "CLN"
+ *    - "STORE" / "SHOP" / "CENTER" / "CENTRE" -> stripped
+ * 6. If still > maxLen for multi-word names:
+ *    - Fits first word + abbreviated second word (e.g. "CHANDIGARH OPT.")
+ *    - Or initials for preceding words (e.g. "SRI VENKATESHWARA OPT" -> "S.V. OPT")
+ * 7. Guaranteed fallback cap <= maxLen with dot indicator (never exceeds fixed physical space).
+ */
+export function formatStoreHeaderForLabel(rawName?: string | null, maxLen = 15): string {
+  if (!rawName || !rawName.trim()) return "OPTICAL";
+  let name = rawName.trim();
+
+  // 1. Strip URLs or domain prefixes/suffixes
+  name = name.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\.[a-z]{2,}(\/.*)?$/i, "");
+
+  // 2. Strip auto-generated organization suffixes
+  name = name.replace(/['’]s\s+organization\b/gi, "");
+  name = name.replace(/\borganization\b/gi, "");
+
+  // 3. Strip legal entity & generic corporate fluff
+  name = name.replace(/\b(pvt\.?\s*ltd\.?|private\s*limited|ltd\.?|limited|llp|inc\.?|solutions|enterprises)\b/gi, "");
+
+  // Normalize spaces
+  name = name.trim().replace(/\s+/g, " ");
+  let clean = name.toUpperCase();
+  if (!clean || clean === "CLINICAL OPTICAL") return "OPTICAL";
+
+  if (clean.length <= maxLen) return clean;
+
+  // 4a. Common Optical Soft Compression: OPTICALS / OPTICIANS to OPTICS if it fits
+  if (clean.includes("OPTICALS") || clean.includes("OPTICIANS")) {
+    const candidate = clean.replace(/\b(OPTICALS|OPTICIANS)\b/g, "OPTICS");
+    if (candidate.length <= maxLen) return candidate;
+  }
+
+  // 4b. Deeper compression to standard industry abbreviations
+  clean = clean.replace(/\b(OPTICALS?|OPTICIANS?|OPTICS?)\b/g, "OPT");
+  if (clean.length <= maxLen) return clean;
+
+  clean = clean.replace(/\b(EYEWEAR|EYECARE)\b/g, "EYE");
+  if (clean.length <= maxLen) return clean;
+
+  clean = clean.replace(/\bCLINIC\b/g, "CLN");
+  clean = clean.replace(/\b(STORE|SHOP|CENTRE|CENTER)\b/g, "");
+  clean = clean.trim().replace(/\s+/g, " ");
+  if (clean.length <= maxLen) return clean;
+
+  // 5. Multi-word intelligent abbreviation
+  const words = clean.split(" ").filter(Boolean);
+  if (words.length >= 2) {
+    const w1 = words[0];
+    const w2 = words[1];
+
+    // If first word fits with abbreviated second word
+    if (w1.length <= maxLen - 4) {
+      const candidate = `${w1} ${w2.slice(0, maxLen - w1.length - 2)}.`;
+      if (candidate.length <= maxLen) return candidate;
+    }
+
+    // If 3+ words: use initials for preceding words + last word
+    if (words.length >= 3) {
+      const initials = words.slice(0, -1).map((w) => w[0]).join(".") + ".";
+      const last = words[words.length - 1];
+      const candidate = `${initials} ${last}`;
+      if (candidate.length <= maxLen) return candidate;
+    }
+  }
+
+  // 6. Hard limit guarantee: cleanly slice and append dot to never exceed maxLen
+  return clean.slice(0, maxLen - 1).trim() + ".";
+}
+
+/**
+ * Resolves the active store / organization header dynamically from local storage or cached user session,
+ * eliminating hardcoded dummy/mock defaults like "CLINICAL OPTICAL" and auto-formatting for micro tags.
+ */
+export function getDefaultStoreHeader(fallback = "OPTICAL STORE"): string {
+  if (typeof window !== "undefined") {
+    try {
+      const orgName = localStorage.getItem("om_organization_name");
+      if (orgName && orgName.trim() && orgName.trim().toUpperCase() !== "CLINICAL OPTICAL") {
+        return formatStoreHeaderForLabel(orgName);
+      }
+      const cached = localStorage.getItem("om_cached_user");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const name = parsed.organizationName || parsed.shopName;
+        if (name && name.trim() && name.trim().toUpperCase() !== "CLINICAL OPTICAL") {
+          return formatStoreHeaderForLabel(name);
+        }
+      }
+      const shopName = localStorage.getItem("om_active_shop_name");
+      if (shopName && shopName.trim() && shopName.trim().toUpperCase() !== "CLINICAL OPTICAL") {
+        return formatStoreHeaderForLabel(shopName);
+      }
+    } catch {}
+  }
+  return formatStoreHeaderForLabel(fallback);
+}
 
 export function loadBarcodePreferences(): UserBarcodePreferences | null {
   if (typeof window === "undefined") return null;
@@ -186,6 +301,10 @@ export function loadBarcodePreferences(): UserBarcodePreferences | null {
     const raw = localStorage.getItem(BARCODE_PREFERENCES_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as UserBarcodePreferences;
+    // Automatically upgrade legacy placeholder "CLINICAL OPTICAL" to the actual store/organization name
+    if (parsed.customHeader && parsed.customHeader.trim().toUpperCase() === "CLINICAL OPTICAL") {
+      parsed.customHeader = getDefaultStoreHeader();
+    }
     return parsed;
   } catch {
     return null;
@@ -228,6 +347,50 @@ export interface LabelSpec {
 }
 
 export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
+  "81x12 mm (Vertical 2-Up)": {
+    id: "81x12 mm (Vertical 2-Up)",
+    displayName: "81×12 mm Vertical (2-Across Roll) ⭐",
+    widthMm: 12,
+    heightMm: 81,
+    type: "vertical-tag",
+    description: "2 Vertical Flap Tags Across Roll (28×81mm Thermal Web, NTK Standard)",
+    defaultBarcodeHeight: 14,
+    maxBarcodeHeight: 18,
+    defaultBrandFontSize: 6.5,
+    defaultPriceFontSize: 7.5,
+    defaultDescFontSize: 5.5,
+    a4Cols: 6,
+    a4Rows: 2,
+    a4Total: 12,
+    a5Cols: 3,
+    a5Rows: 1,
+    a5Total: 3,
+    rollCols: 2,
+    rollWidthMm: 28,
+    rollHeightMm: 81,
+  },
+  "81x12 mm (Vertical 1-Up)": {
+    id: "81x12 mm (Vertical 1-Up)",
+    displayName: "81×12 mm Vertical (1-Across Roll)",
+    widthMm: 12,
+    heightMm: 81,
+    type: "vertical-tag",
+    description: "Single-Column Vertical Flap Tag (12×81mm Continuous Roll, NTK Standard)",
+    defaultBarcodeHeight: 14,
+    maxBarcodeHeight: 18,
+    defaultBrandFontSize: 6.5,
+    defaultPriceFontSize: 7.5,
+    defaultDescFontSize: 5.5,
+    a4Cols: 6,
+    a4Rows: 2,
+    a4Total: 12,
+    a5Cols: 3,
+    a5Rows: 1,
+    a5Total: 3,
+    rollCols: 1,
+    rollWidthMm: 12,
+    rollHeightMm: 81,
+  },
   "100x15 mm (Vertical 3-Up)": {
     id: "100x15 mm (Vertical 3-Up)",
     displayName: "100×15 mm Vertical (3-Across Roll)",
@@ -510,18 +673,36 @@ export function encodeCode128B(text: string): string {
 }
 
 export function buildCode128SvgString(text: string, height: number, barScale = 1.0): string {
-  const pattern = encodeCode128B(text);
-  const barWidth = barScale;
-  const totalWidth = pattern.length * barWidth;
-  const bars = pattern
-    .split("")
-    .map((bit, idx) =>
-      bit === "1"
-        ? `<rect x="${idx * barWidth}" y="0" width="${barWidth}" height="${height}" fill="black"/>`
-        : ""
-    )
-    .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${height}" width="100%" height="${height}" preserveAspectRatio="none">${bars}</svg>`;
+  const clean = text && text.trim() ? text.trim() : "FRM-00001";
+  const values: number[] = [104]; // Start Code B
+  for (let i = 0; i < clean.length; i++) {
+    const code = clean.charCodeAt(i);
+    values.push(code >= 32 && code <= 126 ? code - 32 : 0);
+  }
+  let checksum = values[0];
+  for (let i = 1; i < values.length; i++) {
+    checksum += values[i] * i;
+  }
+  values.push(checksum % 103);
+  values.push(106); // Stop character
+
+  let currentX = 0;
+  const rects: string[] = [];
+
+  for (const v of values) {
+    const pattern = CODE128_PATTERNS[v] || "212222";
+    let isBar = true;
+    for (let c = 0; c < pattern.length; c++) {
+      const w = parseInt(pattern[c], 10) * barScale;
+      if (isBar) {
+        rects.push(`<rect x="${currentX}" y="0" width="${w}" height="${height}" fill="#000000"/>`);
+      }
+      currentX += w;
+      isBar = !isBar;
+    }
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${currentX} ${height}" width="100%" height="100%" preserveAspectRatio="none" style="display:block;width:100%;height:100%;shape-rendering:crispEdges;">${rects.join("")}</svg>`;
 }
 
 // ─── Code 39 barcode encoding table (Fallback / Legacy) ───────────────────────
@@ -555,17 +736,23 @@ export function encodeCode39(text: string): string {
 
 export function buildCode39SvgString(text: string, height: number, barScale = 1.4): string {
   const pattern = encodeCode39(text);
-  const barWidth = barScale;
-  const totalWidth = pattern.length * barWidth;
-  const bars = pattern
-    .split("")
-    .map((bit, idx) =>
-      bit === "1"
-        ? `<rect x="${idx * barWidth}" y="0" width="${barWidth}" height="${height}" fill="black"/>`
-        : ""
-    )
-    .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${height}" width="100%" height="${height}" preserveAspectRatio="none">${bars}</svg>`;
+  let currentX = 0;
+  const rects: string[] = [];
+  let i = 0;
+  while (i < pattern.length) {
+    const bit = pattern[i];
+    let runLen = 0;
+    while (i < pattern.length && pattern[i] === bit) {
+      runLen++;
+      i++;
+    }
+    const w = runLen * barScale;
+    if (bit === "1") {
+      rects.push(`<rect x="${currentX}" y="0" width="${w}" height="${height}" fill="#000000"/>`);
+    }
+    currentX += w;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${currentX} ${height}" width="100%" height="100%" preserveAspectRatio="none" style="display:block;width:100%;height:100%;shape-rendering:crispEdges;">${rects.join("")}</svg>`;
 }
 
 export function buildBarcodeSvgString(
@@ -651,10 +838,7 @@ export function buildOneVerticalTagHtml(
   options?: BarcodeLabelOptions
 ): string {
   const { widthMm, heightMm, maxBarcodeHeight } = spec;
-  const barcodeHeight = Math.min(
-    options?.barcodeHeight ?? spec.defaultBarcodeHeight,
-    maxBarcodeHeight
-  );
+  const is81mmFlap = heightMm === 81;
 
   const showBrand = options?.showBrand ?? true;
   const showItemName = options?.showItemName ?? true;
@@ -681,19 +865,27 @@ export function buildOneVerticalTagHtml(
       : "Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif";
   const fontWeightCss = fontWeight === "bold" ? "700" : "400";
 
-  const borderCss =
-    borderStyle === "dashed"
-      ? "1px dashed #64748b"
+  // Thermal printheads require pure solid black for lines and text
+  const flapBorderCss =
+    borderStyle === "none"
+      ? "none"
       : borderStyle === "solid"
       ? "1px solid #000000"
-      : "1px solid transparent";
+      : "1px dashed #000000";
 
-  const headerHtml = customHeader
-    ? `<span style="font-size:5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:18mm;">${customHeader}</span>`
-    : `<span style="font-size:5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:18mm;">CLINICAL OPTICAL</span>`;
+  const defaultHeader = getDefaultStoreHeader();
+  const rawHeader =
+    customHeader && customHeader.trim() && customHeader.trim().toUpperCase() !== "CLINICAL OPTICAL"
+      ? customHeader.trim()
+      : defaultHeader;
+  const effectiveHeader = formatStoreHeaderForLabel(rawHeader, 15);
+
+  const headerHtml = effectiveHeader
+    ? `<span style="font-size:4.8px;text-transform:uppercase;letter-spacing:0.06em;color:#000000;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:14mm;line-height:1;">${effectiveHeader}</span>`
+    : "";
 
   const brandHtml = showBrand
-    ? `<span style="font-size:${Math.min(brandFontSize, 7.5)}px;color:#0f172a;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};display:block;">${item.brand || item.category || "OPTICAL"}</span>`
+    ? `<span style="font-size:${Math.min(brandFontSize, 7)}px;color:#000000;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};display:block;">${item.brand || item.category || "OPTICAL"}</span>`
     : "";
 
   const displayTitle = resolveDisplayTitle(
@@ -704,32 +896,89 @@ export function buildOneVerticalTagHtml(
     item.productCode || item.sku
   );
   const itemNameHtml = showItemName
-    ? `<span style="font-size:${Math.min(descriptionFontSize, 6.5)}px;color:#475569;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;margin-top:0.5px;">${displayTitle}</span>`
+    ? `<span style="font-size:${Math.min(descriptionFontSize, 5.8)}px;color:#000000;line-height:1.05;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;margin-top:0.3mm;max-width:22mm;">${displayTitle}</span>`
     : "";
 
   const priceHtml =
     showPrice && formattedPrice
-      ? `<span style="font-size:${Math.min(priceFontSize, 8)}px;color:#2563eb;font-weight:800;white-space:nowrap;flex-shrink:0;margin-left:2px;">${formattedPrice}</span>`
+      ? `<span style="font-size:${Math.min(priceFontSize, 8)}px;color:#000000;font-weight:900;white-space:nowrap;flex-shrink:0;margin-left:2px;">${formattedPrice}</span>`
       : "";
 
   const fallbackSku = item.category
     ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001`
     : "FRM-GEN-00001";
   const skuCode = item.sku || fallbackSku;
-  const barcodeSvg = buildCode128SvgString(skuCode, 24, 0.95);
+  const barcodeSvg = buildCode128SvgString(skuCode, 22, 0.9);
 
   const skuTextHtml =
     showSKU && showBarcodeText
-      ? `<span style="font-size:5.5px;font-family:'Courier New',monospace;letter-spacing:0.12em;font-weight:700;color:#1e293b;display:block;margin-top:0.5mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
+      ? `<span style="font-size:5px;font-family:'Courier New',monospace;letter-spacing:0.08em;font-weight:700;color:#000000;display:block;margin-top:0.3mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
       : "";
 
-  const flapBorderCss =
-    borderStyle === "none"
-      ? "none"
-      : borderStyle === "solid"
-      ? "1px solid #000000"
-      : "1px dashed #cbd5e1";
+  // 81mm NTK Flap Tag layout (25.5mm Wing 1 + Fold + 25.5mm Wing 2 + 30mm Tail = 81mm total)
+  if (is81mmFlap) {
+    return `
+    <div class="barcode-vertical-tag barcode-vertical-81x12" style="
+      width:${widthMm}mm;
+      max-width:${widthMm}mm;
+      min-width:${widthMm}mm;
+      height:${heightMm}mm;
+      max-height:${heightMm}mm;
+      min-height:${heightMm}mm;
+      flex-shrink:0;
+      flex-grow:0;
+      box-sizing:border-box;
+      background:#ffffff;
+      font-family:${fontFamilyCss};
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-start;
+      align-items:center;
+      overflow:hidden;
+      break-inside:avoid;
+      page-break-inside:avoid;
+      border:none;
+      margin:0;
+      padding:0;
+    ">
+      <!-- 51mm Head: Foldable Printable Body (Wing 1 [25.5mm] + Fold Line + Wing 2 [25.5mm]) -->
+      <div style="width:100%;height:51mm;max-height:51mm;min-height:51mm;box-sizing:border-box;display:flex;flex-direction:column;border:${flapBorderCss};border-radius:1mm 1mm 0 0;overflow:hidden;background:#ffffff;flex-shrink:0;">
+        <!-- Wing 1 (Front Wing along feed: 25.5mm length) -->
+        <div style="width:100%;height:25.5mm;max-height:25.5mm;min-height:25.5mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;flex-shrink:0;">
+          <div style="width:23.5mm;height:10.5mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;padding:0.3mm 0.6mm;transform:rotate(90deg);transform-origin:center center;overflow:hidden;line-height:1.15;flex-shrink:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;min-width:0;">
+              ${headerHtml}
+              ${priceHtml}
+            </div>
+            <div style="display:flex;flex-direction:column;width:100%;min-width:0;overflow:hidden;">
+              ${brandHtml}
+              ${itemNameHtml}
+            </div>
+          </div>
+        </div>
 
+        <!-- Central Fold Indicator at exactly 25.5mm -->
+        <div style="width:100%;height:0;border-top:1px dashed #000000;position:relative;flex-shrink:0;"></div>
+
+        <!-- Wing 2 (Back Wing along feed: 25.5mm length with 90° Barcode & SKU) -->
+        <div style="width:100%;height:25.5mm;max-height:25.5mm;min-height:25.5mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;flex-shrink:0;">
+          <div style="width:23.5mm;height:10.5mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(90deg);transform-origin:center center;overflow:hidden;flex-shrink:0;">
+            <div style="width:21.5mm;height:6.8mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+              ${barcodeSvg}
+            </div>
+            ${skuTextHtml}
+          </div>
+        </div>
+      </div>
+
+      <!-- Adhesive-Free Tail (30mm length along feed, 2.8mm thickness) -->
+      <div style="width:100%;height:30mm;max-height:30mm;min-height:30mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;background:transparent;flex-shrink:0;">
+        <div style="width:2.8mm;height:100%;border-left:${flapBorderCss};border-right:${flapBorderCss};border-bottom:${flapBorderCss};border-radius:0 0 1.4mm 1.4mm;background:#ffffff;"></div>
+      </div>
+    </div>`;
+  }
+
+  // Standard 100mm Vertical Butterfly Tag (38mm Wing 1 + 24mm Bridge + 38mm Wing 2)
   return `
     <div class="barcode-vertical-tag" style="
       width:${widthMm}mm;
@@ -768,8 +1017,8 @@ export function buildOneVerticalTagHtml(
 
       <!-- Center Tail / Strap: Narrow Bridge (~24mm with 50mm center fold dividing 100mm length) -->
       <div style="width:5mm;height:24mm;box-sizing:border-box;background:#ffffff;border-left:${flapBorderCss};border-right:${flapBorderCss};display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;position:relative;">
-        <div style="position:absolute;top:50%;left:0;width:100%;border-top:1px dashed #cbd5e1;transform:translateY(-50%);"></div>
-        <span style="font-size:4px;color:#94a3b8;font-weight:700;transform:rotate(90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;background:#ffffff;position:relative;z-index:1;padding:0 1px;">FOLD</span>
+        <div style="position:absolute;top:50%;left:0;width:100%;border-top:1px dashed #000000;transform:translateY(-50%);"></div>
+        <span style="font-size:4px;color:#000000;font-weight:700;transform:rotate(90deg);white-space:nowrap;letter-spacing:1px;text-transform:uppercase;background:#ffffff;position:relative;z-index:1;padding:0 1px;">FOLD</span>
       </div>
 
       <!-- Bottom Flap (Wing 2): Barcode & SKU (Vertical Tag 90° Orientation along 38mm length) -->
@@ -840,22 +1089,29 @@ export function buildOneDGumFlapTagHtml(
 
   const outerBorderCss =
     borderStyle === "dashed"
-      ? "1px dashed #cbd5e1"
+      ? "1px dashed #000000"
       : borderStyle === "solid"
       ? "1px solid #000000"
       : "1px solid transparent";
 
   const dividerBorderCss =
     borderStyle === "none"
-      ? "1px dashed #e2e8f0"
-      : "1px dashed #cbd5e1";
+      ? "1px dashed #000000"
+      : "1px dashed #000000";
 
-  const headerHtml = customHeader
-    ? `<span style="font-size:4.5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16mm;line-height:1;">${customHeader}</span>`
-    : `<span style="font-size:4.5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16mm;line-height:1;">OPTICAL FRAME</span>`;
+  const defaultHeader = getDefaultStoreHeader();
+  const rawHeader =
+    customHeader && customHeader.trim() && customHeader.trim().toUpperCase() !== "CLINICAL OPTICAL"
+      ? customHeader.trim()
+      : defaultHeader;
+  const effectiveHeader = formatStoreHeaderForLabel(rawHeader, 15);
+
+  const headerHtml = effectiveHeader
+    ? `<span style="font-size:4.5px;text-transform:uppercase;letter-spacing:0.06em;color:#000000;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:14mm;line-height:1;">${effectiveHeader}</span>`
+    : "";
 
   const brandHtml = showBrand
-    ? `<span style="font-size:${Math.min(brandFontSize, 7.5)}px;color:#0f172a;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};display:block;">${item.brand || item.category || "OPTICAL"}</span>`
+    ? `<span style="font-size:${Math.min(brandFontSize, 7)}px;color:#000000;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:${fontWeightCss};display:block;">${item.brand || item.category || "OPTICAL"}</span>`
     : "";
 
   const displayTitle = resolveDisplayTitle(
@@ -866,12 +1122,12 @@ export function buildOneDGumFlapTagHtml(
     item.productCode || item.sku
   );
   const itemNameHtml = showItemName
-    ? `<span style="font-size:${Math.min(descriptionFontSize, 6)}px;color:#475569;line-height:1.05;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;margin-top:0.3mm;">${displayTitle}</span>`
+    ? `<span style="font-size:${Math.min(descriptionFontSize, 5.5)}px;color:#000000;line-height:1.05;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;margin-top:0.3mm;max-width:23mm;">${displayTitle}</span>`
     : "";
 
   const priceHtml =
     showPrice && formattedPrice
-      ? `<span style="font-size:${Math.min(priceFontSize, 7.5)}px;color:#2563eb;font-weight:800;white-space:nowrap;flex-shrink:0;">${formattedPrice}</span>`
+      ? `<span style="font-size:${Math.min(priceFontSize, 7.5)}px;color:#000000;font-weight:900;white-space:nowrap;flex-shrink:0;">${formattedPrice}</span>`
       : "";
 
   const fallbackSku = item.category
@@ -879,9 +1135,13 @@ export function buildOneDGumFlapTagHtml(
     : "FRM-GEN-00001";
   const skuCode = item.sku || fallbackSku;
 
+  const isBarcodeVertical =
+    dGumConfig.barcode?.orientation === "vertical" ||
+    options?.dGumConfig?.barcode?.orientation === "vertical";
+
   // Physical Barcode: Uses millimeter-based container dimensions with quiet zones
-  const barcodeMaxW = Math.max(16, s2Mm - 5);
-  const barcodeHeight = dGumConfig.barcode?.heightMm || 6.2;
+  const barcodeMaxW = Math.max(18, s2Mm - 3);
+  const barcodeHeight = dGumConfig.barcode?.heightMm || 5.8;
   const barcodeSvg = buildBarcodeSvgString(
     skuCode,
     22,
@@ -891,7 +1151,7 @@ export function buildOneDGumFlapTagHtml(
 
   const skuTextHtml =
     showSKU && showBarcodeText
-      ? `<span style="font-size:4.6px;font-family:'Courier New',monospace;letter-spacing:0.08em;font-weight:700;color:#1e293b;display:block;margin-top:0.2mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
+      ? `<span style="font-size:4.8px;font-family:'Courier New',monospace;letter-spacing:0.08em;font-weight:700;color:#000000;display:block;margin-top:0.2mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
       : "";
 
   // Calibration transform
@@ -1041,7 +1301,7 @@ export function buildOneDGumFlapTagHtml(
           min-width:${s2Mm}mm;
           height:100%;
           box-sizing:border-box;
-          padding:0.3mm 0.6mm;
+          padding:0.2mm 0.5mm;
           display:flex;
           flex-direction:column;
           align-items:center;
@@ -1050,10 +1310,19 @@ export function buildOneDGumFlapTagHtml(
           text-align:center;
           background:#ffffff;
         ">
-          <div style="width:${barcodeMaxW}mm;height:${barcodeHeight}mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-            ${barcodeSvg}
-          </div>
-          ${skuTextHtml}
+          ${isBarcodeVertical ? `
+            <div style="width:${tagWidthMm - 1}mm;height:${Math.max(16, s2Mm - 2)}mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(90deg);transform-origin:center center;overflow:hidden;flex-shrink:0;">
+              <div style="width:${Math.max(16, s2Mm - 3)}mm;height:6.2mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                ${barcodeSvg}
+              </div>
+              ${skuTextHtml}
+            </div>
+          ` : `
+            <div style="width:${barcodeMaxW}mm;height:${barcodeHeight}mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+              ${barcodeSvg}
+            </div>
+            ${skuTextHtml}
+          `}
         </div>
       </div>
 
@@ -1133,8 +1402,15 @@ export function buildOneLabelHtml(
       ? "1px solid #000000"
       : "1px solid transparent";
 
-  const headerHtml = customHeader
-    ? `<span style="font-size:${type === "tag" ? "5.5px" : "6.5px"};text-transform:uppercase;letter-spacing:0.08em;color:#64748b;display:block;line-height:1;margin-bottom:1px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${customHeader}</span>`
+  const defaultHeader = getDefaultStoreHeader("");
+  const rawHeader =
+    customHeader && customHeader.trim() && customHeader.trim().toUpperCase() !== "CLINICAL OPTICAL"
+      ? customHeader.trim()
+      : defaultHeader;
+  const effectiveHeader = formatStoreHeaderForLabel(rawHeader, type === "tag" ? 15 : 22);
+
+  const headerHtml = effectiveHeader
+    ? `<span style="font-size:${type === "tag" ? "5.5px" : "6.5px"};text-transform:uppercase;letter-spacing:0.08em;color:#64748b;display:block;line-height:1;margin-bottom:1px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${effectiveHeader}</span>`
     : "";
 
   const brandHtml = showBrand

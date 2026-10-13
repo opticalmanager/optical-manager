@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
     "admin.localhost:3000",
     "localhost:3000",
   ],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "15mb",
+    },
+  },
 };
 
 export default nextConfig;

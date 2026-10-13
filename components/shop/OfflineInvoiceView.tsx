@@ -284,7 +284,15 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
               return (
                 <tr key={idx} className="text-slate-700">
                   <td className="py-2.5 font-medium text-slate-400">{idx + 1}</td>
-                  <td className="py-2.5 font-bold text-slate-800">{item.description}</td>
+                  <td className="py-2.5 font-bold text-slate-800">
+                    <div>{item.description}</div>
+                    {item.hsnCode && (
+                      <div className="text-[10px] leading-none font-semibold text-slate-500 mt-0.5 inline-flex items-center gap-0.5">
+                        <span className="text-[9px] uppercase font-bold text-slate-400">HSN:</span>
+                        <span className="font-mono text-slate-700">{item.hsnCode}</span>
+                      </div>
+                    )}
+                  </td>
                   <td className="py-2.5 text-center font-semibold">{item.quantity}</td>
                   <td className="py-2.5 text-right font-medium">{formatCurrency(item.unitPrice)}</td>
                   <td className="py-2.5 text-right font-medium text-slate-500">

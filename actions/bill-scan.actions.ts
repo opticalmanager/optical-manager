@@ -86,7 +86,7 @@ function sanitizeSpecString(val?: string | null): string | undefined {
 }
 
 /**
- * Sanitizes product codes/barcodes. Returns empty string if not a real code.
+ * Sanitizes product codes/barcodes. Preserves clean spacing and alphanumeric format.
  */
 function sanitizeCode(str?: string | null): string {
   if (!str) return "";
@@ -94,7 +94,100 @@ function sanitizeCode(str?: string | null): string {
   if (/^(n\/?a|none|null|undefined|-|unknown|nil)$/i.test(cleaned)) {
     return "";
   }
-  return cleaned.toUpperCase().replace(/[^A-Z0-9\-_./,]/g, "").slice(0, 50);
+  return cleaned
+    .toUpperCase()
+    .replace(/[^A-Z0-9\-_./\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 50);
+}
+
+/**
+ * Safely parses numbers from LLM responses, stripping currency symbols,
+ * commas (e.g. Indian/Western "1,200.50"), percentages, and handling null/undefined/NaN.
+ */
+function parseSafeNumber(val: any, defaultVal = 0): number {
+  if (val === null || val === undefined || val === "") return defaultVal;
+  if (typeof val === "number") return isNaN(val) ? defaultVal : val;
+  const cleaned = String(val)
+    .replace(/[₹$,%]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/,/g, "")
+    .trim();
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? defaultVal : num;
+}
+
+
+/**
+ * Normalizes raw category string to the strict optical category enum.
+ */
+function normalizeCategory(rawCat?: string | null): ExtractedBillItem["category"] {
+  if (!rawCat) return "FRAME";
+  const s = rawCat.toUpperCase().trim();
+  if (/SUNGLASS/i.test(s)) return "SUNGLASSES";
+  if (/CONTACT.*LENS/i.test(s) || /\bCL\b/i.test(s)) return "CONTACT_LENS";
+  if (/LENS/i.test(s)) return "LENS";
+  if (/SOLUTION/i.test(s)) return "SOLUTION";
+  if (/ACCESSOR/i.test(s)) return "ACCESSORY";
+  if (/FRAME/i.test(s)) return "FRAME";
+  return "FRAME";
+}
+
+/**
+ * Robust JSON extractor from Gemini responses, handling markdown code fences,
+ * preamble commentary, trailing commas, and arrays.
+ */
+function extractJsonFromText(text: string): any {
+  if (!text || !text.trim()) return {};
+  const trimmed = text.trim();
+
+  // 1. Direct JSON parse
+  try {
+    return JSON.parse(trimmed);
+  } catch (_) {}
+
+  // 2. Strip code fences
+  const cleanedFences = trimmed
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  try {
+    return JSON.parse(cleanedFences);
+  } catch (_) {}
+
+  // 3. Extract outermost JSON object { ... } or array [ ... ]
+  const firstBrace = cleanedFences.indexOf("{");
+  const lastBrace = cleanedFences.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      const slice = cleanedFences.slice(firstBrace, lastBrace + 1);
+      return JSON.parse(slice);
+    } catch (_) {}
+  }
+
+  const firstBracket = cleanedFences.indexOf("[");
+  const lastBracket = cleanedFences.lastIndexOf("]");
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    try {
+      const slice = cleanedFences.slice(firstBracket, lastBracket + 1);
+      return JSON.parse(slice);
+    } catch (_) {}
+  }
+
+  // 4. Sanitize trailing commas before brackets (common LLM JSON flaw)
+  try {
+    const noTrailingCommas = cleanedFences
+      .replace(/,\s*([}\]])/g, "$1")
+      .trim();
+    const fb = noTrailingCommas.indexOf("{");
+    const lb = noTrailingCommas.lastIndexOf("}");
+    if (fb !== -1 && lb > fb) {
+      return JSON.parse(noTrailingCommas.slice(fb, lb + 1));
+    }
+  } catch (_) {}
+
+  return {};
 }
 
 /**
@@ -298,10 +391,22 @@ export async function extractBillDataAction(
     };
   }
 
-  // Clean base64 header if present
-  const cleanBase64 = base64Data.includes("base64,")
-    ? base64Data.split("base64,")[1]
-    : base64Data;
+  // Clean base64 header if present and resolve true mimeType from header if available
+  let resolvedMimeType = mimeType;
+  let cleanBase64 = base64Data;
+  if (base64Data.startsWith("data:")) {
+    const commaIndex = base64Data.indexOf(",");
+    if (commaIndex !== -1) {
+      const headerPart = base64Data.slice(0, commaIndex);
+      cleanBase64 = base64Data.slice(commaIndex + 1);
+      const mimeMatch = headerPart.match(/data:([^;]+);base64/);
+      if (mimeMatch && mimeMatch[1]) {
+        resolvedMimeType = mimeMatch[1].trim();
+      }
+    }
+  } else if (base64Data.includes("base64,")) {
+    cleanBase64 = base64Data.split("base64,")[1];
+  }
 
   const categoriesContext = orgCategories && orgCategories.length > 0
     ? orgCategories.map((c) => `- ${c.name} (Code: "${c.code}", HSN: "${c.hsnCode || 'N/A'}", GST: ${c.igstPercent}%)`).join("\n")
@@ -350,24 +455,29 @@ CRITICAL RULES:
     const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
 
     // Prioritized list of high-availability vision models:
-    // 1. Primary configured model
-    // 2. gemini-3.5-flash-lite (fastest, ultra-low latency ~5-6s, highly available)
-    // 3. gemini-2.5-flash (verified active on Google AI Studio)
-    // 4. gemini-3.5-flash (standard flash)
-    // 5. gemini-3.8-flash (current generation fallback)
-    const primaryModel = aiConfig.model?.trim() || "gemini-3.5-flash-lite";
+    // 1. Primary configured model (auto-migrating retired gemini-2.5-flash to gemini-3.6-flash)
+    // 2. gemini-3.6-flash (high throughput, multi-modal OCR, rock-solid availability)
+    // 3. gemini-3.5-flash (fast standard flash)
+    // 4. gemini-3.7-flash (next-gen high capability)
+    // 5. gemini-3.8-flash (current generation preview)
+    // 6. gemini-3.5-flash-lite (ultra-fast lite)
+    let rawPrimary = aiConfig.model?.trim();
+    if (!rawPrimary || rawPrimary === "gemini-2.5-flash") {
+      rawPrimary = "gemini-3.6-flash";
+    }
+
     const stableModels = [
-      "gemini-3.5-flash-lite",
-      "gemini-2.5-flash",
+      "gemini-3.6-flash",
       "gemini-3.5-flash",
+      "gemini-3.7-flash",
       "gemini-3.8-flash",
+      "gemini-3.5-flash-lite",
     ];
-    // Prioritize gemini-3.5-flash-lite if primaryModel is gemini-3.5-flash (to avoid 503 high-demand errors),
-    // otherwise respect primaryModel, followed by remaining stable models
+
     const candidateFallbackModels = [
-      primaryModel === "gemini-3.5-flash" ? "gemini-3.5-flash-lite" : primaryModel,
+      rawPrimary,
       ...stableModels,
-    ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i);
+    ].filter((m, i, arr) => Boolean(m) && m !== "gemini-2.5-flash" && arr.indexOf(m) === i);
 
     let responseText: string | null = null;
     const attemptedErrors: { model: string; error: string }[] = [];
@@ -385,7 +495,7 @@ CRITICAL RULES:
         const generatePromise = model.generateContent([
           {
             inlineData: {
-              mimeType,
+              mimeType: resolvedMimeType,
               data: cleanBase64,
             },
           },
@@ -394,8 +504,8 @@ CRITICAL RULES:
 
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error(`Timeout: Model "${modelName}" took longer than 22s`)),
-            22000
+            () => reject(new Error(`Timeout: Model "${modelName}" took longer than 32s`)),
+            32000
           )
         );
 
@@ -415,6 +525,11 @@ CRITICAL RULES:
         if (errMsg.includes("API key not valid") || errMsg.includes("API_KEY_INVALID")) {
           throw err;
         }
+
+        // On 503 high demand spikes, add a brief 500ms delay before attempting the next fallback model
+        if (errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("Service Unavailable")) {
+          await new Promise((r) => setTimeout(r, 500));
+        }
       }
     }
 
@@ -423,8 +538,13 @@ CRITICAL RULES:
       const any403 = attemptedErrors.some((e) =>
         e.error.includes("denied access") || e.error.includes("403") || e.error.includes("PERMISSION_DENIED")
       );
-      const any404 = attemptedErrors.some((e) =>
-        e.error.includes("404") || e.error.includes("not found") || e.error.includes("no longer available")
+      const all404 =
+        attemptedErrors.length > 0 &&
+        attemptedErrors.every((e) =>
+          e.error.includes("404") || e.error.includes("not found") || e.error.includes("no longer available")
+        );
+      const any503 = attemptedErrors.some((e) =>
+        e.error.includes("503") || e.error.includes("high demand") || e.error.includes("Service Unavailable")
       );
       const anyInvalidKey = attemptedErrors.some((e) =>
         e.error.includes("API key not valid") || e.error.includes("API_KEY_INVALID")
@@ -449,7 +569,7 @@ CRITICAL RULES:
         };
       }
 
-      if (any404) {
+      if (all404) {
         return {
           success: false,
           needsKeySetup: true,
@@ -464,6 +584,13 @@ CRITICAL RULES:
         };
       }
 
+      if (any503) {
+        return {
+          success: false,
+          error: "Google AI servers are currently experiencing temporary high traffic. Please try again in a few moments.",
+        };
+      }
+
       const lastErr = attemptedErrors[attemptedErrors.length - 1];
       return {
         success: false,
@@ -471,22 +598,7 @@ CRITICAL RULES:
       };
     }
 
-    let parsed: any = {};
-    try {
-      parsed = JSON.parse(responseText);
-    } catch (parseErr) {
-      // Fallback: strip markdown code fences and whitespace
-      const cleanJson = responseText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      try {
-        parsed = JSON.parse(cleanJson);
-      } catch (e) {
-        console.error("Failed to parse Gemini JSON:", responseText);
-        parsed = {};
-      }
-    }
+    const parsed: any = extractJsonFromText(responseText);
 
     // Resilient raw items array detection (handles root array, parsed.items, or nested objects)
     let rawItems: RawGeminiItem[] = [];
@@ -576,10 +688,10 @@ CRITICAL RULES:
     ];
 
     const processedItems: ExtractedBillItem[] = rawItems.map((raw, idx) => {
-      const qty = Math.max(1, Math.round(Number(raw.quantity) || 1));
-      let rawUnitRate = Math.max(0, Number(raw.unitPrice) || 0);
-      const rawTaxable = Number(raw.taxableValue) || 0;
-      const rawDiscount = Number(raw.discountPercent) || 0;
+      const qty = Math.max(1, Math.round(parseSafeNumber(raw.quantity, 1)));
+      let rawUnitRate = Math.max(0, parseSafeNumber(raw.unitPrice, 0));
+      const rawTaxable = parseSafeNumber(raw.taxableValue, 0);
+      const rawDiscount = parseSafeNumber(raw.discountPercent, 0);
 
       // 1. Category Detection: Match via HSN code against organization's saved categories first!
       const rawCat = (raw.category || "").toUpperCase().trim();
@@ -590,13 +702,14 @@ CRITICAL RULES:
       } else if (validCategories.includes(rawCat)) {
         validCategory = rawCat as ExtractedBillItem["category"];
       } else {
-        validCategory = "FRAME";
+        validCategory = normalizeCategory(rawCat);
       }
 
       // 2. GST Rate Determination: Use row's GST if printed, otherwise default to matched category's rate
       const catObj = orgCategories.find((c) => c.code === validCategory);
       const catGst = catObj ? parseFloat(catObj.igstPercent) || 12 : 12;
-      const rawGst = Number(raw.gstPercent) > 0 ? Number(raw.gstPercent) : catGst;
+      const parsedGst = parseSafeNumber(raw.gstPercent, 0);
+      const rawGst = parsedGst > 0 ? parsedGst : catGst;
 
       // 3. Purchase Cost & Base Price Math Engine:
       // In Indian B2B GST tax invoices (under Section 31 of CGST Act), the printed item rate
@@ -716,6 +829,13 @@ CRITICAL RULES:
       confidence: processedItems.length > 0 ? "high" : "low",
       notes: parsed.notes?.trim(),
     };
+
+    if (processedItems.length === 0) {
+      return {
+        success: false,
+        error: "No line items could be detected on the document. Please ensure the bill table, item descriptions, and rates are clearly visible and well-lit.",
+      };
+    }
 
     return {
       success: true,
