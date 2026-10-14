@@ -20,6 +20,7 @@ import {
   Scale,
   CheckCircle2,
   RotateCw,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -39,6 +40,8 @@ import {
   DEFAULT_PAPER_SIZE,
   getDefaultStoreHeader,
   formatStoreHeaderForLabel,
+  generateOpticalTagTSPL,
+  downloadTSPLPrnFile,
 } from "@/utils/barcode.utils";
 import { getActiveOrganizationNameAction } from "@/actions/organization.actions";
 
@@ -441,6 +444,34 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
     toast.success(`Dispatched ${qty} barcode labels to printer.`);
   };
 
+  const handleDownloadTSPL = () => {
+    if (!item) return;
+    const qty = Math.max(1, Number(printQuantity) || 1);
+    const numPrice = item.price ? parseFloat(item.price) : 0;
+    const priceText = numPrice > 0 ? `Rs. ${numPrice.toLocaleString("en-IN")}/-` : "";
+    const displayTitle = resolveDisplayTitle(
+      item.name,
+      item.category,
+      item.brand,
+      item.model,
+      item.productCode || displaySku
+    );
+
+    const tspl = generateOpticalTagTSPL({
+      shopName: formatStoreHeaderForLabel(customHeader || defaultCustomHeader, 15),
+      category: item.category ? item.category.trim().toUpperCase() : "FRAME",
+      modelName: displayTitle,
+      priceText: priceText,
+      barcodeSku: displaySku,
+      copies: qty,
+      isGaplessContinuous: false,
+      ribbonInstalled: true,
+    });
+
+    downloadTSPLPrnFile(tspl, `tsc_${displaySku}_optical_tag.prn`);
+    toast.success(`Downloaded native TSC TSPL .PRN for ${qty} labels! Ready for TSC TTP-244 Plus.`);
+  };
+
   if (!isOpen || !item) return null;
 
   return (
@@ -696,8 +727,8 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     </div>
 
                     <div>
-                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                        Flip 180°
+                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1" title="Flip 180° for Driver Direction 0,0">
+                        Flip 180° (Direction 0,0)
                       </label>
                       <button
                         type="button"
@@ -707,6 +738,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                             ? "bg-amber-600 text-white border-amber-700 shadow-2xs"
                             : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                         }`}
+                        title="Toggles 180° rotation if workstation TSC driver uses Portrait (0° / DIRECTION 0,0)"
                       >
                         <RotateCw className="w-3 h-3" />
                         <span>{rotation === 180 ? "Flipped (180°)" : "Normal (0°)"}</span>
@@ -1089,9 +1121,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                           transform: rotation === 180 ? "rotate(180deg)" : "none",
                         }}
                       >
-                        {/* Left 51mm Head: Foldable Printable Body (63% = 340px) */}
+                        {/* Left 50mm Head: 25mm Text Flap (Zone 1) + 25mm Barcode Flap (Zone 2) */}
                         <div
-                          style={{ width: `${((dGumConfig.headLengthMm || 51) / 81) * 100}%` }}
+                          style={{ width: `${(50 / 81) * 100}%` }}
                           className={`h-full bg-white rounded-l-md shadow-md flex items-stretch overflow-hidden relative ${
                             borderStyle === "dashed"
                               ? "border-2 border-dashed border-slate-400"
@@ -1100,101 +1132,79 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                               : "border border-slate-300"
                           } ${getFontClassName()} ${fontWeight === "bold" ? "font-bold" : "font-normal"}`}
                         >
-                          {/* Wing 1 (0 to 25.5mm): Front Wing (50% of head) */}
+                          {/* Zone 1: Left Text Flap (0 to 25mm) */}
                           <div
-                            style={{ width: `${(dGumConfig.section1LengthMm / (dGumConfig.headLengthMm || 51)) * 100}%` }}
-                            className="h-full flex flex-col justify-between p-1.5 text-left overflow-hidden bg-white pr-1"
+                            style={{ width: "50%" }}
+                            className="h-full flex flex-col justify-between p-1 text-left overflow-hidden bg-white border-r border-dashed border-black"
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <span className="text-[6px] uppercase tracking-wider text-slate-400 font-bold truncate max-w-[80px]">
+                            <div className="w-full overflow-hidden">
+                              <span className="text-[5.5px] uppercase tracking-wider text-black font-bold truncate block">
                                 {formatStoreHeaderForLabel(customHeader || defaultCustomHeader, 15)}
                               </span>
-                              {showPrice && (
-                                <span style={{ fontSize: `${Math.min(priceFontSize, 8.5)}px` }} className="text-indigo-600 font-extrabold shrink-0">
-                                  {formattedPrice}
-                                </span>
-                              )}
                             </div>
-                            <div className="flex flex-col w-full overflow-hidden leading-tight">
-                              {showBrand && (
-                                <span style={{ fontSize: `${Math.min(brandFontSize, 7.5)}px` }} className="text-slate-900 truncate block font-extrabold">
-                                  {item.brand || item.category || "OPTICAL FRAME"}
-                                </span>
-                              )}
-                              {showItemName && (
-                                <span style={{ fontSize: `${Math.min(descriptionFontSize, 6.5)}px` }} className="text-slate-500 block truncate mt-0.5">
-                                  {displayTitle}
-                                </span>
-                              )}
+                            <div className="w-full overflow-hidden leading-tight">
+                              <span className="text-[7px] uppercase text-black font-black block truncate">
+                                {item.category ? item.category.trim().toUpperCase() : "FRAME"}
+                              </span>
+                              <span className="text-[5.2px] text-black font-bold block truncate mt-0.5">
+                                {displayTitle}
+                              </span>
+                            </div>
+                            <div className="w-full overflow-hidden">
+                              <span className="text-[7.5px] text-black font-black block">
+                                {formattedPrice}
+                              </span>
                             </div>
                           </div>
 
-                          {/* Center Dotted Fold Guideline (at 25.5mm) */}
-                          <div className="w-0 h-full border-r-2 border-dashed border-slate-400 relative flex items-center justify-center">
-                            <span className="text-[5px] font-extrabold text-slate-500 tracking-widest uppercase bg-white px-0.5 py-0.5 rounded shadow-2xs z-2 border border-slate-300 absolute -translate-x-1/2">
-                              FOLD
-                            </span>
-                          </div>
-
-                          {/* Wing 2 (25.5mm to 51mm): Back Wing (Barcode + SKU) (50% of head) */}
+                          {/* Zone 2: Middle Barcode Flap (25mm to 50mm) */}
                           <div
-                            style={{ width: `${(dGumConfig.section2LengthMm / (dGumConfig.headLengthMm || 51)) * 100}%` }}
-                            className="h-full flex flex-col items-center justify-center text-center overflow-hidden bg-white p-1 pl-1"
+                            style={{ width: "50%" }}
+                            className="h-full flex flex-col items-center justify-center text-center overflow-hidden bg-white p-0.5"
                           >
-                            {dGumConfig.barcode?.orientation === "vertical" ? (
-                              <div className="w-[64px] h-[64px] rotate-90 transform-gpu flex flex-col items-center justify-center select-none">
-                                <BarcodeSVG text={displaySku} height={14} barScale={0.8} className="w-[58px] h-4 flex items-center justify-center overflow-hidden" />
-                                {showSKU && showBarcodeText && (
-                                  <span className="text-[6px] font-mono tracking-widest font-bold text-black mt-0.5 truncate">
-                                    {displaySku}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <>
-                                <BarcodeSVG text={displaySku} height={16} barScale={0.9} className="w-full max-w-[140px]" />
-                                {showSKU && showBarcodeText && (
-                                  <span className="text-[7px] font-mono tracking-[0.1em] font-bold text-slate-800 mt-0.5 truncate">
-                                    {displaySku}
-                                  </span>
-                                )}
-                              </>
+                            <div className="w-full flex items-center justify-center overflow-hidden">
+                              <BarcodeSVG text={displaySku} height={16} barScale={0.85} className="w-[110px] h-5 flex items-center justify-center overflow-hidden" />
+                            </div>
+                            {showSKU && showBarcodeText && (
+                              <span className="text-[6px] font-mono tracking-wider font-bold text-black mt-0.5 truncate">
+                                {displaySku}
+                              </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Right 30mm Tail: Narrow Adhesive-Free Loop Strap (37% = 200px) */}
+                        {/* Zone 3: Right 31mm Unprinted Rat-Tail (50mm to 81mm = 38.3%) */}
                         <div
-                          style={{ width: `${((dGumConfig.tailLengthMm || 30) / 81) * 100}%` }}
+                          style={{ width: `${(31 / 81) * 100}%` }}
                           className="h-full flex items-center justify-start overflow-hidden relative pl-0"
                         >
-                          <div className="w-full h-[18px] bg-amber-100/80 border-t-2 border-b-2 border-r-2 border-dashed border-amber-400 rounded-r-full shadow-2xs flex items-center justify-center px-1 text-center relative">
-                            <span className="text-[7.5px] font-mono font-black text-amber-800 tracking-wide uppercase select-none truncate">
-                              ◀ Adhesive Free ▶
+                          <div className="w-full h-[18px] bg-amber-50 border-t-2 border-b-2 border-r-2 border-dashed border-amber-400 rounded-r-full shadow-2xs flex items-center justify-center px-1 text-center relative">
+                            <span className="text-[6.5px] font-mono font-bold text-amber-800 tracking-wider uppercase select-none truncate">
+                              Zone 3: Rat-Tail (Blank)
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Bottom Dimension Rulers matching physical specifications (25.5mm + 25.5mm + 30mm) */}
+                      {/* Bottom Dimension Rulers matching physical specifications (25.0mm + 25.0mm + 31.0mm) */}
                       <div className="w-full max-w-[540px] flex items-center justify-between text-[8px] font-mono font-bold text-slate-400 mt-1.5 px-1">
                         <div
-                          style={{ width: `${(dGumConfig.section1LengthMm / 81) * 100}%` }}
+                          style={{ width: `${(25 / 81) * 100}%` }}
                           className="text-center text-indigo-600 truncate border-t border-indigo-300 pt-0.5"
                         >
-                          ├── {dGumConfig.section1LengthMm.toFixed(1)}mm Front ──┤
+                          ├── Zone 1 (25mm) ──┤
                         </div>
                         <div
-                          style={{ width: `${(dGumConfig.section2LengthMm / 81) * 100}%` }}
-                          className="text-center text-indigo-600 truncate border-t border-indigo-300 pt-0.5 ml-0.5"
+                          style={{ width: `${(25 / 81) * 100}%` }}
+                          className="text-center text-emerald-600 truncate border-t border-emerald-300 pt-0.5 ml-0.5"
                         >
-                          ├── {dGumConfig.section2LengthMm.toFixed(1)}mm Back ──┤
+                          ├── Zone 2 (25mm) ──┤
                         </div>
                         <div
-                          style={{ width: `${((dGumConfig.tailLengthMm || 30) / 81) * 100}%` }}
+                          style={{ width: `${(31 / 81) * 100}%` }}
                           className="text-center text-amber-700 truncate border-t border-amber-400 pt-0.5 ml-1"
                         >
-                          ├── {(dGumConfig.tailLengthMm || 30).toFixed(1)}mm Tail ──┤
+                          ├── Zone 3: 31mm Tail ──┤
                         </div>
                       </div>
                     </div>
@@ -1676,8 +1686,8 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
               </div>
             </div>
 
-            {/* Print Action Button */}
-            <div className="pt-4">
+            {/* Print Action Buttons */}
+            <div className="pt-4 space-y-2.5">
               <button
                 type="button"
                 onClick={handlePrint}
@@ -1686,6 +1696,16 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                 <Printer className="w-4 h-4" />
                 Print {printQuantity} Labels ({currentSpec.displayName})
                 <Bolt className="w-4 h-4 ml-0.5 text-amber-200 fill-current animate-pulse" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadTSPL}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2.5 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider flex justify-center items-center gap-2 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                title="Direct TSPL2 for TSC TTP-244 Plus (Bypasses Windows Print Driver)"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                Download .PRN (Direct TSC Thermal)
               </button>
             </div>
 
@@ -1702,14 +1722,26 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
             Close Designer
           </button>
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="bg-[#00a86b] hover:bg-[#008f5a] text-white py-2.5 px-6 rounded-xl font-extrabold text-xs uppercase tracking-widest flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            Print Labels Now
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleDownloadTSPL}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+              title="Direct Raw TSPL2 for TSC TTP-244 Plus"
+            >
+              <Download className="w-4 h-4 text-emerald-600" />
+              Direct Thermal (.PRN)
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="bg-[#00a86b] hover:bg-[#008f5a] text-white py-2.5 px-6 rounded-xl font-extrabold text-xs uppercase tracking-widest flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              Print Labels Now
+            </button>
+          </div>
         </footer>
 
       </div>

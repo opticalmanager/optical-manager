@@ -88,22 +88,22 @@ export const DEFAULT_DGUM_CONFIG: DGumFlapConfig = {
   type: "D_GUM_FLAP",
   totalLengthMm: 81,
   widthMm: 12,
-  headLengthMm: 51,
-  tailLengthMm: 30,
+  headLengthMm: 50,
+  tailLengthMm: 31,
   tailThicknessMm: 2.8,
-  section1LengthMm: 25.5,
+  section1LengthMm: 25.0,
   foldSectionLengthMm: 0,
-  section2LengthMm: 25.5,
+  section2LengthMm: 25.0,
   printableSectionMinMm: 20,
   printableSectionMaxMm: 30,
-  foldPositionMm: 25.5,
-  adhesiveSectionLengthMm: 30,
+  foldPositionMm: 25.0,
+  adhesiveSectionLengthMm: 31,
   orientation: "horizontal",
   barcode: {
     orientation: "horizontal",
-    widthMm: 22,
-    heightMm: 6.0,
-    quietZoneMm: 1.0,
+    widthMm: 18.125,
+    heightMm: 6.5,
+    quietZoneMm: 3.4,
     symbology: "code128",
   },
   media: {
@@ -138,8 +138,8 @@ export function recalculateDGumSections(
   isValid: boolean;
 } {
   const safeTotal = Math.max(70, Math.min(120, Number(total) || 81));
-  // NTK Optical Standard: 51mm Head (25.5mm + 25.5mm) + 30mm Tail = 81mm
-  const defaultHead = safeTotal >= 95 ? 70 : 51;
+  // 81mm Barbell Tag: 50mm Head (25.0mm + 25.0mm) + 31mm Tail = 81mm
+  const defaultHead = safeTotal >= 95 ? 70 : 50;
   const safeHead = Math.max(35, Math.min(safeTotal - 15, foldOrHead > 30 ? Number(foldOrHead) : defaultHead));
   const defaultS1 = Number((safeHead / 2).toFixed(1));
   const safeS1 = Math.max(15, Math.min(safeHead - 10, Number(section1) || defaultS1));
@@ -673,37 +673,122 @@ export function encodeCode128B(text: string): string {
   return totalBits;
 }
 
-export function buildCode128SvgString(text: string, height: number, barScale = 1.0): string {
+/**
+ * Encodes text into Code 128 module patterns.
+ * Automatically engages Subset C compression for 4+ consecutive numeric digit pairs
+ * when text length > 12 characters, keeping module count <= 160 dots (20.0 mm).
+ * For 10-char SKUs (e.g. TH1111C453), uses standard Code 128B resulting in exactly 145 modules.
+ */
+export function encodeCode128Pattern(text: string): {
+  values: number[];
+  totalModules: number;
+  rects: Array<{ x: number; width: number }>;
+} {
   const clean = text && text.trim() ? text.trim() : "FRM-00001";
-  const values: number[] = [104]; // Start Code B
-  for (let i = 0; i < clean.length; i++) {
-    const code = clean.charCodeAt(i);
-    values.push(code >= 32 && code <= 126 ? code - 32 : 0);
+  let values: number[] = [];
+
+  const shouldCompressSubsetC = clean.length > 12 && /\d{4,}/.test(clean);
+
+  if (shouldCompressSubsetC) {
+    let mode: "B" | "C" = /^\d{4}/.test(clean) ? "C" : "B";
+    values.push(mode === "C" ? 105 : 104);
+
+    let i = 0;
+    while (i < clean.length) {
+      if (mode === "B") {
+        const remaining = clean.slice(i);
+        if (/^\d{4,}/.test(remaining)) {
+          values.push(99); // Switch to Subset C
+          mode = "C";
+          continue;
+        }
+        const code = clean.charCodeAt(i);
+        values.push(code >= 32 && code <= 126 ? code - 32 : 0);
+        i++;
+      } else {
+        if (i + 1 < clean.length && /^\d\d$/.test(clean.slice(i, i + 2))) {
+          values.push(parseInt(clean.slice(i, i + 2), 10));
+          i += 2;
+        } else {
+          values.push(100); // Switch back to Subset B
+          mode = "B";
+        }
+      }
+    }
+  } else {
+    // Standard Code 128B
+    values = [104];
+    for (let i = 0; i < clean.length; i++) {
+      const code = clean.charCodeAt(i);
+      values.push(code >= 32 && code <= 126 ? code - 32 : 0);
+    }
   }
+
+  // Checksum calculation: (startVal + sum(pos * val)) % 103
   let checksum = values[0];
-  for (let i = 1; i < values.length; i++) {
-    checksum += values[i] * i;
+  for (let pos = 1; pos < values.length; pos++) {
+    checksum += values[pos] * pos;
   }
   values.push(checksum % 103);
-  values.push(106); // Stop character
+  values.push(106); // Stop character (13 modules: 2331112)
 
   let currentX = 0;
-  const rects: string[] = [];
+  const rects: Array<{ x: number; width: number }> = [];
 
   for (const v of values) {
     const pattern = CODE128_PATTERNS[v] || "212222";
     let isBar = true;
     for (let c = 0; c < pattern.length; c++) {
-      const w = parseInt(pattern[c], 10) * barScale;
+      const w = parseInt(pattern[c], 10);
       if (isBar) {
-        rects.push(`<rect x="${currentX}" y="0" width="${w}" height="${height}" fill="#000000"/>`);
+        rects.push({ x: currentX, width: w });
       }
       currentX += w;
       isBar = !isBar;
     }
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${currentX} ${height}" width="100%" height="100%" preserveAspectRatio="none" style="display:block;width:100%;height:100%;shape-rendering:crispEdges;">${rects.join("")}</svg>`;
+  return { values, totalModules: currentX, rects };
+}
+
+/**
+ * Builds an Integer-Dot Crisp SVG Barcode locked to exact thermal printhead dot geometry.
+ * 1 module = 1 dot @ 203.2 DPI = 0.125 mm.
+ * Eliminates fractional pixel bar width stretching and prevents barcode bars from merging.
+ */
+export function buildCrispIntegerDotBarcodeSvg(
+  text: string,
+  options?: {
+    dotMm?: number;        // default 0.125 mm (203.2 DPI / 8 dots per mm)
+    heightDots?: number;   // default 52 dots = 6.5 mm
+  }
+): { svg: string; totalModules: number; widthMm: number; heightMm: number } {
+  const dotMm = options?.dotMm ?? 0.125;
+  const heightDots = options?.heightDots ?? 52;
+  const heightMm = Number((heightDots * dotMm).toFixed(2));
+
+  const { totalModules, rects } = encodeCode128Pattern(text);
+  const widthMm = Number((totalModules * dotMm).toFixed(3));
+
+  const svgRects = rects
+    .map((r) => `<rect x="${r.x}" y="0" width="${r.width}" height="${heightDots}" fill="#000000"/>`)
+    .join("");
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalModules} ${heightDots}" width="${widthMm}mm" height="${heightMm}mm" shape-rendering="crispEdges" style="display:block;width:${widthMm}mm;height:${heightMm}mm;shape-rendering:crispEdges;margin:0 auto;">${svgRects}</svg>`;
+
+  return { svg, totalModules, widthMm, heightMm };
+}
+
+export function buildCode128SvgString(text: string, height: number, barScale = 1.0): string {
+  const clean = text && text.trim() ? text.trim() : "FRM-00001";
+  const { totalModules, rects } = encodeCode128Pattern(clean);
+
+  const scaledRects = rects
+    .map((r) => `<rect x="${(r.x * barScale).toFixed(2)}" y="0" width="${(r.width * barScale).toFixed(2)}" height="${height}" fill="#000000"/>`)
+    .join("");
+  const totalWidth = (totalModules * barScale).toFixed(2);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${height}" width="100%" height="100%" preserveAspectRatio="none" style="display:block;width:100%;height:100%;shape-rendering:crispEdges;">${scaledRects}</svg>`;
 }
 
 // ─── Code 39 barcode encoding table (Fallback / Legacy) ───────────────────────
@@ -1143,17 +1228,18 @@ export function buildOneDGumFlapTagHtml(
 
   // Physical Barcode: Uses millimeter-based container dimensions with quiet zones
   const barcodeMaxW = Math.max(18, s2Mm - 3);
-  const barcodeHeight = dGumConfig.barcode?.heightMm || 5.8;
-  const barcodeSvg = buildBarcodeSvgString(
-    skuCode,
-    22,
-    0.85,
-    dGumConfig.barcode?.symbology || options?.symbology || "code128"
-  );
+  const barcodeHeight = dGumConfig.barcode?.heightMm || 6.5;
+
+  // Crisp Integer-Dot SVG Barcode (1 module = 1 dot = 0.125mm @ 203.2 DPI)
+  // For TH1111C453, exactly 145 modules = 18.125mm wide × 6.5mm / 52 dots high
+  const crispBarcode = buildCrispIntegerDotBarcodeSvg(skuCode, {
+    dotMm: 0.125,
+    heightDots: 52,
+  });
 
   const skuTextHtml =
     showSKU && showBarcodeText
-      ? `<span style="font-size:4.8px;font-family:'Courier New',monospace;letter-spacing:0.08em;font-weight:700;color:#000000;display:block;margin-top:0.2mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
+      ? `<span style="font-family:monospace;font-size:5.5pt;letter-spacing:0.3px;font-weight:700;color:#000000;display:block;margin-top:0.3mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
       : "";
 
   // Calibration and rotation transform
@@ -1166,14 +1252,14 @@ export function buildOneDGumFlapTagHtml(
   }
   const calTransform = transforms.length > 0 ? `transform: ${transforms.join(" ")}; transform-origin: center center;` : "";
 
-  // NTK 81x12mm standard: 51mm foldable head (25.5mm + 25.5mm) + 30mm adhesive-free tail
-  const headLengthMm = sections.headLengthMm || 51;
-  const tailLengthMm = sections.tailLengthMm || 30;
+  // NTK 81x12mm standard: 50mm foldable head (25.0mm + 25.0mm) + 31mm adhesive-free tail
+  const headLengthMm = sections.headLengthMm || 50;
+  const tailLengthMm = sections.tailLengthMm || 31;
 
   // If vertical feed, rotate content 90° for continuous longitudinal roll feed
   if (isVerticalFeed) {
     return `
-      <div class="barcode-dgum-label barcode-dgum-vertical" style="
+      <div class="optical-tag-page barcode-dgum-label barcode-dgum-vertical" style="
         width:${tagWidthMm}mm;
         max-width:${tagWidthMm}mm;
         min-width:${tagWidthMm}mm;
@@ -1192,6 +1278,8 @@ export function buildOneDGumFlapTagHtml(
         overflow:hidden;
         break-inside:avoid;
         page-break-inside:avoid;
+        page-break-after:always;
+        break-after:page;
         ${calTransform}
       ">
         <!-- Foldable Head (Top along feed: ${headLengthMm}mm) -->
@@ -1216,143 +1304,132 @@ export function buildOneDGumFlapTagHtml(
           <!-- Bottom Section (Printable Wing 2 rotated: ${s2Mm}mm length along feed) -->
           <div style="width:100%;height:${s2Mm}mm;box-sizing:border-box;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
             <div style="width:${Math.max(16, s2Mm - 2)}mm;height:${tagWidthMm - 1}mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(90deg);transform-origin:center center;overflow:hidden;flex-shrink:0;">
-              <div style="width:${barcodeMaxW}mm;height:${barcodeHeight}mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                ${barcodeSvg}
+              <div style="width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                ${crispBarcode.svg}
               </div>
               ${skuTextHtml}
             </div>
           </div>
         </div>
 
-        <!-- 30mm Adhesive-Free Tail (Narrow Non-Printable Loop along Feed aligned within ${tagWidthMm}mm) -->
+        <!-- 31mm Adhesive-Free Tail (Narrow Non-Printable Loop along Feed aligned within ${tagWidthMm}mm) -->
         <div style="width:100%;height:${tailLengthMm}mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;background:transparent;">
           <div style="width:2.8mm;height:100%;border-left:${outerBorderCss};border-right:${outerBorderCss};border-bottom:${outerBorderCss};border-radius:0 0 1.4mm 1.4mm;background:#ffffff;"></div>
         </div>
       </div>`;
   }
 
-  // Standard Horizontal Layout (81mm total: 51mm head [25.5mm + 25.5mm] + 30mm tail, 12mm height)
+  // 2. Production Standard 81mm × 12mm 3-Zone Architecture (TSC TTP-244 Plus / Barbell Tag Blueprint)
+  // Total Canvas: 81.0mm × 12.0mm = 648 × 96 dots @ 203.2 DPI
+  // Zone 1: Left Text Flap (0.0mm – 25.0mm / 0 – 200 dots)
+  // Center Fold Line: X = 25.0mm (border-right: 0.25mm dashed #000000)
+  // Zone 2: Middle Barcode Flap (25.0mm – 50.0mm / 200 – 400 dots)
+  // Zone 3: Right Unprinted Rat-Tail (50.0mm – 81.0mm / 400 – 648 dots)
+  const cleanCategory = item.category ? item.category.trim().toUpperCase() : "FRAME";
+
   return `
-    <div class="barcode-dgum-label barcode-dgum-horizontal" style="
-      width:${totalLengthMm}mm;
-      max-width:${totalLengthMm}mm;
-      min-width:${totalLengthMm}mm;
-      height:${tagWidthMm}mm;
-      max-height:${tagWidthMm}mm;
-      min-height:${tagWidthMm}mm;
-      flex-shrink:0;
-      flex-grow:0;
-      box-sizing:border-box;
-      background:#ffffff;
-      font-family:${fontFamilyCss};
-      display:flex;
-      flex-direction:row;
-      align-items:stretch;
-      justify-content:flex-start;
-      overflow:hidden;
-      break-inside:avoid;
-      page-break-inside:avoid;
+    <div class="optical-tag-page barcode-dgum-label barcode-dgum-horizontal" style="
+      width: 81mm !important;
+      max-width: 81mm !important;
+      min-width: 81mm !important;
+      height: 12mm !important;
+      max-height: 12mm !important;
+      min-height: 12mm !important;
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      box-sizing: border-box !important;
+      background: #ffffff !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+      overflow: hidden !important;
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      margin: 0 !important;
+      padding: 0 !important;
       ${calTransform}
     ">
-      <!-- 51mm Foldable Head (Wide Rectangular Body) -->
+      <!-- Zone 1: Left Text Flap (0.0 mm – 25.0 mm / 0 – 200 dots) -->
       <div style="
-        width:${headLengthMm}mm;
-        max-width:${headLengthMm}mm;
-        min-width:${headLengthMm}mm;
-        height:100%;
-        box-sizing:border-box;
-        display:flex;
-        flex-direction:row;
-        align-items:stretch;
-        border:none;
-        background:#ffffff;
-        overflow:hidden;
+        width: 25mm !important;
+        max-width: 25mm !important;
+        min-width: 25mm !important;
+        height: 12mm !important;
+        max-height: 12mm !important;
+        min-height: 12mm !important;
+        box-sizing: border-box !important;
+        padding: 0.6mm 1.0mm 0.8mm 1.0mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        overflow: hidden !important;
+        text-align: left !important;
+        background: #ffffff !important;
+        flex-shrink: 0 !important;
+        border-right: 0.25mm dashed #000000 !important;
       ">
-        <!-- Section 1 (Front Wing): ${s1Mm}mm length × ${tagWidthMm}mm height -->
-        <div style="
-          width:${s1Mm}mm;
-          max-width:${s1Mm}mm;
-          min-width:${s1Mm}mm;
-          height:100%;
-          box-sizing:border-box;
-          padding:0.6mm 0.8mm;
-          display:flex;
-          flex-direction:column;
-          justify-content:space-between;
-          overflow:hidden;
-          text-align:left;
-          background:#ffffff;
-        ">
-          <!-- Row 1: Store / Organization Header -->
-          <div style="width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1;">
-            ${headerHtml}
-          </div>
-          <!-- Row 2: Brand & Model / Category Description -->
-          <div style="width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1.1;margin-top:0.2mm;">
-            ${brandHtml}
-            ${itemNameHtml}
-          </div>
-          <!-- Row 3: Price Display -->
-          <div style="width:100%;overflow:hidden;white-space:nowrap;line-height:1;margin-top:0.2mm;">
-            ${priceHtml}
-          </div>
+        <!-- Line 1: Shop Name -->
+        <div style="font-size: 5.5pt !important; font-weight: 700 !important; line-height: 1.05 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; color: #000000 !important; font-family: Arial, Helvetica, sans-serif !important;">
+          ${effectiveHeader}
         </div>
-
-        <!-- Dotted Fold Line at ${s1Mm}mm -->
-        <div style="
-          width:0;
-          height:100%;
-          border-left:1px dashed #666666;
-          flex-shrink:0;
-          position:relative;
-        "></div>
-
-        <!-- Section 2 (Back Wing): ${s2Mm}mm length × ${tagWidthMm}mm height -->
-        <div style="
-          width:${s2Mm}mm;
-          max-width:${s2Mm}mm;
-          min-width:${s2Mm}mm;
-          height:100%;
-          box-sizing:border-box;
-          padding:0.4mm 0.8mm;
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          justify-content:center;
-          overflow:hidden;
-          text-align:center;
-          background:#ffffff;
-        ">
-          ${isBarcodeVertical ? `
-            <div style="width:${tagWidthMm - 1}mm;height:${Math.max(16, s2Mm - 2)}mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(90deg);transform-origin:center center;overflow:hidden;flex-shrink:0;">
-              <div style="width:${Math.max(16, s2Mm - 3)}mm;height:6.2mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                ${barcodeSvg}
-              </div>
-              ${skuTextHtml}
-            </div>
-          ` : `
-            <div style="width:${barcodeMaxW}mm;height:${barcodeHeight}mm;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-              ${barcodeSvg}
-            </div>
-            ${skuTextHtml}
-          `}
+        <!-- Line 2: Category -->
+        <div style="font-size: 7.0pt !important; font-weight: 800 !important; line-height: 1.05 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; color: #000000 !important; text-transform: uppercase !important; font-family: Arial, Helvetica, sans-serif !important;">
+          ${cleanCategory}
+        </div>
+        <!-- Line 3: Model / Variant -->
+        <div style="font-size: 5.2pt !important; font-weight: 700 !important; line-height: 1.05 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; color: #000000 !important; font-family: Arial, Helvetica, sans-serif !important;">
+          ${displayTitle}
+        </div>
+        <!-- Line 4: Price -->
+        <div style="font-size: 7.5pt !important; font-weight: 900 !important; line-height: 1.05 !important; white-space: nowrap !important; color: #000000 !important; font-family: Arial, Helvetica, sans-serif !important;">
+          ${formattedPrice}
         </div>
       </div>
 
-      <!-- 30mm Adhesive-Free Tail (Narrow Non-Printable Loop aligned within ${tagWidthMm}mm height) -->
+      <!-- Zone 2: Middle Barcode Flap (25.0 mm – 50.0 mm / 200 – 400 dots) -->
       <div style="
-        width:${tailLengthMm}mm;
-        max-width:${tailLengthMm}mm;
-        min-width:${tailLengthMm}mm;
-        height:100%;
-        box-sizing:border-box;
-        display:flex;
-        align-items:center;
-        justify-content:flex-start;
-        overflow:hidden;
-        background:transparent;
+        width: 25mm !important;
+        max-width: 25mm !important;
+        min-width: 25mm !important;
+        height: 12mm !important;
+        max-height: 12mm !important;
+        min-height: 12mm !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 0.5mm 0 !important;
+        overflow: hidden !important;
+        background: #ffffff !important;
+        flex-shrink: 0 !important;
       ">
-        <!-- Physical tail is pre-cut; no ink or borders printed in thermal print mode -->
+        <div style="width: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; overflow: hidden !important;">
+          ${crispBarcode.svg}
+        </div>
+        <span style="font-family: monospace !important; font-size: 5.5pt !important; font-weight: 700 !important; letter-spacing: 0.3px !important; margin-top: 0.3mm !important; line-height: 1 !important; color: #000000 !important; white-space: nowrap !important; overflow: hidden !important;">
+          ${skuCode}
+        </span>
+      </div>
+
+      <!-- Zone 3: Right Unprinted Rat-Tail (50.0 mm – 81.0 mm / 400 – 648 dots) -->
+      <div style="
+        flex: 0 0 31mm !important;
+        width: 31mm !important;
+        max-width: 31mm !important;
+        min-width: 31mm !important;
+        height: 12mm !important;
+        max-height: 12mm !important;
+        min-height: 12mm !important;
+        box-sizing: border-box !important;
+        background: transparent !important;
+        overflow: hidden !important;
+      ">
+        <!-- Unprinted rat-tail MUST remain 100% empty -->
       </div>
     </div>`;
 }
@@ -1554,78 +1631,50 @@ export function buildBulkLabelsHtml(
       : (spec.rollCols ?? 1);
 
     pageCSS = `
-      @page {
-        size: ${rollWidth}mm ${rollHeight}mm;
-        margin: 0mm;
-      }
-      *, *:before, *:after {
-        -webkit-box-sizing: border-box;
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      html {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: ${rollWidth}mm !important;
-        background: #ffffff !important;
-      }
-      body {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: ${rollWidth}mm !important;
-        background: #ffffff !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        color-adjust: exact !important;
-      }
-      .barcode-continuous-page {
-        width: ${rollWidth}mm !important;
-        height: ${rollHeight}mm !important;
-        max-width: ${rollWidth}mm !important;
-        min-width: ${rollWidth}mm !important;
-        max-height: ${rollHeight}mm !important;
-        min-height: ${rollHeight}mm !important;
-        page-break-after: always !important;
-        break-after: page !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-        margin: 0 !important;
-        padding: ${rollCols === 2 ? "0 1.5mm" : rollCols === 3 ? "0 1mm" : "0"} !important;
-        box-sizing: border-box !important;
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: flex-start !important;
-        justify-content: ${rollCols === 2 ? "space-between" : rollCols > 1 ? "space-between" : "flex-start"} !important;
-        gap: ${rollCols === 2 ? "1mm" : rollCols === 3 ? "1.5mm" : "0"} !important;
-        overflow: hidden !important;
-      }
-      .barcode-continuous-page:last-child {
-        page-break-after: avoid !important;
-        break-after: avoid !important;
-      }
-      .barcode-vertical-tag, .barcode-dgum-label {
-        width: ${spec.widthMm}mm !important;
-        height: ${spec.heightMm}mm !important;
-        max-width: ${spec.widthMm}mm !important;
-        min-width: ${spec.widthMm}mm !important;
-        max-height: ${spec.heightMm}mm !important;
-        min-height: ${spec.heightMm}mm !important;
-        flex-shrink: 0 !important;
-        box-sizing: border-box !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-        margin: 0 !important;
+      @media print {
+        @page {
+          size: ${rollWidth}mm ${rollHeight}mm;
+          margin: 0mm !important;
+        }
+        html, body {
+          width: ${rollWidth}mm !important;
+          height: ${rollHeight}mm !important;
+          margin: 0mm !important;
+          padding: 0mm !important;
+          background: #ffffff !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          overflow: hidden !important;
+        }
+        .optical-tag-page, .barcode-continuous-page, .barcode-dgum-label, .barcode-vertical-tag {
+          width: ${rollWidth}mm !important;
+          height: ${rollHeight}mm !important;
+          max-width: ${rollWidth}mm !important;
+          min-width: ${rollWidth}mm !important;
+          max-height: ${rollHeight}mm !important;
+          min-height: ${rollHeight}mm !important;
+          page-break-after: always !important;
+          break-after: page !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          box-sizing: border-box !important;
+          display: flex !important;
+          flex-direction: row !important;
+          overflow: hidden !important;
+        }
+        .optical-tag-page:last-child, .barcode-continuous-page:last-child, .barcode-dgum-label:last-child {
+          page-break-after: avoid !important;
+          break-after: avoid !important;
+        }
       }
     `;
 
     if (rollCols === 1) {
-      bodyContent = allLabels
-        .map((lbl) => `<div class="barcode-continuous-page">${lbl}</div>`)
-        .join("");
+      bodyContent = allLabels.join("");
     } else {
-      // Multi-column continuous roll (e.g. 3-across or 2-across as in reference photo)
+      // Multi-column continuous roll (e.g. 3-across or 2-across)
       const rowsHtml: string[] = [];
       for (let i = 0; i < allLabels.length; i += rollCols) {
         let colsHtml = "";
@@ -1636,7 +1685,7 @@ export function buildBulkLabelsHtml(
             colsHtml += `<div style="width:${spec.widthMm}mm;height:${spec.heightMm}mm;max-width:${spec.widthMm}mm;min-width:${spec.widthMm}mm;flex-shrink:0;visibility:hidden;"></div>`;
           }
         }
-        rowsHtml.push(`<div class="barcode-continuous-page">${colsHtml}</div>`);
+        rowsHtml.push(`<div class="optical-tag-page barcode-continuous-page">${colsHtml}</div>`);
       }
       bodyContent = rowsHtml.join("");
     }
@@ -1779,4 +1828,142 @@ export function openBarcodePrintWindow(htmlContent: string): boolean {
     } catch {}
   }, 200);
   return true;
+}
+
+// ─── Native Raw TSPL2 Generator for TSC TTP-244 Plus (Direct .PRN Mode) ────────
+export interface OpticalTagTSPLOptions {
+  shopName?: string;
+  category?: string;
+  modelName?: string;
+  priceText?: string;
+  barcodeSku?: string;
+  copies?: number;
+  isGaplessContinuous?: boolean;
+  ribbonInstalled?: boolean;
+}
+
+/**
+ * Generates native TSPL2 commands for an 81 x 12 mm die-cut optical barbell tag
+ * on a 203.2 DPI (8 dots/mm) TSC TTP-244 Plus printer.
+ *
+ * Physical Roll Layout (with DIRECTION 0,0 hardware origin at top-left of printhead,
+ * or DIRECTION 1,0 where origin (0,0) is the left printable flap exiting the printer):
+ */
+export function generateOpticalTagTSPL({
+  shopName = "PUNJAB OPTICALS",
+  category = "FRAME",
+  modelName = "TH 1111 C4 53 with case",
+  priceText = "Rs. 10,900/-",
+  barcodeSku = "TH1111C453",
+  copies = 1,
+  isGaplessContinuous = false,
+  ribbonInstalled = true,
+}: OpticalTagTSPLOptions = {}): string {
+  const sanitize = (str: string) => String(str || "").replace(/"/g, '\\"').trim();
+  const mediaSensorCmd = isGaplessContinuous ? "GAP 0 mm, 0 mm" : "GAP 2 mm, 0 mm";
+  const ribbonCmd = ribbonInstalled ? "SET RIBBON ON" : "SET RIBBON OFF";
+
+  // Using DIRECTION 0,0 with 180-degree rotated elements at X = 251..648
+  // so that when the label exits the front of the TSC TTP-244 Plus:
+  // - Left Flap (physical 0..25 mm = buffer X 648..448) has Shop Name, Category, Model, Price
+  // - Fold Line (physical 25 mm = buffer X 444) has vertical bar
+  // - Middle Flap (physical 25..50 mm = buffer X 444..248) has native Code 128 BARCODE
+  // - Right Rat-Tail (physical 50..81 mm = buffer X 248..0) is 100% blank
+  return [
+    "SIZE 81 mm, 12 mm",
+    mediaSensorCmd,
+    ribbonCmd,
+    "DIRECTION 0,0",
+    "REFERENCE 0,0",
+    "OFFSET 0 mm",
+    "SET PEEL OFF",
+    "SET CUTTER OFF",
+    "SET PARTIAL_CUTTER OFF",
+    "SET TEAR ON",
+    "CLS",
+    // Zone 1: Left Flap Text (rotated 180 deg so it reads left-to-right as tag exits printer)
+    `TEXT 640,88,"1",180,1,1,"${sanitize(shopName)}"`,
+    `TEXT 640,72,"2",180,1,1,"${sanitize(category)}"`,
+    `TEXT 640,50,"1",180,1,1,"${sanitize(modelName)}"`,
+    `TEXT 640,26,"2",180,1,1,"${sanitize(priceText)}"`,
+    // Center Fold Line at X = 444 dots (25.5 mm from physical left edge)
+    "BAR 444,0,2,16",
+    "BAR 444,24,2,16",
+    "BAR 444,48,2,16",
+    "BAR 444,72,2,24",
+    // Zone 2: Native Code 128 Barcode (narrow=1 dot, wide=2 dots, height=52 dots, human-readable=1)
+    `BARCODE 420,82,"128",52,1,180,1,2,"${sanitize(barcodeSku)}"`,
+    `PRINT 1,${Math.max(1, parseInt(String(copies), 10) || 1)}`,
+    "",
+  ].join("\r\n");
+}
+
+export function generateBulkOpticalTagsTSPL(
+  items: Array<{ item: BarcodeItem; quantity: number }>,
+  options?: {
+    shopName?: string;
+    isGaplessContinuous?: boolean;
+    ribbonInstalled?: boolean;
+    currencySymbol?: string;
+  }
+): string {
+  const mediaSensorCmd = options?.isGaplessContinuous ? "GAP 0 mm, 0 mm" : "GAP 2 mm, 0 mm";
+  const ribbonCmd = options?.ribbonInstalled === false ? "SET RIBBON OFF" : "SET RIBBON ON";
+  const shopName = options?.shopName || "OPTICAL";
+  const currencySymbol = options?.currencySymbol || "Rs. ";
+
+  const sanitize = (str: string) => String(str || "").replace(/"/g, '\\"').trim();
+
+  const lines: string[] = [
+    "SIZE 81 mm, 12 mm",
+    mediaSensorCmd,
+    ribbonCmd,
+    "DIRECTION 0,0",
+    "REFERENCE 0,0",
+    "OFFSET 0 mm",
+    "SET PEEL OFF",
+    "SET CUTTER OFF",
+    "SET PARTIAL_CUTTER OFF",
+    "SET TEAR ON",
+  ];
+
+  for (const entry of items) {
+    const item = entry.item;
+    const copies = Math.max(1, entry.quantity || 1);
+    const cat = item.category ? item.category.trim().toUpperCase() : "FRAME";
+    const displayTitle = resolveDisplayTitle(item.name, item.category, item.brand, item.model, item.productCode || item.sku);
+    const numPrice = item.price ? parseFloat(item.price) : 0;
+    const priceText = numPrice > 0 ? `${currencySymbol}${numPrice.toLocaleString("en-IN")}/-` : "";
+    const skuCode = item.sku || (item.category ? `${item.category.slice(0, 3).toUpperCase()}-GEN-00001` : "FRM-GEN-00001");
+
+    lines.push(
+      "CLS",
+      `TEXT 640,88,"1",180,1,1,"${sanitize(shopName)}"`,
+      `TEXT 640,72,"2",180,1,1,"${sanitize(cat)}"`,
+      `TEXT 640,50,"1",180,1,1,"${sanitize(displayTitle)}"`,
+      `TEXT 640,26,"2",180,1,1,"${sanitize(priceText)}"`,
+      "BAR 444,0,2,16",
+      "BAR 444,24,2,16",
+      "BAR 444,48,2,16",
+      "BAR 444,72,2,24",
+      `BARCODE 420,82,"128",52,1,180,1,2,"${sanitize(skuCode)}"`,
+      `PRINT 1,${copies}`
+    );
+  }
+
+  lines.push("");
+  return lines.join("\r\n");
+}
+
+export function downloadTSPLPrnFile(tsplContent: string, fileName = "tsc_optical_tags.prn"): void {
+  if (typeof window === "undefined") return;
+  const blob = new Blob([tsplContent], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

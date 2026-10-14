@@ -23,6 +23,7 @@ import {
   Glasses,
   Box,
   Info,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -39,6 +40,8 @@ import {
   DEFAULT_PAPER_SIZE,
   getDefaultStoreHeader,
   formatStoreHeaderForLabel,
+  generateBulkOpticalTagsTSPL,
+  downloadTSPLPrnFile,
 } from "@/utils/barcode.utils";
 import { getActiveOrganizationNameAction } from "@/actions/organization.actions";
 
@@ -288,6 +291,46 @@ export function PurchaseBulkBarcodeModal({
     }
   };
 
+  const handleDownloadBulkTSPL = () => {
+    const itemsToPrint: Array<{ item: BarcodeItem; quantity: number }> = [];
+
+    initialProducts.forEach((p) => {
+      const q = productQuantities[p.id] || 0;
+      if (q > 0) {
+        const fallbackSku = p.category
+          ? `${p.category.slice(0, 3).toUpperCase()}-GEN-00001`
+          : "FRM-GEN-00001";
+        itemsToPrint.push({
+          item: {
+            id: p.id,
+            name: p.name,
+            category: p.category || "FRAME",
+            brand: null,
+            model: null,
+            sku: p.sku || fallbackSku,
+            productCode: p.productCode || p.sku || null,
+            price: p.price,
+          },
+          quantity: q,
+        });
+      }
+    });
+
+    if (itemsToPrint.length === 0 || totalLabels === 0) {
+      toast.error("Please set at least 1 label quantity to print.");
+      return;
+    }
+
+    const tspl = generateBulkOpticalTagsTSPL(itemsToPrint, {
+      shopName: formatStoreHeaderForLabel(customHeader, 15),
+      currencySymbol: "Rs. ",
+    });
+
+    const safeInv = (invoiceNumber || "batch").replace(/[^a-zA-Z0-9_-]/g, "_");
+    downloadTSPLPrnFile(tspl, `tsc_bulk_tags_${safeInv}.prn`);
+    toast.success(`Downloaded bulk TSC TSPL .PRN file for ${totalLabels} labels! Ready for TSC TTP-244 Plus.`);
+  };
+
   // Format currency
   const formatPrice = (val: string | null) => {
     const num = Number(val) || 0;
@@ -526,9 +569,10 @@ export function PurchaseBulkBarcodeModal({
                           ? "bg-amber-600 text-white border-amber-700 shadow-2xs"
                           : "bg-white text-blue-800 border-blue-200 hover:bg-blue-100/50"
                       }`}
+                      title="Toggles 180° rotation if workstation TSC driver uses Portrait (0° / DIRECTION 0,0)"
                     >
                       <RotateCw className="w-3 h-3" />
-                      <span>{rotation === 180 ? "Flipped 180° (Inverted Feed)" : "Standard (0° Normal Feed)"}</span>
+                      <span>{rotation === 180 ? "Flipped 180° (Direction 0,0)" : "Standard (0° Normal Feed)"}</span>
                     </button>
                   </div>
                 </div>
@@ -1495,15 +1539,28 @@ export function PurchaseBulkBarcodeModal({
             </span>
           </div>
 
-          <button
-            type="button"
-            disabled={totalLabels === 0}
-            onClick={handleExecutePrint}
-            className="h-8.5 px-5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            <span>Print {totalLabels} Barcodes Now</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={totalLabels === 0}
+              onClick={handleDownloadBulkTSPL}
+              className="h-8.5 px-3.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-bold text-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Download direct TSPL .PRN file for TSC TTP-244 Plus"
+            >
+              <Download className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Direct Thermal (.PRN)</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={totalLabels === 0}
+              onClick={handleExecutePrint}
+              className="h-8.5 px-5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span>Print {totalLabels} Barcodes Now</span>
+            </button>
+          </div>
         </footer>
       </div>
     </div>

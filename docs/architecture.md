@@ -439,13 +439,28 @@ The **Add Purchase** workflow (`/shop/purchases/new`) integrates Gemini multimod
      - `getPurchaseLedgerKPIs`: Instant 1-query aggregation extracting total orders count, net inward valuation (₹), current month inward count, and top supplier name using PostgreSQL conditional filters (`filter (where purchase_date >= ...)`).
      - `updatePurchaseOrder`: Atomically modifies order headers and line items. If existing order was `COMPLETED`, rolls back prior stock additions with `RETURN` stock movement entries before re-applying updated items.
      - `deletePurchaseOrder`: Safely deletes purchase transactions and cascades to items. Reverses inward inventory additions for `COMPLETED` orders via `RETURN` movements with cost preservation.
-   - **Shared Barcode Utility Engine (`utils/barcode.utils.ts`)**:
-     - Standalone Code 39 SVG encoder and multi-label layout builder supporting 4 optical industry presets:
+   - **Shared Barcode Utility & Label Printing Subsystem (`utils/barcode.utils.ts`)**:
+     - **Dual-Mode Barcode Printing Architecture**:
+       1. **Strict Integer-Dot Browser Print View (HTML / CSS / SVG)**:
+          - Employs an isolated print stylesheet (`@media print`) locking `@page { size: 81mm 12mm; margin: 0mm !important; }` without orientation keywords, completely eliminating Chromium's 90° CCW auto-rotation bug on landscape tags.
+          - Enforces a precise 3-Zone horizontal layout for standard 81x12 mm eyewear barbell / rat-tail tags on 203.2 DPI printheads (648 × 96 dots):
+            - **Zone 1: Left Text Flap (0.0 – 25.0 mm)**: Displays Shop Name (5.5pt bold), Category (7.0pt extra bold), Model/Variant (5.2pt bold), and Price (7.5pt extra bold) with >= 0.8 mm bottom clearance to prevent currency symbol clipping.
+            - **Fold Perforation Line (X = 25.0 mm)**: High-contrast dashed line (`0.25mm dashed #000000`).
+            - **Zone 2: Middle Barcode Flap (25.0 – 50.0 mm)**: Flex-centered container with Crisp Integer-Dot SVG Barcode and human-readable SKU monospace text below.
+            - **Zone 3: Right Rat-Tail (50.0 – 81.0 mm)**: 100% empty rat-tail zone (31 mm width).
+          - **Crisp Integer-Dot Code 128 Engine (`buildCrispIntegerDotBarcodeSvg`)**: Employs `<svg shape-rendering="crispEdges">` where 1 module strictly equals 1 printer dot (0.125 mm @ 203.2 DPI), eliminating non-integer raster scaling and 0-dot white space collapse. Features automated Code 128 Subset C compression for 4+ consecutive numeric digit pairs on SKUs > 12 characters (keeping modules <= 160 dots / 20.0 mm).
+          - **Orientation Compensation**: Includes a 180° flip toggle (`transform: rotate(180deg)`) for workstations configured with driver direction `0,0`.
+       2. **Native Direct TSPL / TSPL2 Thermal Generator (`generateOpticalTagTSPL` & `downloadTSPLPrnFile`)**:
+          - Employs native TSPL2 commands (`SIZE 81 mm, 12 mm`, `GAP 2 mm, 0 mm`, `DIRECTION 0,0`, `BARCODE 420,82,"128",52,1,180,1,2`) bypassing Windows GDI driver rotation and dithering entirely.
+          - Outputs direct `.PRN` files compatible with raw Windows spooling (`COPY /B file.prn \\computer\\printer`), WebUSB, and QZ Tray.
+     - **Multi-Label Layout Presets**:
+       - `81x12 mm (D-Gum Tag)`: Eyewear Barbell / Rat-tail 3-Zone tag (Left Text 25mm, Middle Barcode 25mm, Right Tail 31mm).
        - `100x15 mm (Tag)`: Dual-Wing Butterfly Frame Tag with temple fold bridge.
        - `50x25 mm (Standard)`: Standard Retail Box & Case Label.
        - `38x25 mm (Compact Jewel)`: Lens & Blister Pack Tag.
        - `40x30 mm (Medium Box)`: Medium Eyewear Box & Accessory Label.
-     - `buildBulkLabelsHtml`: Automatically multiplies labels by each item's inward quantity ($n \times \text{qty}$) and spools them into an `@page` print stylesheet with zero latency.
+     - `buildBulkLabelsHtml`: Multiplies labels by inward quantity ($n \times \text{qty}$) and spools them into an `@page` print stylesheet with zero latency.
+     - `generateBulkOpticalTagsTSPL`: Batch generates raw TSPL2 spool streams for multi-item inventory purchase inward receipts.
 
 
 
