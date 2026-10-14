@@ -140,6 +140,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
   const [fontFamily, setFontFamily] = useState<"modern" | "mono" | "classic">("modern");
   const [fontWeight, setFontWeight] = useState<"regular" | "bold">("bold");
   const [customHeader, setCustomHeader] = useState(defaultCustomHeader);
+  const [rotation, setRotation] = useState<0 | 180>(0);
 
   // Restore saved preferences automatically on mount
   useEffect(() => {
@@ -158,6 +159,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
       }
       if (saved.paperSize) {
         setPaperSize(saved.paperSize);
+      }
+      if (saved.rotation === 180 || saved.rotation === 0) {
+        setRotation(saved.rotation);
       }
       if (saved.showBrand !== undefined) setShowBrand(saved.showBrand);
       if (saved.showItemName !== undefined) setShowItemName(saved.showItemName);
@@ -220,11 +224,13 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
       borderStyle,
       fontFamily,
       fontWeight,
+      rotation,
     });
   }, [
     isLoaded,
     labelSize,
     paperSize,
+    rotation,
     showBrand,
     showItemName,
     showPrice,
@@ -422,6 +428,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
         fontWeight: fontWeight === "bold" ? "bold" : "normal",
         symbology: "code128",
         dGumConfig,
+        rotation,
       }
     );
 
@@ -515,11 +522,10 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
                   >
                     <optgroup label="Optical Frame & Eyewear Flap / Barbell Tags">
-                      <option value="81x12 mm (D-Gum Flap Tag)">81×12 mm Optical Dumbbell Tag (TSC / 1-Across Roll) ⭐</option>
+                      <option value="81x12 mm (D-Gum Flap Tag)">81×12 mm Optical Dumbbell Tag (TSC TTP-244 Plus / 1-Across Roll) ⭐</option>
                       <option value="100x15 mm (Vertical 3-Up)">100×15 mm (Vertical 3-Up Roll)</option>
-                      <option value="81x12 mm (Vertical 1-Up)">81×12 mm Vertical (1-Across Roll)</option>
-                      <option value="100x15 mm (Vertical 1-Up)">100×15 mm (Vertical 1-Up Roll)</option>
                       <option value="100x15 mm (Vertical 2-Up)">100×15 mm (Vertical 2-Up Roll)</option>
+                      <option value="100x15 mm (Vertical 1-Up)">100×15 mm (Vertical 1-Up Roll)</option>
                       <option value="100x15 mm (Tag)">100×15 mm (Horizontal Tag / Sheets)</option>
                     </optgroup>
                     <optgroup label="Box & Case Barcode Labels">
@@ -674,7 +680,7 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                   </div>
 
                   {/* Calibration Shifts & Stock Orientation */}
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 pt-1">
                     <div>
                       <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                         Stock Feed
@@ -684,9 +690,27 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                         onChange={(e) => handleUpdateDGumOrientation(e.target.value as "horizontal" | "vertical")}
                         className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-700 cursor-pointer"
                       >
-                        <option value="horizontal">Horizontal (81×12)</option>
+                        <option value="horizontal">Horizontal (81×12) ⭐</option>
                         <option value="vertical">Vertical (12×81)</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        Flip 180°
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setRotation(rotation === 0 ? 180 : 0)}
+                        className={`w-full p-1.5 rounded-lg text-xs font-bold border flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                          rotation === 180
+                            ? "bg-amber-600 text-white border-amber-700 shadow-2xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <RotateCw className="w-3 h-3" />
+                        <span>{rotation === 180 ? "Flipped (180°)" : "Normal (0°)"}</span>
+                      </button>
                     </div>
 
                     <div>
@@ -694,12 +718,12 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                         Barcode Wing 2
                       </label>
                       <select
-                        value={dGumConfig.barcode?.orientation || "vertical"}
+                        value={dGumConfig.barcode?.orientation || "horizontal"}
                         onChange={(e) => handleUpdateDGumBarcodeOrientation(e.target.value as "horizontal" | "vertical")}
                         className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-700 cursor-pointer"
                       >
-                        <option value="vertical">Vertical (90° Ladder) ⭐</option>
-                        <option value="horizontal">Horizontal (Picket)</option>
+                        <option value="horizontal">Horizontal (Picket) ⭐</option>
+                        <option value="vertical">Vertical (90° Ladder)</option>
                       </select>
                     </div>
 
@@ -1059,7 +1083,12 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                       </div>
 
                       {/* Physical Die-Cut NTK D-Gum Label Shape (Scaled 540px × 72px for 81mm × 12mm) */}
-                      <div className="w-full max-w-[540px] h-[72px] flex items-center select-none font-sans relative">
+                      <div
+                        className="w-full max-w-[540px] h-[72px] flex items-center select-none font-sans relative transition-transform duration-300"
+                        style={{
+                          transform: rotation === 180 ? "rotate(180deg)" : "none",
+                        }}
+                      >
                         {/* Left 51mm Head: Foldable Printable Body (63% = 340px) */}
                         <div
                           style={{ width: `${((dGumConfig.headLengthMm || 51) / 81) * 100}%` }}

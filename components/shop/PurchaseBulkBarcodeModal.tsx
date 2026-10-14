@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  RotateCw,
   Maximize2,
   Sliders,
   CheckCheck,
@@ -68,6 +69,7 @@ export function PurchaseBulkBarcodeModal({
   const [selectedPreset, setSelectedPreset] = useState<LabelSizePreset>(DEFAULT_BARCODE_PRESET);
   const [paperSize, setPaperSize] = useState<"continuous" | "a4" | "a5">(DEFAULT_PAPER_SIZE);
   const [customHeader, setCustomHeader] = useState<string>(() => getDefaultStoreHeader("OPTICAL STORE"));
+  const [rotation, setRotation] = useState<0 | 180>(0);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Hydrate preferences automatically from localStorage on client mount
@@ -85,6 +87,9 @@ export function PurchaseBulkBarcodeModal({
       }
       if (saved.paperSize) {
         setPaperSize(saved.paperSize);
+      }
+      if (saved.rotation === 180 || saved.rotation === 0) {
+        setRotation(saved.rotation);
       }
       if (saved.customHeader && saved.customHeader.trim().toUpperCase() !== "CLINICAL OPTICAL") {
         setCustomHeader(saved.customHeader);
@@ -266,6 +271,7 @@ export function PurchaseBulkBarcodeModal({
       paperSize,
       dGumConfig: currentSpec.dGumConfig,
       customHeader: customHeader || undefined,
+      rotation,
     });
 
     const success = printBarcodeDocument(html);
@@ -292,9 +298,8 @@ export function PurchaseBulkBarcodeModal({
   const tagPresets: LabelSizePreset[] = [
     "81x12 mm (D-Gum Flap Tag)",
     "100x15 mm (Vertical 3-Up)",
-    "81x12 mm (Vertical 1-Up)",
-    "100x15 mm (Vertical 1-Up)",
     "100x15 mm (Vertical 2-Up)",
+    "100x15 mm (Vertical 1-Up)",
     "100x15 mm (Tag)",
   ];
 
@@ -494,7 +499,7 @@ export function PurchaseBulkBarcodeModal({
                       <strong className="text-slate-800">1. Destination:</strong> Select <strong>TSC TTP-244 Plus</strong> (or your Thermal Printer).
                     </div>
                     <div className="bg-white/90 p-1.5 rounded-lg border border-blue-200">
-                      <strong className="text-slate-800">2. Paper Size:</strong> Select <strong>USER</strong> or your custom <strong>81×12 mm</strong> label stock.
+                      <strong className="text-slate-800">2. Paper Size:</strong> Select <strong>USER</strong> (In Windows printer preferences, set to <strong>Width: 81mm, Height: 12mm</strong>).
                     </div>
                     <div className="bg-white/90 p-1.5 rounded-lg border border-blue-200">
                       <strong className="text-slate-800">3. Scale:</strong> Select <strong>Scale: 100%</strong> (⚠️ <em>Do NOT use &quot;Fit to page width&quot;</em>).
@@ -502,6 +507,29 @@ export function PurchaseBulkBarcodeModal({
                     <div className="bg-white/90 p-1.5 rounded-lg border border-blue-200">
                       <strong className="text-slate-800">4. Margins:</strong> In <em>More settings</em>, set <strong>Margins: None</strong>.
                     </div>
+                  </div>
+
+                  {/* Orientation / Rotation Toggle */}
+                  <div className="flex items-center justify-between pt-1 border-t border-blue-200/60 mt-1">
+                    <span className="text-[11px] font-bold text-blue-900">
+                      Feed Orientation:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = rotation === 0 ? 180 : 0;
+                        setRotation(next);
+                        saveBarcodePreferences({ preset: selectedPreset, rotation: next });
+                      }}
+                      className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                        rotation === 180
+                          ? "bg-amber-600 text-white border-amber-700 shadow-2xs"
+                          : "bg-white text-blue-800 border-blue-200 hover:bg-blue-100/50"
+                      }`}
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      <span>{rotation === 180 ? "Flipped 180° (Inverted Feed)" : "Standard (0° Normal Feed)"}</span>
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -762,8 +790,11 @@ export function PurchaseBulkBarcodeModal({
 
                             {/* Authentic NTK Die-Cut Tag Outline (540px × 72px scaled for 81×12 mm) */}
                             <div
-                              className="w-full max-w-[540px] h-[72px] flex items-stretch select-none font-sans overflow-hidden"
-                              style={{ fontFamily: "Inter, sans-serif" }}
+                              className="w-full max-w-[540px] h-[72px] flex items-stretch select-none font-sans overflow-hidden transition-transform duration-300"
+                              style={{
+                                fontFamily: "Inter, sans-serif",
+                                transform: rotation === 180 ? "rotate(180deg)" : "none",
+                              }}
                             >
                               {/* Left Foldable Head (51mm / 81mm ≈ 62.96%) */}
                               <div
