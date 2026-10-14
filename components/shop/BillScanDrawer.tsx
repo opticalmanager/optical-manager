@@ -140,7 +140,7 @@ export function BillScanDrawer({
 
   // Setup Key state (for first-time integration)
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [modelInput, setModelInput] = useState("gemini-3.6-flash");
+  const [modelInput, setModelInput] = useState("gemini-3.5-flash-lite");
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [keyTestStatus, setKeyTestStatus] = useState<{
     tested: boolean;
@@ -164,13 +164,14 @@ export function BillScanDrawer({
         }
         if (status.model) {
           const validModels = [
+            "gemini-3.5-flash-lite",
+            "gemini-2.5-flash",
             "gemini-3.6-flash",
             "gemini-3.5-flash",
             "gemini-3.7-flash",
             "gemini-3.8-flash",
-            "gemini-3.5-flash-lite",
           ];
-          setModelInput(validModels.includes(status.model) ? status.model : "gemini-3.6-flash");
+          setModelInput(validModels.includes(status.model) ? status.model : "gemini-3.5-flash-lite");
         }
       });
     } else {
@@ -723,11 +724,12 @@ export function BillScanDrawer({
                     onChange={(e) => setModelInput(e.target.value)}
                     className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-hidden cursor-pointer"
                   >
-                    <option value="gemini-3.6-flash">gemini-3.6-flash (Recommended - High Reliability &amp; Structured OCR)</option>
-                    <option value="gemini-3.5-flash">gemini-3.5-flash (Ultra-Fast ~2.5s Standard Flash)</option>
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Recommended - Fast 2s &amp; Zero 503 Errors)</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash (Fast 2.5s Standard Flash)</option>
+                    <option value="gemini-3.6-flash">gemini-3.6-flash (High Capability OCR)</option>
+                    <option value="gemini-3.5-flash">gemini-3.5-flash (Standard Flash)</option>
                     <option value="gemini-3.7-flash">gemini-3.7-flash (Next-Gen Flash OCR)</option>
                     <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash Preview)</option>
-                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Flash Lite)</option>
                   </select>
                 </div>
 

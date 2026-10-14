@@ -5,7 +5,7 @@ import { organizations } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { Organization, NewOrganization } from "@/types";
 import type { OrganizationSettings, OrganizationAISettings } from "@/types/bill-scan";
-import { sanitizeGeminiApiKey, resolveGeminiModel } from "@/utils/ai.utils";
+import { sanitizeGeminiApiKey, resolveGeminiModel, parseOrgSettings } from "@/utils/ai.utils";
 
 let isSettingsColumnEnsured = false;
 
@@ -71,7 +71,7 @@ export async function getOrganizationAiConfig(
   isConfigured: boolean;
 }> {
   const org = await getOrganizationById(organizationId);
-  const settings = (org?.settings as OrganizationSettings) || {};
+  const settings = parseOrgSettings(org?.settings);
   const aiSettings = settings.ai || {};
 
   const apiKey =
@@ -97,7 +97,7 @@ export async function updateOrganizationAiSettings(
 ): Promise<Organization> {
   await ensureOrganizationSettingsColumn();
   const currentOrg = await getOrganizationById(organizationId);
-  const currentSettings = (currentOrg?.settings as OrganizationSettings) || {};
+  const currentSettings = parseOrgSettings(currentOrg?.settings);
 
   const updatedSettings: OrganizationSettings = {
     ...currentSettings,

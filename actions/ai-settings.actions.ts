@@ -6,7 +6,7 @@ import {
   getOrganizationAiConfig,
   updateOrganizationAiSettings,
 } from "@/services/organization.service";
-import { sanitizeGeminiApiKey, resolveGeminiModel } from "@/utils/ai.utils";
+import { sanitizeGeminiApiKey, resolveGeminiModel, RETIRED_MODELS } from "@/utils/ai.utils";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
@@ -14,7 +14,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
  */
 export async function testGeminiApiKeyAction(
   apiKey: string,
-  modelName: string = "gemini-3.6-flash"
+  modelName: string = "gemini-3.5-flash-lite"
 ): Promise<{
   success: boolean;
   message: string;
@@ -30,12 +30,13 @@ export async function testGeminiApiKeyAction(
     const genAI = new GoogleGenerativeAI(cleanKey);
     const candidateModels = [
       modelName,
+      "gemini-3.5-flash-lite",
+      "gemini-2.5-flash",
       "gemini-3.6-flash",
       "gemini-3.5-flash",
       "gemini-3.7-flash",
       "gemini-3.8-flash",
-      "gemini-3.5-flash-lite",
-    ].filter((m, i, arr) => Boolean(m) && m !== "gemini-2.5-flash" && arr.indexOf(m) === i);
+    ].filter((m, i, arr) => Boolean(m) && !RETIRED_MODELS.includes(m) && arr.indexOf(m) === i);
 
     let lastError: any = null;
     for (const name of candidateModels) {

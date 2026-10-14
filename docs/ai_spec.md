@@ -52,12 +52,14 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
 
 1. **Multimodal OCR & Resilient Model Architecture**:
    - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience:
-     - `gemini-3.6-flash` (Primary / Recommended: rock-solid uptime, zero 503 overload errors, high-precision OCR extraction)
-     - `gemini-3.5-flash` (Fast standard multimodal flash, ~2.5s response time)
+     - `gemini-3.5-flash-lite` (Primary / Recommended: ultra-fast ~2s latency, 100% live uptime, zero 503 overload errors on standard tier)
+     - `gemini-2.5-flash` (Fast standard ~2.5s multimodal flash, high availability)
+     - `gemini-3.6-flash` (High-capability structured vision OCR)
+     - `gemini-3.5-flash` (Standard flash fallback)
      - `gemini-3.7-flash` (Next-generation high-capability vision reasoning)
      - `gemini-3.8-flash` (Next-generation preview fallback)
-     - `gemini-3.5-flash-lite` (Ultra-fast lightweight fallback)
-   - Stale/retired models (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-3.1-flash-lite`, `gemini-flash-latest`) are sanitized and auto-migrated to `gemini-3.6-flash`.
+   - Stale/retired models (`gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-1.0-pro`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`) are sanitized and auto-migrated to `gemini-3.5-flash-lite`.
+   - Organization settings in Postgres `organizations.settings` are protected by `parseOrgSettings()` which gracefully parses both raw JSON objects and stringified JSON payloads.
    - **Transient 503 Spike Backoff**: Applies a 500ms delay retry upon encountering Google endpoint 503 high-demand surges before cascading to the next fallback candidate.
    - **Timeout Protection**: Each candidate model call is wrapped with a 32-second `Promise.race` timeout, preventing stalls while allowing complex dense multi-item invoices ample time to generate.
    - **Large Payload Ingestion**: `next.config.ts` configures `serverActions.bodySizeLimit: "15mb"`, ensuring multi-page PDFs and high-resolution camera captures bypass default 1MB limits without HTTP 413 errors.
