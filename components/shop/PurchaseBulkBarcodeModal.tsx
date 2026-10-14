@@ -76,7 +76,12 @@ export function PurchaseBulkBarcodeModal({
     const storeHeader = getDefaultStoreHeader();
     if (saved) {
       if (saved.preset && LABEL_SPECS[saved.preset]) {
-        setSelectedPreset(saved.preset);
+        if (saved.preset === "81x12 mm (Vertical 2-Up)" || saved.preset === "81x12 mm (Vertical 1-Up)") {
+          setSelectedPreset("81x12 mm (D-Gum Flap Tag)");
+          saveBarcodePreferences({ preset: "81x12 mm (D-Gum Flap Tag)" });
+        } else {
+          setSelectedPreset(saved.preset);
+        }
       }
       if (saved.paperSize) {
         setPaperSize(saved.paperSize);
@@ -285,10 +290,9 @@ export function PurchaseBulkBarcodeModal({
 
   // Groups of presets
   const tagPresets: LabelSizePreset[] = [
-    "81x12 mm (Vertical 2-Up)",
-    "81x12 mm (Vertical 1-Up)",
     "81x12 mm (D-Gum Flap Tag)",
     "100x15 mm (Vertical 3-Up)",
+    "81x12 mm (Vertical 1-Up)",
     "100x15 mm (Vertical 1-Up)",
     "100x15 mm (Vertical 2-Up)",
     "100x15 mm (Tag)",
@@ -480,23 +484,23 @@ export function PurchaseBulkBarcodeModal({
 
               {/* 3. Thermal Printer Setup Guidance Card */}
               {paperSize === "continuous" ? (
-                <div className="p-3 rounded-xl bg-amber-50/95 border border-amber-300 text-amber-950 text-xs space-y-1.5 shadow-2xs">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900 text-xs">
-                    <Info className="h-4 w-4 text-amber-700 shrink-0" />
-                    <span>Continuous Thermal Roll Setup Checklist (Avoids A4 / Blank Pages):</span>
+                <div className="p-3 rounded-xl bg-blue-50/95 border border-blue-300 text-blue-950 text-xs space-y-1.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-900 text-xs">
+                    <Info className="h-4 w-4 text-[#2563eb] shrink-0" />
+                    <span>TSC TTP-244 Plus &amp; Thermal Roll Print Checklist (Avoids distortion &amp; sideways prints):</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] pt-0.5">
-                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
-                      <strong className="text-slate-800">1. Destination:</strong> Select your <strong>Thermal Printer</strong> (TSC, Zebra, Xprinter, etc.) — <em>not</em> Microsoft Print to PDF.
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-blue-200">
+                      <strong className="text-slate-800">1. Destination:</strong> Select <strong>TSC TTP-244 Plus</strong> (or your Thermal Printer).
                     </div>
-                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
-                      <strong className="text-slate-800">2. Margins:</strong> In <em>More settings</em>, set <strong>Margins: None</strong> (removes blank space &amp; headers).
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-blue-200">
+                      <strong className="text-slate-800">2. Paper Size:</strong> Select <strong>USER</strong> or your custom <strong>81×12 mm</strong> label stock.
                     </div>
-                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
-                      <strong className="text-slate-800">3. Headers &amp; Footers:</strong> <strong>Uncheck</strong> (stops date, URL, and page count from printing).
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-blue-200">
+                      <strong className="text-slate-800">3. Scale:</strong> Select <strong>Scale: 100%</strong> (⚠️ <em>Do NOT use &quot;Fit to page width&quot;</em>).
                     </div>
-                    <div className="bg-white/90 p-1.5 rounded-lg border border-amber-200">
-                      <strong className="text-slate-800">4. Paper Size:</strong> <strong>{currentSpec.rollWidthMm || currentSpec.widthMm}×{currentSpec.rollHeightMm || currentSpec.heightMm}mm</strong> • Scale: <strong>100%</strong>.
+                    <div className="bg-white/90 p-1.5 rounded-lg border border-blue-200">
+                      <strong className="text-slate-800">4. Margins:</strong> In <em>More settings</em>, set <strong>Margins: None</strong>.
                     </div>
                   </div>
                 </div>

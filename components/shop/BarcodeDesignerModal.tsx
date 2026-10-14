@@ -147,8 +147,11 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
     const storeHeader = getDefaultStoreHeader();
     if (saved) {
       if (saved.preset && LABEL_SPECS[saved.preset]) {
-        setLabelSize(saved.preset);
-        const spec = LABEL_SPECS[saved.preset];
+        const effectivePreset = (saved.preset === "81x12 mm (Vertical 2-Up)" || saved.preset === "81x12 mm (Vertical 1-Up)")
+          ? "81x12 mm (D-Gum Flap Tag)"
+          : saved.preset;
+        setLabelSize(effectivePreset);
+        const spec = LABEL_SPECS[effectivePreset];
         if (spec.dGumConfig) {
           setDGumConfig(spec.dGumConfig);
         }
@@ -512,10 +515,9 @@ export function BarcodeDesignerModal({ isOpen, onClose, item, initialQuantity }:
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
                   >
                     <optgroup label="Optical Frame & Eyewear Flap / Barbell Tags">
-                      <option value="81x12 mm (Vertical 2-Up)">81×12 mm Vertical (2-Across Roll) ⭐</option>
-                      <option value="81x12 mm (Vertical 1-Up)">81×12 mm Vertical (1-Across Roll)</option>
-                      <option value="81x12 mm (D-Gum Flap Tag)">81×12 mm D-Gum Flap Tag (Horizontal Roll)</option>
+                      <option value="81x12 mm (D-Gum Flap Tag)">81×12 mm Optical Dumbbell Tag (TSC / 1-Across Roll) ⭐</option>
                       <option value="100x15 mm (Vertical 3-Up)">100×15 mm (Vertical 3-Up Roll)</option>
+                      <option value="81x12 mm (Vertical 1-Up)">81×12 mm Vertical (1-Across Roll)</option>
                       <option value="100x15 mm (Vertical 1-Up)">100×15 mm (Vertical 1-Up Roll)</option>
                       <option value="100x15 mm (Vertical 2-Up)">100×15 mm (Vertical 2-Up Roll)</option>
                       <option value="100x15 mm (Tag)">100×15 mm (Horizontal Tag / Sheets)</option>

@@ -216,15 +216,17 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 
 ## 9. Industrial Thermal Barcode & Label Printing Engine
 - **Dedicated Multi-Roll Architecture**:
-  - *81×12 mm Vertical (2-Across Continuous Roll)*: Default format engineered specifically for standard 2-column optical flap tag rolls (28×81 mm web). Features 90°-rotated Wing 1 (Brand, Model, Retail Price) and Wing 2 (Vector Barcode & Monospace SKU) along the 25.5 mm printable flaps, with an adhesive-free 30 mm tail looping around frame temples.
-  - *81×12 mm Vertical (1-Across Roll)*: Single-column continuous roll (12×81 mm web).
-  - *81×12 mm D-Gum Flap Tag (Horizontal Roll)*: Full-width horizontal roll (81×12 mm web) supporting both Ladder (90° rotated) and Picket-Fence barcode orientations.
+  - *81×12 mm Optical Dumbbell Tag (TSC / 1-Across Roll) ⭐ (Primary Default)*: Standard 81×12 mm horizontal continuous roll for TSC TTP-244 Plus, TE244, Zebra, TVS, Godex, and Xprinter 203 DPI printers. Uses standard 81mm web width across printer head × 12mm feed pitch per label:
+    - Wing 1 (0 to 25.5 mm): Store Name (Row 1), Brand & Model Description (Row 2), Bold Retail Price (Row 3, `MRP: ₹...`).
+    - Fold Divider (25.5 mm): Hairline dashed fold guideline for wrapping around eyeglass frame temples.
+    - Wing 2 (25.5 to 51.0 mm): High-density horizontal Code 128 (Subset B) barcode in picket-fence orientation (bars vertical) + human-readable monospace SKU code.
+    - Non-Printable Tail (51.0 to 81.0 mm): 30 mm adhesive-free tail loop, printed completely borderless/ink-free so glasses frames stay pristine.
+  - *100×15 mm Vertical (3-Across Roll)*: 3-column optical tag roll (50mm web width × 100mm feed length).
+  - *Continuous Thermal Roll Print Spooler*: Direct zero-lag `@page { size: 81mm 12mm; margin: 0; }` styling with last-label feed prevention (`break-after: avoid`), eliminating browser blank pages.
 - **1-Bit Thermal Monochrome Pure Black Policy (`#000000`)**:
   - Direct thermal and thermal transfer printheads operate strictly in binary 1-bit mode. All typography, prices, store headers, borders, and barcodes use pure `#000000` with bold weights (`700`–`900`), eliminating driver halftoning and invisible blue/gray text.
 - **Run-Length Vector Barcode Architecture**:
   - Code 128 and Code 39 engines synthesize consolidated integer-module `<rect>` vectors with `shape-rendering: crispEdges`, eliminating sub-pixel anti-aliasing blur and solid black smears.
-- **Continuous Thermal Roll Spooling & Zero-Lag Printing**:
-  - Pure CSS `@page { size: ${rollWidth}mm ${rollHeight}mm; margin: 0mm; }` with active-layout offscreen iframes preventing Letter/A4 fallback.
 - **Automatic Preference Persistence (`localStorage`)**:
-  - Operator preset, paper size, and barcode orientation preferences are automatically remembered under `optical_barcode_preferences_v1`.
+  - Operator preset, paper size, and store header preferences auto-persist under `optical_barcode_preferences_v1`, with automated migration from legacy vertical presets to the horizontal 81×12 mm standard.
 
