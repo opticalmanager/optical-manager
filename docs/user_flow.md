@@ -1,4 +1,4 @@
-﻿# User Journeys & Workflows
+# User Journeys & Workflows
 
 This document outlines the end-to-end user workflows for System Owners, Store Managers, and Public Patients in Optical Manager.
 
@@ -659,7 +659,7 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 
 1. **Owner Configuration & API Key Management (`/owner/settings`)**:
    - Store owners navigate to **Owner Settings** and access the **AI & Automations** category card.
-   - Owners can configure their private **Google Gemini API Key** and preferred model (`gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`, or `gemini-3.5-flash-lite`).
+   - Owners can configure their private **Google Gemini API Key** and preferred model (`gemini-3.5-flash-lite`, `gemini-2.5-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.7-flash`, or `gemini-3.8-flash`).
    - "Test Connection" button performs a lightweight round-trip test to verify connectivity and display latency in milliseconds.
    - Credentials are saved securely to the database in `organizations.settings.ai`. Each organization's key remains completely isolated.
 
