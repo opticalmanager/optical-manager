@@ -100,10 +100,10 @@ export const DEFAULT_DGUM_CONFIG: DGumFlapConfig = {
   adhesiveSectionLengthMm: 30,
   orientation: "horizontal",
   barcode: {
-    orientation: "vertical",
-    widthMm: 21,
-    heightMm: 5.5,
-    quietZoneMm: 1.5,
+    orientation: "horizontal",
+    widthMm: 22,
+    heightMm: 6.0,
+    quietZoneMm: 1.0,
     symbology: "code128",
   },
   media: {
@@ -180,7 +180,7 @@ export interface UserBarcodePreferences {
 }
 
 export const BARCODE_PREFERENCES_STORAGE_KEY = "optical_barcode_preferences_v1";
-export const DEFAULT_BARCODE_PRESET: LabelSizePreset = "81x12 mm (Vertical 2-Up)";
+export const DEFAULT_BARCODE_PRESET: LabelSizePreset = "81x12 mm (D-Gum Flap Tag)";
 export const DEFAULT_PAPER_SIZE: "continuous" | "a4" | "a5" = "continuous";
 
 /**
@@ -504,11 +504,11 @@ export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
   },
   "81x12 mm (D-Gum Flap Tag)": {
     id: "81x12 mm (D-Gum Flap Tag)",
-    displayName: "81×12 mm D-Gum Flap Tag (NTK Standard)",
+    displayName: "81×12 mm Optical Dumbbell Tag (TSC / 1-Across Roll) ⭐",
     widthMm: 81,
     heightMm: 12,
     type: "dgum-flap",
-    description: "NTK Optical Frame Flap Tag (51mm Head [25.5mm + 25.5mm] + 30mm Tail)",
+    description: "Standard 81×12 mm Horizontal Roll for TSC TTP-244 Plus & Thermal Printers (51mm Head + 30mm Tail)",
     defaultBarcodeHeight: 14,
     maxBarcodeHeight: 18,
     defaultBrandFontSize: 6.5,
@@ -1255,19 +1255,18 @@ export function buildOneDGumFlapTagHtml(
         display:flex;
         flex-direction:row;
         align-items:stretch;
-        border:${outerBorderCss};
-        border-radius:1mm 0 0 1mm;
+        border:none;
         background:#ffffff;
         overflow:hidden;
       ">
-        <!-- Section 1 (Front Wing): ${s1Mm}mm length -->
+        <!-- Section 1 (Front Wing): ${s1Mm}mm length × ${tagWidthMm}mm height -->
         <div style="
           width:${s1Mm}mm;
           max-width:${s1Mm}mm;
           min-width:${s1Mm}mm;
           height:100%;
           box-sizing:border-box;
-          padding:0.4mm 0.8mm;
+          padding:0.6mm 0.8mm;
           display:flex;
           flex-direction:column;
           justify-content:space-between;
@@ -1275,13 +1274,18 @@ export function buildOneDGumFlapTagHtml(
           text-align:left;
           background:#ffffff;
         ">
-          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;min-width:0;">
+          <!-- Row 1: Store / Organization Header -->
+          <div style="width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1;">
             ${headerHtml}
-            ${priceHtml}
           </div>
-          <div style="display:flex;flex-direction:column;width:100%;min-width:0;overflow:hidden;">
+          <!-- Row 2: Brand & Model / Category Description -->
+          <div style="width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1.1;margin-top:0.2mm;">
             ${brandHtml}
             ${itemNameHtml}
+          </div>
+          <!-- Row 3: Price Display -->
+          <div style="width:100%;overflow:hidden;white-space:nowrap;line-height:1;margin-top:0.2mm;">
+            ${priceHtml}
           </div>
         </div>
 
@@ -1289,19 +1293,19 @@ export function buildOneDGumFlapTagHtml(
         <div style="
           width:0;
           height:100%;
-          border-left:${dividerBorderCss};
+          border-left:1px dashed #666666;
           flex-shrink:0;
           position:relative;
         "></div>
 
-        <!-- Section 2 (Back Wing): ${s2Mm}mm length -->
+        <!-- Section 2 (Back Wing): ${s2Mm}mm length × ${tagWidthMm}mm height -->
         <div style="
           width:${s2Mm}mm;
           max-width:${s2Mm}mm;
           min-width:${s2Mm}mm;
           height:100%;
           box-sizing:border-box;
-          padding:0.2mm 0.5mm;
+          padding:0.4mm 0.8mm;
           display:flex;
           flex-direction:column;
           align-items:center;
@@ -1339,15 +1343,7 @@ export function buildOneDGumFlapTagHtml(
         overflow:hidden;
         background:transparent;
       ">
-        <div style="
-          width:100%;
-          height:2.8mm;
-          border-top:${outerBorderCss};
-          border-bottom:${outerBorderCss};
-          border-right:${outerBorderCss};
-          border-radius:0 1.4mm 1.4mm 0;
-          background:#ffffff;
-        "></div>
+        <!-- Physical tail is pre-cut; no ink or borders printed in thermal print mode -->
       </div>
     </div>`;
 }
