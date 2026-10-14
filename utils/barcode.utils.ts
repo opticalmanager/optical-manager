@@ -177,6 +177,7 @@ export interface UserBarcodePreferences {
   fontFamily?: "modern" | "mono" | "classic";
   fontWeight?: "regular" | "bold";
   barcodeOrientation?: "horizontal" | "vertical";
+  rotation?: 0 | 180;
 }
 
 export const BARCODE_PREFERENCES_STORAGE_KEY = "optical_barcode_preferences_v1";
@@ -504,7 +505,7 @@ export const LABEL_SPECS: Record<LabelSizePreset, LabelSpec> = {
   },
   "81x12 mm (D-Gum Flap Tag)": {
     id: "81x12 mm (D-Gum Flap Tag)",
-    displayName: "81×12 mm Optical Dumbbell Tag (TSC / 1-Across Roll) ⭐",
+    displayName: "81×12 mm Optical Dumbbell Tag (TSC TTP-244 Plus / 1-Across Roll) ⭐",
     widthMm: 81,
     heightMm: 12,
     type: "dgum-flap",
@@ -784,6 +785,7 @@ export interface BarcodeLabelOptions {
   currencySymbol?: string;
   symbology?: "code128" | "code39";
   dGumConfig?: DGumFlapConfig;
+  rotation?: 0 | 180;
 }
 
 /**
@@ -1154,8 +1156,15 @@ export function buildOneDGumFlapTagHtml(
       ? `<span style="font-size:4.8px;font-family:'Courier New',monospace;letter-spacing:0.08em;font-weight:700;color:#000000;display:block;margin-top:0.2mm;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skuCode}</span>`
       : "";
 
-  // Calibration transform
-  const calTransform = (calX !== 0 || calY !== 0) ? `transform: translate(${calX}mm, ${calY}mm);` : "";
+  // Calibration and rotation transform
+  const transforms: string[] = [];
+  if (calX !== 0 || calY !== 0) {
+    transforms.push(`translate(${calX}mm, ${calY}mm)`);
+  }
+  if (options?.rotation === 180) {
+    transforms.push("rotate(180deg)");
+  }
+  const calTransform = transforms.length > 0 ? `transform: ${transforms.join(" ")}; transform-origin: center center;` : "";
 
   // NTK 81x12mm standard: 51mm foldable head (25.5mm + 25.5mm) + 30mm adhesive-free tail
   const headLengthMm = sections.headLengthMm || 51;

@@ -216,11 +216,16 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 
 ## 9. Industrial Thermal Barcode & Label Printing Engine
 - **Dedicated Multi-Roll Architecture**:
-  - *81×12 mm Optical Dumbbell Tag (TSC / 1-Across Roll) ⭐ (Primary Default)*: Standard 81×12 mm horizontal continuous roll for TSC TTP-244 Plus, TE244, Zebra, TVS, Godex, and Xprinter 203 DPI printers. Uses standard 81mm web width across printer head × 12mm feed pitch per label:
+  - *81×12 mm Optical Dumbbell Tag (TSC TTP-244 Plus / 1-Across Roll) ⭐ (Primary Default)*: Standard 81×12 mm horizontal continuous roll for TSC TTP-244 Plus, TE244, Zebra, TVS, Godex, and Xprinter 203 DPI printers. Uses standard 81mm web width across printer head × 12mm feed pitch per label:
     - Wing 1 (0 to 25.5 mm): Store Name (Row 1), Brand & Model Description (Row 2), Bold Retail Price (Row 3, `MRP: ₹...`).
     - Fold Divider (25.5 mm): Hairline dashed fold guideline for wrapping around eyeglass frame temples.
     - Wing 2 (25.5 to 51.0 mm): High-density horizontal Code 128 (Subset B) barcode in picket-fence orientation (bars vertical) + human-readable monospace SKU code.
     - Non-Printable Tail (51.0 to 81.0 mm): 30 mm adhesive-free tail loop, printed completely borderless/ink-free so glasses frames stay pristine.
+    - Feed Flip (180° Inversion Support): One-click orientation toggle (`0°` normal vs `180°` inverted) to adapt to reversed media loading or upside-down feed mechanisms.
+  - *TSC TTP-244 Plus & Windows Thermal Driver Integration*:
+    - Requires Windows printer driver stock setting: **Width: 81.0 mm**, **Height: 12.0 mm**, **Orientation: Portrait (0°)**, **Type: Labels with gaps (Die-cut 2.0 mm)**.
+    - Eliminates the classic 12mm driver clipping bug where Chrome downscaled/rotated prints onto a 12×81mm portrait spool.
+    - Chrome Print Dialog rules: Paper size = `81x12` (or custom stock), Margins = `None`, Scale = `100% (Default)` (disabling "Fit to page width").
   - *100×15 mm Vertical (3-Across Roll)*: 3-column optical tag roll (50mm web width × 100mm feed length).
   - *Continuous Thermal Roll Print Spooler*: Direct zero-lag `@page { size: 81mm 12mm; margin: 0; }` styling with last-label feed prevention (`break-after: avoid`), eliminating browser blank pages.
 - **1-Bit Thermal Monochrome Pure Black Policy (`#000000`)**:
@@ -228,5 +233,6 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 - **Run-Length Vector Barcode Architecture**:
   - Code 128 and Code 39 engines synthesize consolidated integer-module `<rect>` vectors with `shape-rendering: crispEdges`, eliminating sub-pixel anti-aliasing blur and solid black smears.
 - **Automatic Preference Persistence (`localStorage`)**:
-  - Operator preset, paper size, and store header preferences auto-persist under `optical_barcode_preferences_v1`, with automated migration from legacy vertical presets to the horizontal 81×12 mm standard.
+  - Operator preset, paper size, store header, and rotation preferences auto-persist under `optical_barcode_preferences_v1`, with automated migration from legacy vertical presets to the horizontal 81×12 mm standard.
+
 
