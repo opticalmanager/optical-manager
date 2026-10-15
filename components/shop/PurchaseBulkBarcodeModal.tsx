@@ -24,6 +24,7 @@ import {
   Box,
   Info,
   Download,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -129,14 +130,50 @@ export function PurchaseBulkBarcodeModal({
   // Selected preview item index (for Single Label tab)
   const [previewIndex, setPreviewIndex] = useState<number>(0);
 
+  // Stable product key helper to ensure every item in large batches (e.g. 73 items) has a unique key
+  const getProductKey = (p: BulkBarcodeProduct, idx: number) => p.id || p.sku || p.productCode || `prod-${idx}`;
+
   // Editable quantities per product
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
-    initialProducts.forEach((p) => {
-      initial[p.id] = Math.max(1, p.quantity || 1);
+    initialProducts.forEach((p, idx) => {
+      initial[getProductKey(p, idx)] = Math.max(1, p.quantity || 1);
     });
     return initial;
   });
+
+  // Re-sync quantities if initialProducts updates or mounts
+  useEffect(() => {
+    if (initialProducts && initialProducts.length > 0) {
+      setProductQuantities((prev) => {
+        const next: Record<string, number> = { ...prev };
+        let hasChanges = false;
+        initialProducts.forEach((p, idx) => {
+          const key = getProductKey(p, idx);
+          if (next[key] === undefined) {
+            next[key] = Math.max(1, p.quantity || 1);
+            hasChanges = true;
+          }
+        });
+        return hasChanges ? next : prev;
+      });
+    }
+  }, [initialProducts]);
+
+  // Search filter for product listing
+  const [productSearch, setProductSearch] = useState<string>("");
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearch.trim()) return initialProducts;
+    const q = productSearch.trim().toLowerCase();
+    return initialProducts.filter((p) => {
+      const name = (p.name || "").toLowerCase();
+      const sku = (p.sku || "").toLowerCase();
+      const code = (p.productCode || "").toLowerCase();
+      const cat = (p.category || "").toLowerCase();
+      return name.includes(q) || sku.includes(q) || code.includes(q) || cat.includes(q);
+    });
+  }, [initialProducts, productSearch]);
 
   const currentSpec = LABEL_SPECS[selectedPreset] || LABEL_SPECS[DEFAULT_BARCODE_PRESET];
 
@@ -196,35 +233,35 @@ export function PurchaseBulkBarcodeModal({
   };
 
   // Handle single item quantity change
-  const handleQuantityChange = (id: string, delta: number) => {
+  const handleQuantityChange = (key: string, delta: number) => {
     setProductQuantities((prev) => {
-      const current = prev[id] || 0;
+      const current = prev[key] || 0;
       const next = Math.max(0, Math.min(500, current + delta));
-      return { ...prev, [id]: next };
+      return { ...prev, [key]: next };
     });
   };
 
-  const handleSetExactQuantity = (id: string, val: string) => {
+  const handleSetExactQuantity = (key: string, val: string) => {
     const parsed = parseInt(val, 10);
     setProductQuantities((prev) => ({
       ...prev,
-      [id]: isNaN(parsed) ? 0 : Math.max(0, Math.min(500, parsed)),
+      [key]: isNaN(parsed) ? 0 : Math.max(0, Math.min(500, parsed)),
     }));
   };
 
   const handleResetToInward = () => {
     const next: Record<string, number> = {};
-    initialProducts.forEach((p) => {
-      next[p.id] = Math.max(1, p.quantity || 1);
+    initialProducts.forEach((p, idx) => {
+      next[getProductKey(p, idx)] = Math.max(1, p.quantity || 1);
     });
     setProductQuantities(next);
-    toast.info("Reset all label counts to inward quantities.");
+    toast.info(`Reset all ${initialProducts.length} label counts to inward quantities.`);
   };
 
   const handleClearAll = () => {
     const next: Record<string, number> = {};
-    initialProducts.forEach((p) => {
-      next[p.id] = 0;
+    initialProducts.forEach((p, idx) => {
+      next[getProductKey(p, idx)] = 0;
     });
     setProductQuantities(next);
   };
@@ -232,8 +269,9 @@ export function PurchaseBulkBarcodeModal({
   const handleAddOneToAll = () => {
     setProductQuantities((prev) => {
       const next = { ...prev };
-      initialProducts.forEach((p) => {
-        next[p.id] = (next[p.id] || 0) + 1;
+      initialProducts.forEach((p, idx) => {
+        const key = getProductKey(p, idx);
+        next[key] = (next[key] || 0) + 1;
       });
       return next;
     });
@@ -243,15 +281,16 @@ export function PurchaseBulkBarcodeModal({
   const handleExecutePrint = () => {
     const itemsToPrint: Array<{ item: BarcodeItem; quantity: number }> = [];
 
-    initialProducts.forEach((p) => {
-      const q = productQuantities[p.id] || 0;
+    initialProducts.forEach((p, idx) => {
+      const key = getProductKey(p, idx);
+      const q = productQuantities[key] || 0;
       if (q > 0) {
         const fallbackSku = p.category
           ? `${p.category.slice(0, 3).toUpperCase()}-GEN-00001`
           : "FRM-GEN-00001";
         itemsToPrint.push({
           item: {
-            id: p.id,
+            id: p.id || key,
             name: p.name,
             category: p.category || "FRAME",
             brand: null,
@@ -294,15 +333,16 @@ export function PurchaseBulkBarcodeModal({
   const handleDownloadBulkTSPL = () => {
     const itemsToPrint: Array<{ item: BarcodeItem; quantity: number }> = [];
 
-    initialProducts.forEach((p) => {
-      const q = productQuantities[p.id] || 0;
+    initialProducts.forEach((p, idx) => {
+      const key = getProductKey(p, idx);
+      const q = productQuantities[key] || 0;
       if (q > 0) {
         const fallbackSku = p.category
           ? `${p.category.slice(0, 3).toUpperCase()}-GEN-00001`
           : "FRM-GEN-00001";
         itemsToPrint.push({
           item: {
-            id: p.id,
+            id: p.id || key,
             name: p.name,
             category: p.category || "FRAME",
             brand: null,
@@ -650,6 +690,27 @@ export function PurchaseBulkBarcodeModal({
                   </div>
                 </div>
 
+                {/* Search Bar for Large Batches (e.g. 73 items) */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder={`Search among ${initialProducts.length} products by name, code, SKU...`}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-12 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                  />
+                  {productSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setProductSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px] font-bold"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
                 {/* Products Table with Steppers */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[260px] overflow-y-auto">
                   <table className="w-full text-xs text-left">
@@ -661,74 +722,85 @@ export function PurchaseBulkBarcodeModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {initialProducts.map((p, idx) => {
-                        const qty = productQuantities[p.id] || 0;
-                        const isPreviewed = previewIndex === idx;
-                        const title = resolveDisplayTitle(
-                          p.name,
-                          p.category,
-                          null,
-                          null,
-                          p.productCode || p.sku
-                        );
-                        return (
-                          <tr
-                            key={p.id}
-                            onClick={() => setPreviewIndex(idx)}
-                            className={`cursor-pointer transition-colors ${
-                              isPreviewed
-                                ? "bg-blue-50/80 font-medium"
-                                : qty > 0
-                                ? "hover:bg-slate-50/80"
-                                : "hover:bg-slate-50/50 opacity-60"
-                            }`}
-                          >
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-2">
-                                <div className={`h-2 w-2 rounded-full ${isPreviewed ? "bg-[#2563eb]" : "bg-slate-300"}`} />
-                                <div className="min-w-0">
-                                  <span className="font-bold text-slate-800 block truncate max-w-[220px]" title={title}>
-                                    {title}
-                                  </span>
-                                  <span className="text-[10px] font-mono text-slate-400 block truncate">
-                                    {p.sku || p.productCode || "Auto SKU"}
-                                  </span>
+                      {filteredProducts.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-6 text-center text-slate-400 text-xs">
+                            No products match &ldquo;{productSearch}&rdquo;
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredProducts.map((p) => {
+                          const originalIdx = initialProducts.findIndex((orig) => orig === p);
+                          const idx = originalIdx >= 0 ? originalIdx : 0;
+                          const key = getProductKey(p, idx);
+                          const qty = productQuantities[key] || 0;
+                          const isPreviewed = previewIndex === idx;
+                          const title = resolveDisplayTitle(
+                            p.name,
+                            p.category,
+                            null,
+                            null,
+                            p.productCode || p.sku
+                          );
+                          return (
+                            <tr
+                              key={key}
+                              onClick={() => setPreviewIndex(idx)}
+                              className={`cursor-pointer transition-colors ${
+                                isPreviewed
+                                  ? "bg-blue-50/80 font-medium"
+                                  : qty > 0
+                                  ? "hover:bg-slate-50/80"
+                                  : "hover:bg-slate-50/50 opacity-60"
+                              }`}
+                            >
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2">
+                                  <div className={`h-2 w-2 rounded-full ${isPreviewed ? "bg-[#2563eb]" : "bg-slate-300"}`} />
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-slate-800 block truncate max-w-[220px]" title={title}>
+                                      {title}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-slate-400 block truncate">
+                                      {p.sku || p.productCode || "Auto SKU"}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="py-2 px-2 text-slate-600 font-semibold">
-                              {formatPrice(p.price)}
-                            </td>
-                            <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="inline-flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuantityChange(p.id, -1)}
-                                  disabled={qty <= 0}
-                                  className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer"
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </button>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={500}
-                                  value={qty}
-                                  onChange={(e) => handleSetExactQuantity(p.id, e.target.value)}
-                                  className="w-11 h-6 text-center text-xs font-bold rounded border border-slate-200 bg-white focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuantityChange(p.id, 1)}
-                                  className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                              </td>
+                              <td className="py-2 px-2 text-slate-600 font-semibold">
+                                {formatPrice(p.price)}
+                              </td>
+                              <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuantityChange(key, -1)}
+                                    disabled={qty <= 0}
+                                    className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer"
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={500}
+                                    value={qty}
+                                    onChange={(e) => handleSetExactQuantity(key, e.target.value)}
+                                    className="w-11 h-6 text-center text-xs font-bold rounded border border-slate-200 bg-white focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuantityChange(key, 1)}
+                                    className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1190,52 +1262,62 @@ export function PurchaseBulkBarcodeModal({
                             </span>
                           </div>
 
-                          {/* Continuous Liner Web */}
-                          <div className="bg-slate-200/90 px-2.5 py-2 border-b border-slate-300 space-y-2">
-                            {[0, 1, 2].map((idx) => {
-                              const prod = initialProducts[(previewIndex + idx) % initialProducts.length] || currentPreviewProduct;
-                              const sku = prod.sku || prod.productCode || (prod.category ? `${prod.category.slice(0, 3).toUpperCase()}-GEN-00001` : "FRM-GEN-00001");
-                              const headMm = currentSpec.dGumConfig?.headLengthMm || 51;
-                              const tailMm = currentSpec.dGumConfig?.tailLengthMm || 30;
-                              const totalMm = headMm + tailMm;
-                              const headPct = Math.round((headMm / totalMm) * 100);
-                              const tailPct = 100 - headPct;
+                          {/* Continuous Liner Web - Scrollable Feed */}
+                          <div className="bg-slate-200/90 px-2.5 py-2 border-b border-slate-300 space-y-2 max-h-[300px] overflow-y-auto">
+                            {initialProducts
+                              .filter((p, i) => (productQuantities[getProductKey(p, i)] || 0) > 0)
+                              .map((prod, idx) => {
+                                const key = getProductKey(prod, idx);
+                                const qty = productQuantities[key] || 1;
+                                const sku = prod.sku || prod.productCode || (prod.category ? `${prod.category.slice(0, 3).toUpperCase()}-GEN-00001` : "FRM-GEN-00001");
+                                const headMm = currentSpec.dGumConfig?.headLengthMm || 51;
+                                const tailMm = currentSpec.dGumConfig?.tailLengthMm || 30;
+                                const totalMm = headMm + tailMm;
+                                const headPct = Math.round((headMm / totalMm) * 100);
+                                const tailPct = 100 - headPct;
 
-                              return (
-                                <div key={idx} className="w-full bg-white rounded-[2px] border border-slate-300 shadow-2xs p-1 flex items-stretch h-[34px]">
-                                  {/* Head Section (51mm / ~63%) */}
-                                  <div style={{ width: `${headPct}%` }} className="flex items-stretch border-r border-dashed border-slate-300 pr-1">
-                                    {/* Wing 1 (25.5mm Front Flap) */}
-                                    <div className="w-1/2 text-[5.5px] text-slate-600 truncate pr-1 flex flex-col justify-center leading-tight">
-                                      <span className="font-bold text-slate-800 truncate">{prod.category || "FRAME"}</span>
-                                      <span className="text-[#2563eb] font-extrabold">{formatPrice(prod.price)}</span>
+                                return (
+                                  <div key={key} className="w-full bg-white rounded-[2px] border border-slate-300 shadow-2xs p-1 flex items-stretch h-[34px]">
+                                    {/* Head Section (51mm / ~63%) */}
+                                    <div style={{ width: `${headPct}%` }} className="flex items-stretch border-r border-dashed border-slate-300 pr-1">
+                                      {/* Wing 1 (25.5mm Front Flap) */}
+                                      <div className="w-1/2 text-[5.5px] text-slate-600 truncate pr-1 flex flex-col justify-center leading-tight">
+                                        <span className="font-bold text-slate-800 truncate">{prod.category || "FRAME"}</span>
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-[#2563eb] font-extrabold">{formatPrice(prod.price)}</span>
+                                          {qty > 1 && (
+                                            <span className="text-[5px] font-mono font-bold bg-blue-50 text-blue-700 px-0.5 rounded">
+                                              ×{qty}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {/* Central Fold Indicator */}
+                                      <div className="border-r border-dashed border-blue-400 my-0.5" />
+                                      {/* Wing 2 (25.5mm Back Flap Barcode) */}
+                                      <div className="w-1/2 flex flex-col items-center justify-center pl-1">
+                                        <div
+                                          className="w-full max-w-[65px] h-3 flex items-center justify-center overflow-hidden"
+                                          dangerouslySetInnerHTML={{
+                                            __html: buildBarcodeSvgString(sku, 12, 0.7, "code128"),
+                                          }}
+                                        />
+                                        <span className="text-[4px] font-mono font-bold text-slate-700 tracking-wider truncate">
+                                          {sku}
+                                        </span>
+                                      </div>
                                     </div>
-                                    {/* Central Fold Indicator */}
-                                    <div className="border-r border-dashed border-blue-400 my-0.5" />
-                                    {/* Wing 2 (25.5mm Back Flap Barcode) */}
-                                    <div className="w-1/2 flex flex-col items-center justify-center pl-1">
-                                      <div
-                                        className="w-full max-w-[65px] h-3 flex items-center justify-center overflow-hidden"
-                                        dangerouslySetInnerHTML={{
-                                          __html: buildBarcodeSvgString(sku, 12, 0.7, "code128"),
-                                        }}
-                                      />
-                                      <span className="text-[4px] font-mono font-bold text-slate-700 tracking-wider truncate">
-                                        {sku}
-                                      </span>
+                                    {/* Tail Section (30mm / ~37%) */}
+                                    <div style={{ width: `${tailPct}%` }} className="flex items-center justify-center pl-1">
+                                      <div className="w-full h-[12px] bg-amber-50/90 border border-dashed border-amber-300 rounded-r-full flex items-center justify-center">
+                                        <span className="text-[4.5px] font-mono font-bold text-amber-700 tracking-wider uppercase truncate">
+                                          ◀ Tail ▶
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
-                                  {/* Tail Section (30mm / ~37%) */}
-                                  <div style={{ width: `${tailPct}%` }} className="flex items-center justify-center pl-1">
-                                    <div className="w-full h-[12px] bg-amber-50/90 border border-dashed border-amber-300 rounded-r-full flex items-center justify-center">
-                                      <span className="text-[4.5px] font-mono font-bold text-amber-700 tracking-wider uppercase truncate">
-                                        ◀ Tail ▶
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
 
                             {/* Perforation Cut Guideline */}
                             <div className="pt-1 border-t-2 border-dashed border-indigo-400 flex items-center justify-between text-[7px] font-bold text-indigo-600 px-1">

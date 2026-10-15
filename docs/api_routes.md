@@ -20,10 +20,13 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Response**: `200 OK` with `Content-Type: text/csv` download header.
 
 #### `GET /api/reports/export`
-- **Description**: Exports detailed financial revenue reports, GST tax breakdowns, and payment collection telemetry.
+- **Description**: Exports detailed financial revenue reports, GST tax breakdowns, payment collections, day-wise ledgers, and single-day customer transaction reports into CSV format.
 - **Query Parameters**:
-  - `timeframe`: Date window filter.
-- **Response**: `200 OK` with CSV binary payload.
+  - `type`: `sales` | `items` | `gst` | `inventory` | `payments` | `appointments` | `daywise` | `daily` | `dues` | `deadstock`.
+  - `from` (optional): Start date string (`YYYY-MM-DD`).
+  - `to` (optional): End date string (`YYYY-MM-DD`).
+  - `date` (optional): Specific date string (`YYYY-MM-DD`) for `type=daily` single-day customer transaction ledger export.
+- **Response**: `200 OK` with `Content-Type: text/csv` download header.
 
 ---
 

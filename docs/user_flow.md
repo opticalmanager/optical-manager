@@ -903,6 +903,43 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Multi-column rolls (3-Up, 2-Up) group tags across rows and trigger `@media print { page-break-after: always; }` at each row boundary.
    - Spools through a hidden `iframe` with fallback to a print popup window, delivering instantaneous print output with zero layout reflows.
 
+---
+
+## 15. Day-Wise Collection Ledger & Daily Cash Drawer Report Workflow
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│ Open /shop/reports│────>│ Auto-Scroll to   │────>│ Filter Month/    │────>│ Drilldown to Day │
+│ Click "Day-Wise" │     │ Collection Table │     │ Year or Dates    │     │ Report Page      │
+└──────────────────┘     └──────────────────┘     └──────────────────┘     └──────────────────┘
+```
+
+1. **Auto-Scroll to Day-Wise Collection Ledger (`/shop/reports`)**:
+   - Operator clicks **Day-Wise Collection** under the SALES REPORT card or deep-links via `?sub=daywise`.
+   - The interface smoothly auto-scrolls down past the category cards directly into the active Day-Wise ledger workspace table.
+   - 5 High-Density KPI cards provide immediate visibility into:
+     - **Total Collected**: Actual cash, UPI, card, and bank inflows reconciled from all invoices and receipts.
+     - **Total Sales Billed**: Invoiced order volume (Subtotal + Taxes).
+     - **Invoices Issued**: Count of invoices issued across active store days.
+     - **Balance Dues Pending**: Outstanding receivables for the period.
+     - **Avg Daily Inflow**: Average money collected per active business day.
+
+2. **Period Filter Controls (Month / Year / Date Picker)**:
+   - Direct header toolbar provides quick shortcuts (`This Month`, `Last Month`), an intuitive Month selector (January to December), and a Year dropdown (2024–2027).
+   - Custom Dates toggle allows flexible date ranges with instantaneous table re-calculation.
+
+3. **Drilldown to Single-Day Customer Collection Report (`/shop/reports/daily?date=YYYY-MM-DD`)**:
+   - Operator clicks any date row in the Day-Wise table or the **Day Report →** pill.
+   - Navigates to `/shop/reports/daily?date=YYYY-MM-DD`, displaying:
+     - **Date Switcher**: 1-click `← Previous Day`, Date Picker input, `Next Day →`, and `Today` shortcuts.
+     - **Cash Drawer KPIs**: Total Inflow Today, Cash in Hand / Drawer, UPI & QR Digital, and Card & Bank POS.
+     - **Summary Strip**: Invoices Issued, Advances on New Orders, Old Dues Recovered, Uncollected Balance Due, and Distinct Customer count.
+     - **Filter Tabs**: All Collections, Cash, UPI / QR, Card / POS, New Orders, and Dues Settled.
+     - **Customer Collection Ledger Table**: Full customer transaction breakdown including Time, Customer Name, Phone (with 1-click copy), Invoice & Receipt links, Collection Type badge (`Advance Booking`, `Full Payment`, `Balance Settlement`, `New Sale`), Items Summary, Payment Mode & Txn ID, Bill Total, Amount Paid Today, and Balance Remaining.
+     - **Print EOD Slip**: Browser-compliant `@media print` layout styled for store closing cash drawer handover and register balancing.
+     - **Export CSV**: Instant single-day customer transaction ledger download via `/api/reports/export?type=daily&date=YYYY-MM-DD`.
+
+
 
 
 

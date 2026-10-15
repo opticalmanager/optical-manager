@@ -962,18 +962,18 @@ export function PurchaseDetailClient({
           isOpen={showBulkBarcodeModal}
           onClose={() => setShowBulkBarcodeModal(false)}
           invoiceNumber={purchaseNumber}
-          products={items.map((it) => {
+          products={items.map((it, idx) => {
             const fallbackSku = it.category
               ? `${it.category.slice(0, 3).toUpperCase()}-GEN-00001`
               : "FRM-GEN-00001";
             return {
-              id: it.id,
+              id: it.id || `po-item-${idx}`,
               name: it.productName,
               sku: it.productCode || fallbackSku,
               productCode: it.productCode || null,
               category: it.category || "FRAME",
-              price: it.retailPrice && Number(it.retailPrice) > 0 ? String(it.retailPrice) : String(it.purchasePrice),
-              quantity: it.quantity || 1,
+              price: it.retailPrice && Number(it.retailPrice) > 0 ? String(it.retailPrice) : String(it.purchasePrice || "0"),
+              quantity: typeof it.quantity === "number" && it.quantity > 0 ? it.quantity : 1,
             };
           })}
         />

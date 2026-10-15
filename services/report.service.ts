@@ -11,7 +11,7 @@ import {
   orders,
   stockMovements
 } from "@/db/schema";
-import { eq, and, gte, lte, sql, desc, sum, count } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, sum, count, inArray } from "drizzle-orm";
 
 export interface ReportDateRange {
   startDate?: string;
@@ -640,16 +640,26 @@ export interface DayWiseCollectionItem {
   totalInvoices: number;
   subtotal: number;
   tax: number;
-  totalRevenue: number;
+  totalRevenue: number; // Total invoiced sales
+  totalCollected: number; // Total actual money collected (cash + upi + card + bank)
   cashTotal: number;
   upiTotal: number;
   cardTotal: number;
-  balanceDue: number;
+  bankTotal: number;
+  balanceDue: number; // Remaining dues on invoices created this day
+  customerCount: number;
 }
 
 export interface DayWiseCollectionReportData {
-  grandTotal: number;
+  grandTotal: number; // Total invoiced
+  grandTotalCollected: number; // Total money collected across period
+  grandCashTotal: number;
+  grandUpiTotal: number;
+  grandCardTotal: number;
+  grandBankTotal: number;
+  grandBalanceDue: number;
   totalInvoices: number;
+  activeDaysCount: number;
   days: DayWiseCollectionItem[];
 }
 
@@ -661,8 +671,11 @@ export async function getDayWiseCollectionReport(
 ): Promise<DayWiseCollectionReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
+  // 1. Fetch Invoices created in this date range
   const rawInvoices = await db
     .select({
+      id: invoices.id,
+      customerId: invoices.customerId,
       createdAt: invoices.createdAt,
       subtotal: invoices.subtotal,
       tax: invoices.tax,
@@ -681,18 +694,45 @@ export async function getDayWiseCollectionReport(
     )
     .orderBy(desc(invoices.createdAt));
 
+  // 2. Fetch Receipts created in this date range (actual payments received)
+  const rawReceipts = await db
+    .select({
+      id: receipts.id,
+      invoiceId: receipts.invoiceId,
+      receiptNumber: receipts.receiptNumber,
+      amountPaid: receipts.amountPaid,
+      balanceDue: receipts.balanceDue,
+      paymentMethod: receipts.paymentMethod,
+      transactionId: receipts.transactionId,
+      createdAt: receipts.createdAt,
+      customerId: invoices.customerId,
+    })
+    .from(receipts)
+    .innerJoin(invoices, eq(receipts.invoiceId, invoices.id))
+    .where(
+      and(
+        getShopFilter(receipts.shopId, receipts.organizationId, shopId, organizationId),
+        gte(receipts.createdAt, start),
+        lte(receipts.createdAt, end)
+      )
+    )
+    .orderBy(desc(receipts.createdAt));
+
   const dayMap: Record<string, DayWiseCollectionItem> = {};
+  const dayCustomerSets: Record<string, Set<string>> = {};
+
   let grandTotal = 0;
+  let grandBalanceDue = 0;
 
   for (const inv of rawInvoices) {
     const dStr = new Date(inv.createdAt).toISOString().split("T")[0];
     const sub = parseFloat(inv.subtotal) || 0;
     const tx = parseFloat(inv.tax) || 0;
     const tot = parseFloat(inv.total) || 0;
-    const paid = parseFloat(inv.amountPaid) || 0;
     const bal = parseFloat(inv.balanceDue) || 0;
 
     grandTotal += tot;
+    grandBalanceDue += bal;
 
     if (!dayMap[dStr]) {
       dayMap[dStr] = {
@@ -701,11 +741,15 @@ export async function getDayWiseCollectionReport(
         subtotal: 0,
         tax: 0,
         totalRevenue: 0,
+        totalCollected: 0,
         cashTotal: 0,
         upiTotal: 0,
         cardTotal: 0,
+        bankTotal: 0,
         balanceDue: 0,
+        customerCount: 0,
       };
+      dayCustomerSets[dStr] = new Set();
     }
 
     dayMap[dStr].totalInvoices += 1;
@@ -713,18 +757,398 @@ export async function getDayWiseCollectionReport(
     dayMap[dStr].tax += tx;
     dayMap[dStr].totalRevenue += tot;
     dayMap[dStr].balanceDue += bal;
+    if (inv.customerId) {
+      dayCustomerSets[dStr].add(inv.customerId);
+    }
+  }
 
-    if (inv.paymentMethod === "CASH") dayMap[dStr].cashTotal += paid;
-    else if (inv.paymentMethod === "UPI") dayMap[dStr].upiTotal += paid;
-    else if (inv.paymentMethod === "CARD") dayMap[dStr].cardTotal += paid;
+  // Track invoices that had their receipt recorded to handle legacy invoices without receipts
+  const receiptInvoiceIds = new Set<string>();
+
+  for (const rcpt of rawReceipts) {
+    receiptInvoiceIds.add(rcpt.invoiceId);
+    const dStr = new Date(rcpt.createdAt).toISOString().split("T")[0];
+    const paid = parseFloat(rcpt.amountPaid) || 0;
+
+    if (!dayMap[dStr]) {
+      dayMap[dStr] = {
+        date: dStr,
+        totalInvoices: 0,
+        subtotal: 0,
+        tax: 0,
+        totalRevenue: 0,
+        totalCollected: 0,
+        cashTotal: 0,
+        upiTotal: 0,
+        cardTotal: 0,
+        bankTotal: 0,
+        balanceDue: 0,
+        customerCount: 0,
+      };
+      dayCustomerSets[dStr] = new Set();
+    }
+
+    dayMap[dStr].totalCollected += paid;
+    if (rcpt.paymentMethod === "CASH") dayMap[dStr].cashTotal += paid;
+    else if (rcpt.paymentMethod === "UPI") dayMap[dStr].upiTotal += paid;
+    else if (rcpt.paymentMethod === "CARD") dayMap[dStr].cardTotal += paid;
+    else if (rcpt.paymentMethod === "BANK_TRANSFER") dayMap[dStr].bankTotal += paid;
+
+    if (rcpt.customerId) {
+      dayCustomerSets[dStr].add(rcpt.customerId);
+    }
+  }
+
+  // Fallback for any invoice created in this period that has amountPaid > 0 but NO receipt record
+  for (const inv of rawInvoices) {
+    if (!receiptInvoiceIds.has(inv.id)) {
+      const paid = parseFloat(inv.amountPaid) || 0;
+      if (paid > 0) {
+        const dStr = new Date(inv.createdAt).toISOString().split("T")[0];
+        if (dayMap[dStr]) {
+          dayMap[dStr].totalCollected += paid;
+          if (inv.paymentMethod === "CASH") dayMap[dStr].cashTotal += paid;
+          else if (inv.paymentMethod === "UPI") dayMap[dStr].upiTotal += paid;
+          else if (inv.paymentMethod === "CARD") dayMap[dStr].cardTotal += paid;
+          else if (inv.paymentMethod === "BANK_TRANSFER") dayMap[dStr].bankTotal += paid;
+        }
+      }
+    }
+  }
+
+  // Populate distinct customer counts
+  for (const dStr in dayMap) {
+    dayMap[dStr].customerCount = dayCustomerSets[dStr]?.size || 0;
   }
 
   const days = Object.values(dayMap).sort((a, b) => b.date.localeCompare(a.date));
 
+  let grandTotalCollected = 0;
+  let grandCashTotal = 0;
+  let grandUpiTotal = 0;
+  let grandCardTotal = 0;
+  let grandBankTotal = 0;
+
+  for (const d of days) {
+    grandTotalCollected += d.totalCollected;
+    grandCashTotal += d.cashTotal;
+    grandUpiTotal += d.upiTotal;
+    grandCardTotal += d.cardTotal;
+    grandBankTotal += d.bankTotal;
+  }
+
   return {
     grandTotal,
+    grandTotalCollected,
+    grandCashTotal,
+    grandUpiTotal,
+    grandCardTotal,
+    grandBankTotal,
+    grandBalanceDue,
     totalInvoices: rawInvoices.length,
+    activeDaysCount: days.length,
     days,
+  };
+}
+
+// 7b. Single Day Dedicated Collection Report
+export interface SingleDayCustomerCollectionItem {
+  id: string;
+  time: string;
+  timestamp: Date;
+  customerId: string;
+  customerName: string;
+  customerPhone: string | null;
+  invoiceId: string;
+  invoiceNumber: string;
+  receiptNumber?: string | null;
+  orderNumber?: string | null;
+  collectionType: "FULL_PAYMENT" | "ADVANCE_PAYMENT" | "DUES_SETTLEMENT" | "NEW_SALE";
+  paymentMethod: "CASH" | "UPI" | "CARD" | "BANK_TRANSFER";
+  transactionId?: string | null;
+  totalBillAmount: number;
+  amountCollectedToday: number;
+  balanceRemaining: number;
+  itemsSummary: string;
+  notes?: string | null;
+}
+
+export interface SingleDayCollectionReportData {
+  date: string;
+  formattedDate: string;
+  totalCollected: number;
+  cashTotal: number;
+  upiTotal: number;
+  cardTotal: number;
+  bankTotal: number;
+  totalInvoiced: number;
+  totalInvoicesCount: number;
+  advancesCollected: number;
+  duesSettled: number;
+  totalBalanceRemaining: number;
+  uniqueCustomersCount: number;
+  collections: SingleDayCustomerCollectionItem[];
+}
+
+export async function getSingleDayCollectionReport(
+  shopId: string,
+  dateStr: string,
+  organizationId?: string
+): Promise<SingleDayCollectionReportData> {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const start = new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+  const end = new Date(y, (m || 1) - 1, d || 1, 23, 59, 59, 999);
+
+  // 1. Fetch receipts created on this day
+  const rawReceipts = await db
+    .select({
+      id: receipts.id,
+      receiptNumber: receipts.receiptNumber,
+      amountPaid: receipts.amountPaid,
+      balanceDue: receipts.balanceDue,
+      paymentMethod: receipts.paymentMethod,
+      transactionId: receipts.transactionId,
+      createdAt: receipts.createdAt,
+      invoiceId: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      invoiceTotal: invoices.total,
+      invoiceBalanceDue: invoices.balanceDue,
+      invoiceCreatedAt: invoices.createdAt,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+    })
+    .from(receipts)
+    .innerJoin(invoices, eq(receipts.invoiceId, invoices.id))
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .where(
+      and(
+        getShopFilter(receipts.shopId, receipts.organizationId, shopId, organizationId),
+        gte(receipts.createdAt, start),
+        lte(receipts.createdAt, end)
+      )
+    )
+    .orderBy(desc(receipts.createdAt));
+
+  // 2. Fetch invoices created on this day
+  const rawInvoices = await db
+    .select({
+      id: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      subtotal: invoices.subtotal,
+      tax: invoices.tax,
+      total: invoices.total,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      paymentMethod: invoices.paymentMethod,
+      createdAt: invoices.createdAt,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .where(
+      and(
+        getShopFilter(invoices.shopId, invoices.organizationId, shopId, organizationId),
+        gte(invoices.createdAt, start),
+        lte(invoices.createdAt, end)
+      )
+    )
+    .orderBy(desc(invoices.createdAt));
+
+  const allInvoiceIds = Array.from(new Set([
+    ...rawReceipts.map((r) => r.invoiceId),
+    ...rawInvoices.map((i) => i.id),
+  ]));
+
+  const itemsMap: Record<string, string[]> = {};
+  if (allInvoiceIds.length > 0) {
+    const rawItems = await db
+      .select({
+        invoiceId: invoiceItems.invoiceId,
+        description: invoiceItems.description,
+        quantity: invoiceItems.quantity,
+      })
+      .from(invoiceItems)
+      .where(inArray(invoiceItems.invoiceId, allInvoiceIds));
+
+    for (const item of rawItems) {
+      if (!itemsMap[item.invoiceId]) {
+        itemsMap[item.invoiceId] = [];
+      }
+      itemsMap[item.invoiceId].push(
+        item.quantity > 1 ? `${item.description} (x${item.quantity})` : item.description
+      );
+    }
+  }
+
+  const orderMap: Record<string, string> = {};
+  if (allInvoiceIds.length > 0) {
+    const rawOrders = await db
+      .select({
+        invoiceId: orders.invoiceId,
+        orderNumber: orders.orderNumber,
+      })
+      .from(orders)
+      .where(inArray(orders.invoiceId, allInvoiceIds));
+
+    for (const ord of rawOrders) {
+      if (ord.invoiceId && ord.orderNumber) {
+        orderMap[ord.invoiceId] = ord.orderNumber;
+      }
+    }
+  }
+
+  const collections: SingleDayCustomerCollectionItem[] = [];
+  const processedReceiptInvoiceIds = new Set<string>();
+
+  let totalCollected = 0;
+  let cashTotal = 0;
+  let upiTotal = 0;
+  let cardTotal = 0;
+  let bankTotal = 0;
+  let advancesCollected = 0;
+  let duesSettled = 0;
+
+  const uniqueCustomerSet = new Set<string>();
+
+  for (const rcpt of rawReceipts) {
+    processedReceiptInvoiceIds.add(rcpt.invoiceId);
+    if (rcpt.customerId) uniqueCustomerSet.add(rcpt.customerId);
+
+    const paid = parseFloat(rcpt.amountPaid) || 0;
+    const invTotal = parseFloat(rcpt.invoiceTotal) || 0;
+    const balRemaining = parseFloat(rcpt.balanceDue) || 0;
+
+    totalCollected += paid;
+    if (rcpt.paymentMethod === "CASH") cashTotal += paid;
+    else if (rcpt.paymentMethod === "UPI") upiTotal += paid;
+    else if (rcpt.paymentMethod === "CARD") cardTotal += paid;
+    else if (rcpt.paymentMethod === "BANK_TRANSFER") bankTotal += paid;
+
+    const invDateStr = new Date(rcpt.invoiceCreatedAt).toISOString().split("T")[0];
+    const isSameDayInvoice = invDateStr === dateStr;
+
+    let collectionType: "FULL_PAYMENT" | "ADVANCE_PAYMENT" | "DUES_SETTLEMENT" | "NEW_SALE";
+
+    if (!isSameDayInvoice) {
+      collectionType = "DUES_SETTLEMENT";
+      duesSettled += paid;
+    } else if (balRemaining <= 0) {
+      collectionType = "FULL_PAYMENT";
+    } else {
+      collectionType = "ADVANCE_PAYMENT";
+      advancesCollected += paid;
+    }
+
+    const timeStr = new Date(rcpt.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    collections.push({
+      id: rcpt.id,
+      time: timeStr,
+      timestamp: rcpt.createdAt,
+      customerId: rcpt.customerId,
+      customerName: rcpt.customerName,
+      customerPhone: rcpt.customerPhone,
+      invoiceId: rcpt.invoiceId,
+      invoiceNumber: rcpt.invoiceNumber,
+      receiptNumber: rcpt.receiptNumber,
+      orderNumber: orderMap[rcpt.invoiceId] || null,
+      collectionType,
+      paymentMethod: rcpt.paymentMethod as any,
+      transactionId: rcpt.transactionId,
+      totalBillAmount: invTotal,
+      amountCollectedToday: paid,
+      balanceRemaining: balRemaining,
+      itemsSummary: (itemsMap[rcpt.invoiceId] || []).join(", ") || "Eyewear Products",
+    });
+  }
+
+  for (const inv of rawInvoices) {
+    if (inv.customerId) uniqueCustomerSet.add(inv.customerId);
+
+    if (!processedReceiptInvoiceIds.has(inv.id)) {
+      const paid = parseFloat(inv.amountPaid) || 0;
+      const invTotal = parseFloat(inv.total) || 0;
+      const balRemaining = parseFloat(inv.balanceDue) || 0;
+
+      if (paid > 0) {
+        totalCollected += paid;
+        if (inv.paymentMethod === "CASH") cashTotal += paid;
+        else if (inv.paymentMethod === "UPI") upiTotal += paid;
+        else if (inv.paymentMethod === "CARD") cardTotal += paid;
+        else if (inv.paymentMethod === "BANK_TRANSFER") bankTotal += paid;
+
+        let collectionType: "FULL_PAYMENT" | "ADVANCE_PAYMENT" | "NEW_SALE" = "NEW_SALE";
+        if (balRemaining <= 0) collectionType = "FULL_PAYMENT";
+        else {
+          collectionType = "ADVANCE_PAYMENT";
+          advancesCollected += paid;
+        }
+
+        const timeStr = new Date(inv.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        collections.push({
+          id: inv.id,
+          time: timeStr,
+          timestamp: inv.createdAt,
+          customerId: inv.customerId,
+          customerName: inv.customerName,
+          customerPhone: inv.customerPhone,
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          orderNumber: orderMap[inv.id] || null,
+          collectionType,
+          paymentMethod: (inv.paymentMethod as any) || "CASH",
+          totalBillAmount: invTotal,
+          amountCollectedToday: paid,
+          balanceRemaining: balRemaining,
+          itemsSummary: (itemsMap[inv.id] || []).join(", ") || "Eyewear Products",
+        });
+      }
+    }
+  }
+
+  collections.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  let totalInvoiced = 0;
+  let totalBalanceRemaining = 0;
+  for (const inv of rawInvoices) {
+    totalInvoiced += parseFloat(inv.total) || 0;
+    totalBalanceRemaining += parseFloat(inv.balanceDue) || 0;
+  }
+
+  const formattedDate = new Date(y, (m || 1) - 1, d || 1).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
+  return {
+    date: dateStr,
+    formattedDate,
+    totalCollected,
+    cashTotal,
+    upiTotal,
+    cardTotal,
+    bankTotal,
+    totalInvoiced,
+    totalInvoicesCount: rawInvoices.length,
+    advancesCollected,
+    duesSettled,
+    totalBalanceRemaining,
+    uniqueCustomersCount: uniqueCustomerSet.size,
+    collections,
   };
 }
 
@@ -1023,17 +1447,36 @@ export async function exportReportToCSV(
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   } else if (reportType === "daywise") {
     const data = await getDayWiseCollectionReport(shopId, startDate, endDate);
-    const headers = ["Date", "Total Invoices", "Subtotal", "Tax Amount", "Total Revenue", "Cash Total", "UPI Total", "Card Total", "Balance Outstanding"];
+    const headers = ["Date", "Total Invoices", "Subtotal", "Tax Amount", "Total Revenue", "Total Collected", "Cash Total", "UPI Total", "Card Total", "Balance Outstanding"];
     const rows = data.days.map((d) => [
       escapeCSV(d.date),
       escapeCSV(d.totalInvoices),
       escapeCSV(d.subtotal.toFixed(2)),
       escapeCSV(d.tax.toFixed(2)),
       escapeCSV(d.totalRevenue.toFixed(2)),
+      escapeCSV(d.totalCollected.toFixed(2)),
       escapeCSV(d.cashTotal.toFixed(2)),
       escapeCSV(d.upiTotal.toFixed(2)),
       escapeCSV(d.cardTotal.toFixed(2)),
       escapeCSV(d.balanceDue.toFixed(2)),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "daily" || reportType === "singleday") {
+    const dateStr = startDate || new Date().toISOString().split("T")[0];
+    const data = await getSingleDayCollectionReport(shopId, dateStr);
+    const headers = ["Time", "Customer Name", "Phone", "Invoice No", "Receipt No", "Type", "Items Summary", "Payment Mode", "Bill Amount", "Amount Paid Today", "Balance Due"];
+    const rows = data.collections.map((c) => [
+      escapeCSV(c.time),
+      escapeCSV(c.customerName),
+      escapeCSV(c.customerPhone || "N/A"),
+      escapeCSV(c.invoiceNumber),
+      escapeCSV(c.receiptNumber || "N/A"),
+      escapeCSV(c.collectionType),
+      escapeCSV(c.itemsSummary),
+      escapeCSV(c.paymentMethod),
+      escapeCSV(c.totalBillAmount.toFixed(2)),
+      escapeCSV(c.amountCollectedToday.toFixed(2)),
+      escapeCSV(c.balanceRemaining.toFixed(2)),
     ]);
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   } else if (reportType === "dues") {
