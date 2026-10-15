@@ -14,6 +14,7 @@ import {
   getPurchaseLedgerKPIs,
   updatePurchaseOrder,
   deletePurchaseOrder,
+  getPurchaseOrderById,
   type GetPurchaseOrdersOptions,
 } from "@/services/purchase.service";
 import { createVendor, updateVendor, getVendorsByOrganization } from "@/services/vendor.service";
@@ -1329,5 +1330,55 @@ export async function deletePurchaseAction(id: string) {
     };
   }
 }
+
+/**
+ * Server action to fetch all line items of a purchase order formatted for batch barcode printing.
+ */
+export async function getPurchaseItemsForBarcodeAction(purchaseId: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { success: false, message: "Unauthorized: Missing organization session.", items: [], purchaseNumber: "" };
+    }
+
+    const data = await getPurchaseOrderById(purchaseId, user.organizationId);
+    if (!data || !data.order) {
+      return { success: false, message: "Purchase order not found.", items: [], purchaseNumber: "" };
+    }
+
+    const items = (data.items || []).map((it, idx) => {
+      const fallbackSku = it.category
+        ? `${it.category.slice(0, 3).toUpperCase()}-GEN-00001`
+        : "FRM-GEN-00001";
+      return {
+        id: it.id || `po-item-${idx}`,
+        name: it.productName,
+        sku: it.productCode || fallbackSku,
+        productCode: it.productCode || null,
+        category: it.category || "FRAME",
+        price:
+          it.retailPrice && Number(it.retailPrice) > 0
+            ? String(it.retailPrice)
+            : String(it.purchasePrice || "0"),
+        quantity: Math.max(1, it.quantity || 1),
+      };
+    });
+
+    return {
+      success: true,
+      purchaseNumber: data.order.purchaseNumber,
+      items,
+    };
+  } catch (error: any) {
+    console.error("Error in getPurchaseItemsForBarcodeAction:", error);
+    return {
+      success: false,
+      message: error?.message || "Failed to load purchase items for barcode.",
+      items: [],
+      purchaseNumber: "",
+    };
+  }
+}
+
 
 

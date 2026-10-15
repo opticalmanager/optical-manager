@@ -20,10 +20,13 @@ import {
   AlertCircle,
   ArrowRight,
   Eye,
+  Barcode,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { getPurchaseLedgerAction } from "@/actions/purchase.actions";
+import { getPurchaseLedgerAction, getPurchaseItemsForBarcodeAction } from "@/actions/purchase.actions";
+import { PurchaseBulkBarcodeModal } from "@/components/shop/PurchaseBulkBarcodeModal";
 import type { PurchaseOrderWithVendor } from "@/services/purchase.service";
 
 interface VendorOption {
@@ -73,6 +76,38 @@ export function PurchaseLedgerClient({
 
   // KPI Active Selection filter state
   const [activeKpiFilter, setActiveKpiFilter] = useState<"ALL" | "THIS_MONTH" | "TOP_VENDOR">("ALL");
+
+  // Batch Barcode Modal State
+  const [barcodeModalData, setBarcodeModalData] = useState<{
+    isOpen: boolean;
+    invoiceNumber: string;
+    products: any[];
+  }>({
+    isOpen: false,
+    invoiceNumber: "",
+    products: [],
+  });
+  const [loadingBarcodePoId, setLoadingBarcodePoId] = useState<string | null>(null);
+
+  const handleOpenBarcodeModal = async (poId: string, purchaseNumber: string) => {
+    setLoadingBarcodePoId(poId);
+    try {
+      const res = await getPurchaseItemsForBarcodeAction(poId);
+      if (res.success && res.items && res.items.length > 0) {
+        setBarcodeModalData({
+          isOpen: true,
+          invoiceNumber: res.purchaseNumber || purchaseNumber,
+          products: res.items,
+        });
+      } else {
+        toast.error(res.message || "No products found in this purchase order.");
+      }
+    } catch (err: any) {
+      toast.error("Failed to load products for barcode printing.");
+    } finally {
+      setLoadingBarcodePoId(null);
+    }
+  };
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -558,18 +593,30 @@ export function PurchaseLedgerClient({
                         </span>
                       </td>
 
-                      {/* 9. Action Link */}
-                      <td className="py-2 px-2 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/shop/purchases/${po.id}`);
-                          }}
-                          className="h-6 w-6 rounded-md bg-slate-100 hover:bg-[#2563eb] hover:text-white text-slate-500 transition-colors inline-flex items-center justify-center cursor-pointer"
-                          title="View Details"
-                        >
-                          <ArrowRight className="h-3 w-3" />
-                        </button>
+                      {/* 9. Action Link & Quick Barcode Print */}
+                      <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBarcodeModal(po.id, po.purchaseNumber)}
+                            disabled={loadingBarcodePoId === po.id}
+                            className="h-6 w-6 rounded-md bg-blue-50 hover:bg-[#2563eb] hover:text-white text-[#2563eb] transition-colors inline-flex items-center justify-center cursor-pointer disabled:opacity-50"
+                            title={`Print Barcodes for Bill #${po.purchaseNumber} (${po.totalQuantity || 1} pcs)`}
+                          >
+                            {loadingBarcodePoId === po.id ? (
+                              <div className="h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Barcode className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => router.push(`/shop/purchases/${po.id}`)}
+                            className="h-6 w-6 rounded-md bg-slate-100 hover:bg-[#2563eb] hover:text-white text-slate-500 transition-colors inline-flex items-center justify-center cursor-pointer"
+                            title="View Details"
+                          >
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -618,6 +665,16 @@ export function PurchaseLedgerClient({
           </div>
         </div>
       </div>
+
+      {/* ─── Batch Barcode Modal ────────────────────────────────────────── */}
+      {barcodeModalData.isOpen && (
+        <PurchaseBulkBarcodeModal
+          isOpen={barcodeModalData.isOpen}
+          onClose={() => setBarcodeModalData((prev) => ({ ...prev, isOpen: false }))}
+          invoiceNumber={barcodeModalData.invoiceNumber}
+          products={barcodeModalData.products}
+        />
+      )}
     </div>
   );
 }

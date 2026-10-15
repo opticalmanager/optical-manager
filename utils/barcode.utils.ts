@@ -1638,13 +1638,14 @@ export function buildBulkLabelsHtml(
         }
         html, body {
           width: ${rollWidth}mm !important;
-          height: ${rollHeight}mm !important;
+          height: auto !important;
+          min-height: 0 !important;
           margin: 0mm !important;
           padding: 0mm !important;
           background: #ffffff !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
-          overflow: hidden !important;
+          overflow: visible !important;
         }
         .optical-tag-page, .barcode-continuous-page, .barcode-dgum-label, .barcode-vertical-tag {
           width: ${rollWidth}mm !important;
@@ -1802,7 +1803,7 @@ export function printBarcodeDocument(htmlContent: string): boolean {
         } catch {
           openBarcodePrintWindow(htmlContent);
         }
-      }, 150);
+      }, 250);
       return true;
     }
   } catch (err) {

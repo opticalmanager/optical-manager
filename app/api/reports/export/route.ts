@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const reportType = searchParams.get("type") || "sales";
-    const startDate = searchParams.get("from") || undefined;
+    const startDate = searchParams.get("from") || searchParams.get("date") || undefined;
     const endDate = searchParams.get("to") || undefined;
 
     const csvData = await exportReportToCSV(user.shopId, reportType, startDate, endDate);

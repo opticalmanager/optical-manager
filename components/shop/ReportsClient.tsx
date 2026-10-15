@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   BarChart3, 
   Download, 
@@ -72,6 +73,10 @@ export default function ReportsClient({
   initialFrom,
   initialTo,
 }: ReportsClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
   // Navigation & Category states
   const [activeCategory, setActiveCategory] = useState<"item" | "sales" | "representative" | "invoices" | "misc" | "lab">("sales");
   const [activeSubReport, setActiveSubReport] = useState<string>("Summary Report");
@@ -83,6 +88,58 @@ export default function ReportsClient({
   const [fromDate, setFromDate] = useState(initialFrom || "");
   const [toDate, setToDate] = useState(initialTo || "");
   const [isCustomRange, setIsCustomRange] = useState(false);
+
+  // Month & Year state for Day-Wise Collection header
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+  const [isDayWiseCustomRange, setIsDayWiseCustomRange] = useState<boolean>(false);
+  const [dayWiseFrom, setDayWiseFrom] = useState<string>(initialFrom || "");
+  const [dayWiseTo, setDayWiseTo] = useState<string>(initialTo || "");
+
+  // Detect ?sub=daywise on mount or navigation
+  useEffect(() => {
+    const sub = searchParams.get("sub");
+    if (sub === "daywise" || sub === "day-wise") {
+      setActiveCategory("sales");
+      setActiveSubReport("Day-Wise Collection");
+      setTimeout(() => {
+        workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    }
+  }, [searchParams]);
+
+  const handleSelectSubReport = (catId: any, subItem: string) => {
+    setActiveCategory(catId);
+    setActiveSubReport(subItem);
+    if (subItem === "Day-Wise Collection") {
+      setTimeout(() => {
+        workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  };
+
+  const handleApplyMonthYear = (m: number, y: number) => {
+    const startStr = `${y}-${String(m).padStart(2, "0")}-01`;
+    const lastDayDate = new Date(y, m, 0);
+    const endStr = `${y}-${String(m).padStart(2, "0")}-${String(lastDayDate.getDate()).padStart(2, "0")}`;
+    const url = new URL(window.location.href);
+    url.searchParams.set("preset", "custom");
+    url.searchParams.set("from", startStr);
+    url.searchParams.set("to", endStr);
+    url.searchParams.set("sub", "daywise");
+    window.location.href = url.toString();
+  };
+
+  const handleApplyDayWiseCustom = () => {
+    if (!dayWiseFrom || !dayWiseTo) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("preset", "custom");
+    url.searchParams.set("from", dayWiseFrom);
+    url.searchParams.set("to", dayWiseTo);
+    url.searchParams.set("sub", "daywise");
+    window.location.href = url.toString();
+  };
 
   const handlePresetChange = (preset: string) => {
     setDatePreset(preset);
@@ -359,10 +416,7 @@ export default function ReportsClient({
             >
               {/* Header Chevron Banner */}
               <div
-                onClick={() => {
-                  setActiveCategory(cat.id as any);
-                  setActiveSubReport(cat.items[0]);
-                }}
+                onClick={() => handleSelectSubReport(cat.id, cat.items[0])}
                 className="bg-[#2563eb] text-white p-2.5 text-center cursor-pointer relative font-black text-xs tracking-wider uppercase flex items-center justify-center gap-1.5"
                 style={{
                   clipPath: "polygon(0 0, 100% 0, 100% 80%, 50% 100%, 0 80%)",
@@ -381,10 +435,7 @@ export default function ReportsClient({
                     <button
                       key={subItem}
                       type="button"
-                      onClick={() => {
-                        setActiveCategory(cat.id as any);
-                        setActiveSubReport(subItem);
-                      }}
+                      onClick={() => handleSelectSubReport(cat.id, subItem)}
                       className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer block truncate ${
                         isSubActive
                           ? "bg-blue-50 text-[#2563eb] font-extrabold"
@@ -402,7 +453,11 @@ export default function ReportsClient({
       </div>
 
       {/* 4. Active Report Details & Data Workspace */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-4 print:border-none print:shadow-none print:p-0">
+      <div 
+        ref={workspaceRef}
+        id="report-workspace-table"
+        className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-xs space-y-4 print:border-none print:shadow-none print:p-0 scroll-mt-6"
+      >
         {/* Workspace Title & Search Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 print:pb-0">
           <div>
@@ -434,67 +489,271 @@ export default function ReportsClient({
         {/* 5. Special Sub-Report: Day-Wise Collection Ledger */}
         {activeSubReport === "Day-Wise Collection" && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 print:hidden">
+            {/* Table Header: Month, Year, and Date Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50/90 border border-slate-200/80 rounded-xl print:hidden">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-[#2563eb]" />
+                  Period:
+                </span>
+
+                {/* Quick Shortcuts */}
+                <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const m = now.getMonth() + 1;
+                      const y = now.getFullYear();
+                      setSelectedMonth(m);
+                      setSelectedYear(y);
+                      setIsDayWiseCustomRange(false);
+                      handleApplyMonthYear(m, y);
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-[#2563eb] hover:bg-blue-50/60 rounded-md transition-all cursor-pointer"
+                  >
+                    This Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                      const m = prev.getMonth() + 1;
+                      const y = prev.getFullYear();
+                      setSelectedMonth(m);
+                      setSelectedYear(y);
+                      setIsDayWiseCustomRange(false);
+                      handleApplyMonthYear(m, y);
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-[#2563eb] hover:bg-blue-50/60 rounded-md transition-all cursor-pointer"
+                  >
+                    Last Month
+                  </button>
+                </div>
+
+                {/* Month Dropdown */}
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    const m = parseInt(e.target.value, 10);
+                    setSelectedMonth(m);
+                    setIsDayWiseCustomRange(false);
+                    handleApplyMonthYear(m, selectedYear);
+                  }}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-[#2563eb] shadow-2xs cursor-pointer"
+                >
+                  <option value={1}>January</option>
+                  <option value={2}>February</option>
+                  <option value={3}>March</option>
+                  <option value={4}>April</option>
+                  <option value={5}>May</option>
+                  <option value={6}>June</option>
+                  <option value={7}>July</option>
+                  <option value={8}>August</option>
+                  <option value={9}>September</option>
+                  <option value={10}>October</option>
+                  <option value={11}>November</option>
+                  <option value={12}>December</option>
+                </select>
+
+                {/* Year Dropdown */}
+                <select
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const y = parseInt(e.target.value, 10);
+                    setSelectedYear(y);
+                    setIsDayWiseCustomRange(false);
+                    handleApplyMonthYear(selectedMonth, y);
+                  }}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-[#2563eb] shadow-2xs cursor-pointer"
+                >
+                  {[2024, 2025, 2026, 2027].map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Custom Date Range Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsDayWiseCustomRange(!isDayWiseCustomRange)}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    isDayWiseCustomRange
+                      ? "bg-[#2563eb] text-white border-[#2563eb] shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-2xs"
+                  }`}
+                >
+                  Custom Dates
+                </button>
+              </div>
+
+              {isDayWiseCustomRange && (
+                <div className="flex items-center gap-1.5 animate-in fade-in duration-200 w-full sm:w-auto">
+                  <input
+                    type="date"
+                    value={dayWiseFrom}
+                    onChange={(e) => setDayWiseFrom(e.target.value)}
+                    className="px-2 py-1 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white shadow-2xs"
+                  />
+                  <span className="text-xs font-bold text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={dayWiseTo}
+                    onChange={(e) => setDayWiseTo(e.target.value)}
+                    className="px-2 py-1 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white shadow-2xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleApplyDayWiseCustom}
+                    className="h-7 px-3 text-[11px] font-bold bg-[#2563eb] text-white rounded-lg cursor-pointer shadow-xs"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* 5 High-Density KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 print:hidden">
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100/90">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                  Total Collected
+                </span>
+                <span className="text-xl font-extrabold text-emerald-700 tracking-tight mt-1 block">
+                  {formatCurrency(dayWiseData.grandTotalCollected || 0)}
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-600 mt-0.5 block truncate">
+                  Cash: {formatCurrency(dayWiseData.grandCashTotal || 0)} • UPI: {formatCurrency(dayWiseData.grandUpiTotal || 0)}
+                </span>
+              </div>
+
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Grand Total Revenue
+                  Total Sales Billed
                 </span>
                 <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
                   {formatCurrency(dayWiseData.grandTotal)}
                 </span>
+                <span className="text-[10px] font-semibold text-slate-400 mt-0.5 block">
+                  Net Subtotal + Taxes
+                </span>
               </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Total Invoices Issued
+
+              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100/90">
+                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">
+                  Invoices Issued
                 </span>
                 <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
                   {dayWiseData.totalInvoices} Invoices
                 </span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Days Recorded
+                <span className="text-[10px] font-semibold text-blue-600 mt-0.5 block">
+                  Across {dayWiseData.activeDaysCount || dayWiseData.days.length} active days
                 </span>
-                <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
-                  {dayWiseData.days.length} Active Days
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-100/90">
+                <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block">
+                  Balance Dues Pending
+                </span>
+                <span className="text-xl font-extrabold text-rose-600 tracking-tight mt-1 block">
+                  {formatCurrency(dayWiseData.grandBalanceDue || 0)}
+                </span>
+                <span className="text-[10px] font-semibold text-rose-500 mt-0.5 block">
+                  Outstanding on period orders
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-violet-50/70 border border-violet-100/90 col-span-2 lg:col-span-1">
+                <span className="text-[10px] font-bold text-violet-800 uppercase tracking-wider block">
+                  Avg Daily Inflow
+                </span>
+                <span className="text-xl font-extrabold text-violet-700 tracking-tight mt-1 block">
+                  {formatCurrency(
+                    dayWiseData.days.length > 0
+                      ? (dayWiseData.grandTotalCollected || 0) / dayWiseData.days.length
+                      : 0
+                  )}
+                </span>
+                <span className="text-[10px] font-semibold text-violet-600 mt-0.5 block">
+                  Per active business day
                 </span>
               </div>
             </div>
 
+            {/* Day-Wise Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <tr>
                     <th className="px-3.5 py-2.5 rounded-l-lg">Date</th>
                     <th className="px-3.5 py-2.5 text-center">Invoices</th>
-                    <th className="px-3.5 py-2.5 text-right">Net Subtotal</th>
-                    <th className="px-3.5 py-2.5 text-right">Tax Collected</th>
-                    <th className="px-3.5 py-2.5 text-right">Total Revenue</th>
+                    <th className="px-3.5 py-2.5 text-right">Total Billed</th>
+                    <th className="px-3.5 py-2.5 text-right font-extrabold text-emerald-700">Total Collected</th>
                     <th className="px-3.5 py-2.5 text-right">Cash</th>
                     <th className="px-3.5 py-2.5 text-right">UPI / Digital</th>
-                    <th className="px-3.5 py-2.5 text-right rounded-r-lg">Outstanding</th>
+                    <th className="px-3.5 py-2.5 text-right">Card / Bank</th>
+                    <th className="px-3.5 py-2.5 text-right">Balance Due</th>
+                    <th className="px-3.5 py-2.5 text-right rounded-r-lg">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDayWise.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-8 text-xs font-semibold text-slate-400">
-                        No day-wise collection records found
+                      <td colSpan={9} className="text-center py-8 text-xs font-semibold text-slate-400">
+                        No day-wise collection records found for the selected period
                       </td>
                     </tr>
                   ) : (
-                    filteredDayWise.map((d, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900">{d.date}</td>
-                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb] text-center">{d.totalInvoices}</td>
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(d.subtotal)}</td>
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">{formatCurrency(d.tax)}</td>
-                        <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-right">{formatCurrency(d.totalRevenue)}</td>
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-emerald-600 text-right">{formatCurrency(d.cashTotal)}</td>
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-[#2563eb] text-right">{formatCurrency(d.upiTotal)}</td>
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-rose-600 text-right">{formatCurrency(d.balanceDue)}</td>
-                      </tr>
-                    ))
+                    filteredDayWise.map((d, idx) => {
+                      const dateParts = d.date.split("-").map(Number);
+                      const formattedDate = new Date(dateParts[0], (dateParts[1] || 1) - 1, dateParts[2] || 1).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      });
+
+                      return (
+                        <tr
+                          key={idx}
+                          onClick={() => router.push(`/shop/reports/daily?date=${d.date}`)}
+                          className="hover:bg-blue-50/60 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer group"
+                        >
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                            <span className="font-mono text-slate-900 group-hover:text-[#2563eb] transition-colors">{formattedDate}</span>
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-bold text-[#2563eb] text-center">
+                            <span className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-100/60">
+                              {d.totalInvoices}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">
+                            {formatCurrency(d.totalRevenue)}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-extrabold text-emerald-600 text-right">
+                            {formatCurrency(d.totalCollected || 0)}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-700 text-right">
+                            {formatCurrency(d.cashTotal)}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-[#2563eb] text-right">
+                            {formatCurrency(d.upiTotal)}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-700 text-right">
+                            {formatCurrency(d.cardTotal + (d.bankTotal || 0))}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs font-semibold text-rose-600 text-right">
+                            {formatCurrency(d.balanceDue)}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-right">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white text-[11px] font-bold transition-all shadow-2xs">
+                              Day Report
+                              <ArrowUpRight className="h-3 w-3" />
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
