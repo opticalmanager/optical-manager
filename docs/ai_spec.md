@@ -52,20 +52,19 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
 
 1. **Multimodal OCR & Resilient Model Architecture**:
    - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience:
-     - `gemini-3.5-flash-lite` (Primary / Recommended: ultra-fast ~2s latency, 100% live uptime, zero 503 overload errors on standard tier)
-     - `gemini-2.5-flash` (Fast standard ~2.5s multimodal flash, high availability)
-     - `gemini-3.6-flash` (High-capability structured vision OCR)
+     - `gemini-3.5-flash-lite` (Primary / Recommended: ultra-fast ~2-15s latency, 100% live uptime, zero 503 overload errors on standard tier)
+     - `gemini-3.8-flash` (Google official modern replacement for retired 2.x models; high capability vision OCR)
      - `gemini-3.5-flash` (Standard flash fallback)
-     - `gemini-3.7-flash` (Next-generation high-capability vision reasoning)
-     - `gemini-3.8-flash` (Next-generation preview fallback)
+     - `gemini-2.5-flash` (Legacy fallback)
    - Stale/retired models (`gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-1.0-pro`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`) are sanitized and auto-migrated to `gemini-3.5-flash-lite`.
-   - Organization settings in Postgres `organizations.settings` are protected by `parseOrgSettings()` which gracefully parses both raw JSON objects and stringified JSON payloads.
-   - **Transient 503 Spike Backoff**: Applies a 500ms delay retry upon encountering Google endpoint 503 high-demand surges before cascading to the next fallback candidate.
-   - **Timeout Protection**: Each candidate model call is wrapped with a 32-second `Promise.race` timeout, preventing stalls while allowing complex dense multi-item invoices ample time to generate.
+   - **Universal PDF Magic Byte Ingestion**: Detects base64 `%PDF-` (`JVBERi0`) headers automatically, ensuring PDF documents with missing or generic browser MIME types (`application/octet-stream`, `application/x-pdf`) are accurately routed to Gemini's native PDF OCR pipeline.
+   - **Adaptive Timeout Protection**: Employs a 60-second `Promise.race` timeout for multi-page/dense PDF invoices (preventing premature aborts on 30+ item wholesale bills) and 35 seconds for camera photos.
+   - **Output Token Ceiling**: Configures `maxOutputTokens: 16384` to prevent JSON truncation mid-response on large invoice inventories.
+   - **Transient 503 Spike Backoff**: Applies a 100ms delay retry upon encountering Google endpoint 503 high-demand surges before cascading to the next fallback candidate.
    - **Large Payload Ingestion**: `next.config.ts` configures `serverActions.bodySizeLimit: "15mb"`, ensuring multi-page PDFs and high-resolution camera captures bypass default 1MB limits without HTTP 413 errors.
    - **Resilient JSON & Numerical Parser**: Extracts outermost JSON structures and scrubs currency signs, percentage characters, and commas (e.g. `₹ 1,200.50`), preventing `NaN` math corruptions.
    - **Batch Rate-Limit Throttling**: Automatically introduces a 400ms pause between sequential batch uploads in `BillScanDrawer.tsx` to maintain safety margins under Google Gemini RPM quotas.
-   - Supports JPG, PNG, WEBP images and single-page PDF supplier bills.
+   - Supports JPG, PNG, WEBP images and multi-page PDF supplier bills.
    - Enforces structured JSON output via `generationConfig: { responseMimeType: "application/json" }`.
 
 2. **Zero-Math Hallucination Engine & Tax-Exclusive Rate Handling**:
@@ -75,10 +74,11 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
 
 3. **Intelligent Optical Specs Extraction (`extractOpticalSpecs`)**:
    - Extracts structured optical frame attributes:
-     - **Eye Size**: Standard frame sizes (`44` to `64` mm).
-     - **Color**: Frame color codes (e.g. `C1`, `C2`, `C4`, `BLK`, `GLD`, `DEMI`).
-     - **Brand & Model**: Brand identifiers (`TH`, `RB`, `RAY-BAN`, `OAKLEY`, `VOGUE`, `GUCCI`) and model numbers (`TH 1111`, `3025`, `4410`).
-     - **Clean Product Code**: Strips HSN code misidentifications and synthesizes structured codes (e.g. `TH 1111 C4 53`) for immediate barcode generation.
+     - **Luxottica / Global Article Code Support**: Intelligently parses standard manufacturer article codes (e.g. `0RB2140901/5850`, `0RB3016W036551`, `0VO...`, `0OO...`, `0PR...`) into customer-friendly product names (`Ray-Ban RB2140 901/58 50`), while keeping the exact manufacturer code in `productCode`.
+     - **Eye Size**: Standard frame sizes (`44` to `64` mm) or trailing size tokens from manufacturer codes.
+     - **Color**: Frame color codes (e.g. `901/58`, `W0365`, `601/8G`, `C1`, `C2`, `C4`, `BLK`, `GLD`, `DEMI`).
+     - **Brand & Model**: Brand identifiers (`Ray-Ban`, `Oakley`, `Vogue`, `Prada`, `Tommy Hilfiger`, `Fastrack`, `Titan`, etc.) and model numbers (`RB2140`, `RB3016`, `TH 1111`, `3025`).
+     - **Clean Product Code**: Strips HSN code misidentifications and synthesizes structured codes for immediate barcode generation.
 
 4. **Client-Side Image Optimization & Dynamic Feedback**:
    - High-resolution mobile camera captures (8–15MB) are downscaled using an off-screen HTML5 canvas to a max dimension of 1800px at 85% JPEG quality before base64 encoding, with automatic fallback to `FileReader`.

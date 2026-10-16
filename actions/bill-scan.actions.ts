@@ -291,15 +291,35 @@ function extractOpticalSpecs(
     .replace(/\bsunglass(?:es)?\b/gi, "")
     .trim();
 
-  // 1. Eye Size (standard optical frame sizes: 44 to 64 mm)
+  // 1. Support for Luxottica / Global optical article codes (e.g. 0RB2140901/5850, 0RB3016W036551)
+  const luxMatch = (rawCode || name || "").trim().match(/^0?(RB|VO|OO|PR|EA|AX|PH)(0?[0-9]{4}[A-Z]?)(.+?)(4[4-9]|5[0-9]|6[0-4])$/i);
+  if (luxMatch) {
+    const brandMap: Record<string, string> = {
+      RB: "Ray-Ban",
+      VO: "Vogue",
+      OO: "Oakley",
+      PR: "Prada",
+      EA: "Emporio Armani",
+      AX: "Armani Exchange",
+      PH: "Polo Ralph Lauren",
+    };
+    if (!brand) brand = brandMap[luxMatch[1].toUpperCase()] || luxMatch[1].toUpperCase();
+    if (!model) model = `${luxMatch[1].toUpperCase()}${luxMatch[2].replace(/^0/, "")}`;
+    if (!color) color = luxMatch[3].toUpperCase();
+    if (!size) size = luxMatch[4];
+  }
+
+  // 2. Eye Size (standard optical frame sizes: 44 to 64 mm)
   if (!size) {
-    const sizeMatch = cleanText.match(/\b([4-6]\d)(?:\s*(?:\[\]|[-xX/])\s*\d{2})?\b/);
+    const sizeMatch =
+      cleanText.match(/\b([4-6]\d)(?:\s*(?:\[\]|[-xX/])\s*\d{2})?\b/) ||
+      (rawCode || "").match(/(4[4-9]|5\d|6[0-4])$/);
     if (sizeMatch) {
       size = sizeMatch[1];
     }
   }
 
-  // 2. Color code (e.g. C1, C2, C4, C01, COL 04, Blk, Gold, etc.)
+  // 3. Color code (e.g. C1, C2, C4, C01, COL 04, Blk, Gold, etc.)
   if (!color) {
     const colorMatch =
       cleanText.match(/\b(C\d{1,3}(?:\s+[A-Za-z]+)?)\b/i) ||
@@ -310,13 +330,14 @@ function extractOpticalSpecs(
     }
   }
 
-  // 3. Brand (recognized optical brands or leading uppercase token)
+  // 4. Brand (recognized optical brands or leading uppercase token)
   if (!brand) {
     const brandMatch = cleanText.match(
       /\b(TH|RB|RAY[\s\-]?BAN|OAKLEY|VOGUE|GUCCI|PRADA|TOM[\s\-]?FORD|FASTRACK|TITAN|IDEAL|SCOTT|STEPPER|CARRERA|POLICE|ARMANI|BOSS|VINTAGE)\b/i
     );
     if (brandMatch) {
       brand = brandMatch[1].toUpperCase();
+      if (brand === "RB") brand = "RAY-BAN";
     } else {
       const firstWord = cleanText.split(/\s+/)[0];
       if (firstWord && /^[A-Z]{2,12}$/i.test(firstWord)) {
@@ -325,7 +346,7 @@ function extractOpticalSpecs(
     }
   }
 
-  // 4. Model (e.g. TH 1111, RB 3025, 1111, 4410, M101)
+  // 5. Model (e.g. TH 1111, RB 3025, 1111, 4410, M101)
   if (!model) {
     const modelMatch =
       cleanText.match(/\b([A-Z]{1,4}\s*\d{3,5}[A-Z]?)\b/i) ||
@@ -335,7 +356,7 @@ function extractOpticalSpecs(
     }
   }
 
-  // 5. Clean Product Code (structured code for barcode printing and lookup)
+  // 6. Clean Product Code (structured code for barcode printing and lookup)
   if (!code) {
     const parts = [model || brand, color, size].filter(Boolean);
     if (parts.length >= 2) {
@@ -409,22 +430,27 @@ export async function extractBillDataAction(
     cleanBase64 = base64Data.split("base64,")[1];
   }
 
+  // Universal PDF magic byte detection: %PDF- in base64 is "JVBERi0"
+  if (cleanBase64.startsWith("JVBERi0")) {
+    resolvedMimeType = "application/pdf";
+  }
+
   const categoriesContext = orgCategories && orgCategories.length > 0
     ? orgCategories.map((c) => `- ${c.name} (Code: "${c.code}", HSN: "${c.hsnCode || 'N/A'}", GST: ${c.igstPercent}%)`).join("\n")
     : `- Frames (Code: "FRAME", HSN: "9003", GST: 12%)\n- Sunglasses (Code: "SUNGLASSES", HSN: "9004", GST: 12%)\n- Lenses (Code: "LENS", HSN: "9001", GST: 12%)\n- Contact Lenses (Code: "CONTACT_LENS", HSN: "90013000", GST: 12%)\n- Solutions (Code: "SOLUTION", HSN: "3307", GST: 18%)\n- Accessories (Code: "ACCESSORY", HSN: "90049000", GST: 18%)`;
 
   const prompt = `You are an expert Indian optical store tax invoice OCR reader.
-Extract header details and all purchase line items from this supplier invoice image.
+Extract header details and all purchase line items from this supplier invoice document (image or PDF).
 Return ONLY clean JSON (no markdown formatting, no comments, no code fences):
 {
   "vendorName": "Supplier / Company Name",
   "vendorGstin": "15-digit GSTIN if present",
   "invoiceNumber": "Invoice / Bill number",
-  "invoiceDate": "YYYY-MM-DD format (e.g. convert 03/10/2026 to 2026-10-03)",
+  "invoiceDate": "YYYY-MM-DD format (e.g. convert 15/10/2026 to 2026-10-15)",
   "taxType": "IGST" or "SGST_CGST",
   "items": [
     {
-      "productName": "Item description or article name as printed",
+      "productName": "Item description or article name / Mat Code as printed",
       "productCode": "Model number or article code if printed",
       "category": "FRAME" or "SUNGLASSES" or "LENS" or "CONTACT_LENS" or "ACCESSORY" or "SOLUTION",
       "hsnCode": "HSN code if printed",
@@ -433,11 +459,11 @@ Return ONLY clean JSON (no markdown formatting, no comments, no code fences):
       "taxableValue": 100.0,
       "lineTotal": 105.0,
       "discountPercent": 0.0,
-      "gstPercent": 5.0,
-      "brand": "Brand name if printed",
-      "model": "Model code/number if printed",
-      "color": "Color code if printed",
-      "size": "Eye size if printed"
+      "gstPercent": 18.0,
+      "brand": "Brand name if printed or identifiable (e.g. Ray-Ban)",
+      "model": "Model code/number if printed (e.g. RB2140)",
+      "color": "Color code if printed (e.g. 901/58)",
+      "size": "Eye size if printed (e.g. 50)"
     }
   ]
 }
@@ -457,21 +483,17 @@ CRITICAL RULES:
 
     const rawPrimary = resolveGeminiModel(aiConfig.model);
 
-    // Prioritized list of verified high-availability vision models:
+    // Prioritized list of verified high-availability models:
     // 1. Primary configured model (defaults to gemini-3.5-flash-lite)
-    // 2. gemini-3.5-flash-lite (Tested 2s latency, 100% operational, zero 503 errors on standard tier)
-    // 3. gemini-2.5-flash (Tested 2.6s latency, high availability for existing accounts)
-    // 4. gemini-3.6-flash (High capability standard)
-    // 5. gemini-3.5-flash (Fast standard flash)
-    // 6. gemini-3.7-flash (Next-gen flash OCR)
-    // 7. gemini-3.8-flash (Latest flash preview)
+    // 2. gemini-3.5-flash-lite (Fast 2-16s OCR, 100% operational, zero 503 errors on standard tier)
+    // 3. gemini-3.8-flash (Google official modern replacement for retired 2.x models)
+    // 4. gemini-3.5-flash (Standard flash fallback)
+    // 5. gemini-2.5-flash (Legacy fallback)
     const stableModels = [
       "gemini-3.5-flash-lite",
-      "gemini-2.5-flash",
-      "gemini-3.6-flash",
-      "gemini-3.5-flash",
-      "gemini-3.7-flash",
       "gemini-3.8-flash",
+      "gemini-3.5-flash",
+      "gemini-2.5-flash",
     ];
 
     const candidateFallbackModels = [
@@ -482,6 +504,9 @@ CRITICAL RULES:
     let responseText: string | null = null;
     const attemptedErrors: { model: string; error: string }[] = [];
 
+    // Allocate 60s for multi-page/dense PDF invoices and 35s for camera photos
+    const timeoutMs = resolvedMimeType === "application/pdf" ? 60000 : 35000;
+
     for (const modelName of candidateFallbackModels) {
       try {
         const model = genAI.getGenerativeModel({
@@ -489,6 +514,7 @@ CRITICAL RULES:
           generationConfig: {
             responseMimeType: "application/json",
             temperature: 0.0,
+            maxOutputTokens: 16384,
           },
         });
 
@@ -504,8 +530,8 @@ CRITICAL RULES:
 
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error(`Timeout: Model "${modelName}" took longer than 15s`)),
-            15000
+            () => reject(new Error(`Timeout: Model "${modelName}" took longer than ${timeoutMs / 1000}s`)),
+            timeoutMs
           )
         );
 
@@ -779,10 +805,19 @@ CRITICAL RULES:
         defaultHsnMap[validCategory] ||
         "90049000";
 
+      // Synthesize clean display product name (e.g. "Ray-Ban RB2140 901/58 50") for raw article codes
+      let finalProductName = rawName;
+      if (/^0?(RB|VO|OO|PR|EA|AX|PH)[0-9A-Z/]+/i.test(rawName) || rawName.length > 20) {
+        const readableParts = [specs.brand, specs.model, specs.color, specs.size].filter(Boolean);
+        if (readableParts.length >= 2) {
+          finalProductName = readableParts.join(" ");
+        }
+      }
+
       return {
         id: crypto.randomUUID(),
-        productName: rawName,
-        productCode: specs.code,
+        productName: finalProductName,
+        productCode: specs.code || rawName,
         category: validCategory,
         hsnCode: cleanHsn,
         quantity: qty,
