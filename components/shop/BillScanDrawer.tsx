@@ -215,7 +215,12 @@ export function BillScanDrawer({
 
   // Downsample large images client-side to minimize upload latency (<300KB)
   async function downscaleImageFile(sourceFile: File): Promise<string> {
-    if (sourceFile.type === "application/pdf") {
+    const isPdf =
+      sourceFile.type === "application/pdf" ||
+      sourceFile.type.includes("pdf") ||
+      sourceFile.name.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
@@ -281,18 +286,19 @@ export function BillScanDrawer({
 
   // Add one or more files to the queue, retaining any existing files
   function addFilesToQueue(incomingFiles: FileList | File[]) {
-    const validTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "application/pdf",
-    ];
-
     const added: QueuedBillFile[] = [];
     const rejectedNames: string[] = [];
 
     Array.from(incomingFiles).forEach((f) => {
-      if (!validTypes.includes(f.type)) {
+      const isPdf =
+        f.type === "application/pdf" ||
+        f.type.includes("pdf") ||
+        f.name.toLowerCase().endsWith(".pdf");
+      const isImage =
+        f.type.startsWith("image/") ||
+        /\.(jpe?g|png|webp)$/i.test(f.name);
+
+      if (!isPdf && !isImage) {
         rejectedNames.push(`${f.name} (unsupported format)`);
         return;
       }
@@ -414,8 +420,11 @@ export function BillScanDrawer({
       try {
         // 1. Client-side downscale/compression for fast upload
         const base64DataUrl = await downscaleImageFile(item.file);
-        const mimeType =
-          item.file.type === "application/pdf" ? "application/pdf" : "image/jpeg";
+        const isPdf =
+          item.file.type === "application/pdf" ||
+          item.file.type.includes("pdf") ||
+          item.file.name.toLowerCase().endsWith(".pdf");
+        const mimeType = isPdf ? "application/pdf" : (item.file.type || "image/jpeg");
 
         // 2. Call server extraction action
         const result = await extractBillDataAction(base64DataUrl, mimeType);
@@ -608,7 +617,7 @@ export function BillScanDrawer({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,application/pdf"
+          accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
           onChange={(e) => {
             if (e.target.files && e.target.files.length > 0) {
               addFilesToQueue(e.target.files);
@@ -621,7 +630,7 @@ export function BillScanDrawer({
           ref={addMoreInputRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,application/pdf"
+          accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
           onChange={(e) => {
             if (e.target.files && e.target.files.length > 0) {
               addFilesToQueue(e.target.files);
