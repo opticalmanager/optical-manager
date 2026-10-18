@@ -49,6 +49,7 @@ export type {
   NewVendor,
   NewPurchaseOrder,
   NewPurchaseOrderItem,
+  SocialReviewLinksSettings,
 } from "./database";
 
 

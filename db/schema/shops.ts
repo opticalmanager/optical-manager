@@ -26,6 +26,21 @@ export interface DocumentSeriesSettings {
   order?: DocumentSequenceConfig & { matchInvoice?: boolean };
 }
 
+export interface SocialReviewLinksSettings {
+  googleReview?: {
+    enabled: boolean;
+    url: string;
+    showOnInvoices?: boolean;
+    showOnReceipts?: boolean;
+  };
+  instagram?: {
+    enabled: boolean;
+    url: string;
+    showOnInvoices?: boolean;
+    showOnReceipts?: boolean;
+  };
+}
+
 export const shops = pgTable("shops", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
@@ -70,6 +85,7 @@ export const shops = pgTable("shops", {
     customerGroups?: string[];
     secondaryContacts?: Array<{ name: string; role: string; phone: string; email?: string }>;
     documentSeries?: DocumentSeriesSettings;
+    socialReviewLinks?: SocialReviewLinksSettings;
     customization?: any;
   }>().default({}),
 

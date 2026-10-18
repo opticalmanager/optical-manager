@@ -205,6 +205,11 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 .print\\:hidden,
                 [role="navigation"],
                 [role="banner"],
+                [data-sonner-toaster],
+                [data-sonner-toast],
+                .toaster,
+                div[aria-live="polite"],
+                div[aria-live="assertive"],
                 .flex.h-screen.overflow-hidden > div:first-child {
                   display: none !important;
                   width: 0 !important;
@@ -1030,8 +1035,9 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
           dangerouslySetInnerHTML={{
             __html: `
               @media print {
-                aside, header, nav, button, .print\\:hidden {
+                aside, header, nav, button, .print\\:hidden, [data-sonner-toaster], [data-sonner-toast], .toaster, div[aria-live="polite"], div[aria-live="assertive"] {
                   display: none !important;
+                  visibility: hidden !important;
                 }
                 body {
                   background: white !important;

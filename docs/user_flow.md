@@ -939,6 +939,43 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - **Print EOD Slip**: Browser-compliant `@media print` layout styled for store closing cash drawer handover and register balancing.
      - **Export CSV**: Instant single-day customer transaction ledger download via `/api/reports/export?type=daily&date=YYYY-MM-DD`.
 
+---
+
+## 24. Customer Engagement & Social Review Links User Flow
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│ /shop/settings   │────>│ Enter Google/IG  │────>│ Share Invoice or │────>│ Customer Clicks  │
+│ Communication    │     │ URL (Auto-Active)│     │ Order Form Link  │     │ Review / Follow  │
+└──────────────────┘     └──────────────────┘     └──────────────────┘     └──────────────────┘
+```
+
+1. **Configuration in Store Settings (`/shop/settings?view=social-links`)**:
+   - Store Manager or Owner navigates to Store Settings (`/shop/settings`).
+   - Clicks on **Communication** category, then selects the **Google & Instagram Reviews** subtab (or clicks **Google & Instagram Reviews** button directly on the Communication card).
+   - **Google Review Configuration**:
+     - Typing or pasting any Google review URL (e.g. `https://g.page/r/.../review` or `https://maps.app.goo.gl/...`) automatically activates the master switch (`Active on Documents` with pulsing emerald dot).
+     - Uses the **Test Link** action to verify that the destination URL opens the Google review dialog correctly.
+     - Configures document visibility checkboxes: `Tax Invoices` and/or `Order Forms / Receipts`.
+   - **Instagram Profile Configuration**:
+     - Typing or pasting an Instagram handle (e.g. `@punjabopticals_cp`) or profile URL (`https://instagram.com/...`) automatically activates the master switch (`Active on Documents` with pulsing pink dot).
+     - Live **Detected Handle** badge confirms that the username has been properly formatted and validated in real time.
+     - Uses the **Test Link** action to verify that the profile page opens in a new tab.
+     - Configures document visibility checkboxes: `Tax Invoices` and/or `Order Forms / Receipts`.
+   - **Live Interactive Preview with Document Switcher**:
+     - Reviews the live customer card at the bottom of the screen.
+     - Uses the **Tax Invoice** and **Order Form / Receipt** tabs to test how engagement pills respond dynamically to the selected document type checkboxes.
+   - **Save Changes**:
+     - Clicks **Save Google & Instagram Settings**. The action persists the configuration to Neon PostgreSQL via `shops.settings.socialReviewLinks`.
+
+2. **Customer Experience on Shared Document View (`/share/invoice/[id]`, `/share/receipt/[id]`)**:
+   - Customer opens their shared link (received via WhatsApp, SMS, or QR code).
+   - An engagement card appears right between the top sticky action toolbar and the A4 document canvas:
+     - **Rate us on Google**: Displays authentic 4-color Google 'G' icon, gold star badge (`★ 5.0`), store review prompt, and opens the Google review dialog in a new tab.
+     - **Follow us on Instagram**: Displays authentic Instagram gradient glyph, `@handle` tag badge, and opens the store profile in a new tab.
+   - Dual-target responsiveness: aligns horizontally on desktop/tablets and smoothly wraps into full-width mobile touch targets on smartphones (`min-h-[36px]`).
+   - When printing or downloading the PDF, the engagement buttons are hidden completely (`print:hidden`) so physical prints and PDFs remain clean and professional.
+
 
 
 

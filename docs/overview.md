@@ -266,4 +266,26 @@ Designed for System Owners and C-level optical executives managing multi-branch 
   - **End-of-Day (EOD) Register Slip Print**: Features `@media print` styling specifically optimized for store closing cash drawer handover and register balance verification.
   - **Single-Day CSV Export**: Direct CSV export via `/api/reports/export?type=daily&date=YYYY-MM-DD`.
 
+---
+
+## 11. Customer Engagement & Social Review Links System (`/share/invoice/*`, `/share/receipt/*`, `/shop/settings?view=social-links`)
+- **Shared Digital Document Header Integration**:
+  - Displays high-conversion, stylish interactive engagement pills directly above digital invoices and order receipts viewed by customers on mobile or desktop devices.
+  - **"Rate us on Google"**: Interactive card pill with authentic 4-color Google 'G' icon, gold star badge (`★ 5.0`), store review prompt, and direct new-tab navigation to the store's Google Business Review shortlink (`g.page/r/.../review` or Google Maps review intent).
+  - **"Follow us on Instagram"**: Interactive card pill with authentic Instagram radial gradient glyph, live store handle badge (e.g. `@punjabopticals_cp`), and direct navigation to the store's Instagram profile.
+  - **Responsive Dual-Target Layout**: On desktop, aligns horizontally alongside the warm review prompt; on mobile touchscreens, wraps smoothly into full-width touch-friendly buttons (`min-h-[36px]`).
+  - **Graceful Zero-Shift Rendering**: When links are disabled or empty, the entire card collapses completely with zero DOM shift or empty spacing.
+  - **Print & PDF Isolation**: Both buttons are wrapped in `print:hidden`, ensuring client PDF downloads and thermal/A4 prints remain strictly professional and ink-free.
+- **Store Settings Configuration (`/shop/settings?view=social-links`)**:
+  - Configurable under **Communication → Google & Instagram Reviews** subtab with Stripe/Linear-style high-density segmented pill bars.
+  - Discoverable directly on the **Communication** overview card via sub-feature quick pills and live channel status chips (`4 Channels Configured` or `🟢 WhatsApp Ready`).
+  - **Modern Enterprise SaaS Cards**: High-density cards featuring clean descriptions, live configuration status chips (`Branch: Store 1`, `4 Channels Configured`, `GST: Inclusive`, `X Staff Active`, `X Categories`), interactive sub-feature buttons, and smooth "Configure →" triggers.
+  - **Resilient Auto-Enablement**: Entering or pasting a valid URL or handle automatically activates the button (`enabled: true`), preventing silent omissions.
+  - **Prominent Status Badges**: Features dynamic visual status pills (`Active on Documents` with pulsing green indicator vs `Disabled (Hidden)` in slate) beside the master toggle switches.
+  - **Automated Handle Detection**: Automatically parses `@handle` and full URLs (`https://instagram.com/handle`), showing a live "Detected Handle" confirmation badge.
+  - **Document-Level Target Routing**: Granular checkboxes for `Show on Tax Invoices` and `Show on Order Forms / Receipts`.
+  - **Live Customer Document Preview with Document Switcher**: Interactive preview canvas equipped with `[Tax Invoice]` and `[Order Form / Receipt]` tabs, enabling store owners to verify exact document appearance in real time.
+  - Atomic JSONB persistence into `shops.settings.socialReviewLinks` via `updateShopSettingsConfigAction`.
+
+
 

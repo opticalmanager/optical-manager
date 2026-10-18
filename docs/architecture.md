@@ -404,11 +404,13 @@ Optical Manager renders official tax invoices and booking order forms as authent
    - **Interactive Quick Zoom Toolbar**: Floating sticky controls for Zoom In (`+`), Zoom Out (`-`), Zoom percentage pill, `Fit`, and `100%`.
    - **Dynamic Sizer Geometry**: Parent container measures unscaled document dimensions via `ResizeObserver` and adjusts parent bounds dynamically (`width: contentWidth * scale`, `height: contentHeight * scale`), eliminating phantom vertical scrolling or clipping.
 
-4. **High-Resolution PDF Download & Print**:
-   - **Client-Side High-Res Export**: Uses `html2pdf.js` with `html2canvas` 2x scale and jsPDF A4 portrait specifications.
-   - **Automatic Scale Reset During Export**: Temporarily un-zooms the document during canvas capture to guarantee pristine vector-like 300 DPI resolution, then restores user zoom scale seamlessly.
+4. **Direct High-Resolution PDF Download & Clean Print Engine**:
+   - **Direct Browser File Download**: Utilizes client-side `html2canvas-pro` (with native support for modern CSS `oklab` / `oklch` color functions and 2x retina scaling) and `jsPDF` (A4 portrait) in an isolated off-screen sandbox (`width: 794px`), directly triggering `pdf.save(pdfFileName)` to download the `.pdf` file to the customer's device with zero browser print preview panel interruption.
+   - **Decoupled Sandbox Rendering**: Clones the document into an off-screen sandbox decoupled from the viewport zoom/scale, eliminating mobile pinch-to-zoom distortions and screen flicker.
+   - **Notification & Toaster Suppression**: Strictly prevents toast notifications during PDF export and hides Sonner toast containers (`[data-sonner-toaster]`, `.toaster`) completely in print CSS (`@media print`).
+   - **Modern Color Support & Graceful Fallback**: `html2canvas-pro` parses modern CSS color models (`oklab()`, `oklch()`) without throwing parser crashes. If client canvas generation is blocked by strict environment security policies, gracefully falls back to native `window.print()`.
    - **Standardized Enterprise File Naming**: Generated PDF files are strictly formatted as `[Organization_Or_Store_Name]_[Document_Number].pdf` (e.g. `Eye_Care_Opticals_INV-2026-0042.pdf` or `Eye_Care_Opticals_PPS-1-2026-0015.pdf`).
-   - **Native Print Integration**: `handlePrint()` updates `document.title` to the standardized filename before calling `window.print()`, so browser "Save as PDF" dialogs also pre-populate the exact standardized file name. In `@media print`, all transforms and zoom controls are bypassed for 100% physical A4 printing.
+   - **Native Print Integration**: Dedicated `handlePrint()` updates `document.title` to the standardized filename before calling `window.print()`, so browser "Save as PDF" dialogs also pre-populate the exact standardized file name. In `@media print`, all transforms, zoom controls, and toast notifications are suppressed for 100% physical A4 printing.
 
 ---
 

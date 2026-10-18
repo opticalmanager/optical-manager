@@ -7,7 +7,8 @@ import {
   DollarSign, FileText, User, Search, ArrowLeft, Settings,
   Save, Landmark, ShieldCheck, Mail, Trash2, Plus, Clock, 
   Award, X, Check, Star, ShieldAlert,
-  Laptop, Download, Copy, RefreshCw, Globe, Zap, Radio, CheckCircle2, AlertCircle, QrCode
+  Laptop, Download, Copy, RefreshCw, Globe, Zap, Radio, CheckCircle2, AlertCircle, QrCode,
+  Share2, ExternalLink, ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
@@ -17,6 +18,8 @@ import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSett
 import { DocumentSeriesSettings } from "@/components/shop/DocumentSeriesSettings";
 import { generateShopPairingKeyAction, checkDesktopAssistantStatusAction, triggerDesktopAssistantDisconnectAction } from "@/actions/desktop-wa.actions";
 import { getStateFromGSTIN } from "@/utils/gstin";
+import type { SocialReviewLinksSettings } from "@/types";
+import { SocialReviewPills, GoogleColorIcon, InstagramColorIcon, normalizeInstagramUrl } from "@/components/shop/SocialReviewLinks";
 
 interface SettingsPageClientProps {
   shop: any;
@@ -40,9 +43,8 @@ const SETTING_ITEMS: SettingItem[] = [
   // Communication
   { id: "whatsapp-utility", label: "WhatsApp Utility", category: "Communication" },
   { id: "whatsapp", label: "WhatsApp Templates", category: "Communication" },
-  { id: "email", label: "Email Templates", category: "Communication" },
-  { id: "campaigns", label: "Campaigns", category: "Communication" },
-  { id: "sms", label: "SMS Alerts", category: "Communication" },
+  { id: "social-links", label: "Google & Instagram Reviews", category: "Communication" },
+  { id: "email", label: "Email System", category: "Communication" },
   
   // Tax & GST
   { id: "gst-rates", label: "GST Rates", category: "Tax & GST" },
@@ -55,14 +57,6 @@ const SETTING_ITEMS: SettingItem[] = [
   // Expenses
   { id: "categories", label: "Categories", category: "Expenses" },
   { id: "vendors", label: "Vendors", category: "Expenses" },
-  
-  // Reports
-  { id: "templates", label: "PDF Templates", category: "Reports" },
-  { id: "auto-reports", label: "Auto-Reports", category: "Reports" },
-  
-  // Customers
-  { id: "loyalty", label: "Loyalty Program", category: "Customers" },
-  { id: "customer-groups", label: "Customer Groups", category: "Customers" },
 ];
 
 export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClientProps) {
@@ -107,10 +101,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   const [gstRates, setGstRates] = useState<number[]>(shop?.settings?.gstRates || [5, 12, 18, 28]);
   const [newGstRate, setNewGstRate] = useState("");
 
-  // 4. Loyalty settings state
-  const [loyaltyEnabled, setLoyaltyEnabled] = useState(shop?.settings?.loyaltyEnabled ?? false);
-  const [loyaltyRatio, setLoyaltyRatio] = useState<number>(shop?.settings?.loyaltyPointsRatio || 100);
-  const [loyaltyValue, setLoyaltyValue] = useState<number>(shop?.settings?.loyaltyRedeemValue || 1);
+
 
   // 5. WhatsApp Customizer state
   const [whatsappTemplates, setWhatsappTemplates] = useState<any>(shop?.settings?.whatsappTemplates || DEFAULT_WHATSAPP_TEMPLATES);
@@ -250,10 +241,52 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   const [expenseVendors, setExpenseVendors] = useState<any[]>(shop?.settings?.expenseVendors || []);
   const [newVendor, setNewVendor] = useState({ name: "", contact: "", phone: "", email: "", gstin: "" });
 
-  // 8. Report template state
-  const [pdfInvoiceTemplate, setPdfInvoiceTemplate] = useState<"classic" | "elegant" | "compact">(shop?.settings?.pdfInvoiceTemplate || "classic");
-  const [reportType, setReportType] = useState<"daily" | "weekly" | "off">(shop?.settings?.autoReportSchedule?.type || "off");
-  const [reportEmail, setReportEmail] = useState(shop?.settings?.autoReportSchedule?.email || "");
+
+  const [socialReviewLinks, setSocialReviewLinks] = useState<SocialReviewLinksSettings>(
+    shop?.settings?.socialReviewLinks || {
+      googleReview: { enabled: false, url: "", showOnInvoices: true, showOnReceipts: true },
+      instagram: { enabled: false, url: "", showOnInvoices: true, showOnReceipts: true },
+    }
+  );
+  const [socialPreviewMode, setSocialPreviewMode] = useState<"INVOICE" | "RECEIPT">("INVOICE");
+
+  const updateGoogleReview = (updates: Partial<NonNullable<SocialReviewLinksSettings["googleReview"]>>) => {
+    setSocialReviewLinks((prev: SocialReviewLinksSettings): SocialReviewLinksSettings => {
+      const currentEnabled = prev.googleReview?.enabled ?? false;
+      const isAutoEnabling = updates.url !== undefined && updates.url.trim().length > 0 && updates.enabled === undefined && !currentEnabled;
+      const resolvedEnabled = updates.enabled !== undefined ? updates.enabled : (isAutoEnabling ? true : currentEnabled);
+
+      return {
+        ...prev,
+        googleReview: {
+          url: prev.googleReview?.url ?? "",
+          showOnInvoices: prev.googleReview?.showOnInvoices ?? true,
+          showOnReceipts: prev.googleReview?.showOnReceipts ?? true,
+          ...updates,
+          enabled: resolvedEnabled,
+        },
+      };
+    });
+  };
+
+  const updateInstagram = (updates: Partial<NonNullable<SocialReviewLinksSettings["instagram"]>>) => {
+    setSocialReviewLinks((prev: SocialReviewLinksSettings): SocialReviewLinksSettings => {
+      const currentEnabled = prev.instagram?.enabled ?? false;
+      const isAutoEnabling = updates.url !== undefined && updates.url.trim().length > 0 && updates.enabled === undefined && !currentEnabled;
+      const resolvedEnabled = updates.enabled !== undefined ? updates.enabled : (isAutoEnabling ? true : currentEnabled);
+
+      return {
+        ...prev,
+        instagram: {
+          url: prev.instagram?.url ?? "",
+          showOnInvoices: prev.instagram?.showOnInvoices ?? true,
+          showOnReceipts: prev.instagram?.showOnReceipts ?? true,
+          ...updates,
+          enabled: resolvedEnabled,
+        },
+      };
+    });
+  };
 
   // Sync Search URL view parameters with UI Tabs
   useEffect(() => {
@@ -261,7 +294,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
       if (["profile", "hours", "contact", "series"].includes(activeView)) {
         setActiveTab("store");
         setActiveSubTab(activeView);
-      } else if (["whatsapp-utility", "whatsapp", "email", "campaigns", "sms"].includes(activeView)) {
+      } else if (["whatsapp-utility", "whatsapp", "social-links", "email"].includes(activeView)) {
         setActiveTab("communication");
         setActiveSubTab(activeView);
       } else if (["gst-rates", "tax-logic"].includes(activeView)) {
@@ -272,12 +305,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
         setActiveSubTab(activeView);
       } else if (["categories", "vendors"].includes(activeView)) {
         setActiveTab("expenses");
-        setActiveSubTab(activeView);
-      } else if (["templates", "auto-reports"].includes(activeView)) {
-        setActiveTab("reports");
-        setActiveSubTab(activeView);
-      } else if (["loyalty", "customer-groups"].includes(activeView)) {
-        setActiveTab("customers");
         setActiveSubTab(activeView);
       }
     } else {
@@ -314,8 +341,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
       tax: "gst-rates",
       access: "staff",
       expenses: "categories",
-      reports: "templates",
-      customers: "loyalty"
     };
     router.push(`/shop/settings?view=${defaultSubMap[tabId]}`);
   };
@@ -372,15 +397,63 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     return getItemsForCategory(categoryName).length > 0;
   };
 
-  // Categories Sidebar Array
+  // Categories Sidebar Array - 5 Core Shop Settings
   const CATEGORIES = [
-    { id: "store", label: "Store Details", icon: Store, color: "text-blue-650 bg-blue-50 border-blue-100/50" },
-    { id: "communication", label: "Communication", icon: MessageSquare, color: "text-emerald-700 bg-emerald-50 border-emerald-100/50" },
-    { id: "tax", label: "Tax & GST", icon: Percent, color: "text-amber-700 bg-amber-50 border-amber-100/50" },
-    { id: "access", label: "Access and Users", icon: Users, color: "text-purple-700 bg-purple-50 border-purple-100/50" },
-    { id: "expenses", label: "Expenses", icon: DollarSign, color: "text-rose-700 bg-rose-50 border-rose-100/50" },
-    { id: "reports", label: "Reports & PDFs", icon: FileText, color: "text-indigo-700 bg-indigo-50 border-indigo-100/50" },
-    { id: "customers", label: "Customers Settings", icon: User, color: "text-teal-700 bg-teal-50 border-teal-100/50" }
+    { 
+      id: "store", 
+      label: "Store Details", 
+      icon: Store, 
+      color: "text-blue-600 bg-blue-50 border-blue-100", 
+      accentBorder: "hover:border-blue-300",
+      description: "Manage branch profile, contact info, business hours, and invoice numbering sequences.",
+      badge: profileName ? `Branch: ${profileName}` : "Branch Configured",
+      badgeTone: "bg-blue-50 text-blue-700 border-blue-200/60",
+      actionLabel: "Configure Store"
+    },
+    { 
+      id: "communication", 
+      label: "Communication", 
+      icon: MessageSquare, 
+      color: "text-emerald-600 bg-emerald-50 border-emerald-100", 
+      accentBorder: "hover:border-emerald-300",
+      description: "Counter WhatsApp desktop utility, dispatch templates, Google/Instagram reviews, and email alerts.",
+      badge: (isShopDesktopOnline && isShopWaConnected) ? "🟢 WhatsApp Ready" : "4 Channels Configured",
+      badgeTone: (isShopDesktopOnline && isShopWaConnected) ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" : "bg-slate-100 text-slate-700 border-slate-200/70",
+      actionLabel: "Manage Channels"
+    },
+    { 
+      id: "tax", 
+      label: "Tax & GST", 
+      icon: Percent, 
+      color: "text-amber-600 bg-amber-50 border-amber-100", 
+      accentBorder: "hover:border-amber-300",
+      description: "Category GST rates master matrix, taxation logic (Inclusive/Exclusive), and store GSTIN reference.",
+      badge: taxationLogic === "inclusive" ? "GST: Inclusive" : "GST: Exclusive",
+      badgeTone: "bg-amber-50 text-amber-800 border-amber-200/60",
+      actionLabel: "Edit Tax Rules"
+    },
+    { 
+      id: "access", 
+      label: "Access and Users", 
+      icon: Users, 
+      color: "text-purple-600 bg-purple-50 border-purple-100", 
+      accentBorder: "hover:border-purple-300",
+      description: "Shop employees, counter clerks, and managerial authentication statuses.",
+      badge: `${staff?.length || 0} Staff Active`,
+      badgeTone: "bg-purple-50 text-purple-700 border-purple-200/60",
+      actionLabel: "Manage Staff"
+    },
+    { 
+      id: "expenses", 
+      label: "Expenses", 
+      icon: DollarSign, 
+      color: "text-rose-600 bg-rose-50 border-rose-100", 
+      accentBorder: "hover:border-rose-300",
+      description: "Custom store operational expense categories, registered suppliers, and distribution vendors.",
+      badge: `${expenseCategories?.length || 0} Categories`,
+      badgeTone: "bg-rose-50 text-rose-700 border-rose-200/60",
+      actionLabel: "Configure Expenses"
+    },
   ];
 
   return (
@@ -395,8 +468,8 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
                 <Settings className="w-6 h-6 text-[#0a52c3] animate-pulse" /> All Settings
               </h2>
-              <p className="text-sm text-slate-500 font-medium">
-                Manage your store details, GST configurations, user roles, templates, and loyalty settings.
+              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                Manage your store details, GST configurations, user roles, templates, and communication channels.
               </p>
             </div>
 
@@ -414,7 +487,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
               {searchQuery && (
                 <button 
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-slate-400 hover:text-slate-650"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-slate-400 hover:text-slate-650 cursor-pointer"
                 >
                   Clear
                 </button>
@@ -423,27 +496,65 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
           </div>
 
           {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-in fade-in duration-200">
             {CATEGORIES.map((cat) => {
               if (!isCategoryVisible(cat.label)) return null;
+              const subItems = getItemsForCategory(cat.label);
               return (
-                <div key={cat.id} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-all duration-200 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl border ${cat.color}`}>
-                      <cat.icon className="w-5 h-5" />
-                    </div>
-                    <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">{cat.label}</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {getItemsForCategory(cat.label).map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleOpenView(item.id)}
-                        className="px-3.5 py-2 text-xs font-bold text-slate-650 hover:text-indigo-650 bg-slate-50 border border-slate-100 hover:border-indigo-250 hover:bg-indigo-50/15 rounded-xl transition-all cursor-pointer"
+                <div 
+                  key={cat.id} 
+                  className={`bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:shadow-md ${cat.accentBorder} transition-all duration-200 flex flex-col justify-between group`}
+                >
+                  <div className="space-y-3.5">
+                    {/* Header: Icon, Title, and Live Chip */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div 
+                        onClick={() => handleSelectTab(cat.id)}
+                        className="flex items-center gap-3 cursor-pointer"
+                        title={`Open ${cat.label} settings`}
                       >
-                        {item.label}
-                      </button>
-                    ))}
+                        <div className={`p-2.5 rounded-xl border ${cat.color} group-hover:scale-105 transition-transform shrink-0`}>
+                          <cat.icon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-sm tracking-tight group-hover:text-blue-600 transition-colors">
+                            {cat.label}
+                          </h3>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide ${cat.badgeTone}`}>
+                        {cat.badge}
+                      </span>
+                    </div>
+
+                    {/* Description */}
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                      {cat.description}
+                    </p>
+
+                    {/* Sub-feature Pills */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {subItems.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleOpenView(item.id)}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:text-blue-600 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/70 hover:border-blue-200 rounded-lg transition-all cursor-pointer"
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Quick Action Link */}
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
+                    <button
+                      onClick={() => handleSelectTab(cat.id)}
+                      className="text-xs font-bold text-slate-600 group-hover:text-blue-600 flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span>{cat.actionLabel}</span>
+                      <ChevronRight className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" />
+                    </button>
                   </div>
                 </div>
               );
@@ -474,38 +585,42 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
               <span>Back to Overview</span>
             </button>
             <div className="h-4 w-px bg-slate-250" />
-            <h3 className="text-xs font-black uppercase text-slate-450 tracking-wider">
+            <h3 className="text-xs font-black uppercase text-slate-500 tracking-wider">
               {activeTab === "store" ? "Store Details" : 
                activeTab === "communication" ? "Communication" : 
                activeTab === "tax" ? "Tax & GST" : 
-               activeTab === "access" ? "Access and Users" : 
-               activeTab === "expenses" ? "Expenses" : 
-               activeTab === "reports" ? "Reports" : "Customers"} Settings
+               activeTab === "access" ? "Access and Users" : "Expenses"} Settings
             </h3>
           </div>
             
             {/* 1. STORE DETAILS SECTION */}
             {activeTab === "store" && (
               <div className="space-y-6">
-                {/* Sub-tabs header */}
-                <div className="flex border-b border-slate-100 pb-3 gap-6">
+                {/* Sub-tabs header: Segmented Pill Bar */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 overflow-x-auto">
                   {[
-                    { id: "profile", label: "Store Profile" },
-                    { id: "hours", label: "Operating Hours" },
-                    { id: "series", label: "Series & Numbering" },
-                  ].map((sub) => (
-                    <button
-                      key={sub.id}
-                      onClick={() => handleOpenView(sub.id)}
-                      className={`text-xs font-black uppercase tracking-wider pb-3 border-b-2 transition-all cursor-pointer ${
-                        activeSubTab === sub.id
-                          ? "border-indigo-650 text-indigo-750 font-extrabold"
-                          : "border-transparent text-slate-450 hover:text-slate-800"
-                      }`}
-                    >
-                      {sub.label}
-                    </button>
-                  ))}
+                    { id: "profile", label: "Store Profile", icon: Store },
+                    { id: "hours", label: "Operating Hours", icon: Clock },
+                    { id: "series", label: "Series & Numbering", icon: FileText },
+                  ].map((sub) => {
+                    const isSelected = activeSubTab === sub.id;
+                    const IconComp = sub.icon;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => handleOpenView(sub.id)}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                          isSelected
+                            ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                            : "text-slate-500 hover:text-slate-900 hover:bg-white/60"
+                        }`}
+                      >
+                        <IconComp className={`w-3.5 h-3.5 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />
+                        <span>{sub.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Sub-tab 1A: Profile */}
@@ -746,25 +861,32 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
             {/* 2. COMMUNICATION SECTION */}
             {activeTab === "communication" && (
               <div className="space-y-6">
-                {/* Sub-tabs */}
-                <div className="flex border-b border-slate-100 pb-3 gap-6">
+                {/* Sub-tabs header: Segmented Pill Bar */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 overflow-x-auto">
                   {[
-                    { id: "whatsapp-utility", label: "WhatsApp Utility" },
-                    { id: "whatsapp", label: "WhatsApp Templates" },
-                    { id: "email", label: "Email System" }
-                  ].map((sub) => (
-                    <button
-                      key={sub.id}
-                      onClick={() => handleOpenView(sub.id)}
-                      className={`text-xs font-black uppercase tracking-wider pb-3 border-b-2 transition-all cursor-pointer ${
-                        activeSubTab === sub.id
-                          ? "border-indigo-650 text-indigo-750 font-extrabold"
-                          : "border-transparent text-slate-455 hover:text-slate-800"
-                      }`}
-                    >
-                      {sub.label}
-                    </button>
-                  ))}
+                    { id: "whatsapp-utility", label: "WhatsApp Utility", icon: Laptop },
+                    { id: "whatsapp", label: "WhatsApp Templates", icon: MessageSquare },
+                    { id: "social-links", label: "Google & Instagram Reviews", icon: Star },
+                    { id: "email", label: "Email System", icon: Mail }
+                  ].map((sub) => {
+                    const isSelected = activeSubTab === sub.id;
+                    const IconComp = sub.icon;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => handleOpenView(sub.id)}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                          isSelected
+                            ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                            : "text-slate-500 hover:text-slate-900 hover:bg-white/60"
+                        }`}
+                      >
+                        <IconComp className={`w-3.5 h-3.5 ${isSelected ? "text-emerald-600" : "text-slate-400"}`} />
+                        <span>{sub.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Sub-tab 2A: WhatsApp Dispatch Utility & Assistant Connection */}
@@ -1430,6 +1552,315 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                     </div>
                   </div>
                 )}
+
+                {/* Sub-tab 2C: Google Reviews & Instagram Social Engagement */}
+                {activeSubTab === "social-links" && (() => {
+                  const detectedIg = normalizeInstagramUrl(socialReviewLinks.instagram?.url);
+                  const isGoogleActive = Boolean(socialReviewLinks.googleReview?.enabled && socialReviewLinks.googleReview?.url?.trim());
+                  const isInstagramActive = Boolean(socialReviewLinks.instagram?.enabled && socialReviewLinks.instagram?.url?.trim());
+
+                  return (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-pink-50/80 border border-slate-200/90 rounded-2xl shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center gap-1 shrink-0">
+                            <GoogleColorIcon className="w-4 h-4" />
+                            <InstagramColorIcon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-black text-slate-900 tracking-tight">
+                                Google Reviews &amp; Instagram Engagement
+                              </h4>
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-100 text-[#0a52c3]">
+                                Shared Documents
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              Display stylish interactive engagement buttons on shared customer invoices and receipts to boost 5-star Google ratings and social followers.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Google Review Card */}
+                        <div className={`rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-4 transition-all border ${
+                          socialReviewLinks.googleReview?.enabled
+                            ? "bg-white border-blue-200/90 shadow-2xs hover:shadow-xs"
+                            : "bg-slate-50/60 border-slate-200/80"
+                        }`}>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center shadow-2xs">
+                                  <GoogleColorIcon className="w-4.5 h-4.5" />
+                                </div>
+                                <div>
+                                  <span className="block text-xs font-black text-slate-900">Google Review Link</span>
+                                  <span className="block text-[10px] text-slate-500 font-medium">Direct customers to rate your optical practice</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 transition-colors ${
+                                  socialReviewLinks.googleReview?.enabled
+                                    ? "bg-emerald-50 border-emerald-250 text-emerald-700"
+                                    : "bg-slate-100 border-slate-200 text-slate-500"
+                                }`}>
+                                  <span className={`h-1.5 w-1.5 rounded-full ${
+                                    socialReviewLinks.googleReview?.enabled ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                                  }`} />
+                                  {socialReviewLinks.googleReview?.enabled ? "Active" : "Disabled"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateGoogleReview({ enabled: !socialReviewLinks.googleReview?.enabled })}
+                                  className={`w-11 h-6 rounded-full p-0.5 transition-all cursor-pointer duration-300 ${
+                                    socialReviewLinks.googleReview?.enabled ? "bg-[#2563eb]" : "bg-slate-200"
+                                  }`}
+                                  title={socialReviewLinks.googleReview?.enabled ? "Click to disable Google Reviews" : "Click to enable Google Reviews"}
+                                >
+                                  <div
+                                    className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ${
+                                      socialReviewLinks.googleReview?.enabled ? "translate-x-5" : "translate-x-0"
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide flex items-center justify-between">
+                                <span>Google Review Shortlink</span>
+                                {socialReviewLinks.googleReview?.url?.trim() && (
+                                  <a
+                                    href={socialReviewLinks.googleReview.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] font-bold text-[#2563eb] hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    Test Link <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                )}
+                              </label>
+                              <input
+                                type="url"
+                                value={socialReviewLinks.googleReview?.url || ""}
+                                onChange={(e) => updateGoogleReview({ url: e.target.value.trim() })}
+                                placeholder="https://g.page/r/.../review or https://maps.app.goo.gl/..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                              />
+                              <p className="text-[10px] text-slate-400 font-medium">
+                                Get your shortlink from Google Business Profile Manager &rarr; "Ask for reviews". Typing a link auto-enables this button.
+                              </p>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 space-y-2">
+                              <span className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">
+                                Display On Document Types:
+                              </span>
+                              <div className="flex items-center gap-4">
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={socialReviewLinks.googleReview?.showOnInvoices !== false}
+                                    onChange={(e) => updateGoogleReview({ showOnInvoices: e.target.checked })}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  Tax Invoices
+                                </label>
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={socialReviewLinks.googleReview?.showOnReceipts !== false}
+                                    onChange={(e) => updateGoogleReview({ showOnReceipts: e.target.checked })}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  Order Forms / Receipts
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Instagram Profile Card */}
+                        <div className={`rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-4 transition-all border ${
+                          socialReviewLinks.instagram?.enabled
+                            ? "bg-white border-pink-200/90 shadow-2xs hover:shadow-xs"
+                            : "bg-slate-50/60 border-slate-200/80"
+                        }`}>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center shadow-2xs">
+                                  <InstagramColorIcon className="w-4.5 h-4.5" />
+                                </div>
+                                <div>
+                                  <span className="block text-xs font-black text-slate-900">Instagram Profile</span>
+                                  <span className="block text-[10px] text-slate-500 font-medium">Invite customers to follow your store page</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 transition-colors ${
+                                  socialReviewLinks.instagram?.enabled
+                                    ? "bg-pink-50 border-pink-250 text-pink-700"
+                                    : "bg-slate-100 border-slate-200 text-slate-500"
+                                }`}>
+                                  <span className={`h-1.5 w-1.5 rounded-full ${
+                                    socialReviewLinks.instagram?.enabled ? "bg-pink-500 animate-pulse" : "bg-slate-400"
+                                  }`} />
+                                  {socialReviewLinks.instagram?.enabled ? "Active" : "Disabled"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateInstagram({ enabled: !socialReviewLinks.instagram?.enabled })}
+                                  className={`w-11 h-6 rounded-full p-0.5 transition-all cursor-pointer duration-300 ${
+                                    socialReviewLinks.instagram?.enabled ? "bg-[#d6249f]" : "bg-slate-200"
+                                  }`}
+                                  title={socialReviewLinks.instagram?.enabled ? "Click to disable Instagram" : "Click to enable Instagram"}
+                                >
+                                  <div
+                                    className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ${
+                                      socialReviewLinks.instagram?.enabled ? "translate-x-5" : "translate-x-0"
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide flex items-center justify-between">
+                                <span>Profile Handle or URL</span>
+                                {socialReviewLinks.instagram?.url?.trim() && (
+                                  <a
+                                    href={detectedIg.url || "#"}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] font-bold text-pink-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    Test Link <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                )}
+                              </label>
+                              <input
+                                type="text"
+                                value={socialReviewLinks.instagram?.url || ""}
+                                onChange={(e) => updateInstagram({ url: e.target.value.trim() })}
+                                placeholder="@yourstore or https://instagram.com/yourstore"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-pink-500 focus:bg-white transition-colors"
+                              />
+                              {detectedIg.handle ? (
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Detected:</span>
+                                  <span className="text-[11px] font-extrabold text-pink-700 bg-pink-50 px-2 py-0.5 rounded-md border border-pink-200/70 inline-flex items-center gap-1">
+                                    <InstagramColorIcon className="w-3 h-3" /> {detectedIg.handle}
+                                  </span>
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                  Type your handle (e.g. @cooloptics) or full profile URL. Typing a link auto-enables this button.
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 space-y-2">
+                              <span className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">
+                                Display On Document Types:
+                              </span>
+                              <div className="flex items-center gap-4">
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={socialReviewLinks.instagram?.showOnInvoices !== false}
+                                    onChange={(e) => updateInstagram({ showOnInvoices: e.target.checked })}
+                                    className="rounded border-slate-300 text-pink-600 focus:ring-pink-500"
+                                  />
+                                  Tax Invoices
+                                </label>
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={socialReviewLinks.instagram?.showOnReceipts !== false}
+                                    onChange={(e) => updateInstagram({ showOnReceipts: e.target.checked })}
+                                    className="rounded border-slate-300 text-pink-600 focus:ring-pink-500"
+                                  />
+                                  Order Forms / Receipts
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Live Preview Section with Mode Switcher */}
+                      <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="space-y-0.5">
+                            <span className="block text-xs font-bold text-slate-800">
+                              Live Customer Document Preview
+                            </span>
+                            <span className="block text-[11px] text-slate-500 font-medium">
+                              Interactive preview of how buttons appear to customers above shared documents:
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-slate-200/70 p-0.5 rounded-xl border border-slate-200/80 self-start sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => setSocialPreviewMode("INVOICE")}
+                              className={`px-3 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                                socialPreviewMode === "INVOICE"
+                                  ? "bg-white text-slate-900 shadow-2xs"
+                                  : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              Tax Invoice
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSocialPreviewMode("RECEIPT")}
+                              className={`px-3 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                                socialPreviewMode === "RECEIPT"
+                                  ? "bg-white text-slate-900 shadow-2xs"
+                                  : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              Order Form / Receipt
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="bg-white border border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center min-h-[95px]">
+                          {(!isGoogleActive && !isInstagramActive) ? (
+                            <div className="text-center py-2 space-y-1">
+                              <p className="text-xs font-bold text-slate-700">No Engagement Buttons Currently Active</p>
+                              <p className="text-[11px] text-slate-400">
+                                Enter your Google shortlink or Instagram profile above and ensure the toggle is set to <span className="font-extrabold text-emerald-600">Active</span> to display pills on shared invoices.
+                              </p>
+                            </div>
+                          ) : (
+                            <SocialReviewPills
+                              settings={socialReviewLinks}
+                              mode={socialPreviewMode}
+                              storeName={profileName || shop?.name || "Your Store"}
+                              forcePreview={true}
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
+                        <button 
+                          type="button" 
+                          onClick={() => handleSaveConfig("socialReviewLinks", socialReviewLinks, "Google and Instagram links saved successfully.")}
+                          disabled={isPending}
+                          className="px-5 py-2.5 bg-[#0a52c3] hover:bg-[#0842a0] text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                        >
+                          <Save className="w-3.5 h-3.5" /> {isPending ? "Saving..." : "Save Google & Instagram Settings"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1719,157 +2150,6 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                     className="px-5 py-2.5 bg-[#0a52c3] hover:bg-[#0842a0] text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
                   >
                     <Save className="w-3.5 h-3.5" /> {isPending ? "Saving..." : "Save Expense Configs"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 6. REPORTS SECTION */}
-            {activeTab === "reports" && (
-              <div className="space-y-6">
-                <div className="space-y-3 pb-6 border-b border-slate-100">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400" /> Invoice PDF Templates
-                  </h4>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { id: "classic", label: "Classic Blueprint" },
-                      { id: "elegant", label: "Elegant Border" },
-                      { id: "compact", label: "Compact Receipt" }
-                    ].map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        type="button"
-                        onClick={() => setPdfInvoiceTemplate(tpl.id as any)}
-                        className={`p-4 border rounded-xl text-left transition-all cursor-pointer ${
-                          pdfInvoiceTemplate === tpl.id
-                            ? "bg-indigo-50 border-indigo-250 text-indigo-755 shadow-xs"
-                            : "bg-white border-slate-200 text-slate-655 hover:bg-slate-50"
-                        }`}
-                      >
-                        <span className="block text-[11px] font-black uppercase">{tpl.label}</span>
-                        <span className="block text-[8px] text-slate-400 font-bold uppercase mt-0.5">
-                          {tpl.id === "compact" ? "80mm thermal" : "A4 document"}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-slate-400" /> Automated EOD Email Reports
-                  </h4>
-
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">Schedule Interval</label>
-                      <select
-                        value={reportType}
-                        onChange={(e) => setReportType(e.target.value as any)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
-                      >
-                        <option value="off">Deactivated</option>
-                        <option value="daily">Daily EOD Summary</option>
-                        <option value="weekly">Weekly Business Summary</option>
-                      </select>
-                    </div>
-
-                    {reportType !== "off" && (
-                      <div className="space-y-1 animate-in fade-in duration-200">
-                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">Destination Email</label>
-                        <input 
-                          type="email" 
-                          value={reportEmail}
-                          onChange={(e) => setReportEmail(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
-                  <button 
-                    type="button" 
-                    onClick={() => handleSaveConfig("pdfInvoiceTemplate", pdfInvoiceTemplate, "Reports settings updated.")}
-                    disabled={isPending}
-                    className="px-5 py-2.5 bg-[#0a52c3] hover:bg-[#0842a0] text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
-                  >
-                    <Save className="w-3.5 h-3.5" /> {isPending ? "Saving..." : "Save Report Settings"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 7. CUSTOMERS SECTION */}
-            {activeTab === "customers" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between p-4 border border-indigo-150 rounded-2xl bg-indigo-50/10">
-                  <div className="space-y-0.5">
-                    <h4 className="text-xs font-black uppercase text-indigo-755 flex items-center gap-1.5">
-                      <Award className="w-4 h-4 text-indigo-600" /> loyalty reward program
-                    </h4>
-                    <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Provide points to customers on purchases</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setLoyaltyEnabled(!loyaltyEnabled)}
-                    className={`w-12 h-6.5 rounded-full p-1 transition-all cursor-pointer duration-300 ${
-                      loyaltyEnabled ? "bg-indigo-650" : "bg-slate-200"
-                    }`}
-                  >
-                    <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform transition-transform duration-300 ${
-                      loyaltyEnabled ? "translate-x-5.5" : "translate-x-0"
-                    }`} />
-                  </button>
-                </div>
-
-                {loyaltyEnabled && (
-                  <div className="space-y-4 animate-in fade-in duration-200">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">Earning Rule</label>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-600">Earn 1 loyalty point for every</span>
-                        <input 
-                          type="number" 
-                          value={loyaltyRatio} 
-                          onChange={(e) => setLoyaltyRatio(parseInt(e.target.value) || 0)}
-                          className="w-24 bg-slate-50 border border-slate-200 rounded-xl p-2 text-center text-xs font-extrabold text-slate-700 outline-none"
-                        />
-                        <span className="text-xs font-bold text-slate-600">Rs spent</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">Redemption Rule</label>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-600">1 loyalty point is equal to</span>
-                        <input 
-                          type="number" 
-                          step="0.1"
-                          value={loyaltyValue} 
-                          onChange={(e) => setLoyaltyValue(parseFloat(e.target.value) || 0)}
-                          className="w-24 bg-slate-50 border border-slate-200 rounded-xl p-2 text-center text-xs font-extrabold text-slate-700 outline-none"
-                        />
-                        <span className="text-xs font-bold text-slate-600">Rs discount</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      handleSaveConfig("loyaltyEnabled", loyaltyEnabled, "Loyalty program settings updated.");
-                      handleSaveConfig("loyaltyPointsRatio", loyaltyRatio);
-                      handleSaveConfig("loyaltyRedeemValue", loyaltyValue);
-                    }}
-                    disabled={isPending}
-                    className="px-5 py-2.5 bg-[#0a52c3] hover:bg-[#0842a0] text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
-                  >
-                    <Save className="w-3.5 h-3.5" /> {isPending ? "Saving..." : "Save Loyalty Settings"}
                   </button>
                 </div>
               </div>
