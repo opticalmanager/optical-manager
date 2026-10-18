@@ -14,7 +14,7 @@ import {
   Loader2,
   Check,
 } from "lucide-react";
-import { toast } from "sonner";
+import { SocialReviewPills } from "@/components/shop/SocialReviewLinks";
 
 interface SharedInvoiceViewerProps {
   data: DocumentData;
@@ -170,63 +170,133 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
     }, 1500);
   };
 
-  // Download PDF file
+  // Download PDF file directly to client device without triggering browser print preview or toasts
   const handleDownloadPDF = async () => {
     if (isDownloading) return;
     setIsDownloading(true);
 
-    const originalTitle = document.title;
-    document.title = `${cleanStore}_${cleanDoc}`;
-
-    // Temporarily reset zoom scale to 1 for high-res unscaled canvas capture
-    const currentScale = scale;
-    if (currentScale !== 1) {
-      setScale(1);
-      await new Promise((r) => setTimeout(r, 80));
-    }
+    let tempContainer: HTMLDivElement | null = null;
 
     try {
       const printArea = document.getElementById("invoice-print-area");
       if (!printArea) {
-        window.print();
+        console.error("Invoice print element not found");
         return;
       }
 
-      toast.info(`Preparing ${pdfFileName}...`, { duration: 2000 });
+      // Dynamically import html2canvas-pro and jsPDF on client to keep initial bundle ultra-light
+      // html2canvas-pro natively supports modern CSS color functions (oklab, oklch, lab, etc.)
+      const [html2canvasModule, { jsPDF }] = await Promise.all([
+        import("html2canvas-pro"),
+        import("jspdf"),
+      ]);
+      const html2canvas = html2canvasModule.default || html2canvasModule;
 
-      // Dynamically import html2pdf on client
-      const html2pdfModule = await import("html2pdf.js");
-      const html2pdf = (html2pdfModule as any).default || html2pdfModule;
+      // 1. Create an off-screen sandbox container at exact A4 width (794px)
+      // This completely decouples capture from user's current touch zoom/scale on mobile/desktop
+      tempContainer = document.createElement("div");
+      tempContainer.style.position = "fixed";
+      tempContainer.style.left = "-99999px";
+      tempContainer.style.top = "0";
+      tempContainer.style.width = "794px";
+      tempContainer.style.minWidth = "794px";
+      tempContainer.style.maxWidth = "794px";
+      tempContainer.style.margin = "0";
+      tempContainer.style.padding = "0";
+      tempContainer.style.background = "#ffffff";
+      tempContainer.style.zIndex = "-9999";
+      tempContainer.style.opacity = "1";
+      tempContainer.style.pointerEvents = "none";
 
-      const opt = {
-        margin: [0, 0, 0, 0],
-        filename: pdfFileName,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
+      // 2. Clone print area to avoid any DOM layout shifts or zooming artifacts
+      const clone = printArea.cloneNode(true) as HTMLElement;
+      clone.style.transform = "none";
+      clone.style.margin = "0";
+      clone.style.boxShadow = "none";
+      clone.style.borderRadius = "0";
+
+      // Ensure all child pages have no exterior shadows or responsive margins in export
+      const innerCards = clone.querySelectorAll<HTMLElement>(".print-page, .print-container");
+      innerCards.forEach((card) => {
+        card.style.boxShadow = "none";
+        card.style.margin = "0 auto";
+      });
+
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
+      // Allow a brief frame for font metrics and SVGs to compute
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
+
+      // 3. Check if multiple distinct pages are present (.print-page)
+      const pageElements = Array.from(clone.querySelectorAll<HTMLElement>(".print-page"));
+
+      if (pageElements.length > 0) {
+        for (let i = 0; i < pageElements.length; i++) {
+          const pageEl = pageElements[i];
+          const canvas = await html2canvas(pageEl, {
+            scale: 2, // Crisp 2x retina rendering
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            logging: false,
+            windowWidth: 794,
+          });
+
+          const imgData = canvas.toDataURL("image/jpeg", 0.98);
+          if (i > 0) {
+            pdf.addPage("a4", "portrait");
+          }
+          pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
+        }
+      } else {
+        const canvas = await html2canvas(clone, {
           scale: 2,
           useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
           logging: false,
-          scrollY: 0,
-          scrollX: 0,
           windowWidth: 794,
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-      };
+        });
 
-      await html2pdf().set(opt).from(printArea).save();
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+        const imgWidth = 210;
+        const pageHeight = 297;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 2) {
+          position -= pageHeight;
+          pdf.addPage("a4", "portrait");
+          pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+          heightLeft -= pageHeight;
+        }
+      }
+
+      // 4. Directly trigger PDF download to the customer's device (no print preview panel)
+      pdf.save(pdfFileName);
 
       setDownloadSuccess(true);
-      toast.success(`Downloaded: ${pdfFileName}`);
-      setTimeout(() => setDownloadSuccess(false), 3000);
+      setTimeout(() => setDownloadSuccess(false), 2500);
     } catch (err) {
-      console.warn("Direct PDF download fallback to print:", err);
-      // Seamless browser print-to-PDF fallback
+      console.error("Direct PDF download error:", err);
+      // Fallback: If device or browser security blocks client canvas creation, gracefully fallback to window.print()
       window.print();
     } finally {
-      document.title = originalTitle;
-      if (currentScale !== 1) {
-        setScale(currentScale);
+      if (tempContainer && tempContainer.parentNode) {
+        tempContainer.parentNode.removeChild(tempContainer);
       }
       setIsDownloading(false);
     }
@@ -352,6 +422,16 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
           </span>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* SOCIAL ENGAGEMENT & REVIEW BUTTONS (Rate on Google & Follow Instagram) */}
+      {/* ========================================================================= */}
+      <SocialReviewPills
+        settings={data?.shop?.settings?.socialReviewLinks}
+        mode={mode}
+        storeName={storeName}
+        className="mb-3 sm:mb-4"
+      />
 
       {/* ========================================================================= */}
       {/* RESPONSIVE TOUCH & PINCH-ZOOM A4 DOCUMENT CONTAINER */}

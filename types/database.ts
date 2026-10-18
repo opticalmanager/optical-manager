@@ -26,7 +26,10 @@ import type {
   vendors,
   purchaseOrders,
   purchaseOrderItems,
+  SocialReviewLinksSettings,
 } from "@/db/schema";
+
+export type { SocialReviewLinksSettings };
 
 
 // --- Select Types (reading from DB) ---
