@@ -11,6 +11,7 @@ import ContactSection from "@/components/landing/ContactSection";
 import Footer from "@/components/landing/Footer";
 import { StandaloneRedirect } from "@/components/landing/StandaloneRedirect";
 import { ScrollProgress } from "@/components/landing/motion";
+import ContinuousGridBackground from "@/components/landing/ContinuousGridBackground";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,8 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+    <main className="relative min-h-screen bg-white text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+      <ContinuousGridBackground />
       <ScrollProgress />
       <StandaloneRedirect />
       <Navbar />

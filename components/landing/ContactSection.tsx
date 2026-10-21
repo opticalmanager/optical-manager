@@ -28,7 +28,7 @@ export default function ContactSection() {
   };
 
   return (
-    <section id="contact" className="py-20 lg:py-28 bg-gradient-to-b from-white via-slate-50/70 to-slate-50 border-t border-slate-200/60 relative overflow-hidden">
+    <section id="contact" className="py-20 lg:py-28 bg-transparent relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <FadeIn direction="up" className="text-center mb-16 max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/60 mb-3 shadow-2xs">

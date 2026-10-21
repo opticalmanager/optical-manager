@@ -9,7 +9,7 @@ export default function DeepDive() {
   return (
     <section
       id="about"
-      className="relative py-20 lg:py-28 bg-gradient-to-b from-slate-50/70 via-white to-slate-50/50 border-b border-slate-100 overflow-hidden"
+      className="relative py-20 lg:py-28 bg-transparent border-b border-slate-200/50 overflow-hidden"
     >
       {/* Decorative ambient blurred spots */}
       <div className="absolute top-1/2 left-0 w-80 h-80 bg-blue-100/40 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2 pointer-events-none" />

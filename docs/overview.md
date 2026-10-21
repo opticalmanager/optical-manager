@@ -220,6 +220,8 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 - **Browser-Compliant Smart Autoplay & Audio Management**: Starts playing immediately on load with browser-compliant muted autoplay; features an understated neutral glassmorphic audio toggle pill (`Unmute` ↔ `Mute`) with clean white icons and zero latency playback.
 - **Cinematic Micro-Controls**: Custom hover overlay with progress scrubber, time counter (`MM:SS`), play/pause toggle, quick replay (`RotateCcw`), volume controls, Full HD indicator, and native fullscreen support.
 - **Corner Live Status Badge**: Modern floating pill with active ping indicator highlighting authentic software capabilities (`Optical Store Software • Billing • Inventory • WhatsApp`).
+- **Continuous Industrial Grid Canvas (`ContinuousGridBackground.tsx`)**: Unbroken 3.5rem (56px) root-level precision engineering grid spanning the entire public landing page. Features a desktop cursor-following spotlight (`radial-gradient`), a scroll-synchronized atmospheric traveling light beam (`useScroll` + `useSpring`), section-anchored atmospheric color washes (Hero cyan, Features indigo, Stats emerald, Pricing violet), and seamless transparent section backgrounds with hairline gradient dividers. Zero misaligned tiles or broken lines across sections.
+- **Industrial SaaS Footer (`Footer.tsx`)**: Features a dark slate grid texture overlay (`1e293b`), top specular gradient highlight line, live cloud operational status indicator (`Cloud Sync Active • 99.9% Uptime`), verified trust capability badges (GST, Thermal 81×12mm tags, WhatsApp), multi-column categorized directory, direct leadership WhatsApp contacts, and smooth scroll-to-top interaction.
 
 ---
 

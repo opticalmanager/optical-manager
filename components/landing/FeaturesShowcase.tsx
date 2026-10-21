@@ -36,11 +36,8 @@ export default function FeaturesShowcase() {
   return (
     <section
       id="features"
-      className="relative py-20 lg:py-28 bg-white border-b border-slate-100 overflow-hidden"
+      className="relative py-20 lg:py-28 bg-transparent border-b border-slate-200/50 overflow-hidden"
     >
-      {/* Background Subtle Accent Grids */}
-      <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-slate-50/80 to-transparent pointer-events-none" />
-
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section header */}
         <FadeIn direction="up" className="text-center max-w-3xl mx-auto mb-16">

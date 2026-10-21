@@ -32,7 +32,7 @@ export default function PricingSection() {
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
 
   return (
-    <section id="pricing" className="relative bg-gradient-to-b from-white via-slate-50/70 to-white py-20 px-4 border-t border-slate-100 select-none overflow-hidden">
+    <section id="pricing" className="relative bg-transparent py-20 px-4 border-b border-slate-200/50 select-none overflow-hidden">
       {/* Decorative subtle ambient circle */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[34rem] h-[34rem] bg-blue-100/30 rounded-full blur-3xl pointer-events-none" />
 

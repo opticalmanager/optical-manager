@@ -12,10 +12,7 @@ export default function HeroSection() {
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/50 via-white to-white pt-4 pb-12 sm:pt-6 sm:pb-16 lg:pt-8 lg:pb-20">
-      {/* Precision Industrial Background Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] [mask-image:radial-gradient(ellipse_75%_55%_at_50%_0%,#000_70%,transparent_100%)] opacity-35 pointer-events-none" />
-
+    <section className="relative overflow-hidden bg-transparent pt-4 pb-12 sm:pt-6 sm:pb-16 lg:pt-8 lg:pb-20">
       {/* Floating Gentle Depth Ambient Orbs */}
       <div className="absolute top-0 right-10 w-[28rem] h-[28rem] bg-blue-400/10 rounded-full blur-3xl pointer-events-none animate-orb-1" />
       <div className="absolute bottom-6 left-10 w-[22rem] h-[22rem] bg-indigo-300/15 rounded-full blur-3xl pointer-events-none animate-orb-2" />

@@ -45,7 +45,7 @@ export default function StatsSection() {
   return (
     <section
       id="stats"
-      className="relative bg-gradient-to-b from-white via-blue-50/40 to-white py-20 px-4 border-b border-slate-100 overflow-hidden"
+      className="relative bg-transparent py-20 px-4 border-b border-slate-200/50 overflow-hidden"
     >
       <div className="max-w-6xl mx-auto">
         <FadeIn direction="up" className="text-center mb-14">
