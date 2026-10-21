@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import Image from "next/image";
 import { Mail, MapPin, Phone, Twitter, Facebook, Instagram, Linkedin } from "lucide-react";
+import { motion } from "framer-motion";
 
 const productLinks = [
   { label: "Home", href: "/" },
@@ -37,13 +41,13 @@ function FooterLinkColumn({
 }) {
   return (
     <div>
-      <h3 className="mb-4 text-lg font-semibold text-white">{title}</h3>
+      <h3 className="mb-4 text-xs font-black uppercase tracking-wider text-slate-300">{title}</h3>
       <ul className="flex flex-col gap-2.5">
         {links.map((link) => (
           <li key={link.label}>
             <Link
               href={link.href}
-              className="text-sm text-slate-400 transition-colors hover:text-white"
+              className="text-xs font-medium text-slate-400 transition-colors hover:text-white"
             >
               {link.label}
             </Link>
@@ -56,9 +60,53 @@ function FooterLinkColumn({
 
 export default function Footer() {
   return (
-    <footer className="bg-slate-900 text-white">
+    <footer className="bg-slate-950 text-white relative border-t border-slate-800">
+      {/* Top subtle highlight line */}
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-        {/* Grid */}
+        {/* Brand Bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-10 border-b border-slate-800/80 mb-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 p-1.5 flex items-center justify-center">
+              <Image
+                src="/logo.svg"
+                alt="Optical Manager Logo"
+                width={32}
+                height={32}
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div>
+              <span className="text-lg font-black tracking-tight text-white block">
+                Optical Manager
+              </span>
+              <span className="text-[11px] text-slate-400 font-semibold">
+                Operating System for Independent &amp; Chain Optical Showrooms
+              </span>
+            </div>
+          </div>
+
+          {/* Social Icons with micro-hover spring */}
+          <div className="flex items-center gap-2.5">
+            {socialLinks.map((social) => (
+              <motion.a
+                key={social.label}
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={social.label}
+                whileHover={{ scale: 1.12, y: -2 }}
+                whileTap={{ scale: 0.92 }}
+                className="flex size-8 items-center justify-center rounded-xl bg-slate-900 border border-slate-800 text-slate-400 transition-colors hover:bg-blue-600 hover:text-white hover:border-blue-500"
+              >
+                <social.icon className="size-3.5" />
+              </motion.a>
+            ))}
+          </div>
+        </div>
+
+        {/* Links Grid */}
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <FooterLinkColumn title="Product" links={productLinks} />
           <FooterLinkColumn title="Company" links={companyLinks} />
@@ -66,36 +114,36 @@ export default function Footer() {
 
           {/* Get In Touch */}
           <div>
-            <h3 className="mb-4 text-lg font-semibold text-white">Get In Touch</h3>
-            <ul className="flex flex-col gap-3.5">
+            <h3 className="mb-4 text-xs font-black uppercase tracking-wider text-slate-300">Get In Touch</h3>
+            <ul className="flex flex-col gap-3">
               <li>
                 <a
                   href="mailto:support@opticalmanager.in"
-                  className="flex items-start gap-2.5 text-sm text-slate-400 transition-colors hover:text-white"
+                  className="flex items-start gap-2.5 text-xs text-slate-400 transition-colors hover:text-white font-medium"
                 >
-                  <Mail className="mt-0.5 size-4 shrink-0" />
+                  <Mail className="mt-0.5 size-3.5 shrink-0 text-blue-400" />
                   <span>support@opticalmanager.in</span>
                 </a>
               </li>
-              <li className="flex items-start gap-2.5 text-sm text-slate-400">
-                <MapPin className="mt-0.5 size-4 shrink-0" />
+              <li className="flex items-start gap-2.5 text-xs text-slate-400 font-medium">
+                <MapPin className="mt-0.5 size-3.5 shrink-0 text-blue-400" />
                 <span>New Delhi, India</span>
               </li>
               <li>
                 <a
                   href="tel:+918178962366"
-                  className="flex items-start gap-2.5 text-sm text-slate-400 transition-colors hover:text-white"
+                  className="flex items-start gap-2.5 text-xs text-slate-400 transition-colors hover:text-white font-medium"
                 >
-                  <Phone className="mt-0.5 size-4 shrink-0" />
+                  <Phone className="mt-0.5 size-3.5 shrink-0 text-blue-400" />
                   <span>+91 81789 62366 (Gaurav Tiwari)</span>
                 </a>
               </li>
               <li>
                 <a
                   href="tel:+917678106554"
-                  className="flex items-start gap-2.5 text-sm text-slate-400 transition-colors hover:text-white"
+                  className="flex items-start gap-2.5 text-xs text-slate-400 transition-colors hover:text-white font-medium"
                 >
-                  <Phone className="mt-0.5 size-4 shrink-0" />
+                  <Phone className="mt-0.5 size-3.5 shrink-0 text-blue-400" />
                   <span>+91 76781 06554 (Deepak Mishra)</span>
                 </a>
               </li>
@@ -103,27 +151,10 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Social Icons */}
-        <div className="mt-10 flex items-center gap-4">
-          {socialLinks.map((social) => (
-            <a
-              key={social.label}
-              href={social.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={social.label}
-              className="flex size-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 transition-colors hover:bg-blue-600 hover:text-white"
-            >
-              <social.icon className="size-4" />
-            </a>
-          ))}
-        </div>
-
         {/* Copyright Bar */}
-        <div className="mt-10 border-t border-slate-800 pt-8">
-          <p className="text-center text-sm text-slate-500">
-            © {new Date().getFullYear()} Optical Manager. All rights reserved.
-          </p>
+        <div className="mt-12 border-t border-slate-900 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
+          <p>© {new Date().getFullYear()} Optical Manager. All rights reserved.</p>
+          <p className="text-[11px] text-slate-600">Built for precision optical healthcare &amp; retail.</p>
         </div>
       </div>
     </footer>

@@ -1,93 +1,105 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { TrendingUp, CheckCircle, Cloud, Shield } from "lucide-react";
+import { TrendingUp, CheckCircle, Cloud, Shield, Activity } from "lucide-react";
+import { FadeIn, StaggerContainer, staggerItem, AnimatedCounter, TiltCard } from "./motion";
+import { motion } from "framer-motion";
 
 const stats = [
   {
     icon: TrendingUp,
-    value: "30%",
+    numValue: 30,
+    suffix: "%",
     label: "Faster Billing & Checkout",
+    caption: "Instant barcode scan & tax calculation",
+    tone: "text-blue-600 bg-blue-50 border-blue-100",
   },
   {
     icon: CheckCircle,
-    value: "100%",
+    numValue: 100,
+    suffix: "%",
     label: "Stock Accuracy",
+    caption: "Real-time ledger audit trail",
+    tone: "text-emerald-600 bg-emerald-50 border-emerald-100",
   },
   {
     icon: Cloud,
-    value: "24/7",
-    label: "Cloud Access",
+    numValue: 24,
+    prefix: "",
+    suffix: "/7",
+    label: "Cloud & Offline Access",
+    caption: "Continuous local PWA caching",
+    tone: "text-indigo-600 bg-indigo-50 border-indigo-100",
   },
   {
     icon: Shield,
-    value: "99.9%",
+    numValue: 99.9,
+    decimals: 1,
+    suffix: "%",
     label: "Uptime Reliability",
+    caption: "Enterprise Supabase PostgreSQL",
+    tone: "text-cyan-600 bg-cyan-50 border-cyan-100",
   },
-] as const;
+];
 
 export default function StatsSection() {
-  const sectionRef = useRef<HTMLElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const node = sectionRef.current;
-    if (!node) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.unobserve(node);
-        }
-      },
-      { threshold: 0.2 }
-    );
-
-    observer.observe(node);
-
-    return () => {
-      observer.unobserve(node);
-    };
-  }, []);
-
   return (
     <section
       id="stats"
-      ref={sectionRef}
-      className="bg-gradient-to-b from-blue-50 to-white py-20 px-4"
+      className="relative bg-gradient-to-b from-white via-blue-50/40 to-white py-20 px-4 border-b border-slate-100 overflow-hidden"
     >
-      <div className="max-w-5xl mx-auto">
-        <h2 className="text-3xl font-bold text-center text-text-main mb-12">
-          Business Value & Stats
-        </h2>
+      <div className="max-w-6xl mx-auto">
+        <FadeIn direction="up" className="text-center mb-14">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/60 mb-3 shadow-2xs">
+            <Activity className="w-3.5 h-3.5 text-blue-600" />
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700">
+              Measurable Performance
+            </span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Built for Clinical Speed &amp; Accuracy
+          </h2>
+          <p className="mt-2 text-sm text-slate-600 font-medium">
+            Proven metrics observed across live optical showrooms and multi-branch chains.
+          </p>
+        </FadeIn>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {stats.map((stat, index) => {
+        <StaggerContainer
+          staggerDelay={0.12}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
+          {stats.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div
-                key={stat.label}
-                className="bg-white rounded-2xl p-6 text-center shadow-sm hover:shadow-md transition-all duration-300"
-                style={{
-                  opacity: isVisible ? 1 : 0,
-                  transform: isVisible
-                    ? "translateY(0)"
-                    : "translateY(24px)",
-                  transition: `opacity 0.6s ease ${index * 0.15}s, transform 0.6s ease ${index * 0.15}s`,
-                }}
-              >
-                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Icon className="size-6 text-primary" />
-                </div>
-                <p className="text-3xl font-bold text-text-main mb-1">
-                  {stat.value}
-                </p>
-                <p className="text-sm text-text-muted">{stat.label}</p>
-              </div>
+              <motion.div key={stat.label} variants={staggerItem}>
+                <TiltCard className="h-full bg-white rounded-2xl p-6 text-center border border-slate-200/80 shadow-xs hover:shadow-lg hover:border-blue-200 transition-all duration-300 flex flex-col items-center justify-between">
+                  <div className="space-y-4">
+                    <div className={`w-13 h-13 rounded-2xl border flex items-center justify-center mx-auto shadow-2xs ${stat.tone}`}>
+                      <Icon className="size-6" />
+                    </div>
+
+                    <div>
+                      <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                        <AnimatedCounter
+                          value={stat.numValue}
+                          prefix={stat.prefix}
+                          suffix={stat.suffix}
+                          decimals={stat.decimals || 0}
+                        />
+                      </p>
+                      <p className="text-xs font-bold text-slate-800 uppercase tracking-wide mt-1.5">
+                        {stat.label}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 font-semibold mt-4 pt-3 border-t border-slate-100 w-full">
+                    {stat.caption}
+                  </p>
+                </TiltCard>
+              </motion.div>
             );
           })}
-        </div>
+        </StaggerContainer>
       </div>
     </section>
   );

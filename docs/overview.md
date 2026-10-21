@@ -216,8 +216,10 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 
 ## 8. Landing Page Interactive Video Showcase (`/`)
 - **Self-Hosted Zero-Latency Media**: The public landing page hero section features an embedded high-density product demonstration video (`public/videos/hero-intro.mp4`), eliminating third-party iframe latency and rate limiting.
-- **Browser-Compliant Smart Autoplay & Audio Management**: Starts playing immediately on load with browser-compliant muted autoplay; features an animated floating glassmorphism pill (`🔊 Sound Off • Click to Unmute`) and full-frame click-to-unmute interaction.
-- **Cinematic Micro-Controls**: Custom hover overlay with progress scrubber, time counter (`MM:SS`), play/pause toggle, volume controls, and native fullscreen support.
+- **1px Precision Gradient Border Frame (Linear Style)**: Clean, edge-to-edge video presentation with a 1px precision gradient border (`from-slate-300/80 via-slate-200/60 to-slate-300/40`), interactive hover glow (`group-hover:from-blue-500/50 group-hover:via-indigo-400/40 group-hover:to-cyan-400/40`), top specular glass reflection hairline, and smooth multi-layer drop shadows (`shadow-[0_20px_50px_-12px_rgba(15,23,42,0.18)]`). Zero awkward frame padding.
+- **Browser-Compliant Smart Autoplay & Audio Management**: Starts playing immediately on load with browser-compliant muted autoplay; features an understated neutral glassmorphic audio toggle pill (`Unmute` ↔ `Mute`) with clean white icons and zero latency playback.
+- **Cinematic Micro-Controls**: Custom hover overlay with progress scrubber, time counter (`MM:SS`), play/pause toggle, quick replay (`RotateCcw`), volume controls, Full HD indicator, and native fullscreen support.
+- **Corner Live Status Badge**: Modern floating pill with active ping indicator highlighting authentic software capabilities (`Optical Store Software • Billing • Inventory • WhatsApp`).
 
 ---
 

@@ -5,10 +5,12 @@ import HeroSection from "@/components/landing/HeroSection";
 import FeaturesShowcase from "@/components/landing/FeaturesShowcase";
 import DeepDive from "@/components/landing/DeepDive";
 import StatsSection from "@/components/landing/StatsSection";
+import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import PricingSection from "@/components/landing/PricingSection";
 import ContactSection from "@/components/landing/ContactSection";
 import Footer from "@/components/landing/Footer";
 import { StandaloneRedirect } from "@/components/landing/StandaloneRedirect";
+import { ScrollProgress } from "@/components/landing/motion";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +23,15 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-white text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+      <ScrollProgress />
       <StandaloneRedirect />
       <Navbar />
       <HeroSection />
       <FeaturesShowcase />
       <DeepDive />
       <StatsSection />
+      <TestimonialsSection />
       <PricingSection />
       <ContactSection />
       <Footer />
