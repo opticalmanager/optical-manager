@@ -1,111 +1,116 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { FadeIn, StaggerContainer, staggerItem, TiltCard } from "./motion";
+import { motion } from "framer-motion";
+import { CheckCircle2, ChevronRight, Zap } from "lucide-react";
 
 const FEATURES = [
   {
     title: "Smart Billing & Invoicing",
+    badge: "Lightning Fast POS",
     description:
       "Generate compliant invoices, manage payments, and track dues effortlessly, maximizing the speed and efficiency of your billing workflow.",
     image: "/landing/feature-billing.png",
+    perks: ["GST-compliant tax split", "Thermal tag printing", "Instant receipt dispatch"],
   },
   {
     title: "Precision Inventory Management",
+    badge: "Barcodes & Ledger",
     description:
       "Track frames, lenses, and accessories with real-time stock updates, low-stock alerts, and seamless restocking operations.",
     image: "/landing/feature-inventory.png",
+    perks: ["1-Bit thermal tag barcodes", "Bulk CSV inwarding", "Automated reorder alerts"],
   },
   {
     title: "Comprehensive Patient CRM",
+    badge: "Rx & History",
     description:
       "Maintain detailed patient databases, prescription histories, and automated communication logs for personalized care.",
     image: "/landing/feature-crm.png",
+    perks: ["Eye Rx diopter matrix", "WhatsApp appointment reminders", "Customer credit ledger"],
   },
 ];
 
 export default function FeaturesShowcase() {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.15 }
-    );
-
-    if (sectionRef.current) {
-      observer.observe(sectionRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <section
       id="features"
-      ref={sectionRef}
-      className="py-20 lg:py-28 bg-white"
+      className="relative py-20 lg:py-28 bg-transparent border-b border-slate-200/50 overflow-hidden"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section header */}
-        <div
-          className={`text-center mb-14 transition-all duration-700 ${
-            isVisible
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-6"
-          }`}
-        >
-          <p className="text-sm font-semibold text-primary uppercase tracking-widest mb-2">
-            What we offer
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-text-main">
-            Features Showcase
+        <FadeIn direction="up" className="text-center max-w-3xl mx-auto mb-16">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/60 mb-3.5 shadow-2xs">
+            <Zap className="w-3.5 h-3.5 text-blue-600" />
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700">
+              Core Architecture
+            </span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-extrabold text-slate-900 tracking-tight leading-tight">
+            Designed for High-Volume Optical Stores
           </h2>
-        </div>
+          <p className="mt-3.5 text-base text-slate-600 font-medium leading-relaxed">
+            Engineered from ground up with real opticians to eliminate counter bottlenecks, prevent stock leakage, and modernize patient consultations.
+          </p>
+        </FadeIn>
 
-        {/* Feature cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {FEATURES.map((feature, index) => (
-            <div
-              key={feature.title}
-              className={`group bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500 ${
-                isVisible
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-8"
-              }`}
-              style={{
-                transitionDelay: isVisible ? `${(index + 1) * 150}ms` : "0ms",
-              }}
-            >
-              {/* Image */}
-              <div className="relative overflow-hidden bg-slate-50">
-                <Image
-                  src={feature.image}
-                  alt={feature.title}
-                  width={400}
-                  height={240}
-                  className="w-full h-48 object-cover object-top group-hover:scale-105 transition-transform duration-500"
-                />
-              </div>
+        {/* Feature cards with 3D Tilt & Stagger entrance */}
+        <StaggerContainer
+          staggerDelay={0.15}
+          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-7"
+        >
+          {FEATURES.map((feature) => (
+            <motion.div key={feature.title} variants={staggerItem}>
+              <TiltCard className="h-full bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-blue-300 transition-all duration-300 flex flex-col justify-between">
+                <div>
+                  {/* Image container with subtle inner zoom on hover */}
+                  <div className="relative overflow-hidden bg-slate-50/80 border-b border-slate-100 group/img">
+                    <div className="absolute top-3.5 left-3.5 z-20">
+                      <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-white/95 backdrop-blur-md text-blue-700 rounded-md border border-slate-200/80 shadow-2xs">
+                        {feature.badge}
+                      </span>
+                    </div>
 
-              {/* Content */}
-              <div className="p-6">
-                <h3 className="text-lg font-bold text-text-main mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-sm text-text-muted leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
-            </div>
+                    <Image
+                      src={feature.image}
+                      alt={feature.title}
+                      width={400}
+                      height={240}
+                      className="w-full h-52 object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                    />
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-6 space-y-3">
+                    <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
+                      {feature.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
+                      {feature.description}
+                    </p>
+
+                    {/* Quick Specs List */}
+                    <ul className="pt-2 space-y-2 border-t border-slate-100">
+                      {feature.perks.map((perk, i) => (
+                        <li key={i} className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{perk}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Card footer indicator */}
+                <div className="px-6 py-3.5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-blue-600 group-hover:text-blue-700">
+                  <span>Explore Module</span>
+                  <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                </div>
+              </TiltCard>
+            </motion.div>
           ))}
-        </div>
+        </StaggerContainer>
       </div>
     </section>
   );
