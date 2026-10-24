@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -205,6 +205,7 @@ export function PurchaseAddForm({
   shopId,
 }: PurchaseAddFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
   // Top header fields (SS1 layout)
@@ -906,6 +907,21 @@ export function PurchaseAddForm({
     }
   }, []);
 
+  // Pre-select vendor if passed in URL query (e.g. from Vendor Directory)
+  useEffect(() => {
+    const paramVendorId = searchParams?.get("vendorId");
+    const paramVendorName = searchParams?.get("vendorName");
+    if (paramVendorId) {
+      const matched = vendors.find((v) => v.id === paramVendorId);
+      if (matched) {
+        handleSelectVendor(matched);
+      } else if (paramVendorName) {
+        setSelectedVendorId(paramVendorId);
+        setVendorName(paramVendorName);
+      }
+    }
+  }, [searchParams, vendors]);
+
   // 2. Debounced auto-save to localStorage whenever items or header fields change
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1547,7 +1563,7 @@ export function PurchaseAddForm({
                           className="w-full h-7 px-1.5 rounded-md bg-white hover:bg-[#F9FAFB] text-[#374151] border border-[#D1D5DB] font-semibold text-[10px] flex items-center justify-center gap-0.5 cursor-pointer transition-all shadow-2xs group"
                         >
                           <Plus className="h-2.5 w-2.5 text-[#6B7280]" />
-                          <span>+ Details</span>
+                          <span>Details</span>
                         </button>
                       )}
                     </td>

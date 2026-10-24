@@ -10,7 +10,11 @@ export const metadata = {
   description: "Track supplier purchase orders, tax invoices, inward inventory, and vendor ledger.",
 };
 
-export default async function PurchasesPage() {
+export default async function PurchasesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ vendorId?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user || !user.shopId || !user.organizationId) {
     return (
@@ -30,9 +34,12 @@ export default async function PurchasesPage() {
     );
   }
 
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const initialVendorId = resolvedParams?.vendorId || undefined;
+
   // Fetch initial purchase ledger data server-side
   const [{ orders, totalCount }, kpis, vendors] = await Promise.all([
-    getPurchaseOrders(user.shopId, { limit: 20, offset: 0 }),
+    getPurchaseOrders(user.shopId, { limit: 20, offset: 0, vendorId: initialVendorId }),
     getPurchaseLedgerKPIs(user.shopId),
     getVendorsByOrganization(user.organizationId),
   ]);
@@ -44,6 +51,7 @@ export default async function PurchasesPage() {
       kpis={kpis}
       vendors={vendors.map((v) => ({ id: v.id, name: v.name, gstin: v.gstin }))}
       shopId={user.shopId}
+      initialVendorFilter={initialVendorId || "ALL"}
     />
   );
 }

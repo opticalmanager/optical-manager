@@ -6,6 +6,7 @@
  */
 
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import { vendorCategories } from "@/db/schema";
 import type {
   organizations,
   profiles,
@@ -24,13 +25,13 @@ import type {
   salesReturnItems,
   customerCreditLedger,
   vendors,
+  VendorCategory,
   purchaseOrders,
   purchaseOrderItems,
   SocialReviewLinksSettings,
 } from "@/db/schema";
 
 export type { SocialReviewLinksSettings };
-
 
 // --- Select Types (reading from DB) ---
 export type Organization = InferSelectModel<typeof organizations>;
@@ -74,6 +75,5 @@ export type NewVendor = InferInsertModel<typeof vendors>;
 export type NewPurchaseOrder = InferInsertModel<typeof purchaseOrders>;
 export type NewPurchaseOrderItem = InferInsertModel<typeof purchaseOrderItems>;
 
-
-
-
+export { vendorCategories };
+export type { VendorCategory };

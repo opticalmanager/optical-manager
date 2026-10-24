@@ -78,6 +78,14 @@ async function migrate() {
     await sql`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS notes TEXT;`;
     console.log("✅ Updated subscriptions table columns.");
 
+    // 7. Add category and credit_period_days to vendors table
+    await sql`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS category VARCHAR(50) NOT NULL DEFAULT 'GENERAL';`;
+    await sql`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS credit_period_days INTEGER;`;
+    await sql`ALTER TABLE vendors ALTER COLUMN credit_period_days DROP NOT NULL;`;
+    await sql`ALTER TABLE vendors ALTER COLUMN credit_period_days DROP DEFAULT;`;
+    await sql`CREATE INDEX IF NOT EXISTS vendors_org_category_idx ON vendors (organization_id, category);`;
+    console.log("✅ Updated vendors table columns & index.");
+
     console.log("\n🎉 ALL MIGRATIONS APPLIED SUCCESSFULLY!");
   } catch (err: any) {
     console.error("❌ Migration failed:", err);

@@ -216,3 +216,5 @@ export function extractGSTINMetadata(gstin?: string | null): GSTINMetadata {
 
   return result;
 }
+
+export const parseGSTINDetails = extractGSTINMetadata;

@@ -437,6 +437,7 @@ Stores supplier and vendor business profiles, contact persons, tax identificatio
 | `shopId` | `uuid` | FK -> `shops.id` (CASCADE), INDEXED | Shop location reference |
 | `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization reference |
 | `name` | `varchar(255)` | NOT NULL | Vendor company / supplier name |
+| `category` | `varchar(50)` | NOT NULL, DEFAULT 'GENERAL', INDEXED | Optical specialization (`FRAMES`, `LENSES`, `CONTACT_LENSES`, `ACCESSORIES`, `LAB_MACHINERY`, `GENERAL`) |
 | `contactPerson` | `varchar(255)` | NULLABLE | Primary representative or account manager |
 | `phone` | `varchar(20)` | NULLABLE | 10-digit primary phone contact |
 | `email` | `varchar(255)` | NULLABLE | Official supplier email address |
@@ -446,6 +447,7 @@ Stores supplier and vendor business profiles, contact persons, tax identificatio
 | `city` | `varchar(100)` | NULLABLE | City / Municipality |
 | `state` | `varchar(100)` | NULLABLE | State / Province |
 | `pincode` | `varchar(10)` | NULLABLE | 6-digit postal PIN code |
+| `creditPeriodDays` | `integer` | NULLABLE | Supplier payment credit period in days (e.g. 15, 30, 45, 60 days). NULL or 0 indicates Cash / Immediate payment |
 | `isActive` | `boolean` | NOT NULL, DEFAULT true | Active status indicator |
 | `notes` | `text` | NULLABLE | Internal merchant notes |
 | `createdAt` | `timestamp` | NOT NULL, defaultNow() | Creation timestamp |
@@ -454,6 +456,7 @@ Stores supplier and vendor business profiles, contact persons, tax identificatio
 **Indexes & Constraints**:
 - `uniqueIndex("vendors_org_name_idx").on(table.organizationId, table.name)`: Prevents duplicate vendor names per organization.
 - `index("vendors_org_gstin_idx").on(table.organizationId, table.gstin)`: Fast lookups by GSTIN.
+- `index("vendors_org_category_idx").on(table.organizationId, table.category)`: Fast supplier filtering by category.
 
 #### `purchase_orders`
 Stores purchase order bills, supplier inward invoices, and calculated financial summaries.

@@ -39,7 +39,9 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ```
 
 1. **Customer Selection & Billing Timestamp**:
-   - Store Manager searches existing patients or registers a new patient in `/shop/invoices/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
+   - **Inline Predictive Patient Auto-Suggest**: Replaces the legacy modal button with real-time, debounced auto-suggest dropdowns built directly into the **Full Name** ($\ge 2$ characters) and **Mobile Number** ($\ge 3$ digits) input fields. Typing instantly queries active store records (online via `/api/search` and offline via local IndexedDB databank), presenting high-density patient cards with patient name, phone, email, registration ID, and store credit.
+   - **0ms Patient Hydration & Unlink Control**: Selecting any suggested patient instantly auto-fills demographic details, addresses, and clinical medical histories while triggering non-blocking background fetch for historical prescriptions. A compact `Patient Linked` pill badge appears with an `×` (Unlink) button to seamlessly detach the record and restore a fresh registration ID sequence if needed. Unrecognized inputs naturally proceed as new patient registrations.
+   - Store Manager can register a new patient in `/shop/invoices/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
    - **Editable Invoice Date & Time**: By default, populates with the store's current local date and time. Staff can freely select any past or future billing timestamp with live indicator badges (`Live Billing Time`, `Backdated Invoice`, or `Future Billing Date`) and a one-click `Reset` control.
    - Prescriptions, invoices, payment receipts, fulfillment orders, and inventory stock movements are atomically synchronized with the selected timestamp for accurate accounting and historical audit trails.
 2. **Prescription Recording & Past Rx Selection**:
