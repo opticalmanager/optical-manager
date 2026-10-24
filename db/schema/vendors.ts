@@ -5,11 +5,23 @@ import {
   text,
   timestamp,
   boolean,
+  integer,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 import { shops } from "./shops";
+
+export const vendorCategories = [
+  "FRAMES",
+  "LENSES",
+  "CONTACT_LENSES",
+  "ACCESSORIES",
+  "LAB_MACHINERY",
+  "GENERAL",
+] as const;
+
+export type VendorCategory = (typeof vendorCategories)[number];
 
 export const vendors = pgTable(
   "vendors",
@@ -22,6 +34,7 @@ export const vendors = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
+    category: varchar("category", { length: 50 }).notNull().default("GENERAL"),
     contactPerson: varchar("contact_person", { length: 255 }),
     phone: varchar("phone", { length: 20 }),
     email: varchar("email", { length: 255 }),
@@ -31,6 +44,7 @@ export const vendors = pgTable(
     city: varchar("city", { length: 100 }),
     state: varchar("state", { length: 100 }),
     pincode: varchar("pincode", { length: 10 }),
+    creditPeriodDays: integer("credit_period_days"),
     isActive: boolean("is_active").notNull().default(true),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -45,5 +59,6 @@ export const vendors = pgTable(
     orgIdIdx: index("vendors_org_id_idx").on(table.organizationId),
     nameOrgIdx: uniqueIndex("vendors_org_name_idx").on(table.organizationId, table.name),
     gstinOrgIdx: index("vendors_org_gstin_idx").on(table.organizationId, table.gstin),
+    categoryOrgIdx: index("vendors_org_category_idx").on(table.organizationId, table.category),
   })
 );

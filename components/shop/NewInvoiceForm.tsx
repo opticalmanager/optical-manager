@@ -315,12 +315,14 @@ export function NewInvoiceForm() {
   const [isPending, setIsPending] = useState(false);
   const [regId, setRegId] = useState("OP-2026-XXXX");
 
-  // Load Existing Patient Overlay State
-  const [showPatientSearch, setShowPatientSearch] = useState(false);
-  const [patientQuery, setPatientQuery] = useState("");
-  const [patientResults, setPatientResults] = useState<any[]>([]);
-  const [isSearchingPatient, setIsSearchingPatient] = useState(false);
+  // Inline Patient Auto-Suggest State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [patientSuggestions, setPatientSuggestions] = useState<any[]>([]);
+  const [activeSuggestField, setActiveSuggestField] = useState<"name" | "phone" | null>(null);
+  const [isSearchingPatient, setIsSearchingPatient] = useState(false);
+  const [highlightedSuggestIdx, setHighlightedSuggestIdx] = useState(-1);
+  const isSelectingPatientRef = useRef(false);
+  const suggestDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Section 01: Basic Details States
   const [invoiceDateTime, setInvoiceDateTime] = useState<string>(() => formatDateTimeLocal());
@@ -907,12 +909,13 @@ export function NewInvoiceForm() {
   };
 
   // Load Existing Patient Profiles & Prescriptions
-  const handleSelectPatient = async (customerId: string) => {
-    setShowPatientSearch(false);
+  const handleSelectPatient = async (customerId: string, directPatient?: any) => {
+    setActiveSuggestField(null);
+    setPatientSuggestions([]);
     setSelectedCustomerId(customerId);
 
     // 1. Instant 0ms Hydration: Immediately populate basic patient info from search results or local IndexedDB
-    let matchedPatient: any = patientResults.find((p) => p.id === customerId);
+    let matchedPatient: any = directPatient || patientSuggestions.find((p) => p.id === customerId);
     let offlineCust: any = null;
 
     try {
@@ -1077,6 +1080,18 @@ export function NewInvoiceForm() {
     }
   };
 
+  // Detach / Unlink loaded patient and reset to fresh registration sequence
+  const handleUnlinkPatient = () => {
+    setSelectedCustomerId(null);
+    setAvailablePastRx([]);
+    setSelectedPastRxId("DEFAULT");
+    applyPrescriptionGroup(null);
+    setCustomerStoreCredit(0);
+    setUseStoreCredit(false);
+    setCreditToApply("");
+    toast.info("Patient unlinked. You can now register as a fresh patient or select another.");
+  };
+
   // Pre-load patient details if redirected from customer profile page & clinical suggestions
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1109,53 +1124,186 @@ export function NewInvoiceForm() {
     loadSuggestions();
   }, [isOnline]);
 
-  // Debounced Patient Search Trigger
-  useEffect(() => {
-    if (patientQuery.trim().length < 2) {
-      setPatientResults([]);
+  // Inline Patient Auto-Suggest Search Routine
+  const triggerPatientSearch = (queryText: string, field: "name" | "phone") => {
+    if (suggestDebounceRef.current) {
+      clearTimeout(suggestDebounceRef.current);
+    }
+
+    const minLen = field === "phone" ? 3 : 2;
+    const trimmed = queryText.trim();
+
+    if (trimmed.length < minLen || isSelectingPatientRef.current) {
+      setPatientSuggestions([]);
+      setActiveSuggestField(null);
+      setIsSearchingPatient(false);
       return;
     }
-    const delayDebounce = setTimeout(async () => {
-      setIsSearchingPatient(true);
 
-      // Offline search fallback
-      if (!navigator.onLine || !isOnline) {
-        try {
-          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
-          setPatientResults(offlineMatches);
-        } catch (err) {
-          console.error("Offline patient search failed:", err);
-        } finally {
-          setIsSearchingPatient(false);
-        }
-        return;
-      }
+    setActiveSuggestField(field);
+    setIsSearchingPatient(true);
 
+    suggestDebounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(patientQuery)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setPatientResults(data.customers || []);
+        if (!navigator.onLine || !isOnline) {
+          const offlineMatches = await searchCustomersOffline(shopId || "", trimmed);
+          setPatientSuggestions(offlineMatches || []);
         } else {
-          // If server responded with error, fall back to offline search
-          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
-          setPatientResults(offlineMatches);
+          const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
+          if (res.ok) {
+            const data = await res.json();
+            setPatientSuggestions(data.customers || []);
+          } else {
+            const offlineMatches = await searchCustomersOffline(shopId || "", trimmed);
+            setPatientSuggestions(offlineMatches || []);
+          }
         }
       } catch (err) {
-        console.warn("Patient search network failure, falling back to offline:", err);
+        console.warn("Patient suggestion lookup error, falling back to offline:", err);
         try {
-          const offlineMatches = await searchCustomersOffline(shopId || "", patientQuery);
-          setPatientResults(offlineMatches);
-        } catch (offlineErr) {
-          console.error("Offline patient fallback also failed:", offlineErr);
+          const offlineMatches = await searchCustomersOffline(shopId || "", trimmed);
+          setPatientSuggestions(offlineMatches || []);
+        } catch {
+          setPatientSuggestions([]);
         }
       } finally {
         setIsSearchingPatient(false);
+        setHighlightedSuggestIdx(-1);
       }
-    }, 300);
+    }, 250);
+  };
 
-    return () => clearTimeout(delayDebounce);
-  }, [patientQuery, isOnline, shopId]);
+  const handleFullNameChange = (val: string) => {
+    setFullName(val);
+    triggerPatientSearch(val, "name");
+  };
+
+  const handlePhoneChange = (val: string) => {
+    const sanitized = val.replace(/[^0-9]/g, "").slice(0, 10);
+    setPhone(sanitized);
+    triggerPatientSearch(sanitized, "phone");
+  };
+
+  const onSelectPatientSuggestion = (cust: any) => {
+    isSelectingPatientRef.current = true;
+    handleSelectPatient(cust.id, cust);
+    setActiveSuggestField(null);
+    setPatientSuggestions([]);
+    setTimeout(() => {
+      isSelectingPatientRef.current = false;
+    }, 200);
+  };
+
+  const handleSuggestKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!activeSuggestField || patientSuggestions.length === 0) {
+      if (e.key === "Escape") {
+        setActiveSuggestField(null);
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedSuggestIdx((prev) => (prev + 1) % patientSuggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedSuggestIdx((prev) => (prev - 1 + patientSuggestions.length) % patientSuggestions.length);
+    } else if (e.key === "Enter") {
+      if (highlightedSuggestIdx >= 0 && highlightedSuggestIdx < patientSuggestions.length) {
+        e.preventDefault();
+        onSelectPatientSuggestion(patientSuggestions[highlightedSuggestIdx]);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setActiveSuggestField(null);
+    }
+  };
+
+  const renderPatientSuggestionDropdown = (field: "name" | "phone") => {
+    if (activeSuggestField !== field) return null;
+
+    const minLen = field === "phone" ? 3 : 2;
+    const currentVal = field === "phone" ? phone : fullName;
+    if (currentVal.trim().length < minLen && !isSearchingPatient) return null;
+
+    return (
+      <div
+        className="absolute left-0 top-full mt-1 w-full min-w-[280px] sm:min-w-[340px] max-w-sm sm:max-w-md bg-white border border-slate-200/95 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto divide-y divide-slate-100 ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95 duration-100"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        {isSearchingPatient ? (
+          <div className="p-3 text-center flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
+            <Loader2 className="h-3.5 w-3.5 text-[#2563eb] animate-spin" />
+            <span>Searching patient databank...</span>
+          </div>
+        ) : patientSuggestions.length > 0 ? (
+          <>
+            <div className="px-2.5 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400 select-none">
+              <span>Existing Patients ({patientSuggestions.length})</span>
+              <span className="font-normal text-[9.5px] text-slate-400 lowercase">use ↑↓ to navigate, Enter to select</span>
+            </div>
+            {patientSuggestions.map((cust, idx) => {
+              const isHighlighted = idx === highlightedSuggestIdx;
+              return (
+                <button
+                  key={cust.id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSelectPatientSuggestion(cust);
+                  }}
+                  onMouseEnter={() => setHighlightedSuggestIdx(idx)}
+                  className={`w-full text-left p-2.5 transition-colors flex items-center justify-between gap-3 group cursor-pointer ${
+                    isHighlighted ? "bg-blue-50/90 text-[#2563eb]" : "hover:bg-slate-50/80"
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-xs font-bold truncate ${isHighlighted ? "text-[#2563eb]" : "text-slate-900 group-hover:text-[#2563eb]"}`}>
+                      {cust.name || cust.fullName}
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 font-medium mt-0.5 truncate">
+                      <span className="font-mono text-slate-600">{cust.phone}</span>
+                      {cust.email && (
+                        <>
+                          <span>•</span>
+                          <span className="truncate">{cust.email}</span>
+                        </>
+                      )}
+                      {cust.city && (
+                        <>
+                          <span>•</span>
+                          <span>{cust.city}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 space-y-0.5">
+                    <span className="text-[9.5px] font-mono font-bold text-slate-400 block">
+                      {cust.registrationId || cust.customerCode || cust.id.slice(0, 8)}
+                    </span>
+                    {Number(cust.storeCredit || 0) > 0 && (
+                      <span className="inline-block text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                        ₹{Number(cust.storeCredit).toFixed(2)} Cr
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <div className="p-3 text-center text-xs text-slate-400 font-medium">
+            No existing patients found matching &quot;{currentVal}&quot;
+            <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
+              Press Tab or continue typing to register as a new patient
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Row Search Change Handler (Independent per row debouncing + 0ms local suggestion cache)
   const handleRowSearchChange = (index: number, query: string) => {
@@ -1748,6 +1896,9 @@ export function NewInvoiceForm() {
       if (!target.closest(".state-autocomplete-wrapper")) {
         setShowStateSuggestions(false);
       }
+      if (!target.closest(".patient-autocomplete-wrapper")) {
+        setActiveSuggestField(null);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -2174,8 +2325,8 @@ export function NewInvoiceForm() {
       )}
 
       {/* SECTION 1: CUSTOMER & INVOICE DETAILS */}
-      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden">
-        <div className="py-1.5 px-3.5 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
+      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs">
+        <div className="py-1.5 px-3.5 bg-slate-50/70 border-b border-slate-200/80 rounded-t-xl flex items-center justify-between">
           <div className="flex items-center gap-2">
             <UserCheck className="h-3.5 w-3.5 text-[#2563eb]" />
             <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
@@ -2190,14 +2341,24 @@ export function NewInvoiceForm() {
                 Credit: ₹{customerStoreCredit.toFixed(2)}
               </span>
             )}
-            <button
-              type="button"
-              onClick={() => setShowPatientSearch(true)}
-              className="h-6.5 px-2.5 rounded-md border border-blue-200 bg-blue-50/60 hover:bg-blue-100/60 text-[10.5px] font-bold text-[#2563eb] flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Search className="h-3 w-3" />
-              <span>Load Existing Patient</span>
-            </button>
+            {selectedCustomerId ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-blue-50 text-[#2563eb] border border-blue-200 shadow-2xs animate-in fade-in">
+                <UserCheck className="h-3 w-3" />
+                <span>Patient Linked ({regId})</span>
+                <button
+                  type="button"
+                  onClick={handleUnlinkPatient}
+                  className="ml-1 p-0.5 rounded hover:bg-blue-200/60 text-blue-500 hover:text-blue-800 transition-colors cursor-pointer"
+                  title="Unlink and register as new patient"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-slate-400 hidden sm:inline-block">
+                Type name or phone to auto-suggest
+              </span>
+            )}
           </div>
         </div>
 
@@ -2273,7 +2434,7 @@ export function NewInvoiceForm() {
             </div>
 
             {/* FULL NAME */}
-            <div>
+            <div className="patient-autocomplete-wrapper relative">
               <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 FULL NAME <span className="text-rose-500">*</span>
               </label>
@@ -2283,15 +2444,25 @@ export function NewInvoiceForm() {
                   required
                   placeholder="Rahul Sharma"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  onChange={(e) => handleFullNameChange(e.target.value)}
+                  onFocus={() => {
+                    if (fullName.trim().length >= 2 && patientSuggestions.length > 0) {
+                      setActiveSuggestField("name");
+                    }
+                  }}
+                  onKeyDown={handleSuggestKeyDown}
+                  className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />
                 <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                {isSearchingPatient && activeSuggestField === "name" && (
+                  <Loader2 className="absolute right-2 top-2 h-3.5 w-3.5 text-[#2563eb] animate-spin pointer-events-none" />
+                )}
               </div>
+              {renderPatientSuggestionDropdown("name")}
             </div>
 
             {/* MOBILE NUMBER */}
-            <div>
+            <div className="patient-autocomplete-wrapper relative">
               <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 MOBILE NUMBER <span className="text-rose-500">*</span>
               </label>
@@ -2303,11 +2474,21 @@ export function NewInvoiceForm() {
                   required
                   placeholder="9876543210"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  onFocus={() => {
+                    if (phone.trim().length >= 3 && patientSuggestions.length > 0) {
+                      setActiveSuggestField("phone");
+                    }
+                  }}
+                  onKeyDown={handleSuggestKeyDown}
+                  className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs font-mono"
                 />
                 <Phone className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                {isSearchingPatient && activeSuggestField === "phone" && (
+                  <Loader2 className="absolute right-2 top-2 h-3.5 w-3.5 text-[#2563eb] animate-spin pointer-events-none" />
+                )}
               </div>
+              {renderPatientSuggestionDropdown("phone")}
             </div>
           </div>
 
@@ -3555,84 +3736,6 @@ export function NewInvoiceForm() {
           </div>
         </div>
       </div>
-
-      {/* LOAD EXISTING PATIENT MODAL OVERLAY */}
-      {showPatientSearch && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-up">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-[#2563eb]" />
-                <h3 className="text-sm font-bold text-slate-900">Load Existing Patient</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPatientSearch(false)}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div className="relative">
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Search by patient name, mobile, or ID..."
-                  value={patientQuery}
-                  onChange={(e) => setPatientQuery(e.target.value)}
-                  className="w-full h-10 pl-9 pr-4 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
-                />
-                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                {isSearchingPatient && (
-                  <Loader2 className="absolute right-3 top-3 h-4 w-4 text-[#2563eb] animate-spin pointer-events-none" />
-                )}
-              </div>
-
-              <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-lg">
-                {patientResults.length > 0 ? (
-                  patientResults.map((cust) => (
-                    <button
-                      key={cust.id}
-                      type="button"
-                      onClick={() => handleSelectPatient(cust.id)}
-                      className="w-full text-left p-3 hover:bg-blue-50/60 transition-colors flex items-center justify-between gap-3 group cursor-pointer"
-                    >
-                      <div>
-                        <p className="text-xs font-bold text-slate-900 group-hover:text-[#2563eb]">
-                          {cust.name}
-                        </p>
-                        <p className="text-[11px] text-slate-500 font-medium">
-                          {cust.phone} {cust.email ? `• ${cust.email}` : ""}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] font-mono font-bold text-slate-400 block">
-                          {cust.customerCode || cust.id.slice(0, 8)}
-                        </span>
-                        {Number(cust.storeCredit || 0) > 0 && (
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                            ₹{Number(cust.storeCredit).toFixed(2)} Cr
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))
-                ) : patientQuery.trim().length > 0 && !isSearchingPatient ? (
-                  <div className="p-6 text-center text-xs text-slate-400 font-semibold">
-                    No existing patients found matching &quot;{patientQuery}&quot;
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-xs text-slate-400 font-semibold">
-                    Type a name or phone number to find patients
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* OPTOMETRY INDUSTRY DATALISTS FOR SMART PRESCRIPTION SELECTION */}
       <datalist id="sph-options">

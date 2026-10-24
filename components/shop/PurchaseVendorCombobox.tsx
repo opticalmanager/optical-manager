@@ -9,17 +9,10 @@ import {
   Search,
   X,
   Loader2,
-  Phone,
-  Mail,
-  MapPin,
 } from "lucide-react";
 import { Vendor } from "@/types";
-import { createVendorAction } from "@/actions/purchase.actions";
-import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { handleEnterKeyNavigation } from "@/utils/form-navigation";
 import { getStateFromGSTIN } from "@/utils/gstin";
+import { VendorModal } from "@/components/shop/VendorModal";
 
 interface PurchaseVendorComboboxProps {
   vendors: Vendor[];
@@ -41,21 +34,6 @@ export function PurchaseVendorCombobox({
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // New Vendor Form State
-  const [newVendorData, setNewVendorData] = useState({
-    name: "",
-    contactPerson: "",
-    phone: "",
-    email: "",
-    gstin: "",
-    panNumber: "",
-    address: "",
-    city: "",
-    state: "",
-    pincode: "",
-  });
-  const [isSubmittingVendor, setIsSubmittingVendor] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -99,45 +77,6 @@ export function PurchaseVendorCombobox({
 
     return () => clearTimeout(timer);
   }, [searchQuery, initialVendors]);
-
-  // Handle inline vendor creation
-  const handleCreateVendor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newVendorData.name.trim()) {
-      toast.error("Vendor name is required.");
-      return;
-    }
-
-    setIsSubmittingVendor(true);
-    try {
-      const res = await createVendorAction(newVendorData as any);
-      if (res.success && res.vendor) {
-        toast.success(res.message);
-        setVendorsList((prev) => [res.vendor, ...prev]);
-        onSelectVendor(res.vendor);
-        setIsModalOpen(false);
-        setIsOpen(false);
-        setNewVendorData({
-          name: "",
-          contactPerson: "",
-          phone: "",
-          email: "",
-          gstin: "",
-          panNumber: "",
-          address: "",
-          city: "",
-          state: "",
-          pincode: "",
-        });
-      } else {
-        toast.error(res.message || "Failed to create vendor.");
-      }
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to create vendor.");
-    } finally {
-      setIsSubmittingVendor(false);
-    }
-  };
 
   const selectedVendor = vendorsList.find((v) => v.id === selectedVendorId);
 
@@ -254,225 +193,31 @@ export function PurchaseVendorCombobox({
           <div className="p-1.5 border-t border-slate-100 bg-slate-50/70">
             <button
               type="button"
-              onClick={() => {
-                setNewVendorData((prev) => ({
-                  ...prev,
-                  name: searchQuery.trim() || prev.name,
-                }));
-                setIsModalOpen(true);
-              }}
+              onClick={() => setIsModalOpen(true)}
               className="w-full h-8 px-3 rounded-lg text-xs font-bold text-[#2563eb] bg-blue-50 hover:bg-blue-100/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>+ Add New Vendor</span>
+              <span>Add New Vendor</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Inline Modal to Register New Vendor */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in-50">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-scale-up">
-            {/* Modal Header */}
-            <div className="py-3 px-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-blue-50 text-[#2563eb]">
-                  <Building2 className="h-4 w-4" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">
-                    Add New Vendor / Supplier
-                  </h2>
-                  <p className="text-[10px] font-semibold text-slate-400">
-                    Register supplier details and GST compliance
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Modal Form Body */}
-            <form onSubmit={handleCreateVendor} onKeyDown={(e) => handleEnterKeyNavigation(e)} className="p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Vendor / Supplier Name <span className="text-rose-500">*</span>
-                  </label>
-                  <Input
-                    type="text"
-                    required
-                    value={newVendorData.name}
-                    onChange={(e) =>
-                      setNewVendorData({ ...newVendorData, name: e.target.value })
-                    }
-                    className="h-9 border-slate-200 text-xs font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Contact Person
-                  </label>
-                  <Input
-                    type="text"
-                    value={newVendorData.contactPerson}
-                    onChange={(e) =>
-                      setNewVendorData({
-                        ...newVendorData,
-                        contactPerson: e.target.value,
-                      })
-                    }
-                    className="h-9 border-slate-200 text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Phone (10 Digits)
-                  </label>
-                  <Input
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={newVendorData.phone}
-                    onChange={(e) =>
-                      setNewVendorData({
-                        ...newVendorData,
-                        phone: e.target.value.replace(/\D/g, "").slice(0, 10),
-                      })
-                    }
-                    className="h-9 border-slate-200 text-xs font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    GSTIN Number
-                  </label>
-                  <Input
-                    type="text"
-                    maxLength={15}
-                    placeholder="27AAAAA0000A1Z5"
-                    value={newVendorData.gstin}
-                    onChange={(e) => {
-                      const cleaned = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15);
-                      const detectedState = getStateFromGSTIN(cleaned);
-                      setNewVendorData((prev) => ({
-                        ...prev,
-                        gstin: cleaned,
-                        ...(detectedState ? { state: detectedState } : {}),
-                      }));
-                    }}
-                    className="h-9 border-slate-200 text-xs font-mono uppercase"
-                  />
-                  {newVendorData.gstin.length >= 2 && getStateFromGSTIN(newVendorData.gstin) && (
-                    <div className="mt-1 flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>State: {getStateFromGSTIN(newVendorData.gstin)}</span>
-                      <span className="text-emerald-500 font-mono">({newVendorData.gstin.slice(0, 2)})</span>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Email Address
-                  </label>
-                  <Input
-                    type="email"
-                    value={newVendorData.email}
-                    onChange={(e) =>
-                      setNewVendorData({
-                        ...newVendorData,
-                        email: e.target.value,
-                      })
-                    }
-                    className="h-9 border-slate-200 text-xs"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Address / Premises
-                  </label>
-                  <Input
-                    type="text"
-                    value={newVendorData.address}
-                    onChange={(e) =>
-                      setNewVendorData({
-                        ...newVendorData,
-                        address: e.target.value,
-                      })
-                    }
-                    className="h-9 border-slate-200 text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    City
-                  </label>
-                  <Input
-                    type="text"
-                    value={newVendorData.city}
-                    onChange={(e) =>
-                      setNewVendorData({ ...newVendorData, city: e.target.value })
-                    }
-                    className="h-9 border-slate-200 text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    State / Province
-                  </label>
-                  <Input
-                    type="text"
-                    value={newVendorData.state}
-                    onChange={(e) =>
-                      setNewVendorData({ ...newVendorData, state: e.target.value })
-                    }
-                    className="h-9 border-slate-200 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Modal Actions */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="h-8 px-3.5 font-bold rounded-lg text-xs border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <Button
-                  type="submit"
-                  disabled={isSubmittingVendor}
-                  className="h-8 px-4 font-bold rounded-lg text-xs bg-[#2563eb] hover:bg-blue-700 text-white transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmittingVendor ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-3.5 w-3.5" /> Save Vendor
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Reusable Enterprise Vendor Modal */}
+      <VendorModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        initialName={searchQuery.trim()}
+        onSuccess={(savedVendor) => {
+          setVendorsList((prev) => [
+            savedVendor,
+            ...prev.filter((v) => v.id !== savedVendor.id),
+          ]);
+          onSelectVendor(savedVendor);
+          setIsModalOpen(false);
+          setIsOpen(false);
+        }}
+      />
     </div>
   );
 }

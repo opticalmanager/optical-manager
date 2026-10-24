@@ -48,6 +48,7 @@ interface PurchaseLedgerClientProps {
   kpis: PurchaseLedgerKPIs;
   vendors: VendorOption[];
   shopId: string;
+  initialVendorFilter?: string;
 }
 
 const PAGE_SIZE = 20;
@@ -58,6 +59,7 @@ export function PurchaseLedgerClient({
   kpis,
   vendors,
   shopId,
+  initialVendorFilter,
 }: PurchaseLedgerClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -67,7 +69,7 @@ export function PurchaseLedgerClient({
   const [totalCount, setTotalCount] = useState<number>(initialTotalCount);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  const [selectedVendor, setSelectedVendor] = useState<string>("ALL");
+  const [selectedVendor, setSelectedVendor] = useState<string>(initialVendorFilter || "ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedGstType, setSelectedGstType] = useState<string>("ALL");
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -248,51 +250,51 @@ export function PurchaseLedgerClient({
             className="h-9 px-4 rounded-xl bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2"
           >
             <PlusCircle className="h-4 w-4" />
-            <span>+ New Purchase</span>
+            <span>New Purchase</span>
           </Link>
         </div>
       </div>
 
       {/* ─── Interactive KPI Cards ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {/* KPI 1: Total Purchases */}
         <div
           onClick={() => handleKpiCardClick("ALL")}
           className={cn(
-            "p-3.5 rounded-xl border bg-white cursor-pointer transition-all duration-150 relative overflow-hidden",
+            "py-2.5 px-3 rounded-xl border bg-white cursor-pointer transition-all duration-150 relative overflow-hidden",
             activeKpiFilter === "ALL"
               ? "border-2 border-[#2563eb] shadow-md scale-[1.01]"
               : "border-slate-200 hover:border-blue-300 hover:shadow-xs hover:scale-[1.005]"
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Total Purchases</span>
-            <div className="h-8 w-8 rounded-lg bg-blue-50 text-[#2563eb] flex items-center justify-center">
+            <span className="text-[11px] font-bold text-slate-500">Total Purchases</span>
+            <div className="h-7 w-7 rounded-lg bg-blue-50 text-[#2563eb] flex items-center justify-center">
               <Package className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
+          <div className="text-xl font-bold text-slate-900 mt-0.5 tracking-tight">
             {kpis.totalPurchases.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+          <p className="text-[10px] font-medium text-slate-400 mt-0.5 truncate">
             All-time inward purchase bills
           </p>
         </div>
 
         {/* KPI 2: Total Net Purchase Value */}
         <div
-          className="p-3.5 rounded-xl border border-slate-200 bg-white transition-all duration-150 relative overflow-hidden"
+          className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white transition-all duration-150 relative overflow-hidden"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Net Valuation</span>
-            <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <span className="text-[11px] font-bold text-slate-500">Net Valuation</span>
+            <div className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <IndianRupee className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
+          <div className="text-xl font-bold text-slate-900 mt-0.5 tracking-tight">
             ₹{Math.round(kpis.totalAmount).toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] font-semibold text-emerald-600 font-bold mt-0.5">
+          <p className="text-[10px] font-semibold text-emerald-600 mt-0.5 truncate">
             Total inward supply value
           </p>
         </div>
@@ -301,22 +303,22 @@ export function PurchaseLedgerClient({
         <div
           onClick={() => handleKpiCardClick("THIS_MONTH")}
           className={cn(
-            "p-3.5 rounded-xl border bg-white cursor-pointer transition-all duration-150 relative overflow-hidden",
+            "py-2.5 px-3 rounded-xl border bg-white cursor-pointer transition-all duration-150 relative overflow-hidden",
             activeKpiFilter === "THIS_MONTH"
               ? "border-2 border-[#2563eb] shadow-md scale-[1.01]"
               : "border-slate-200 hover:border-blue-300 hover:shadow-xs hover:scale-[1.005]"
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">This Month</span>
-            <div className="h-8 w-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <span className="text-[11px] font-bold text-slate-500">This Month</span>
+            <div className="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
               <CalendarDays className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
+          <div className="text-xl font-bold text-slate-900 mt-0.5 tracking-tight">
             {kpis.thisMonthPurchases.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] font-semibold text-purple-600 mt-0.5">
+          <p className="text-[10px] font-semibold text-purple-600 mt-0.5 truncate">
             {new Intl.DateTimeFormat("en-IN", { month: "long" }).format(new Date())} inwarding
           </p>
         </div>
@@ -325,22 +327,22 @@ export function PurchaseLedgerClient({
         <div
           onClick={() => handleKpiCardClick("TOP_VENDOR")}
           className={cn(
-            "p-3.5 rounded-xl border bg-white cursor-pointer transition-all duration-150 relative overflow-hidden",
+            "py-2.5 px-3 rounded-xl border bg-white cursor-pointer transition-all duration-150 relative overflow-hidden",
             activeKpiFilter === "TOP_VENDOR"
               ? "border-2 border-[#2563eb] shadow-md scale-[1.01]"
               : "border-slate-200 hover:border-blue-300 hover:shadow-xs hover:scale-[1.005]"
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Top Supplier</span>
-            <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <span className="text-[11px] font-bold text-slate-500">Top Supplier</span>
+            <div className="h-7 w-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <Building2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-xl font-extrabold text-slate-900 mt-1 tracking-tight truncate" title={kpis.topVendorName || "None"}>
+          <div className="text-lg sm:text-xl font-bold text-slate-900 mt-0.5 tracking-tight truncate" title={kpis.topVendorName || "None"}>
             {kpis.topVendorName || "None"}
           </div>
-          <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+          <p className="text-[10px] font-medium text-slate-400 mt-0.5 truncate">
             Most frequent inward vendor
           </p>
         </div>

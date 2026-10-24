@@ -230,6 +230,14 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Payload**: `VendorFormValues` (name, contactPerson, phone, email, gstin, panNumber, address, city, state, pincode).
 - **Return Type**: `{ success: boolean, message: string, vendor?: Vendor }`.
 
+#### Vendor Management Server Actions (`actions/vendor.actions.ts`)
+- **`getVendorsAction(options?: GetVendorsOptions)`**: Paginated and filtered retrieval of vendors with joined purchase order aggregates (`totalPurchaseCount`, `totalPurchaseAmount`, `lastPurchaseDate`).
+- **`createVendorAction(data: VendorFormValues)`**: Validates and registers a new optical supplier with category specialization (`FRAMES`, `LENSES`, `CONTACT_LENSES`, `ACCESSORIES`, `LAB_MACHINERY`, `GENERAL`), optional credit period days (null/0 when cash/immediate), and strict 10-digit Indian phone restriction.
+- **`updateVendorAction(id: string, data: Partial<VendorFormValues>)`**: Updates supplier profile, tax details, location, and credit terms. Revalidates both `/shop/purchases/vendors` and `/shop/purchases/vendors/[id]`.
+- **`toggleVendorStatusAction(id: string, isActive: boolean)`**: Activates or archives a vendor without breaking historical purchase order relationships.
+- **`deleteVendorAction(vendorId: string)`**: Safe deletion safeguard. If the vendor has associated purchase bills, deletion is blocked to prevent breaking stock ledger records, prompting the user to Archive instead. If 0 orders, deletes the vendor permanently.
+- **`getVendorDetailAction(vendorId: string)`**: Returns complete supplier profile, real analytics (`totalSpend`, `orderCount`, `avgOrderValue`, `lastOrderDate`, `draftCount`, `completedCount`), and complete purchase order history for the dedicated profile page (`/shop/purchases/vendors/[id]`).
+
 #### `createPurchaseProductAction(data)` (`actions/purchase.actions.ts`)
 - **Description**: Ingests a new catalog product directly from the purchase inline modal (SS3 design) with category tabs, pre-calculated GST splits, and attributes. Creates an inventory record with initial stock 0 (stock is credited upon purchase completion).
 - **Payload**: `{ category, productCode, productName, brand?, gender?, color?, size?, type?, material?, hsnCode?, gstPercent, cgstPercent, sgstPercent, igstPercent, costPrice, retailPrice }`.

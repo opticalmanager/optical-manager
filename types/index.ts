@@ -10,6 +10,10 @@ export type {
   LoginData,
 } from "./auth";
 
+export {
+  vendorCategories,
+} from "./database";
+
 export type {
   Organization,
   Profile,
@@ -28,6 +32,7 @@ export type {
   SalesReturnItem,
   CustomerCreditLedger,
   Vendor,
+  VendorCategory,
   PurchaseOrder,
   PurchaseOrderItem,
   NewOrganization,
@@ -51,5 +56,3 @@ export type {
   NewPurchaseOrderItem,
   SocialReviewLinksSettings,
 } from "./database";
-
-
