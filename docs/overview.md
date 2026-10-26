@@ -128,6 +128,21 @@
 
 ---
 
+### 8. Fail-Safe Error Boundaries & Animated Optical Diagnostics
+- **Multi-Tier Error Recovery Hierarchy**: Replaced unstyled Next.js crash screens and default black-and-white 404 text with an enterprise, multi-layer error protection framework:
+  - *Global 404 ("Focal Point Lost") (`app/not-found.tsx`)*: Continuous industrial grid background with an interactive SVG phoropter reticle, rotating astigmatic axis ring, instant fuzzy route command search, and "Did You Mean?" path prediction (`utils/optical-routes.ts`).
+  - *Root Runtime Exception Boundary (`app/error.tsx`)*: Catches unhandled React hydration errors, 500 runtime exceptions, and network dropouts with smooth recalibration retry (`reset()`) and collapsible diagnostic traces.
+  - *Emergency Root Layout Boundary (`app/global-error.tsx`)*: Standalone HTML fallback with self-contained styling, Inter font fallback, emergency service worker/cache flushing, and hard application restart.
+  - *Dashboard-Scoped Error Boundary (`app/(dashboard)/error.tsx`)*: Protects `/shop/*` and `/owner/*` routes. Explicitly reassures retail staff that offline IndexedDB databanks and draft bills remain intact, offering instant 1-click return to active POS billing (`/shop/invoices/new`).
+  - *Dashboard Missing Resource Boundary (`app/(dashboard)/not-found.tsx`)*: Contextual 404 for deleted or nonexistent store invoices, patients, prescriptions, or SKUs with interactive fuzzy search and one-click return to ledgers.
+  - *Component-Level Widget Boundary (`components/ui/ErrorBoundary.tsx`)*: Class-based error boundary isolating individual widgets (analytics charts, camera scanners, print previews) from crashing parent pages.
+- **Interactive Animated Lens Reticle (`components/ui/ErrorStateView.tsx`)*: Vector SVG with Framer Motion animations simulating optical trial lenses, rotating phoropter axis indicators, and radar sweeps.
+- **Smart Error Classification & Contextual Fixes**: Automatically detects `ChunkLoadError` (prompts 1-click "Update & Clear Cache"), network drops (prompts "Switch to Offline POS Billing"), and database timeouts (engages a 5-second automatic reconnection countdown).
+- **Live System Health Diagnostic Strip**: Real-time telemetry testing WAN internet reachability, optical cloud database latency (via `/api/offline/ping?db=1`), and local IndexedDB pending draft counters.
+- **1-Click Diagnostics, File Export & WhatsApp Support**: Built-in JSON report copy, `.json` diagnostic file download for corporate IT support, and direct pre-formatted WhatsApp link (`https://wa.me/918178962366`) embedding current route, digest ID, and timestamp.
+
+---
+
 ## 👤 User Persona & Access Matrix
 
 | Feature Module | Super Admin (`SUPER_ADMIN`) | System Owner (`OWNER`) | Store Manager (`SHOP_MANAGER`) | Public Patient |

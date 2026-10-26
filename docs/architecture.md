@@ -467,3 +467,17 @@ The **Add Purchase** workflow (`/shop/purchases/new`) integrates Gemini multimod
 
 
 
+
+
+---
+
+### 11. Fail-Safe Optical Error Boundary & Diagnostic Architecture
+
+- **`app/global-error.tsx`**: Root layout fail-safe with self-contained HTML emergency recovery, cache clearing, and log export.
+- **`app/error.tsx`**: Root runtime exception boundary with optical aberration recalibration controls and smart classifier.
+- **`app/not-found.tsx`**: Global 404 focal point scanner with continuous industrial grid, fuzzy route command search, and "Did You Mean?" predictions.
+- **`app/(dashboard)/error.tsx`**: Dashboard-scoped boundary reassuring store staff of IndexedDB databank safety and 1-click return to POS billing.
+- **`app/(dashboard)/not-found.tsx`**: In-dashboard missing optical entity state with fuzzy search and ledger return actions.
+- **`components/ui/ErrorBoundary.tsx`**: Class-based isolated component boundary protecting individual widgets.
+- **`components/ui/ErrorStateView.tsx`**: Shared animated SVG/Framer Motion optical reticle view with live system health strip (WAN, Cloud DB latency, IndexedDB safe status), 1-click WhatsApp support, and `.json` log export.
+- **`components/ui/NotFoundSearchClient.tsx` & `utils/optical-routes.ts`**: Fuzzy command bar and Levenshtein route predictor for instantaneous navigation from broken URLs.

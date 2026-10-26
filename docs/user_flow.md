@@ -983,3 +983,25 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 
 
 
+
+
+---
+
+## 13. System Crash & Missing Record Recovery Flow
+
+1. **Runtime Exception Occurs**:
+   - User is presented with a high-density, animated optical reticle diagnostic screen.
+   - Retail operators are reassured that offline IndexedDB databanks and draft bills are protected.
+   - Live system health telemetry displays real-time WAN connectivity, cloud database latency, and pending offline draft counts.
+   - Smart classifier auto-detects `ChunkLoadError` (prompts 1-click update), network drop (prompts switch to offline POS), or timeout (engages a 5-second automatic reconnection countdown).
+   - User can click "Try Again" to trigger `reset()` without a hard reload.
+   - User can click "Go to POS Billing" to continue serving in-store customers immediately.
+2. **Technical Support Escalation**:
+   - User clicks "Technical Diagnostics & Support" accordion to view sanitized stack trace and digest ID.
+   - Single-click "Copy Log" copies clean diagnostic JSON to clipboard with Sonner toast confirmation.
+   - Single-click "Download .json" downloads structured diagnostic logs for corporate IT support.
+   - Single-click "WhatsApp Support" opens WhatsApp chat (+91 81789 62366) with pre-filled error details and route context.
+3. **404 Focal Point Recovery**:
+   - Global 404 analyzes broken URL and predicts intended destination ("Did You Mean?").
+   - Interactive fuzzy route command search allows searching across 13+ optical modules in 0ms.
+   - In-dashboard 404 guides user back to the respective data ledger.
