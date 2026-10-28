@@ -83,6 +83,7 @@ interface PastRxGroup {
   distRx: any;
   nearRx: any;
   label: string;
+  shortLabel?: string;
 }
 
 const formatRxDate = (dateVal: string | Date | null | undefined) => {
@@ -1041,6 +1042,7 @@ export function NewInvoiceForm() {
             distRx: distancePrescription,
             nearRx: nearPrescription,
             label: "",
+            shortLabel: "",
           });
         }
 
@@ -1050,7 +1052,9 @@ export function NewInvoiceForm() {
           const rSph = g.distRx?.rightSphere || g.nearRx?.rightSphere;
           const lSph = g.distRx?.leftSphere || g.nearRx?.leftSphere;
           const pwr = (rSph || lSph) ? ` [OD: ${rSph || "0.00"}, OS: ${lSph || "0.00"}]` : "";
-          g.label = `${formatRxDate(g.date)} — ${g.doctor}${rxNum ? ` (${rxNum})` : ""}${pwr}`;
+          const dateStr = formatRxDate(g.date);
+          g.label = `${dateStr} — ${g.doctor}${rxNum ? ` (${rxNum})` : ""}${pwr}`;
+          g.shortLabel = rxNum ? `${dateStr} (${rxNum})` : dateStr;
         });
 
         setAvailablePastRx(groups);
@@ -2289,16 +2293,111 @@ export function NewInvoiceForm() {
       onKeyDown={(e) => handleEnterKeyNavigation(e)}
       className="max-w-[1440px] mx-auto space-y-2 pb-6 select-none animate-fade-in text-slate-800"
     >
-      {/* Compact Top Header Row */}
-      <div className="flex items-center justify-between px-1 py-0.5">
-        <div className="flex items-center gap-2">
+      {/* Compact Top Header Row — Title + Registration ID + Invoice Date & Time + Referred By */}
+      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs px-3 py-2 flex flex-wrap items-end gap-2.5">
+        {/* Title */}
+        <div className="flex items-center gap-2 shrink-0 pb-0.5">
+          <ReceiptText className="h-4 w-4 text-[#2563eb]" />
           <span className="text-sm font-black text-slate-900 tracking-tight">New Invoice</span>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">/ Invoicing</span>
         </div>
+
+        {/* REGISTRATION ID */}
+        <div className="min-w-[120px]">
+          <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            REGISTRATION ID
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={regId}
+              readOnly
+              className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-slate-50/60 text-xs font-bold text-slate-700 focus:outline-none select-all"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(regId);
+                toast.success("Registration ID copied!");
+              }}
+              className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              title="Copy ID"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* INVOICE DATE & TIME */}
+        <div className="flex-1 min-w-[210px]">
+          <div className="flex items-center justify-between mb-0.5">
+            <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
+              INVOICE DATE &amp; TIME
+            </label>
+            {isFutureDate && (
+              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                Future Booking
+              </span>
+            )}
+            {isBackdated && !isFutureDate && (
+              <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                Backdated
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <input
+              type="datetime-local"
+              value={invoiceDateTime}
+              onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
+              className={`w-full h-8 pl-7 ${isCustomDate ? "pr-14" : "pr-2.5"} rounded-lg border text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 transition-all shadow-2xs ${
+                isFutureDate
+                  ? "border-amber-300 bg-amber-50/20 focus:ring-amber-500/20 focus:border-amber-500"
+                  : "border-slate-200 bg-white focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+              }`}
+            />
+            <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            {isCustomDate && (
+              <button
+                type="button"
+                onClick={handleResetDateTimeToNow}
+                title="Reset to current time"
+                className="absolute right-1 top-1 h-6 px-1.5 text-[10px] font-extrabold text-[#2563eb] bg-blue-50 hover:bg-blue-100 rounded transition-colors cursor-pointer"
+              >
+                Now
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* REFERRED BY */}
+        <div className="min-w-[150px] flex-1">
+          <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            REFERRED BY
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              list="referred-by-suggestions"
+              placeholder="Dr. Amit Gupta"
+              value={referredBy}
+              onChange={(e) => setReferredBy(e.target.value)}
+              className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+            />
+            <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <datalist id="referred-by-suggestions">
+              {referredBySuggestions.map((ref, idx) => (
+                <option key={idx} value={ref} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+
+        {/* Clear Form */}
         <button
           type="button"
           onClick={handleClearForm}
-          className="h-7 px-2.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-600 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+          className="h-7 px-2.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-600 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer self-end"
           title="Reset all form fields"
         >
           <RotateCcw className="h-3 w-3 text-slate-400" />
@@ -2323,6 +2422,9 @@ export function NewInvoiceForm() {
           </span>
         </div>
       )}
+
+      {/* ── 2-COLUMN LAYOUT: Customer Details (left) | Clinical Prescription (right) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-start">
 
       {/* SECTION 1: CUSTOMER & INVOICE DETAILS */}
       <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs">
@@ -2363,76 +2465,8 @@ export function NewInvoiceForm() {
         </div>
 
         <div className="p-2.5 space-y-2">
-          {/* Row 1: REGISTRATION ID, INVOICE DATE & TIME, FULL NAME, MOBILE NUMBER */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {/* REGISTRATION ID */}
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-                REGISTRATION ID
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={regId}
-                  readOnly
-                  className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-slate-50/60 text-xs font-bold text-slate-700 focus:outline-none select-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(regId);
-                    toast.success("Registration ID copied!");
-                  }}
-                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  title="Copy ID"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* INVOICE DATE & TIME */}
-            <div>
-              <div className="flex items-center justify-between mb-0.5">
-                <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
-                  INVOICE DATE & TIME
-                </label>
-                {isFutureDate && (
-                  <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                    Future Booking
-                  </span>
-                )}
-                {isBackdated && !isFutureDate && (
-                  <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
-                    Backdated
-                  </span>
-                )}
-              </div>
-              <div className="relative">
-                <input
-                  type="datetime-local"
-                  value={invoiceDateTime}
-                  onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
-                  className={`w-full h-8 pl-7 ${isCustomDate ? "pr-14" : "pr-2.5"} rounded-lg border text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 transition-all shadow-2xs ${
-                    isFutureDate
-                      ? "border-amber-300 bg-amber-50/20 focus:ring-amber-500/20 focus:border-amber-500"
-                      : "border-slate-200 bg-white focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
-                  }`}
-                />
-                <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                {isCustomDate && (
-                  <button
-                    type="button"
-                    onClick={handleResetDateTimeToNow}
-                    title="Reset to current time"
-                    className="absolute right-1 top-1 h-6 px-1.5 text-[10px] font-extrabold text-[#2563eb] bg-blue-50 hover:bg-blue-100 rounded transition-colors cursor-pointer"
-                  >
-                    Now
-                  </button>
-                )}
-              </div>
-            </div>
-
+          {/* Row 1: FULL NAME, MOBILE NUMBER */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {/* FULL NAME */}
             <div className="patient-autocomplete-wrapper relative">
               <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
@@ -2492,8 +2526,8 @@ export function NewInvoiceForm() {
             </div>
           </div>
 
-          {/* Row 2: DATE OF BIRTH, AGE (YRS), GENDER, EMAIL, GSTIN */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          {/* Row 2: DATE OF BIRTH, EMAIL, GSTIN */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {/* DATE OF BIRTH */}
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
@@ -2507,45 +2541,6 @@ export function NewInvoiceForm() {
                   className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />
                 <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* AGE (YRS) */}
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-                AGE (YRS)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  min="0"
-                  max="120"
-                  placeholder="28"
-                  value={age}
-                  onChange={(e) => handleAgeChange(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
-                />
-                <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* GENDER */}
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-                GENDER
-              </label>
-              <div className="relative">
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs"
-                >
-                  <option value="">Select Gender</option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                  <option value="OTHER">Other</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
@@ -2589,41 +2584,12 @@ export function NewInvoiceForm() {
                 />
                 <Building className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
-              {gstin.length >= 2 && getStateFromGSTIN(gstin) && (
-                <div className="mt-1 flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>State: {getStateFromGSTIN(gstin)}</span>
-                  <span className="text-emerald-500 font-mono">({gstin.slice(0, 2)})</span>
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Row 3: REFERRED BY & ADDRESS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+          {/* Row 3: FULL ADDRESS, STATE, PIN CODE */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-                REFERRED BY
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="referred-by-suggestions"
-                  placeholder="Dr. Amit Gupta"
-                  value={referredBy}
-                  onChange={(e) => setReferredBy(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
-                />
-                <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                <datalist id="referred-by-suggestions">
-                  {referredBySuggestions.map((ref, idx) => (
-                    <option key={idx} value={ref} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            <div className="sm:col-span-2">
               <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 FULL ADDRESS
               </label>
@@ -2636,22 +2602,6 @@ export function NewInvoiceForm() {
                   className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />
                 <MapPin className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-                CITY
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Gurgaon"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
-                />
-                <Building className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
@@ -2696,48 +2646,10 @@ export function NewInvoiceForm() {
         </div>
       </div>
 
+      {/* RIGHT COLUMN: CLINICAL PRESCRIPTION */}
+      <div className="flex flex-col gap-2">
+
       {/* SECTION 2: SPECT(S) RX / CLINICAL PRESCRIPTION */}
-      {selectedCustomerId && availablePastRx.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-[#0a52c3] text-white flex items-center justify-center shrink-0 shadow-xs">
-              <Eye className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-bold text-slate-900">
-                  Select Customer Eye Prescription
-                </p>
-                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0a52c3]">
-                  {availablePastRx.length} Recorded
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Choose a previous test record from the database or switch to a blank exam
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-[280px] sm:min-w-[340px]">
-              <select
-                value={selectedPastRxId}
-                onChange={(e) => handleSelectPastRx(e.target.value)}
-                className="w-full h-8 pl-3 pr-8 rounded-lg border border-blue-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a52c3]/20 focus:border-[#0a52c3] appearance-none cursor-pointer transition-all shadow-2xs"
-              >
-                {availablePastRx.map((g, idx) => (
-                  <option key={g.id} value={g.id}>
-                    {idx === 0 ? "★ Latest: " : `#${idx + 1}: `}{g.label}
-                  </option>
-                ))}
-                <option value="NEW_BLANK">+ Blank / Fresh Prescription Exam</option>
-              </select>
-              <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-      )}
-
       <ClinicalPrescriptionCard
         values={{
           rxNumber,
@@ -2761,6 +2673,10 @@ export function NewInvoiceForm() {
           caddLeft,
         }}
         doctorSuggestions={doctorSuggestions}
+        hideDoctor={true}
+        pastRxList={availablePastRx}
+        selectedPastRxId={selectedPastRxId}
+        onSelectPastRx={handleSelectPastRx}
         onChange={(updated) => {
           if (updated.rxNumber !== undefined) setRxNumber(updated.rxNumber);
           if (updated.rxCategory !== undefined) setRxCategory(updated.rxCategory);
@@ -2811,6 +2727,8 @@ export function NewInvoiceForm() {
           if (updated.caddLeft !== undefined) setCaddLeft(updated.caddLeft);
         }}
       />
+      </div>
+      </div>
 
       {/* SECTION 3: PRODUCT SELECTION */}
       <div className="bg-white border border-slate-300 rounded-xl shadow-2xs overflow-hidden">
