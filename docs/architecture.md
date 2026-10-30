@@ -481,3 +481,35 @@ The **Add Purchase** workflow (`/shop/purchases/new`) integrates Gemini multimod
 - **`components/ui/ErrorBoundary.tsx`**: Class-based isolated component boundary protecting individual widgets.
 - **`components/ui/ErrorStateView.tsx`**: Shared animated SVG/Framer Motion optical reticle view with live system health strip (WAN, Cloud DB latency, IndexedDB safe status), 1-click WhatsApp support, and `.json` log export.
 - **`components/ui/NotFoundSearchClient.tsx` & `utils/optical-routes.ts`**: Fuzzy command bar and Levenshtein route predictor for instantaneous navigation from broken URLs.
+
+---
+
+### 12. Bulletproof AI Bill Scanning & Ingestion Subsystem
+
+The AI Bill Scanning engine digitizes complex supplier invoices (multi-page PDFs, mobile photos, thermal slips) into structured purchase orders:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│               AI BILL SCANNING ARCHITECTURE OVERVIEW                  │
+├────────────────────────────────────────────────────────────────────────┤
+│ 1. Dedicated REST Endpoint (`app/api/ai/scan-bill/route.ts`):          │
+│    - Fully immune to Next.js Server Action bundler collisions & digests│
+│    - Configured with `maxDuration = 60` for dense 30+ line item bills   │
+│    - Clean HTTP status codes (200, 400, 401, 429, 500, 503)            │
+│                                                                        │
+│ 2. Unified Pure Service Layer (`services/bill-scan.service.ts`):       │
+│    - Magic byte sniffing (PDF `JVBERi0`, JPEG `/9j/`, PNG `iVBORw0`)   │
+│    - Evergreen model cascade: gemini-3.5-flash-lite (primary),         │
+│      gemini-3.8-flash, gemini-flash-latest, gemini-flash-lite-latest   │
+│    - Fully purged retired models (gemini-2.5-flash, gemini-2.0-flash)  │
+│    - Deterministic Indian tax math engine (Section 31 CGST Act)        │
+│    - Automatic supplier matching via 15-digit GSTIN or fuzzy name      │
+│    - Statutory optical HSN categorization (9003, 9004, 9001, 3307)     │
+│                                                                        │
+│ 3. Client Batch Queue Drawer (`BillScanDrawer.tsx`):                   │
+│    - 1800px Canvas downscale with aspect-ratio preservation            │
+│    - Multi-file sequential processing with isolated error recovery     │
+│    - 1-click single-file retry without losing other scanned bills      │
+│    - Multi-file item aggregation and live table hydration              │
+└────────────────────────────────────────────────────────────────────────┘
+```

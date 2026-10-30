@@ -56,7 +56,7 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 
 ### 5. Google Gemini AI (Multimodal Vision OCR)
 - **Primary Function**: Auto-extracts supplier invoice details, HSN codes, product classifications, tax rates, and optical specifications from uploaded bill photos and PDFs on the Add Purchase page.
-- **Implementation**: Powered by `@google/generative-ai` with structured JSON schema responses, pre-validation MIME type normalization, binary magic bytes sniffing (`JVBERi0`, `/9j/`, `iVBORw0KGgo`, `UklGR`), and active high-availability models (`gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`). Arithmetic calculations are verified by the local deterministic math engine.
+- **Implementation**: Powered by `@google/generative-ai` via dedicated standalone REST API `/api/ai/scan-bill` (`export const maxDuration = 60`) and pure service `services/bill-scan.service.ts`. Decoupled completely from Server Actions to guarantee immunity against server component render digests. Features structured JSON schema responses, pre-validation MIME normalization, binary magic bytes sniffing (`JVBERi0`, `/9j/`, `iVBORw0KGgo`, `UklGR`), and active high-availability evergreen models (`gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-flash-lite-latest`, `gemini-3.6-flash`, `gemini-3.7-flash`). Arithmetic calculations are verified by the local deterministic math engine.
 - **Credentials & Multi-Tenancy**: Configured per organization in `organizations.settings.ai.geminiApiKey`, with platform fallback to `GEMINI_API_KEY`.
 - **Cost Analysis**:
   - **Google AI Studio Free Tier**: 1,500 requests/day, 1M tokens/minute (**$0.00 / month**).
