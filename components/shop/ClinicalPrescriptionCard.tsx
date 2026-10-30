@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Eye, Plus, Calendar, Stethoscope, ChevronDown, Check, Download } from "lucide-react";
+import { Eye, Plus, Calendar, Stethoscope, ChevronDown, Check, Download, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export interface ClinicalPrescriptionValues {
@@ -35,6 +35,16 @@ export interface ClinicalPrescriptionValues {
   notes?: string;
 }
 
+export interface PastRxItem {
+  id: string;
+  date: string;
+  doctor?: string;
+  rxNumber?: string;
+  lensType?: string;
+  label?: string;
+  shortLabel?: string;
+}
+
 export interface ClinicalPrescriptionCardProps {
   values: ClinicalPrescriptionValues;
   onChange?: (updated: ClinicalPrescriptionValues) => void;
@@ -42,6 +52,10 @@ export interface ClinicalPrescriptionCardProps {
   readOnly?: boolean;
   className?: string;
   onClear?: () => void;
+  hideDoctor?: boolean;
+  pastRxList?: PastRxItem[];
+  selectedPastRxId?: string;
+  onSelectPastRx?: (id: string) => void;
 }
 
 // Diopter Auto-formatter (+0.50, -1.25, plano)
@@ -84,6 +98,10 @@ export function ClinicalPrescriptionCard({
   readOnly = false,
   className = "",
   onClear,
+  hideDoctor = false,
+  pastRxList = [],
+  selectedPastRxId,
+  onSelectPastRx,
 }: ClinicalPrescriptionCardProps) {
   const [rxCategory, setRxCategory] = useState<"SPECTACLES" | "CONTACT_LENS">(
     (values.rxCategory as any) || "SPECTACLES"
@@ -150,29 +168,81 @@ export function ClinicalPrescriptionCard({
 
   return (
     <div
-      className={`bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden transition-all duration-200 ${className}`}
+      className={`bg-white border border-slate-300 rounded-lg shadow-2xs overflow-hidden transition-all duration-200 ${className}`}
     >
       {/* 1. COMPACT CLINICAL HEADER */}
-      <div className="py-3 px-4 md:px-5 border-b border-slate-100 bg-slate-50/40 flex flex-wrap items-center justify-between gap-3">
+      <div className="py-1.5 px-3 bg-slate-50 border-b border-slate-300 rounded-t-lg flex flex-wrap items-center justify-between gap-2">
         {/* Left Title & Badge */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-[#2563eb]">
-            <Eye className="w-4 h-4" />
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563eb]">
+            <Eye className="w-3.5 h-3.5" />
           </div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs md:text-sm font-extrabold uppercase tracking-wider text-slate-900">
-              SPECT(S) RX / CLINICAL PRESCRIPTION
-            </h3>
-            <span className="bg-blue-50/80 text-[#2563eb] border border-blue-200/70 px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight shadow-2xs">
-              Rx #{rxDisplayNum}
-            </span>
-          </div>
+          <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+            SPECT(S) RX / CLINICAL PRESCRIPTION
+          </h3>
+          <span className="bg-blue-50 text-[#2563eb] border border-blue-300 px-1.5 py-0.2 rounded text-[10px] font-bold tracking-tight shadow-2xs">
+            Rx #{rxDisplayNum}
+          </span>
         </div>
 
-        {/* Right Tab Pills & Quick Actions */}
-        {!readOnly && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <div className="flex items-center bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/60 text-xs font-bold">
+        {/* Right Side: Historical Prescription Selector (Date-wise, compact) */}
+        {pastRxList && pastRxList.length > 0 ? (
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-[10px] font-extrabold uppercase text-slate-400 flex items-center gap-1">
+              <RotateCcw className="w-3 h-3 text-[#2563eb]" />
+              <span className="hidden sm:inline">Past Rx:</span>
+            </span>
+            <div className="relative">
+              <select
+                value={selectedPastRxId || ""}
+                onChange={(e) => onSelectPastRx && onSelectPastRx(e.target.value)}
+                className="h-6.5 pl-2 pr-6 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs max-w-[200px] truncate hover:border-slate-400"
+                title="Select historical prescription"
+              >
+                {pastRxList.map((g, idx) => (
+                  <option key={g.id} value={g.id}>
+                    {idx === 0 ? "★ " : `#${idx + 1} `}{g.shortLabel || g.date || g.label}
+                  </option>
+                ))}
+                <option value="NEW_BLANK">+ Blank / Fresh Exam</option>
+              </select>
+              <ChevronDown className="absolute right-1.5 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
+            </div>
+            <span
+              className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0a52c3] border border-blue-200"
+              title={`${pastRxList.length} past prescriptions recorded`}
+            >
+              {pastRxList.length}
+            </span>
+          </div>
+        ) : !hideDoctor ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-extrabold uppercase text-slate-400">Dr:</span>
+            {readOnly ? (
+              <span className="text-xs font-bold text-slate-800">{values.doctorName || "N/A"}</span>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  list="clinical-doctors-list"
+                  value={values.doctorName || ""}
+                  onChange={(e) => updateField("doctorName", e.target.value)}
+                  placeholder="Doctor name"
+                  className="h-6.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-all hover:border-slate-400"
+                />
+                <Stethoscope className="absolute left-1.5 top-1.5 h-3 w-3 text-slate-400 pointer-events-none" />
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {/* SUBHEADER: TABS ON LEFT | LENS TYPE, DATE, SAVE RX SHIFTED TO RIGHT */}
+      <div className="py-1 px-2.5 bg-slate-50/60 border-b border-slate-300 flex flex-wrap items-center justify-between gap-1.5">
+        {/* Left: Tab Pills & Quick Actions */}
+        {!readOnly ? (
+          <div className="flex items-center gap-1">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-300 text-[10.5px] font-bold">
               <button
                 type="button"
                 onClick={() => {
@@ -180,10 +250,10 @@ export function ClinicalPrescriptionCard({
                   setRxCategory("SPECTACLES");
                   updateField("rxCategory", "SPECTACLES");
                 }}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "SPECTACLES"
-                    ? "bg-[#2563eb] text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                    ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Spect(s) Rx
@@ -195,10 +265,10 @@ export function ClinicalPrescriptionCard({
                   setRxCategory("CONTACT_LENS");
                   updateField("rxCategory", "CONTACT_LENS");
                 }}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "CONTACT_LENS"
-                    ? "bg-[#2563eb] text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                    ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 CL Rx
@@ -209,10 +279,10 @@ export function ClinicalPrescriptionCard({
                   setActiveTab("DISTANCE");
                   updateField("activeMode", "DISTANCE");
                 }}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "DISTANCE"
-                    ? "bg-[#2563eb] text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                    ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Distance
@@ -223,10 +293,10 @@ export function ClinicalPrescriptionCard({
                   setActiveTab("NEAR");
                   updateField("activeMode", "NEAR");
                 }}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "NEAR"
-                    ? "bg-[#2563eb] text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                    ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Near
@@ -236,281 +306,30 @@ export function ClinicalPrescriptionCard({
             <button
               type="button"
               onClick={handleClear}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#2563eb] bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10.5px] font-bold text-[#2563eb] bg-white border border-blue-300 rounded hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
               title="Clear / New Prescription Blank"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3 h-3" />
               <span>New Rx</span>
             </button>
           </div>
+        ) : (
+          <div className="text-[10px] font-extrabold uppercase text-slate-400">Clinical Refraction</div>
         )}
-      </div>
 
-      {/* 2. HIGH-DENSITY CLINICAL RX TABLE */}
-      <div className="p-3 md:p-4 overflow-x-auto">
-        <table className="w-full text-center border-collapse min-w-[700px]">
-          <thead>
-            <tr className="border-b border-slate-150 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-              <th className="py-2 px-3 text-left w-28">EYE / TYPE</th>
-              <th className="py-2 px-2 w-24">SPHL. (SPH)</th>
-              <th className="py-2 px-2 w-24">CYL. (CYL)</th>
-              <th className="py-2 px-2 w-20">AXIS (°)</th>
-              <th className="py-2 px-2 w-24 text-[#2563eb]">ADDN. (ADD)</th>
-              <th className="py-2 px-2 w-24">VISION (V/N)</th>
-              <th className="py-2 px-2 w-24">P.D. (MM)</th>
-              <th className="py-2 px-2 w-20">CADD</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-xs font-bold">
-            {/* ROW 1: RIGHT EYE (OD) */}
-            <tr className="hover:bg-slate-50/50 transition-colors">
-              <td className="py-2 px-3 text-left">
-                <div className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-[#2563eb] shrink-0 shadow-xs" />
-                  <span className="font-extrabold text-slate-800 text-xs">RE</span>
-                  <span className="text-[10px] text-slate-400 font-semibold">(Right/OD)</span>
-                </div>
-              </td>
-              {/* SPH */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-bold text-slate-800">{values.rightSphere || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-sph-options"
-                    value={values.rightSphere || ""}
-                    onChange={(e) => updateField("rightSphere", e.target.value)}
-                    onBlur={(e) => handleBlurDiopter("rightSphere", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* CYL */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-bold text-slate-800">{values.rightCylinder || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-cyl-options"
-                    value={values.rightCylinder || ""}
-                    onChange={(e) => updateField("rightCylinder", e.target.value)}
-                    onBlur={(e) => handleBlurDiopter("rightCylinder", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* AXIS */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-bold text-slate-800">{values.rightAxis ? `${values.rightAxis}°` : "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-axis-options"
-                    value={values.rightAxis || ""}
-                    onChange={(e) => updateField("rightAxis", e.target.value)}
-                    onBlur={(e) => handleBlurAxis("rightAxis", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* ADDN (ADD) - VIBRANT LIGHT BLUE ACCENT HIGHLIGHT */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="inline-block px-2.5 py-1 bg-blue-50/80 text-[#2563eb] font-extrabold rounded-md border border-blue-200/60">
-                    {values.rightAdd || "-"}
-                  </span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-add-options"
-                    value={values.rightAdd || ""}
-                    onChange={(e) => updateField("rightAdd", e.target.value)}
-                    onBlur={(e) => handleBlurDiopter("rightAdd", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-blue-50/70 border border-blue-200/90 rounded-lg text-xs font-extrabold text-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/30 focus:border-[#2563eb] transition-all shadow-2xs"
-                  />
-                )}
-              </td>
-              {/* VISION (V/N) */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-semibold text-slate-700">{values.rightNv || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-vn-options"
-                    value={values.rightNv || ""}
-                    onChange={(e) => updateField("rightNv", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* P.D. (MM) */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-semibold text-slate-700">{values.pdRight ? `${values.pdRight}` : "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-pd-options"
-                    value={values.pdRight || ""}
-                    onChange={(e) => updateField("pdRight", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* CADD */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="text-slate-400 font-medium">{values.caddRight || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-cadd-options"
-                    value={values.caddRight || ""}
-                    onChange={(e) => updateField("caddRight", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-            </tr>
-
-            {/* ROW 2: LEFT EYE (OS) */}
-            <tr className="hover:bg-slate-50/50 transition-colors">
-              <td className="py-2 px-3 text-left">
-                <div className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 shadow-xs" />
-                  <span className="font-extrabold text-slate-800 text-xs">LE</span>
-                  <span className="text-[10px] text-slate-400 font-semibold">(Left/OS)</span>
-                </div>
-              </td>
-              {/* SPH */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-bold text-slate-800">{values.leftSphere || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-sph-options"
-                    value={values.leftSphere || ""}
-                    onChange={(e) => updateField("leftSphere", e.target.value)}
-                    onBlur={(e) => handleBlurDiopter("leftSphere", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* CYL */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-bold text-slate-800">{values.leftCylinder || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-cyl-options"
-                    value={values.leftCylinder || ""}
-                    onChange={(e) => updateField("leftCylinder", e.target.value)}
-                    onBlur={(e) => handleBlurDiopter("leftCylinder", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* AXIS */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-bold text-slate-800">{values.leftAxis ? `${values.leftAxis}°` : "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-axis-options"
-                    value={values.leftAxis || ""}
-                    onChange={(e) => updateField("leftAxis", e.target.value)}
-                    onBlur={(e) => handleBlurAxis("leftAxis", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* ADDN (ADD) - VIBRANT LIGHT BLUE ACCENT HIGHLIGHT */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="inline-block px-2.5 py-1 bg-blue-50/80 text-[#2563eb] font-extrabold rounded-md border border-blue-200/60">
-                    {values.leftAdd || "-"}
-                  </span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-add-options"
-                    value={values.leftAdd || ""}
-                    onChange={(e) => updateField("leftAdd", e.target.value)}
-                    onBlur={(e) => handleBlurDiopter("leftAdd", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-blue-50/70 border border-blue-200/90 rounded-lg text-xs font-extrabold text-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/30 focus:border-[#2563eb] transition-all shadow-2xs"
-                  />
-                )}
-              </td>
-              {/* VISION (V/N) */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-semibold text-slate-700">{values.leftNv || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-vn-options"
-                    value={values.leftNv || ""}
-                    onChange={(e) => updateField("leftNv", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* P.D. (MM) */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="font-semibold text-slate-700">{values.pdLeft ? `${values.pdLeft}` : "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-pd-options"
-                    value={values.pdLeft || ""}
-                    onChange={(e) => updateField("pdLeft", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-              {/* CADD */}
-              <td className="py-1.5 px-1.5">
-                {readOnly ? (
-                  <span className="text-slate-400 font-medium">{values.caddLeft || "-"}</span>
-                ) : (
-                  <input
-                    type="text"
-                    list="clinical-cadd-options"
-                    value={values.caddLeft || ""}
-                    onChange={(e) => updateField("caddLeft", e.target.value)}
-                    className="w-full text-center py-1.5 px-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all"
-                  />
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* 3. BOTTOM CLINICAL CONTROLS (LENS TYPE, DOCTOR, PRESCRIPTION DATE, ACTIONS) */}
-      <div className="py-1.5 px-3 border-t border-slate-150 bg-slate-50/30 flex flex-col lg:flex-row items-stretch lg:items-end gap-2.5 justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 flex-1">
-          {/* LENS TYPE */}
-          <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">
-              LENS TYPE
-            </label>
+        {/* Right: Lens Type + Prescription Date + Save Rx */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Lens Type */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-extrabold uppercase text-slate-400">Lens:</span>
             {readOnly ? (
-              <div className="text-xs font-bold text-slate-800">{values.lensType || "Single Vision"}</div>
+              <span className="text-xs font-bold text-slate-800">{values.lensType || "Single Vision"}</span>
             ) : (
               <div className="relative">
                 <select
                   value={values.lensType || "Single Vision"}
                   onChange={(e) => updateField("lensType", e.target.value)}
-                  className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs"
+                  className="h-6.5 pl-2 pr-5 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs hover:border-slate-400"
                 >
                   {STANDARD_LENS_TYPES.map((type) => (
                     <option key={type} value={type}>
@@ -518,48 +337,16 @@ export function ClinicalPrescriptionCard({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-1 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
               </div>
             )}
           </div>
 
-          {/* PRESCRIBED BY (DOCTOR) */}
-          <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">
-              PRESCRIBED BY (DOCTOR)
-            </label>
+          {/* Prescription Date */}
+          <div className="flex items-center gap-1">
             {readOnly ? (
-              <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Stethoscope className="w-3.5 h-3.5 text-[#2563eb]" />
-                <span>{values.doctorName || "N/A"}</span>
-              </div>
-            ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  list="clinical-doctors-list"
-                  value={values.doctorName || ""}
-                  onChange={(e) => updateField("doctorName", e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
-                />
-                <Stethoscope className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                <datalist id="clinical-doctors-list">
-                  {doctorSuggestions.map((doc, idx) => (
-                    <option key={idx} value={doc} />
-                  ))}
-                </datalist>
-              </div>
-            )}
-          </div>
-
-          {/* PRESCRIPTION DATE */}
-          <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">
-              PRESCRIPTION DATE
-            </label>
-            {readOnly ? (
-              <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <div className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-slate-400" />
                 <span>{values.prescribedAt || "Today"}</span>
               </div>
             ) : (
@@ -569,26 +356,299 @@ export function ClinicalPrescriptionCard({
                   value={values.prescribedAt || new Date().toISOString().split("T")[0]}
                   max={new Date().toISOString().split("T")[0]}
                   onChange={(e) => updateField("prescribedAt", e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="h-6.5 pl-5 pr-1 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
-                <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <Calendar className="absolute left-1 top-1.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             )}
           </div>
-        </div>
 
-        {!readOnly && (
-          <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto mt-1 lg:mt-0">
+          {/* Save Rx */}
+          {!readOnly && (
             <button
               type="button"
               onClick={() => toast.success("Prescription template saved.")}
-              className="h-7.5 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-700 shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="h-6.5 px-2 rounded border border-slate-300 bg-white hover:bg-slate-50 text-[10.5px] font-bold text-slate-700 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer hover:border-slate-400"
+              title="Save Rx"
             >
               <Download className="h-3 w-3 text-slate-500" />
               <span>Save Rx</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
+      </div>
+
+      {/* 2. HIGH-DENSITY INDUSTRIAL RX TABLE (NO HORIZONTAL SCROLL) */}
+      <div className="p-2 overflow-hidden">
+        <table className="w-full text-center border-collapse table-fixed">
+          <colgroup>
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "12%" }} />
+          </colgroup>
+          <thead>
+            <tr className="border-b border-slate-200 text-[10px] font-extrabold uppercase text-slate-500 tracking-wider bg-slate-50/50">
+              <th className="py-1 px-0.5 text-center">EYE</th>
+              <th className="py-1 px-0.5">SPHL. (SPH)</th>
+              <th className="py-1 px-0.5">CYL. (CYL)</th>
+              <th className="py-1 px-0.5">AXIS (°)</th>
+              <th className="py-1 px-0.5 text-[#2563eb]">ADDN. (ADD)</th>
+              <th className="py-1 px-0.5">VISION (V/N)</th>
+              <th className="py-1 px-0.5">P.D. (MM)</th>
+              <th className="py-1 px-0.5">CADD</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-xs font-bold">
+            {/* ROW 1: RIGHT EYE (OD) */}
+            <tr className="hover:bg-slate-50/50 transition-colors">
+              <td className="py-0.5 px-0.5 text-center">
+                <div className="flex items-center justify-center gap-1 bg-blue-50/70 border border-blue-200/80 rounded h-7 px-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb] shrink-0" />
+                  <span className="font-black text-[#2563eb] text-xs">RE</span>
+                  <span className="text-[9px] text-slate-400 font-bold hidden sm:inline">(OD)</span>
+                </div>
+              </td>
+              {/* SPH */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-bold text-slate-800">{values.rightSphere || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-sph-options"
+                    value={values.rightSphere || ""}
+                    onChange={(e) => updateField("rightSphere", e.target.value)}
+                    onBlur={(e) => handleBlurDiopter("rightSphere", e.target.value)}
+                    placeholder="0.00"
+                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* CYL */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-bold text-slate-800">{values.rightCylinder || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-cyl-options"
+                    value={values.rightCylinder || ""}
+                    onChange={(e) => updateField("rightCylinder", e.target.value)}
+                    onBlur={(e) => handleBlurDiopter("rightCylinder", e.target.value)}
+                    placeholder="0.00"
+                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* AXIS */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-bold text-slate-800">{values.rightAxis ? `${values.rightAxis}°` : "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-axis-options"
+                    value={values.rightAxis || ""}
+                    onChange={(e) => updateField("rightAxis", e.target.value)}
+                    onBlur={(e) => handleBlurAxis("rightAxis", e.target.value)}
+                    placeholder="180"
+                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* ADDN (ADD) */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="inline-block px-1.5 py-0.5 bg-blue-50/80 text-[#2563eb] font-extrabold rounded border border-blue-200/60">
+                    {values.rightAdd || "-"}
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-add-options"
+                    value={values.rightAdd || ""}
+                    onChange={(e) => updateField("rightAdd", e.target.value)}
+                    onBlur={(e) => handleBlurDiopter("rightAdd", e.target.value)}
+                    placeholder="+2.00"
+                    className="w-full h-7 text-center font-extrabold text-xs text-[#2563eb] bg-blue-50/60 border border-blue-200/90 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-blue-300"
+                  />
+                )}
+              </td>
+              {/* VISION (V/N) */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-semibold text-slate-700">{values.rightNv || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-vn-options"
+                    value={values.rightNv || ""}
+                    onChange={(e) => updateField("rightNv", e.target.value)}
+                    placeholder="6/6"
+                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* P.D. (MM) */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-semibold text-slate-700">{values.pdRight ? `${values.pdRight}` : "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-pd-options"
+                    value={values.pdRight || ""}
+                    onChange={(e) => updateField("pdRight", e.target.value)}
+                    placeholder="31.5"
+                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* CADD */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="text-slate-400 font-medium">{values.caddRight || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-cadd-options"
+                    value={values.caddRight || ""}
+                    onChange={(e) => updateField("caddRight", e.target.value)}
+                    placeholder="-"
+                    className="w-full h-7 text-center text-xs text-slate-600 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+            </tr>
+
+            {/* ROW 2: LEFT EYE (OS) */}
+            <tr className="hover:bg-slate-50/50 transition-colors">
+              <td className="py-0.5 px-0.5 text-center">
+                <div className="flex items-center justify-center gap-1 bg-emerald-50/70 border border-emerald-200/80 rounded h-7 px-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
+                  <span className="font-black text-emerald-700 text-xs">LE</span>
+                  <span className="text-[9px] text-slate-400 font-bold hidden sm:inline">(OS)</span>
+                </div>
+              </td>
+              {/* SPH */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-bold text-slate-800">{values.leftSphere || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-sph-options"
+                    value={values.leftSphere || ""}
+                    onChange={(e) => updateField("leftSphere", e.target.value)}
+                    onBlur={(e) => handleBlurDiopter("leftSphere", e.target.value)}
+                    placeholder="0.00"
+                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* CYL */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-bold text-slate-800">{values.leftCylinder || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-cyl-options"
+                    value={values.leftCylinder || ""}
+                    onChange={(e) => updateField("leftCylinder", e.target.value)}
+                    onBlur={(e) => handleBlurDiopter("leftCylinder", e.target.value)}
+                    placeholder="0.00"
+                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* AXIS */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-bold text-slate-800">{values.leftAxis ? `${values.leftAxis}°` : "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-axis-options"
+                    value={values.leftAxis || ""}
+                    onChange={(e) => updateField("leftAxis", e.target.value)}
+                    onBlur={(e) => handleBlurAxis("leftAxis", e.target.value)}
+                    placeholder="180"
+                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* ADDN (ADD) */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="inline-block px-1.5 py-0.5 bg-blue-50/80 text-[#2563eb] font-extrabold rounded border border-blue-200/60">
+                    {values.leftAdd || "-"}
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-add-options"
+                    value={values.leftAdd || ""}
+                    onChange={(e) => updateField("leftAdd", e.target.value)}
+                    onBlur={(e) => handleBlurDiopter("leftAdd", e.target.value)}
+                    placeholder="+2.00"
+                    className="w-full h-7 text-center font-extrabold text-xs text-[#2563eb] bg-blue-50/60 border border-blue-200/90 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-blue-300"
+                  />
+                )}
+              </td>
+              {/* VISION (V/N) */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-semibold text-slate-700">{values.leftNv || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-vn-options"
+                    value={values.leftNv || ""}
+                    onChange={(e) => updateField("leftNv", e.target.value)}
+                    placeholder="6/6"
+                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* P.D. (MM) */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="font-semibold text-slate-700">{values.pdLeft ? `${values.pdLeft}` : "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-pd-options"
+                    value={values.pdLeft || ""}
+                    onChange={(e) => updateField("pdLeft", e.target.value)}
+                    placeholder="31.5"
+                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+              {/* CADD */}
+              <td className="py-0.5 px-0.5">
+                {readOnly ? (
+                  <span className="text-slate-400 font-medium">{values.caddLeft || "-"}</span>
+                ) : (
+                  <input
+                    type="text"
+                    list="clinical-cadd-options"
+                    value={values.caddLeft || ""}
+                    onChange={(e) => updateField("caddLeft", e.target.value)}
+                    placeholder="-"
+                    className="w-full h-7 text-center text-xs text-slate-600 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                  />
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       {/* 4. OPTOMETRY INDUSTRY SMART RECOMMENDATION DATALISTS */}

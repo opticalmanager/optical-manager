@@ -4,7 +4,10 @@
 import type { OrganizationSettings } from "@/types/bill-scan";
 
 export const RETIRED_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-preview-tts",
   "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
   "gemini-1.5-flash",
   "gemini-1.5-pro",
   "gemini-1.0-pro",

@@ -38,11 +38,12 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ
 ```
 
-1. **Customer Selection & Billing Timestamp**:
+1. **Customer Selection, Compact Top Header & Billing Timestamp**:
+   - **Parallel Single-Screen Layout**: Customer Details (left column) and Clinical Prescription (right column) are displayed side-by-side in parallel columns beneath a high-density top header bar containing Registration ID, Invoice Date & Time, and Referred By. This layout fits customer demographic and optometry exam details onto a single screen with zero vertical scrolling fatigue.
    - **Inline Predictive Patient Auto-Suggest**: Replaces the legacy modal button with real-time, debounced auto-suggest dropdowns built directly into the **Full Name** ($\ge 2$ characters) and **Mobile Number** ($\ge 3$ digits) input fields. Typing instantly queries active store records (online via `/api/search` and offline via local IndexedDB databank), presenting high-density patient cards with patient name, phone, email, registration ID, and store credit.
    - **0ms Patient Hydration & Unlink Control**: Selecting any suggested patient instantly auto-fills demographic details, addresses, and clinical medical histories while triggering non-blocking background fetch for historical prescriptions. A compact `Patient Linked` pill badge appears with an `×` (Unlink) button to seamlessly detach the record and restore a fresh registration ID sequence if needed. Unrecognized inputs naturally proceed as new patient registrations.
-   - Store Manager can register a new patient in `/shop/invoices/new` with bi-directional Date of Birth & Age (Years) auto-calculation.
-   - **Editable Invoice Date & Time**: By default, populates with the store's current local date and time. Staff can freely select any past or future billing timestamp with live indicator badges (`Live Billing Time`, `Backdated Invoice`, or `Future Billing Date`) and a one-click `Reset` control.
+   - **Streamlined Fields for Fast Cashier Entry**: Non-essential fields (Age, Gender, City, and Prescribed By) are removed from the active billing view for maximum density while their underlying data models remain fully supported.
+   - **Editable Invoice Date & Time**: Located in the top header row. By default, populates with the store's current local date and time. Staff can freely select any past or future billing timestamp with live indicator badges (`Live Billing Time`, `Backdated Invoice`, or `Future Billing Date`) and a one-click `Reset` control.
    - Prescriptions, invoices, payment receipts, fulfillment orders, and inventory stock movements are atomically synchronized with the selected timestamp for accurate accounting and historical audit trails.
 2. **Prescription Recording & Past Rx Selection**:
    - **Smart Past Prescription Dropdown**: When an existing patient is loaded from the database or via URL (`?customerId=...`), a high-density prescription selection bar displays all historical exams with date, doctor, and OD/OS power previews. Optometrists can switch between past records to auto-populate refraction inputs or select `+ Blank / Fresh Prescription Exam` to test and save fresh readings.
@@ -983,3 +984,25 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 
 
 
+
+
+---
+
+## 13. System Crash & Missing Record Recovery Flow
+
+1. **Runtime Exception Occurs**:
+   - User is presented with a high-density, animated optical reticle diagnostic screen.
+   - Retail operators are reassured that offline IndexedDB databanks and draft bills are protected.
+   - Live system health telemetry displays real-time WAN connectivity, cloud database latency, and pending offline draft counts.
+   - Smart classifier auto-detects `ChunkLoadError` (prompts 1-click update), network drop (prompts switch to offline POS), or timeout (engages a 5-second automatic reconnection countdown).
+   - User can click "Try Again" to trigger `reset()` without a hard reload.
+   - User can click "Go to POS Billing" to continue serving in-store customers immediately.
+2. **Technical Support Escalation**:
+   - User clicks "Technical Diagnostics & Support" accordion to view sanitized stack trace and digest ID.
+   - Single-click "Copy Log" copies clean diagnostic JSON to clipboard with Sonner toast confirmation.
+   - Single-click "Download .json" downloads structured diagnostic logs for corporate IT support.
+   - Single-click "WhatsApp Support" opens WhatsApp chat (+91 81789 62366) with pre-filled error details and route context.
+3. **404 Focal Point Recovery**:
+   - Global 404 analyzes broken URL and predicts intended destination ("Did You Mean?").
+   - Interactive fuzzy route command search allows searching across 13+ optical modules in 0ms.
+   - In-dashboard 404 guides user back to the respective data ledger.
