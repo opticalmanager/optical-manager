@@ -26,7 +26,7 @@ const PHONE_REGEX = /^[6-9]\d{9}$/;
 // Indian 6-digit Pincode
 const PINCODE_REGEX = /^\d{6}$/;
 
-export const vendorInputSchema = z.object({
+const vendorInputSchema = z.object({
   name: z.string().trim().min(2, "Vendor name must be at least 2 characters").max(255),
   category: z.enum(vendorCategories).default("GENERAL"),
   contactPerson: z.string().trim().max(255).optional().nullable(),
