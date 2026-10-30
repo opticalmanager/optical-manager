@@ -138,7 +138,12 @@ export function BillScanDrawer({
   const [scanStatus, setScanStatus] = useState("Analyzing document with AI...");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Setup Key state (for first-time integration)
+  // Setup Key state (for first-time integration & settings)
+  const [configuredAiStatus, setConfiguredAiStatus] = useState<{
+    isConfigured: boolean;
+    model: string;
+    maskedKey?: string;
+  } | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [modelInput, setModelInput] = useState("gemini-3.5-flash-lite");
   const [isTestingKey, setIsTestingKey] = useState(false);
@@ -157,6 +162,7 @@ export function BillScanDrawer({
   useEffect(() => {
     if (isOpen) {
       getOrganizationAiStatusAction().then((status) => {
+        setConfiguredAiStatus(status);
         if (!status.isConfigured) {
           setStep("setup_key");
         } else {
@@ -165,11 +171,10 @@ export function BillScanDrawer({
         if (status.model) {
           const validModels = [
             "gemini-3.5-flash-lite",
-            "gemini-2.5-flash",
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-            "gemini-3.7-flash",
             "gemini-3.8-flash",
+            "gemini-3.6-flash",
+            "gemini-3.7-flash",
+            "gemini-3.5-flash",
           ];
           setModelInput(validModels.includes(status.model) ? status.model : "gemini-3.5-flash-lite");
         }
@@ -424,7 +429,8 @@ export function BillScanDrawer({
           item.file.type === "application/pdf" ||
           item.file.type.includes("pdf") ||
           item.file.name.toLowerCase().endsWith(".pdf");
-        const mimeType = isPdf ? "application/pdf" : (item.file.type || "image/jpeg");
+        // Canvas compression converts images to image/jpeg; PDFs remain application/pdf
+        const mimeType = isPdf ? "application/pdf" : "image/jpeg";
 
         // 2. Call server extraction action
         const result = await extractBillDataAction(base64DataUrl, mimeType);
@@ -444,7 +450,7 @@ export function BillScanDrawer({
               ? {
                   ...f,
                   status: "error",
-                  error: result.error || "Failed to extract items from image.",
+                  error: result.error || "Failed to extract items from document.",
                 }
               : f
           );
@@ -501,23 +507,25 @@ export function BillScanDrawer({
         );
       }
     } else {
-      // All files failed
+      // All files failed: surface the real primary error so user knows the exact cause
       setStep("upload");
-      setErrorMessage(
-        "Could not extract line items from the selected images. Please ensure photos are sharp, clear, and well-lit, or retry."
-      );
-      toast.error("Scanning failed for selected images.");
+      const failedErrors = currentQueue
+        .filter((f) => f.status === "error" && f.error)
+        .map((f) => f.error!);
+      const primaryError =
+        failedErrors[0] ||
+        "Could not extract line items from the selected files. Please ensure the invoice is clear and legible.";
+
+      setErrorMessage(primaryError);
+      toast.error(primaryError);
     }
   }
 
   async function handleTestApiKey() {
-    if (!apiKeyInput.trim()) {
-      toast.error("Please enter a Gemini API Key to test.");
-      return;
-    }
     setIsTestingKey(true);
     setKeyTestStatus(null);
     try {
+      // If apiKeyInput is empty, testGeminiApiKeyAction will test the organization's saved key
       const res = await testGeminiApiKeyAction(apiKeyInput, modelInput);
       setKeyTestStatus({
         tested: true,
@@ -542,6 +550,27 @@ export function BillScanDrawer({
 
   async function handleSaveApiKey() {
     if (!apiKeyInput.trim()) {
+      // If a key is already configured, user may just be updating the AI model
+      if (configuredAiStatus?.isConfigured) {
+        setIsSavingKey(true);
+        try {
+          const res = await updateOrganizationAiSettingsAction({
+            geminiModel: modelInput,
+          });
+          if (res.success) {
+            toast.success("AI model updated successfully!");
+            setConfiguredAiStatus((prev) => prev ? { ...prev, model: modelInput } : prev);
+            setStep("upload");
+          } else {
+            toast.error(res.message);
+          }
+        } catch {
+          toast.error("Failed to update AI configuration.");
+        } finally {
+          setIsSavingKey(false);
+        }
+        return;
+      }
       toast.error("Please enter your Gemini API Key.");
       return;
     }
@@ -553,6 +582,11 @@ export function BillScanDrawer({
       });
       if (res.success) {
         toast.success("AI configured successfully! You can now scan bills.");
+        setConfiguredAiStatus({
+          isConfigured: true,
+          model: modelInput,
+          maskedKey: apiKeyInput.slice(0, 4) + "..." + apiKeyInput.slice(-4),
+        });
         setStep("upload");
       } else {
         toast.error(res.message);
@@ -617,7 +651,7 @@ export function BillScanDrawer({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+          accept="image/*,application/pdf,.pdf,.jpg,.jpeg,.png,.webp"
           onChange={(e) => {
             if (e.target.files && e.target.files.length > 0) {
               addFilesToQueue(e.target.files);
@@ -630,7 +664,7 @@ export function BillScanDrawer({
           ref={addMoreInputRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+          accept="image/*,application/pdf,.pdf,.jpg,.jpeg,.png,.webp"
           onChange={(e) => {
             if (e.target.files && e.target.files.length > 0) {
               addFilesToQueue(e.target.files);
@@ -699,14 +733,30 @@ export function BillScanDrawer({
                 </div>
               </div>
 
+              {configuredAiStatus?.isConfigured && (
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 px-3.5 py-2.5 text-xs text-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="font-bold">Active Gemini Key: </span>
+                      <span className="font-mono text-[11px] font-semibold">{configuredAiStatus.maskedKey || "Configured"}</span>
+                      <span className="text-emerald-700 ml-1.5 font-medium">({configuredAiStatus.model})</span>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                    Connected
+                  </span>
+                </div>
+              )}
+
               <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Gemini API Key
+                    {configuredAiStatus?.isConfigured ? "Update Gemini API Key (Leave blank to keep active key)" : "Gemini API Key"}
                   </label>
                   <Input
                     type="password"
-                    placeholder="Enter your Gemini API key..."
+                    placeholder={configuredAiStatus?.isConfigured ? "Enter new API key to replace active key..." : "Enter your Gemini API key..."}
                     value={apiKeyInput}
                     onChange={(e) => setApiKeyInput(e.target.value)}
                     className="bg-white text-xs font-mono h-9"
@@ -734,11 +784,10 @@ export function BillScanDrawer({
                     className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-hidden cursor-pointer"
                   >
                     <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Recommended - Fast 2s &amp; Zero 503 Errors)</option>
-                    <option value="gemini-2.5-flash">gemini-2.5-flash (Fast 2.5s Standard Flash)</option>
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash High Speed)</option>
                     <option value="gemini-3.6-flash">gemini-3.6-flash (High Capability OCR)</option>
-                    <option value="gemini-3.5-flash">gemini-3.5-flash (Standard Flash)</option>
                     <option value="gemini-3.7-flash">gemini-3.7-flash (Next-Gen Flash OCR)</option>
-                    <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash Preview)</option>
+                    <option value="gemini-3.5-flash">gemini-3.5-flash (Standard Flash)</option>
                   </select>
                 </div>
 
@@ -765,7 +814,7 @@ export function BillScanDrawer({
                     variant="outline"
                     size="sm"
                     onClick={handleTestApiKey}
-                    disabled={isTestingKey || !apiKeyInput.trim()}
+                    disabled={isTestingKey || (!apiKeyInput.trim() && !configuredAiStatus?.isConfigured)}
                     className="text-xs h-8"
                   >
                     {isTestingKey ? (
@@ -781,7 +830,7 @@ export function BillScanDrawer({
                     type="button"
                     size="sm"
                     onClick={handleSaveApiKey}
-                    disabled={isSavingKey || !apiKeyInput.trim()}
+                    disabled={isSavingKey || (!apiKeyInput.trim() && !configuredAiStatus?.isConfigured)}
                     className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
                   >
                     {isSavingKey ? (
@@ -810,6 +859,28 @@ export function BillScanDrawer({
                   </div>
                 </div>
               )}
+
+              {/* OCR Engine Status Header */}
+              <div className="flex items-center justify-between rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/80 via-white to-indigo-50/50 px-3.5 py-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-600" />
+                  <span className="font-semibold text-slate-700">
+                    Engine: <span className="font-mono text-blue-700 font-bold">{configuredAiStatus?.model || modelInput}</span>
+                  </span>
+                  {configuredAiStatus?.isConfigured && (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep("setup_key")}
+                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                >
+                  Configure Key
+                </button>
+              </div>
 
               {/* No files selected yet: Large initial dropzone */}
               {queuedFiles.length === 0 ? (
@@ -960,7 +1031,7 @@ export function BillScanDrawer({
                               )}
                             </div>
                             {qf.error && (
-                              <p className="text-[10px] text-rose-600 truncate mt-0.5" title={qf.error}>
+                              <p className="text-[10px] font-medium text-rose-700 bg-rose-50 border border-rose-200/80 rounded px-1.5 py-0.5 mt-1 leading-tight break-words" title={qf.error}>
                                 {qf.error}
                               </p>
                             )}

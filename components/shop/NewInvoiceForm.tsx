@@ -2294,7 +2294,7 @@ export function NewInvoiceForm() {
       className="max-w-[1440px] mx-auto space-y-2 pb-6 select-none animate-fade-in text-slate-800"
     >
       {/* Compact Top Header Row — Title + Registration ID + Invoice Date & Time + Referred By */}
-      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs px-3 py-2 flex flex-wrap items-end gap-2.5">
+      <div className="bg-white border border-slate-300 rounded-lg shadow-2xs px-3 py-2 flex flex-wrap items-end gap-2.5">
         {/* Title */}
         <div className="flex items-center gap-2 shrink-0 pb-0.5">
           <ReceiptText className="h-4 w-4 text-[#2563eb]" />
@@ -2312,7 +2312,7 @@ export function NewInvoiceForm() {
               type="text"
               value={regId}
               readOnly
-              className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-slate-50/60 text-xs font-bold text-slate-700 focus:outline-none select-all"
+              className="w-full h-8 pl-2.5 pr-7 rounded-md border border-slate-300 bg-slate-50/80 text-xs font-bold text-slate-700 focus:outline-none select-all hover:border-slate-400 transition-colors"
             />
             <button
               type="button"
@@ -2350,10 +2350,10 @@ export function NewInvoiceForm() {
               type="datetime-local"
               value={invoiceDateTime}
               onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
-              className={`w-full h-8 pl-7 ${isCustomDate ? "pr-14" : "pr-2.5"} rounded-lg border text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 transition-all shadow-2xs ${
+              className={`w-full h-8 pl-7 ${isCustomDate ? "pr-14" : "pr-2.5"} rounded-md border text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 transition-all shadow-2xs hover:border-slate-400 ${
                 isFutureDate
                   ? "border-amber-300 bg-amber-50/20 focus:ring-amber-500/20 focus:border-amber-500"
-                  : "border-slate-200 bg-white focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+                  : "border-slate-300 bg-white focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
               }`}
             />
             <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
@@ -2382,7 +2382,7 @@ export function NewInvoiceForm() {
               placeholder="Dr. Amit Gupta"
               value={referredBy}
               onChange={(e) => setReferredBy(e.target.value)}
-              className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+              className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
             />
             <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <datalist id="referred-by-suggestions">
@@ -2397,7 +2397,7 @@ export function NewInvoiceForm() {
         <button
           type="button"
           onClick={handleClearForm}
-          className="h-7 px-2.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-600 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer self-end"
+          className="h-8 px-2.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-[11px] font-bold text-slate-700 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer self-end"
           title="Reset all form fields"
         >
           <RotateCcw className="h-3 w-3 text-slate-400" />
@@ -2427,8 +2427,8 @@ export function NewInvoiceForm() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-start">
 
       {/* SECTION 1: CUSTOMER & INVOICE DETAILS */}
-      <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs">
-        <div className="py-1.5 px-3.5 bg-slate-50/70 border-b border-slate-200/80 rounded-t-xl flex items-center justify-between">
+      <div className="bg-white border border-slate-300 rounded-lg shadow-2xs overflow-hidden">
+        <div className="py-1.5 px-3.5 bg-slate-50 border-b border-slate-300 rounded-t-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
             <UserCheck className="h-3.5 w-3.5 text-[#2563eb]" />
             <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
@@ -2438,13 +2438,13 @@ export function NewInvoiceForm() {
 
           <div className="flex items-center gap-2">
             {customerStoreCredit > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-300">
                 <Wallet className="h-3 w-3" />
                 Credit: ₹{customerStoreCredit.toFixed(2)}
               </span>
             )}
             {selectedCustomerId ? (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-blue-50 text-[#2563eb] border border-blue-200 shadow-2xs animate-in fade-in">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-blue-50 text-[#2563eb] border border-blue-300 shadow-2xs animate-in fade-in">
                 <UserCheck className="h-3 w-3" />
                 <span>Patient Linked ({regId})</span>
                 <button
@@ -2485,7 +2485,7 @@ export function NewInvoiceForm() {
                     }
                   }}
                   onKeyDown={handleSuggestKeyDown}
-                  className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="w-full h-8 pl-7 pr-7 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 {isSearchingPatient && activeSuggestField === "name" && (
@@ -2515,7 +2515,7 @@ export function NewInvoiceForm() {
                     }
                   }}
                   onKeyDown={handleSuggestKeyDown}
-                  className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs font-mono"
+                  className="w-full h-8 pl-7 pr-7 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs font-mono hover:border-slate-400"
                 />
                 <Phone className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 {isSearchingPatient && activeSuggestField === "phone" && (
@@ -2538,7 +2538,7 @@ export function NewInvoiceForm() {
                   type="date"
                   value={dob}
                   onChange={(e) => handleDobChange(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
@@ -2555,7 +2555,7 @@ export function NewInvoiceForm() {
                   placeholder="rahul@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <Mail className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
@@ -2580,7 +2580,7 @@ export function NewInvoiceForm() {
                       setState(detectedState);
                     }
                   }}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <Building className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
@@ -2599,7 +2599,7 @@ export function NewInvoiceForm() {
                   placeholder="742 Evergreen Terrace, Sector 14"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <MapPin className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
@@ -2613,7 +2613,7 @@ export function NewInvoiceForm() {
                 <select
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  className="w-full h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs"
+                  className="w-full h-8 pl-2.5 pr-7 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs hover:border-slate-400"
                 >
                   <option value="">Select State</option>
                   {INDIAN_STATES.map((st) => (
@@ -2637,7 +2637,7 @@ export function NewInvoiceForm() {
                   placeholder="122001"
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <MapPin className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>

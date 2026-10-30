@@ -211,11 +211,10 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
     if (activeModal === "ai") {
       const validModels = [
         "gemini-3.5-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-3.7-flash",
         "gemini-3.8-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
       ];
       getOrganizationAiStatusAction().then((status) => {
         if (status.model) {
@@ -1498,11 +1497,10 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-white cursor-pointer"
                 >
                   <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Recommended - Fast 2s &amp; Zero 503 Errors)</option>
-                  <option value="gemini-2.5-flash">gemini-2.5-flash (Fast 2.5s Standard Flash)</option>
+                  <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash High Speed)</option>
                   <option value="gemini-3.6-flash">gemini-3.6-flash (High Capability OCR)</option>
-                  <option value="gemini-3.5-flash">gemini-3.5-flash (Standard Flash)</option>
                   <option value="gemini-3.7-flash">gemini-3.7-flash (Next-Gen Flash OCR)</option>
-                  <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini 3.8 Flash Preview)</option>
+                  <option value="gemini-3.5-flash">gemini-3.5-flash (Standard Flash)</option>
                 </select>
               </div>
 
@@ -1532,7 +1530,8 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  if (!aiApiKey.trim()) {
+                  const hasKey = aiApiKey.trim() || organization?.settings?.ai?.geminiApiKey;
+                  if (!hasKey) {
                     toast.error("Please enter a Gemini API Key first.");
                     return;
                   }
@@ -1548,7 +1547,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
                     setIsTestingAiKey(false);
                   }
                 }}
-                disabled={isTestingAiKey || !aiApiKey.trim()}
+                disabled={isTestingAiKey || (!aiApiKey.trim() && !organization?.settings?.ai?.geminiApiKey)}
                 className="text-xs h-9 cursor-pointer"
               >
                 {isTestingAiKey ? (

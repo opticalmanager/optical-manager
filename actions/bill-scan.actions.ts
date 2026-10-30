@@ -399,40 +399,86 @@ export async function extractBillDataAction(
     };
   }
 
-  // 2. Validate input format
+  // 2. Clean base64 header and resolve true mimeType BEFORE format validation
+  let cleanBase64 = (base64Data || "").trim();
+  let resolvedMimeType = (mimeType || "").toLowerCase().trim();
+
+  if (cleanBase64.startsWith("data:")) {
+    const commaIndex = cleanBase64.indexOf(",");
+    if (commaIndex !== -1) {
+      const headerPart = cleanBase64.slice(0, commaIndex);
+      cleanBase64 = cleanBase64.slice(commaIndex + 1);
+      const mimeMatch = headerPart.match(/data:([^;]+);base64/i);
+      if (mimeMatch && mimeMatch[1]) {
+        resolvedMimeType = mimeMatch[1].trim().toLowerCase();
+      }
+    }
+  } else if (cleanBase64.includes("base64,")) {
+    const parts = cleanBase64.split("base64,");
+    cleanBase64 = parts[1];
+    const mimeMatch = parts[0].match(/data:([^;]+);/i);
+    if (mimeMatch && mimeMatch[1]) {
+      resolvedMimeType = mimeMatch[1].trim().toLowerCase();
+    }
+  }
+
+  // Strip all whitespace, newlines, carriage returns
+  cleanBase64 = cleanBase64.replace(/\s+/g, "");
+
+  // Normalize common MIME variants
+  if (
+    resolvedMimeType === "image/jpg" ||
+    resolvedMimeType === "image/pjpeg" ||
+    resolvedMimeType === "image/jpe"
+  ) {
+    resolvedMimeType = "image/jpeg";
+  } else if (
+    resolvedMimeType === "application/x-pdf" ||
+    resolvedMimeType === "application/acrobat" ||
+    resolvedMimeType === "applications/vnd.pdf" ||
+    resolvedMimeType === "text/pdf"
+  ) {
+    resolvedMimeType = "application/pdf";
+  }
+
+  // Universal Magic Byte Sniffing (ensures detection even if browser sent empty or octet-stream MIME)
+  if (cleanBase64.startsWith("JVBERi0")) {
+    // %PDF- magic bytes
+    resolvedMimeType = "application/pdf";
+  } else if (cleanBase64.startsWith("/9j/")) {
+    // JPEG SOI magic bytes
+    resolvedMimeType = "image/jpeg";
+  } else if (cleanBase64.startsWith("iVBORw0KGgo")) {
+    // PNG magic bytes
+    resolvedMimeType = "image/png";
+  } else if (cleanBase64.startsWith("UklGR")) {
+    // WEBP RIFF magic bytes
+    resolvedMimeType = "image/webp";
+  }
+
+  // Fallback if still generic octet-stream or empty
+  if (
+    !resolvedMimeType ||
+    resolvedMimeType === "application/octet-stream" ||
+    resolvedMimeType === "binary/octet-stream"
+  ) {
+    resolvedMimeType = cleanBase64.startsWith("JVBERi0")
+      ? "application/pdf"
+      : "image/jpeg";
+  }
+
+  // Supported MIME types check AFTER robust resolution
   const supportedMimeTypes = [
     "image/jpeg",
     "image/png",
     "image/webp",
     "application/pdf",
   ];
-  if (!supportedMimeTypes.includes(mimeType)) {
+  if (!supportedMimeTypes.includes(resolvedMimeType)) {
     return {
       success: false,
-      error: `Unsupported file format: ${mimeType}. Please upload a JPG, PNG, WEBP image or a PDF.`,
+      error: `Unsupported file format: ${mimeType || "unknown"}. Please upload a JPG, PNG, WEBP image or a PDF invoice.`,
     };
-  }
-
-  // Clean base64 header if present and resolve true mimeType from header if available
-  let resolvedMimeType = mimeType;
-  let cleanBase64 = base64Data;
-  if (base64Data.startsWith("data:")) {
-    const commaIndex = base64Data.indexOf(",");
-    if (commaIndex !== -1) {
-      const headerPart = base64Data.slice(0, commaIndex);
-      cleanBase64 = base64Data.slice(commaIndex + 1);
-      const mimeMatch = headerPart.match(/data:([^;]+);base64/);
-      if (mimeMatch && mimeMatch[1]) {
-        resolvedMimeType = mimeMatch[1].trim();
-      }
-    }
-  } else if (base64Data.includes("base64,")) {
-    cleanBase64 = base64Data.split("base64,")[1];
-  }
-
-  // Universal PDF magic byte detection: %PDF- in base64 is "JVBERi0"
-  if (cleanBase64.startsWith("JVBERi0")) {
-    resolvedMimeType = "application/pdf";
   }
 
   const categoriesContext = orgCategories && orgCategories.length > 0
@@ -472,7 +518,7 @@ Saved store categories and HSN reference:
 ${categoriesContext}
 
 CRITICAL RULES:
-1. Extract ALL line item rows from top to bottom accurately.
+1. Extract ALL line item rows from top to bottom accurately. Document may be portrait, landscape, or tilted; detect orientation and OCR all rows.
 2. unitPrice is the net unit purchase rate before tax.
 3. lineTotal is the final line total including tax if printed.
 4. Omit empty or null properties (do NOT output fields that are not present on the document).
@@ -487,13 +533,15 @@ CRITICAL RULES:
     // 1. Primary configured model (defaults to gemini-3.5-flash-lite)
     // 2. gemini-3.5-flash-lite (Fast 2-16s OCR, 100% operational, zero 503 errors on standard tier)
     // 3. gemini-3.8-flash (Google official modern replacement for retired 2.x models)
-    // 4. gemini-3.5-flash (Standard flash fallback)
-    // 5. gemini-2.5-flash (Legacy fallback)
+    // 4. gemini-3.6-flash (High Capability OCR)
+    // 5. gemini-3.7-flash (Next-Gen Flash OCR)
+    // 6. gemini-3.5-flash (Standard flash fallback)
     const stableModels = [
       "gemini-3.5-flash-lite",
       "gemini-3.8-flash",
+      "gemini-3.6-flash",
+      "gemini-3.7-flash",
       "gemini-3.5-flash",
-      "gemini-2.5-flash",
     ];
 
     const candidateFallbackModels = [

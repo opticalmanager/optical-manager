@@ -11,18 +11,28 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
  * Server Action: Test a Gemini API key and model connectivity.
+ * If apiKey is omitted or empty, tests the active organization's saved key.
  */
 export async function testGeminiApiKeyAction(
-  apiKey: string,
+  apiKey?: string,
   modelName: string = "gemini-3.5-flash-lite"
 ): Promise<{
   success: boolean;
   message: string;
   latencyMs?: number;
 }> {
-  const cleanKey = sanitizeGeminiApiKey(apiKey);
+  let cleanKey = sanitizeGeminiApiKey(apiKey);
+
   if (!cleanKey) {
-    return { success: false, message: "Please enter a valid Gemini API Key." };
+    const user = await getCurrentUser();
+    if (user?.organizationId) {
+      const config = await getOrganizationAiConfig(user.organizationId);
+      cleanKey = config.apiKey;
+    }
+  }
+
+  if (!cleanKey) {
+    return { success: false, message: "Please enter a valid Gemini API Key to test." };
   }
   const startTime = Date.now();
 
@@ -32,8 +42,9 @@ export async function testGeminiApiKeyAction(
       modelName,
       "gemini-3.5-flash-lite",
       "gemini-3.8-flash",
+      "gemini-3.6-flash",
+      "gemini-3.7-flash",
       "gemini-3.5-flash",
-      "gemini-2.5-flash",
     ].filter((m, i, arr) => Boolean(m) && !RETIRED_MODELS.includes(m) && arr.indexOf(m) === i);
 
     let lastError: any = null;
@@ -114,7 +125,7 @@ export async function getOrganizationAiStatusAction(): Promise<{
 }> {
   const user = await getCurrentUser();
   if (!user || !user.organizationId) {
-    return { isConfigured: false, model: "gemini-3.6-flash" };
+    return { isConfigured: false, model: "gemini-3.5-flash-lite" };
   }
 
   const config = await getOrganizationAiConfig(user.organizationId);
@@ -130,7 +141,7 @@ export async function getOrganizationAiStatusAction(): Promise<{
 
   return {
     isConfigured: config.isConfigured,
-    model: config.model,
+    model: config.model || "gemini-3.5-flash-lite",
     maskedKey,
   };
 }

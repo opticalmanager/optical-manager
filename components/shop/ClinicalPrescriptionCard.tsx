@@ -168,19 +168,19 @@ export function ClinicalPrescriptionCard({
 
   return (
     <div
-      className={`bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden transition-all duration-200 ${className}`}
+      className={`bg-white border border-slate-300 rounded-lg shadow-2xs overflow-hidden transition-all duration-200 ${className}`}
     >
       {/* 1. COMPACT CLINICAL HEADER */}
-      <div className="py-1.5 px-3 bg-slate-50/70 border-b border-slate-200/80 rounded-t-xl flex flex-wrap items-center justify-between gap-2">
+      <div className="py-1.5 px-3 bg-slate-50 border-b border-slate-300 rounded-t-lg flex flex-wrap items-center justify-between gap-2">
         {/* Left Title & Badge */}
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded bg-blue-50 border border-blue-100 flex items-center justify-center text-[#2563eb]">
+          <div className="w-5 h-5 rounded bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563eb]">
             <Eye className="w-3.5 h-3.5" />
           </div>
           <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
             SPECT(S) RX / CLINICAL PRESCRIPTION
           </h3>
-          <span className="bg-blue-50 text-[#2563eb] border border-blue-200/80 px-1.5 py-0.2 rounded text-[10px] font-bold tracking-tight shadow-2xs">
+          <span className="bg-blue-50 text-[#2563eb] border border-blue-300 px-1.5 py-0.2 rounded text-[10px] font-bold tracking-tight shadow-2xs">
             Rx #{rxDisplayNum}
           </span>
         </div>
@@ -196,7 +196,7 @@ export function ClinicalPrescriptionCard({
               <select
                 value={selectedPastRxId || ""}
                 onChange={(e) => onSelectPastRx && onSelectPastRx(e.target.value)}
-                className="h-6.5 pl-2 pr-6 rounded border border-blue-200 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs max-w-[200px] truncate"
+                className="h-6.5 pl-2 pr-6 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs max-w-[200px] truncate hover:border-slate-400"
                 title="Select historical prescription"
               >
                 {pastRxList.map((g, idx) => (
@@ -209,7 +209,7 @@ export function ClinicalPrescriptionCard({
               <ChevronDown className="absolute right-1.5 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
             </div>
             <span
-              className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0a52c3]"
+              className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0a52c3] border border-blue-200"
               title={`${pastRxList.length} past prescriptions recorded`}
             >
               {pastRxList.length}
@@ -228,7 +228,7 @@ export function ClinicalPrescriptionCard({
                   value={values.doctorName || ""}
                   onChange={(e) => updateField("doctorName", e.target.value)}
                   placeholder="Doctor name"
-                  className="h-6.5 pl-6 pr-2 rounded border border-slate-200 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-all"
+                  className="h-6.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-all hover:border-slate-400"
                 />
                 <Stethoscope className="absolute left-1.5 top-1.5 h-3 w-3 text-slate-400 pointer-events-none" />
               </div>
@@ -238,11 +238,11 @@ export function ClinicalPrescriptionCard({
       </div>
 
       {/* SUBHEADER: TABS ON LEFT | LENS TYPE, DATE, SAVE RX SHIFTED TO RIGHT */}
-      <div className="py-1 px-2.5 bg-slate-50/40 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-1.5">
+      <div className="py-1 px-2.5 bg-slate-50/60 border-b border-slate-300 flex flex-wrap items-center justify-between gap-1.5">
         {/* Left: Tab Pills & Quick Actions */}
         {!readOnly ? (
           <div className="flex items-center gap-1">
-            <div className="flex items-center bg-slate-100/90 p-0.5 rounded-md border border-slate-200/60 text-[10.5px] font-bold">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-300 text-[10.5px] font-bold">
               <button
                 type="button"
                 onClick={() => {
@@ -306,7 +306,7 @@ export function ClinicalPrescriptionCard({
             <button
               type="button"
               onClick={handleClear}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10.5px] font-bold text-[#2563eb] bg-white border border-blue-200/80 rounded hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10.5px] font-bold text-[#2563eb] bg-white border border-blue-300 rounded hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
               title="Clear / New Prescription Blank"
             >
               <Plus className="w-3 h-3" />
@@ -329,7 +329,7 @@ export function ClinicalPrescriptionCard({
                 <select
                   value={values.lensType || "Single Vision"}
                   onChange={(e) => updateField("lensType", e.target.value)}
-                  className="h-6.5 pl-2 pr-5 rounded border border-slate-200 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs"
+                  className="h-6.5 pl-2 pr-5 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs hover:border-slate-400"
                 >
                   {STANDARD_LENS_TYPES.map((type) => (
                     <option key={type} value={type}>
@@ -356,7 +356,7 @@ export function ClinicalPrescriptionCard({
                   value={values.prescribedAt || new Date().toISOString().split("T")[0]}
                   max={new Date().toISOString().split("T")[0]}
                   onChange={(e) => updateField("prescribedAt", e.target.value)}
-                  className="h-6.5 pl-5 pr-1 rounded border border-slate-200 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="h-6.5 pl-5 pr-1 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <Calendar className="absolute left-1 top-1.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
@@ -368,7 +368,7 @@ export function ClinicalPrescriptionCard({
             <button
               type="button"
               onClick={() => toast.success("Prescription template saved.")}
-              className="h-6.5 px-2 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[10.5px] font-bold text-slate-700 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+              className="h-6.5 px-2 rounded border border-slate-300 bg-white hover:bg-slate-50 text-[10.5px] font-bold text-slate-700 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer hover:border-slate-400"
               title="Save Rx"
             >
               <Download className="h-3 w-3 text-slate-500" />

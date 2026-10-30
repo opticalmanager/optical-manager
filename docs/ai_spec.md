@@ -54,10 +54,12 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
    - Uses the official `@google/generative-ai` SDK with multi-model fallback resilience:
      - `gemini-3.5-flash-lite` (Primary / Recommended: ultra-fast ~2-15s latency, 100% live uptime, zero 503 overload errors on standard tier)
      - `gemini-3.8-flash` (Google official modern replacement for retired 2.x models; high capability vision OCR)
+     - `gemini-3.6-flash` (High Capability OCR)
+     - `gemini-3.7-flash` (Next-Gen Flash OCR)
      - `gemini-3.5-flash` (Standard flash fallback)
-     - `gemini-2.5-flash` (Legacy fallback)
-   - Stale/retired models (`gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-1.0-pro`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`) are sanitized and auto-migrated to `gemini-3.5-flash-lite`.
-   - **Universal PDF Magic Byte Ingestion**: Detects base64 `%PDF-` (`JVBERi0`) headers automatically, ensuring PDF documents with missing or generic browser MIME types (`application/octet-stream`, `application/x-pdf`) are accurately routed to Gemini's native PDF OCR pipeline.
+   - Stale/retired models (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-1.0-pro`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`) are sanitized and auto-migrated to `gemini-3.5-flash-lite`.
+   - **Universal Pre-Validation MIME Normalization & Magic Byte Sniffing**: Cleans base64 headers, trims whitespace/newlines, and normalizes browser MIME variants (`image/jpg`, `image/pjpeg`, `application/x-pdf`, `applications/vnd.pdf`) before validation. Employs binary magic byte sniffing (`JVBERi0` for `%PDF-`, `/9j/` for JPEG, `iVBORw0KGgo` for PNG, `UklGR` for WEBP), guaranteeing successful processing even when browsers or mobile file pickers supply missing or generic `application/octet-stream` MIME types.
+   - **Orientation-Agnostic OCR**: Automatically detects rotated, portrait, landscape, or skewed document photos without requiring manual re-orientation.
    - **Adaptive Timeout Protection**: Employs a 60-second `Promise.race` timeout for multi-page/dense PDF invoices (preventing premature aborts on 30+ item wholesale bills) and 35 seconds for camera photos.
    - **Output Token Ceiling**: Configures `maxOutputTokens: 16384` to prevent JSON truncation mid-response on large invoice inventories.
    - **Transient 503 Spike Backoff**: Applies a 100ms delay retry upon encountering Google endpoint 503 high-demand surges before cascading to the next fallback candidate.
