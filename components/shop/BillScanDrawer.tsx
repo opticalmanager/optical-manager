@@ -22,7 +22,6 @@ import {
   FileUp,
 } from "lucide-react";
 import { toast } from "sonner";
-import { extractBillDataAction } from "@/actions/bill-scan.actions";
 import {
   getOrganizationAiStatusAction,
   updateOrganizationAiSettingsAction,
@@ -432,10 +431,29 @@ export function BillScanDrawer({
         // Canvas compression converts images to image/jpeg; PDFs remain application/pdf
         const mimeType = isPdf ? "application/pdf" : "image/jpeg";
 
-        // 2. Call server extraction action
-        const result = await extractBillDataAction(base64DataUrl, mimeType);
+        // 2. Call dedicated REST API route (isolated from Server Action bundling)
+        const response = await fetch("/api/ai/scan-bill", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            base64Data: base64DataUrl,
+            mimeType,
+          }),
+        });
 
-        if (!result.success || !result.data) {
+        let result: any = null;
+        try {
+          result = await response.json();
+        } catch {
+          result = {
+            success: false,
+            error: `Server responded with HTTP ${response.status} (${response.statusText || "Error"}).`,
+          };
+        }
+
+        if (!response.ok || !result.success || !result.data) {
           if (result.needsKeySetup) {
             setErrorMessage(result.error || "Please configure your Gemini API Key.");
             setStep("setup_key");
@@ -480,7 +498,7 @@ export function BillScanDrawer({
             ? {
                 ...f,
                 status: "error",
-                error: fileErr?.message || "Failed to process image.",
+                error: fileErr?.message || "Connection error. Please try again.",
               }
             : f
         );

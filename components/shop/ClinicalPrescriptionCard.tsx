@@ -174,6 +174,7 @@ export function ClinicalPrescriptionCard({
       <div className="py-1.5 px-3 bg-slate-50 border-b border-slate-300 rounded-t-lg flex flex-wrap items-center justify-between gap-2">
         {/* Left Title & Badge */}
         <div className="flex items-center gap-2">
+          <div className="w-1 h-4 rounded-full bg-[#2563eb] shrink-0" />
           <div className="w-5 h-5 rounded bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563eb]">
             <Eye className="w-3.5 h-3.5" />
           </div>
@@ -238,11 +239,11 @@ export function ClinicalPrescriptionCard({
       </div>
 
       {/* SUBHEADER: TABS ON LEFT | LENS TYPE, DATE, SAVE RX SHIFTED TO RIGHT */}
-      <div className="py-1 px-2.5 bg-slate-50/60 border-b border-slate-300 flex flex-wrap items-center justify-between gap-1.5">
+      <div className="py-1 px-2 bg-slate-50/70 border-b border-slate-300 flex items-center justify-between gap-1 min-w-0 overflow-hidden">
         {/* Left: Tab Pills & Quick Actions */}
         {!readOnly ? (
-          <div className="flex items-center gap-1">
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-300 text-[10.5px] font-bold">
+          <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded border border-slate-300 text-[10px] font-bold">
               <button
                 type="button"
                 onClick={() => {
@@ -250,13 +251,14 @@ export function ClinicalPrescriptionCard({
                   setRxCategory("SPECTACLES");
                   updateField("rxCategory", "SPECTACLES");
                 }}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                title="Spectacles Prescription"
+                className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "SPECTACLES"
                     ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Spect(s) Rx
+                Specs
               </button>
               <button
                 type="button"
@@ -265,13 +267,14 @@ export function ClinicalPrescriptionCard({
                   setRxCategory("CONTACT_LENS");
                   updateField("rxCategory", "CONTACT_LENS");
                 }}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                title="Contact Lens Prescription"
+                className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "CONTACT_LENS"
                     ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                CL Rx
+                CL
               </button>
               <button
                 type="button"
@@ -279,13 +282,14 @@ export function ClinicalPrescriptionCard({
                   setActiveTab("DISTANCE");
                   updateField("activeMode", "DISTANCE");
                 }}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                title="Distance Vision Mode"
+                className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "DISTANCE"
                     ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Distance
+                Dist
               </button>
               <button
                 type="button"
@@ -293,7 +297,8 @@ export function ClinicalPrescriptionCard({
                   setActiveTab("NEAR");
                   updateField("activeMode", "NEAR");
                 }}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                title="Near Vision Mode"
+                className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
                   activeTab === "NEAR"
                     ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
                     : "text-slate-600 hover:text-slate-900"
@@ -306,7 +311,7 @@ export function ClinicalPrescriptionCard({
             <button
               type="button"
               onClick={handleClear}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10.5px] font-bold text-[#2563eb] bg-white border border-blue-300 rounded hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold text-[#2563eb] bg-white border border-blue-300 rounded hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
               title="Clear / New Prescription Blank"
             >
               <Plus className="w-3 h-3" />
@@ -318,10 +323,10 @@ export function ClinicalPrescriptionCard({
         )}
 
         {/* Right: Lens Type + Prescription Date + Save Rx */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           {/* Lens Type */}
           <div className="flex items-center gap-1">
-            <span className="text-[10px] font-extrabold uppercase text-slate-400">Lens:</span>
+            <span className="text-[9.5px] font-extrabold uppercase text-slate-400 hidden sm:inline">Lens:</span>
             {readOnly ? (
               <span className="text-xs font-bold text-slate-800">{values.lensType || "Single Vision"}</span>
             ) : (
@@ -329,7 +334,7 @@ export function ClinicalPrescriptionCard({
                 <select
                   value={values.lensType || "Single Vision"}
                   onChange={(e) => updateField("lensType", e.target.value)}
-                  className="h-6.5 pl-2 pr-5 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs hover:border-slate-400"
+                  className="h-6 pl-1 pr-3.5 rounded border border-slate-300 bg-white text-[10px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs hover:border-slate-400 max-w-[85px] truncate"
                 >
                   {STANDARD_LENS_TYPES.map((type) => (
                     <option key={type} value={type}>
@@ -337,7 +342,7 @@ export function ClinicalPrescriptionCard({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-1 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-0.5 top-2 h-2.5 w-2.5 text-slate-400 pointer-events-none" />
               </div>
             )}
           </div>
@@ -356,9 +361,9 @@ export function ClinicalPrescriptionCard({
                   value={values.prescribedAt || new Date().toISOString().split("T")[0]}
                   max={new Date().toISOString().split("T")[0]}
                   onChange={(e) => updateField("prescribedAt", e.target.value)}
-                  className="h-6.5 pl-5 pr-1 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="h-6 pl-4 pr-1 rounded border border-slate-300 bg-white text-[10px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400 max-w-[90px]"
                 />
-                <Calendar className="absolute left-1 top-1.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <Calendar className="absolute left-1 top-1.5 h-3 w-3 text-slate-400 pointer-events-none" />
               </div>
             )}
           </div>
@@ -368,53 +373,53 @@ export function ClinicalPrescriptionCard({
             <button
               type="button"
               onClick={() => toast.success("Prescription template saved.")}
-              className="h-6.5 px-2 rounded border border-slate-300 bg-white hover:bg-slate-50 text-[10.5px] font-bold text-slate-700 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer hover:border-slate-400"
+              className="h-6 px-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-[10px] font-bold text-slate-700 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer hover:border-slate-400"
               title="Save Rx"
             >
               <Download className="h-3 w-3 text-slate-500" />
-              <span>Save Rx</span>
+              <span className="hidden sm:inline">Save</span>
             </button>
           )}
         </div>
       </div>
 
       {/* 2. HIGH-DENSITY INDUSTRIAL RX TABLE (NO HORIZONTAL SCROLL) */}
-      <div className="p-2 overflow-hidden">
-        <table className="w-full text-center border-collapse table-fixed">
+      <div className="px-2 pb-2 pt-1.5 overflow-hidden min-w-0">
+        <table className="w-full text-center border-collapse table-fixed border border-slate-200 rounded min-w-0">
           <colgroup>
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "12%" }} />
             <col style={{ width: "12%" }} />
             <col style={{ width: "13%" }} />
-            <col style={{ width: "12%" }} />
+            <col style={{ width: "12.5%" }} />
+            <col style={{ width: "12.5%" }} />
             <col style={{ width: "13%" }} />
+            <col style={{ width: "12.5%" }} />
+            <col style={{ width: "12.5%" }} />
             <col style={{ width: "12%" }} />
           </colgroup>
           <thead>
-            <tr className="border-b border-slate-200 text-[10px] font-extrabold uppercase text-slate-500 tracking-wider bg-slate-50/50">
-              <th className="py-1 px-0.5 text-center">EYE</th>
-              <th className="py-1 px-0.5">SPHL. (SPH)</th>
-              <th className="py-1 px-0.5">CYL. (CYL)</th>
-              <th className="py-1 px-0.5">AXIS (°)</th>
-              <th className="py-1 px-0.5 text-[#2563eb]">ADDN. (ADD)</th>
-              <th className="py-1 px-0.5">VISION (V/N)</th>
-              <th className="py-1 px-0.5">P.D. (MM)</th>
-              <th className="py-1 px-0.5">CADD</th>
+            <tr className="border-b border-slate-300 text-[10px] font-extrabold uppercase text-slate-500 tracking-wider bg-slate-100">
+              <th className="py-1 px-0.5 text-center min-w-0">EYE</th>
+              <th className="py-1 px-0.5 min-w-0" title="Sphere (Diopter)">SPH</th>
+              <th className="py-1 px-0.5 min-w-0" title="Cylinder (Diopter)">CYL</th>
+              <th className="py-1 px-0.5 min-w-0" title="Axis (0°-180°)">AXIS</th>
+              <th className="py-1 px-0.5 min-w-0 text-[#2563eb]" title="Addition (Diopter)">ADD</th>
+              <th className="py-1 px-0.5 min-w-0" title="Visual Acuity / Near Vision (V/N)">V/N</th>
+              <th className="py-1 px-0.5 min-w-0" title="Pupillary Distance (PD mm)">P.D.</th>
+              <th className="py-1 px-0.5 min-w-0" title="Intermediate Addition (CADD)">CADD</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-xs font-bold">
+          <tbody className="divide-y divide-slate-200 text-xs font-bold">
             {/* ROW 1: RIGHT EYE (OD) */}
             <tr className="hover:bg-slate-50/50 transition-colors">
               <td className="py-0.5 px-0.5 text-center">
-                <div className="flex items-center justify-center gap-1 bg-blue-50/70 border border-blue-200/80 rounded h-7 px-1">
+                <div className="flex items-center justify-center gap-1 bg-blue-50/70 border border-blue-200/80 rounded h-6.5 px-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb] shrink-0" />
                   <span className="font-black text-[#2563eb] text-xs">RE</span>
                   <span className="text-[9px] text-slate-400 font-bold hidden sm:inline">(OD)</span>
                 </div>
               </td>
               {/* SPH */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-bold text-slate-800">{values.rightSphere || "-"}</span>
                 ) : (
@@ -425,12 +430,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("rightSphere", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("rightSphere", e.target.value)}
                     placeholder="0.00"
-                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* CYL */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-bold text-slate-800">{values.rightCylinder || "-"}</span>
                 ) : (
@@ -441,12 +446,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("rightCylinder", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("rightCylinder", e.target.value)}
                     placeholder="0.00"
-                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* AXIS */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-bold text-slate-800">{values.rightAxis ? `${values.rightAxis}°` : "-"}</span>
                 ) : (
@@ -457,12 +462,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("rightAxis", e.target.value)}
                     onBlur={(e) => handleBlurAxis("rightAxis", e.target.value)}
                     placeholder="180"
-                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* ADDN (ADD) */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="inline-block px-1.5 py-0.5 bg-blue-50/80 text-[#2563eb] font-extrabold rounded border border-blue-200/60">
                     {values.rightAdd || "-"}
@@ -475,12 +480,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("rightAdd", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("rightAdd", e.target.value)}
                     placeholder="+2.00"
-                    className="w-full h-7 text-center font-extrabold text-xs text-[#2563eb] bg-blue-50/60 border border-blue-200/90 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-blue-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-extrabold text-xs text-[#2563eb] bg-blue-50/60 border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-blue-300"
                   />
                 )}
               </td>
               {/* VISION (V/N) */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-semibold text-slate-700">{values.rightNv || "-"}</span>
                 ) : (
@@ -490,12 +495,12 @@ export function ClinicalPrescriptionCard({
                     value={values.rightNv || ""}
                     onChange={(e) => updateField("rightNv", e.target.value)}
                     placeholder="6/6"
-                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* P.D. (MM) */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-semibold text-slate-700">{values.pdRight ? `${values.pdRight}` : "-"}</span>
                 ) : (
@@ -505,12 +510,12 @@ export function ClinicalPrescriptionCard({
                     value={values.pdRight || ""}
                     onChange={(e) => updateField("pdRight", e.target.value)}
                     placeholder="31.5"
-                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* CADD */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="text-slate-400 font-medium">{values.caddRight || "-"}</span>
                 ) : (
@@ -520,7 +525,7 @@ export function ClinicalPrescriptionCard({
                     value={values.caddRight || ""}
                     onChange={(e) => updateField("caddRight", e.target.value)}
                     placeholder="-"
-                    className="w-full h-7 text-center text-xs text-slate-600 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center text-xs text-slate-600 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
@@ -529,14 +534,14 @@ export function ClinicalPrescriptionCard({
             {/* ROW 2: LEFT EYE (OS) */}
             <tr className="hover:bg-slate-50/50 transition-colors">
               <td className="py-0.5 px-0.5 text-center">
-                <div className="flex items-center justify-center gap-1 bg-emerald-50/70 border border-emerald-200/80 rounded h-7 px-1">
+                <div className="flex items-center justify-center gap-1 bg-emerald-50/70 border border-emerald-200/80 rounded h-6.5 px-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
                   <span className="font-black text-emerald-700 text-xs">LE</span>
                   <span className="text-[9px] text-slate-400 font-bold hidden sm:inline">(OS)</span>
                 </div>
               </td>
               {/* SPH */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-bold text-slate-800">{values.leftSphere || "-"}</span>
                 ) : (
@@ -547,12 +552,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("leftSphere", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("leftSphere", e.target.value)}
                     placeholder="0.00"
-                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* CYL */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-bold text-slate-800">{values.leftCylinder || "-"}</span>
                 ) : (
@@ -563,12 +568,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("leftCylinder", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("leftCylinder", e.target.value)}
                     placeholder="0.00"
-                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* AXIS */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-bold text-slate-800">{values.leftAxis ? `${values.leftAxis}°` : "-"}</span>
                 ) : (
@@ -579,12 +584,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("leftAxis", e.target.value)}
                     onBlur={(e) => handleBlurAxis("leftAxis", e.target.value)}
                     placeholder="180"
-                    className="w-full h-7 text-center font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* ADDN (ADD) */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="inline-block px-1.5 py-0.5 bg-blue-50/80 text-[#2563eb] font-extrabold rounded border border-blue-200/60">
                     {values.leftAdd || "-"}
@@ -597,12 +602,12 @@ export function ClinicalPrescriptionCard({
                     onChange={(e) => updateField("leftAdd", e.target.value)}
                     onBlur={(e) => handleBlurDiopter("leftAdd", e.target.value)}
                     placeholder="+2.00"
-                    className="w-full h-7 text-center font-extrabold text-xs text-[#2563eb] bg-blue-50/60 border border-blue-200/90 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-blue-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-extrabold text-xs text-[#2563eb] bg-blue-50/60 border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-blue-300"
                   />
                 )}
               </td>
               {/* VISION (V/N) */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-semibold text-slate-700">{values.leftNv || "-"}</span>
                 ) : (
@@ -612,12 +617,12 @@ export function ClinicalPrescriptionCard({
                     value={values.leftNv || ""}
                     onChange={(e) => updateField("leftNv", e.target.value)}
                     placeholder="6/6"
-                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* P.D. (MM) */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="font-semibold text-slate-700">{values.pdLeft ? `${values.pdLeft}` : "-"}</span>
                 ) : (
@@ -627,12 +632,12 @@ export function ClinicalPrescriptionCard({
                     value={values.pdLeft || ""}
                     onChange={(e) => updateField("pdLeft", e.target.value)}
                     placeholder="31.5"
-                    className="w-full h-7 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center font-semibold text-xs text-slate-700 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>
               {/* CADD */}
-              <td className="py-0.5 px-0.5">
+              <td className="py-0.5 px-0.5 min-w-0">
                 {readOnly ? (
                   <span className="text-slate-400 font-medium">{values.caddLeft || "-"}</span>
                 ) : (
@@ -642,7 +647,7 @@ export function ClinicalPrescriptionCard({
                     value={values.caddLeft || ""}
                     onChange={(e) => updateField("caddLeft", e.target.value)}
                     placeholder="-"
-                    className="w-full h-7 text-center text-xs text-slate-600 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
+                    className="w-full min-w-0 px-0.5 h-6.5 text-center text-xs text-slate-600 bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs placeholder:text-slate-300"
                   />
                 )}
               </td>

@@ -2291,118 +2291,116 @@ export function NewInvoiceForm() {
     <form
       onSubmit={handleSubmitInvoice}
       onKeyDown={(e) => handleEnterKeyNavigation(e)}
-      className="max-w-[1440px] mx-auto space-y-2 pb-6 select-none animate-fade-in text-slate-800"
+      className="max-w-[1440px] mx-auto space-y-2.5 pb-6 select-none animate-fade-in text-slate-800"
     >
-      {/* Compact Top Header Row — Title + Registration ID + Invoice Date & Time + Referred By */}
-      <div className="bg-white border border-slate-300 rounded-lg shadow-2xs px-3 py-2 flex flex-wrap items-end gap-2.5">
-        {/* Title */}
-        <div className="flex items-center gap-2 shrink-0 pb-0.5">
+      {/* Compact Top Header Row — Single Streamlined Industrial Strip */}
+      <div className="bg-white border border-slate-300 rounded-lg shadow-2xs px-3 py-1.5 flex flex-wrap md:flex-nowrap items-center justify-between gap-2.5">
+        {/* Left: Title with blue accent pill */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-1 h-4 rounded-full bg-[#2563eb] shrink-0" />
           <ReceiptText className="h-4 w-4 text-[#2563eb]" />
-          <span className="text-sm font-black text-slate-900 tracking-tight">New Invoice</span>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">/ Invoicing</span>
+          <span className="text-xs font-black text-slate-900 tracking-tight">New Invoice</span>
+          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">/ Invoicing</span>
         </div>
 
-        {/* REGISTRATION ID */}
-        <div className="min-w-[120px]">
-          <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-            REGISTRATION ID
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              value={regId}
-              readOnly
-              className="w-full h-8 pl-2.5 pr-7 rounded-md border border-slate-300 bg-slate-50/80 text-xs font-bold text-slate-700 focus:outline-none select-all hover:border-slate-400 transition-colors"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(regId);
-                toast.success("Registration ID copied!");
-              }}
-              className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
-              title="Copy ID"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
+        {/* Right / Inline Fields Strip */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto justify-end">
+          {/* REGISTRATION ID */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider hidden xl:inline">Reg ID:</span>
+            <div className="relative">
+              <input
+                type="text"
+                value={regId}
+                readOnly
+                title="Registration ID"
+                className="w-32 h-7 pl-2 pr-6 rounded border border-slate-300 bg-slate-50/80 text-[11px] font-bold text-slate-700 focus:outline-none select-all hover:border-slate-400 transition-colors shadow-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(regId);
+                  toast.success("Registration ID copied!");
+                }}
+                className="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Copy ID"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* INVOICE DATE & TIME */}
-        <div className="flex-1 min-w-[210px]">
-          <div className="flex items-center justify-between mb-0.5">
-            <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
-              INVOICE DATE &amp; TIME
-            </label>
+          {/* INVOICE DATE & TIME */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider hidden xl:inline">Date:</span>
+            <div className="relative">
+              <input
+                type="datetime-local"
+                value={invoiceDateTime}
+                onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
+                title="Invoice Date & Time"
+                className={`w-44 h-7 pl-6 ${isCustomDate ? "pr-10" : "pr-2"} rounded border text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 transition-all shadow-2xs hover:border-slate-400 ${
+                  isFutureDate
+                    ? "border-amber-300 bg-amber-50/20 focus:ring-amber-500/20 focus:border-amber-500"
+                    : "border-slate-300 bg-white focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
+                }`}
+              />
+              <Calendar className="absolute left-1.5 top-1.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              {isCustomDate && (
+                <button
+                  type="button"
+                  onClick={handleResetDateTimeToNow}
+                  title="Reset to current time"
+                  className="absolute right-1 top-1 h-5 px-1 text-[9px] font-extrabold text-[#2563eb] bg-blue-50 hover:bg-blue-100 rounded transition-colors cursor-pointer"
+                >
+                  Now
+                </button>
+              )}
+            </div>
             {isFutureDate && (
-              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                Future Booking
+              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 shrink-0">
+                Future
               </span>
             )}
             {isBackdated && !isFutureDate && (
-              <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+              <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-200 shrink-0">
                 Backdated
               </span>
             )}
           </div>
-          <div className="relative">
-            <input
-              type="datetime-local"
-              value={invoiceDateTime}
-              onChange={(e) => handleInvoiceDateTimeChange(e.target.value)}
-              className={`w-full h-8 pl-7 ${isCustomDate ? "pr-14" : "pr-2.5"} rounded-md border text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 transition-all shadow-2xs hover:border-slate-400 ${
-                isFutureDate
-                  ? "border-amber-300 bg-amber-50/20 focus:ring-amber-500/20 focus:border-amber-500"
-                  : "border-slate-300 bg-white focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
-              }`}
-            />
-            <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            {isCustomDate && (
-              <button
-                type="button"
-                onClick={handleResetDateTimeToNow}
-                title="Reset to current time"
-                className="absolute right-1 top-1 h-6 px-1.5 text-[10px] font-extrabold text-[#2563eb] bg-blue-50 hover:bg-blue-100 rounded transition-colors cursor-pointer"
-              >
-                Now
-              </button>
-            )}
-          </div>
-        </div>
 
-        {/* REFERRED BY */}
-        <div className="min-w-[150px] flex-1">
-          <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-            REFERRED BY
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              list="referred-by-suggestions"
-              placeholder="Dr. Amit Gupta"
-              value={referredBy}
-              onChange={(e) => setReferredBy(e.target.value)}
-              className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
-            />
-            <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            <datalist id="referred-by-suggestions">
-              {referredBySuggestions.map((ref, idx) => (
-                <option key={idx} value={ref} />
-              ))}
-            </datalist>
+          {/* REFERRED BY */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider hidden xl:inline">Ref:</span>
+            <div className="relative">
+              <input
+                type="text"
+                list="referred-by-suggestions"
+                placeholder="Referred By..."
+                value={referredBy}
+                onChange={(e) => setReferredBy(e.target.value)}
+                className="w-36 h-7 pl-6 pr-2 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+              />
+              <User className="absolute left-1.5 top-1.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <datalist id="referred-by-suggestions">
+                {referredBySuggestions.map((ref, idx) => (
+                  <option key={idx} value={ref} />
+                ))}
+              </datalist>
+            </div>
           </div>
-        </div>
 
-        {/* Clear Form */}
-        <button
-          type="button"
-          onClick={handleClearForm}
-          className="h-8 px-2.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-[11px] font-bold text-slate-700 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer self-end"
-          title="Reset all form fields"
-        >
-          <RotateCcw className="h-3 w-3 text-slate-400" />
-          <span>Clear Form</span>
-        </button>
+          {/* Clear Form */}
+          <button
+            type="button"
+            onClick={handleClearForm}
+            className="h-7 px-2 rounded border border-rose-200 bg-rose-50/50 hover:bg-rose-50 hover:border-rose-300 text-[10.5px] font-bold text-rose-600 shadow-2xs flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+            title="Reset all form fields"
+          >
+            <RotateCcw className="h-3 w-3 text-rose-400" />
+            <span>Clear</span>
+          </button>
+        </div>
       </div>
 
       {/* OFFLINE STATUS NOTICE BANNER */}
@@ -2424,12 +2422,13 @@ export function NewInvoiceForm() {
       )}
 
       {/* ── 2-COLUMN LAYOUT: Customer Details (left) | Clinical Prescription (right) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start min-w-0">
 
       {/* SECTION 1: CUSTOMER & INVOICE DETAILS */}
-      <div className="bg-white border border-slate-300 rounded-lg shadow-2xs overflow-hidden">
+      <div className="bg-white border border-slate-300 rounded-lg shadow-2xs overflow-hidden min-w-0">
         <div className="py-1.5 px-3.5 bg-slate-50 border-b border-slate-300 rounded-t-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <div className="w-1 h-4 rounded-full bg-[#2563eb] shrink-0" />
             <UserCheck className="h-3.5 w-3.5 text-[#2563eb]" />
             <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
               CUSTOMER & INVOICE DETAILS
@@ -2464,12 +2463,11 @@ export function NewInvoiceForm() {
           </div>
         </div>
 
-        <div className="p-2.5 space-y-2">
-          {/* Row 1: FULL NAME, MOBILE NUMBER */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="p-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
             {/* FULL NAME */}
-            <div className="patient-autocomplete-wrapper relative">
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            <div className="patient-autocomplete-wrapper relative sm:col-span-4">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 FULL NAME <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
@@ -2485,9 +2483,9 @@ export function NewInvoiceForm() {
                     }
                   }}
                   onKeyDown={handleSuggestKeyDown}
-                  className="w-full h-8 pl-7 pr-7 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
-                <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <User className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 {isSearchingPatient && activeSuggestField === "name" && (
                   <Loader2 className="absolute right-2 top-2 h-3.5 w-3.5 text-[#2563eb] animate-spin pointer-events-none" />
                 )}
@@ -2496,8 +2494,8 @@ export function NewInvoiceForm() {
             </div>
 
             {/* MOBILE NUMBER */}
-            <div className="patient-autocomplete-wrapper relative">
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            <div className="patient-autocomplete-wrapper relative sm:col-span-2">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 MOBILE NUMBER <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
@@ -2515,22 +2513,19 @@ export function NewInvoiceForm() {
                     }
                   }}
                   onKeyDown={handleSuggestKeyDown}
-                  className="w-full h-8 pl-7 pr-7 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs font-mono hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs font-mono hover:border-slate-400"
                 />
-                <Phone className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <Phone className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 {isSearchingPatient && activeSuggestField === "phone" && (
                   <Loader2 className="absolute right-2 top-2 h-3.5 w-3.5 text-[#2563eb] animate-spin pointer-events-none" />
                 )}
               </div>
               {renderPatientSuggestionDropdown("phone")}
             </div>
-          </div>
 
-          {/* Row 2: DATE OF BIRTH, EMAIL, GSTIN */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {/* DATE OF BIRTH */}
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            <div className="sm:col-span-2">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 DATE OF BIRTH
               </label>
               <div className="relative">
@@ -2538,15 +2533,15 @@ export function NewInvoiceForm() {
                   type="date"
                   value={dob}
                   onChange={(e) => handleDobChange(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
-                <Calendar className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <Calendar className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
             {/* EMAIL */}
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            <div className="sm:col-span-2">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 EMAIL
               </label>
               <div className="relative">
@@ -2555,15 +2550,15 @@ export function NewInvoiceForm() {
                   placeholder="rahul@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
-                <Mail className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <Mail className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
             {/* GST NUMBER (GSTIN) */}
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            <div className="sm:col-span-2">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 GST NUMBER (GSTIN)
               </label>
               <div className="relative">
@@ -2580,17 +2575,15 @@ export function NewInvoiceForm() {
                       setState(detectedState);
                     }
                   }}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
-                <Building className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <Building className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
-          </div>
 
-          {/* Row 3: FULL ADDRESS, STATE, PIN CODE */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            {/* FULL ADDRESS */}
+            <div className="sm:col-span-3">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 FULL ADDRESS
               </label>
               <div className="relative">
@@ -2599,21 +2592,22 @@ export function NewInvoiceForm() {
                   placeholder="742 Evergreen Terrace, Sector 14"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
-                <MapPin className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <MapPin className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            {/* STATE */}
+            <div className="sm:col-span-2">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 STATE
               </label>
               <div className="relative">
                 <select
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  className="w-full h-8 pl-2.5 pr-7 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-2 pr-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] appearance-none cursor-pointer transition-all shadow-2xs hover:border-slate-400"
                 >
                   <option value="">Select State</option>
                   {INDIAN_STATES.map((st) => (
@@ -2622,12 +2616,13 @@ export function NewInvoiceForm() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+            {/* PIN CODE */}
+            <div className="sm:col-span-1">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 PIN CODE
               </label>
               <div className="relative">
@@ -2637,9 +2632,9 @@ export function NewInvoiceForm() {
                   placeholder="122001"
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-5 pr-1 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
-                <MapPin className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <MapPin className="absolute left-1 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
               </div>
             </div>
           </div>
@@ -2647,7 +2642,7 @@ export function NewInvoiceForm() {
       </div>
 
       {/* RIGHT COLUMN: CLINICAL PRESCRIPTION */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 min-w-0">
 
       {/* SECTION 2: SPECT(S) RX / CLINICAL PRESCRIPTION */}
       <ClinicalPrescriptionCard
@@ -2731,9 +2726,10 @@ export function NewInvoiceForm() {
       </div>
 
       {/* SECTION 3: PRODUCT SELECTION */}
-      <div className="bg-white border border-slate-300 rounded-xl shadow-2xs overflow-hidden">
-        <div className="py-2.5 px-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white border border-slate-300 rounded-lg shadow-2xs overflow-hidden">
+        <div className="py-1.5 px-3 bg-slate-50 border-b border-slate-300 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
+            <div className="w-1 h-4 rounded-full bg-[#2563eb] shrink-0" />
             <ShoppingCart className="h-4 w-4 text-[#2563eb]" />
             <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
               PRODUCT SELECTION
@@ -2780,7 +2776,7 @@ export function NewInvoiceForm() {
                 <col style={{ width: '3%' }} />
               </colgroup>
               <thead>
-                <tr className="bg-slate-800 text-slate-100 text-[10px] font-bold uppercase tracking-wider border-b-2 border-slate-900">
+                <tr className="bg-slate-800 text-slate-100 text-[9.5px] font-bold uppercase tracking-wider border-b-2 border-slate-900">
                   <th className="py-2 px-1.5 border-r border-slate-700">Product</th>
                   <th className="py-2 px-1 border-r border-slate-700">Category</th>
                   <th className="py-2 px-1 border-r border-slate-700">Description</th>
@@ -2805,7 +2801,7 @@ export function NewInvoiceForm() {
                     >
                       {/* 1. Product Search */}
                       <td className="border-r border-b border-slate-200 bg-white p-0 relative product-autocomplete-cell transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb] overflow-hidden">
-                        <div className="relative flex flex-col justify-center min-h-[40px] px-1.5 py-1">
+                        <div className="relative flex flex-col justify-center min-h-[32px] px-1 py-0.5">
                           <div className="flex items-center">
                             <input
                               type="text"
@@ -2915,7 +2911,7 @@ export function NewInvoiceForm() {
 
                       {/* 4. Quantity */}
                       <td className="border-r border-b border-slate-200 bg-white p-0 relative transition-colors focus-within:bg-blue-50/40 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#2563eb]">
-                        <div className="flex items-center justify-center min-h-[40px] px-0.5">
+                        <div className="flex items-center justify-center min-h-[32px] px-0.5">
                           <input
                             type="number"
                             inputMode="numeric"
@@ -3166,18 +3162,18 @@ export function NewInvoiceForm() {
           </div>
 
           {/* Table Footer Actions */}
-          <div className="p-2.5 bg-slate-50/60 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="py-1.5 px-3 bg-slate-50/70 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <button
               type="button"
               onClick={handleAddRow}
-              className="px-3 py-1.5 border border-dashed border-slate-300 hover:border-[#2563eb]/60 hover:bg-blue-50/40 text-xs font-bold text-slate-600 hover:text-[#2563eb] rounded-lg transition-all cursor-pointer flex items-center gap-1.5 self-start"
+              className="h-7 px-2.5 border border-dashed border-slate-300 hover:border-[#2563eb]/60 hover:bg-blue-50/40 text-xs font-bold text-slate-600 hover:text-[#2563eb] rounded-md transition-all cursor-pointer flex items-center gap-1.5 self-start"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add another item</span>
             </button>
 
             {/* Quick Barcode Scanner Input */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 focus-within:ring-2 focus-within:ring-[#2563eb]/20 focus-within:border-[#2563eb] focus-within:bg-white transition-all w-full sm:w-64">
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-2 py-0.5 focus-within:ring-1 focus-within:ring-[#2563eb] focus-within:border-[#2563eb] transition-all w-full sm:w-64 h-7">
               <Barcode className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <input
                 type="text"
@@ -3254,13 +3250,13 @@ export function NewInvoiceForm() {
       {/* SECTION 4: PAYMENT & INVOICE SUMMARY */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
         {/* Left: Payment Method, Payment Mode, Details & Remarks */}
-        <div className="lg:col-span-8 bg-white border border-slate-200/80 rounded-xl shadow-xs p-3 space-y-2.5">
-          {/* 1. Select Payment Method */}
-          <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
-              1. Select Payment Method
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="lg:col-span-8 bg-white border border-slate-300 rounded-lg shadow-2xs p-3 space-y-2.5">
+          {/* Combined Step 1 (Payment Method) & Step 2 (Payment Mode) */}
+          <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
+            {/* 1. Payment Method Pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#2563eb] text-white text-[9px] font-black shrink-0">1</span>
+              <span className="text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mr-1">Method:</span>
               {[
                 { id: "CASH", label: "Cash", icon: DollarSign },
                 { id: "CARD", label: "Card", icon: CreditCard },
@@ -3274,61 +3270,47 @@ export function NewInvoiceForm() {
                     key={method.id}
                     type="button"
                     onClick={() => setPaymentMethod(method.id as any)}
-                    className={`p-2 rounded-lg border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                    className={`h-7 px-2.5 rounded border flex items-center gap-1 transition-all cursor-pointer text-xs ${
                       active
-                        ? "border-[#2563eb] bg-blue-50/50 text-[#2563eb] font-bold shadow-xs ring-1 ring-[#2563eb]/20"
+                        ? "border-[#2563eb] bg-blue-50/70 text-[#2563eb] font-bold shadow-2xs ring-1 ring-[#2563eb]/20"
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-semibold"
                     }`}
                   >
-                    <IconComponent className={`h-3.5 w-3.5 ${active ? "text-[#2563eb]" : "text-slate-400"}`} />
-                    <span className="text-[11px]">{method.label}</span>
+                    <IconComponent className={`h-3 w-3 ${active ? "text-[#2563eb]" : "text-slate-400"}`} />
+                    <span>{method.label}</span>
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* 2. Payment Mode */}
-          <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
-              2. Payment Mode
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label
-                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
-                  paymentType === "FULL"
-                    ? "border-[#2563eb] bg-blue-50/40 text-[#2563eb] font-bold shadow-xs ring-1 ring-[#2563eb]/20"
-                    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="paymentType"
-                  value="FULL"
-                  checked={paymentType === "FULL"}
-                  onChange={() => setPaymentType("FULL")}
-                  className="text-[#2563eb] focus:ring-[#2563eb]"
-                />
-                <span className="text-xs font-bold">Full Payment</span>
-              </label>
-
-              <label
-                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
-                  paymentType === "PARTIAL"
-                    ? "border-[#2563eb] bg-blue-50/40 text-[#2563eb] font-bold shadow-xs ring-1 ring-[#2563eb]/20"
-                    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="paymentType"
-                  value="PARTIAL"
-                  checked={paymentType === "PARTIAL"}
-                  onChange={() => setPaymentType("PARTIAL")}
-                  className="text-[#2563eb] focus:ring-[#2563eb]"
-                />
-                <span className="text-xs font-bold">Partial Payment</span>
-              </label>
+            {/* 2. Payment Mode Segmented Control */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#2563eb] text-white text-[9px] font-black shrink-0">2</span>
+              <span className="text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mr-1">Mode:</span>
+              <div className="flex items-center bg-slate-100 p-0.5 rounded border border-slate-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setPaymentType("FULL")}
+                  className={`h-6 px-2.5 rounded transition-all cursor-pointer text-xs ${
+                    paymentType === "FULL"
+                      ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Full Payment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentType("PARTIAL")}
+                  className={`h-6 px-2.5 rounded transition-all cursor-pointer text-xs ${
+                    paymentType === "PARTIAL"
+                      ? "bg-[#2563eb] text-white shadow-2xs font-extrabold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Partial Payment
+                </button>
+              </div>
             </div>
           </div>
 
@@ -3349,7 +3331,7 @@ export function NewInvoiceForm() {
                   value={paymentType === "FULL" ? netPayable.toFixed(2) : amountPaidOverride}
                   onChange={(e) => setAmountPaidOverride(e.target.value)}
                   disabled={paymentType === "FULL"}
-                  className={`w-full h-8 pl-6 pr-2.5 rounded-lg border text-xs font-bold transition-all shadow-2xs ${
+                  className={`w-full h-7.5 pl-6 pr-2 rounded border text-xs font-bold transition-all shadow-2xs ${
                     paymentType === "FULL"
                       ? "bg-slate-50/70 border-slate-200 text-slate-700 font-extrabold"
                       : "bg-white border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb]"
@@ -3364,7 +3346,7 @@ export function NewInvoiceForm() {
                 BALANCE DUE
               </label>
               <div
-                className={`w-full h-8 px-2.5 rounded-lg border flex items-center justify-between text-xs font-black shadow-2xs ${
+                className={`w-full h-7.5 px-2 rounded border flex items-center justify-between text-xs font-black shadow-2xs ${
                   finalBalanceDue > 0
                     ? "bg-rose-50 border-rose-200 text-rose-600"
                     : "bg-slate-50/70 border-slate-200 text-slate-700"
@@ -3387,7 +3369,7 @@ export function NewInvoiceForm() {
                   placeholder="Staff Name"
                   value={soldBy}
                   onChange={(e) => setSoldBy(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
+                  className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs"
                 />
                 <User className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 <datalist id="staff-suggestions">
@@ -3463,7 +3445,7 @@ export function NewInvoiceForm() {
                       deliveryDateInputRef.current?.focus();
                     }
                   }}
-                  className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs cursor-pointer"
+                  className="w-full h-7.5 pl-6 pr-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs cursor-pointer"
                 />
                 <button
                   type="button"
@@ -3527,19 +3509,20 @@ export function NewInvoiceForm() {
               INVOICE NOTES & REMARKS
             </label>
             <textarea
-              rows={2}
+              rows={1}
               placeholder="e.g. Anti-reflective coating requested. Call customer when frame arrives from lab."
               value={invoiceNotes}
               onChange={(e) => setInvoiceNotes(e.target.value)}
-              className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 focus:border-[#2563eb] transition-all shadow-2xs resize-none"
+              className="w-full p-1.5 rounded border border-slate-300 bg-white text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs resize-none min-h-[30px] focus:min-h-[46px]"
             />
           </div>
         </div>
 
         {/* Right: Line Items Summary Card */}
-        <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-xl shadow-xs p-3 flex flex-col justify-between space-y-3">
+        <div className="lg:col-span-4 bg-white border border-slate-300 rounded-lg shadow-2xs p-3 flex flex-col justify-between space-y-3">
           <div>
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+              <div className="w-1 h-4 rounded-full bg-[#2563eb] shrink-0" />
               <ReceiptText className="h-3.5 w-3.5 text-[#2563eb]" />
               <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
                 LINE ITEMS SUMMARY
@@ -3628,7 +3611,7 @@ export function NewInvoiceForm() {
               type="button"
               variant="outline"
               onClick={handleSaveDraft}
-              className="w-1/3 h-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer text-xs transition-all"
+              className="w-1/3 h-9 border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer text-xs transition-all"
             >
               <Save className="h-3.5 w-3.5 text-slate-500" />
               <span>Save Draft</span>
@@ -3637,7 +3620,7 @@ export function NewInvoiceForm() {
             <Button
               type="submit"
               disabled={isPending}
-              className="w-2/3 h-10 bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-[0.99] text-xs"
+              className="w-2/3 h-9 bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-[0.99] text-xs"
             >
               {isPending ? (
                 <>
