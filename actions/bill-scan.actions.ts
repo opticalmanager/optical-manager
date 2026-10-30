@@ -376,13 +376,14 @@ export async function extractBillDataAction(
   base64Data: string,
   mimeType: string
 ): Promise<BillExtractionResult> {
-  const user = await getCurrentUser();
-  if (!user || !user.organizationId) {
-    return {
-      success: false,
-      error: "Authentication required. Please log in.",
-    };
-  }
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return {
+        success: false,
+        error: "Authentication required. Please log in.",
+      };
+    }
 
   // 1. Get organization AI configuration & categories from database
   const [aiConfig, orgCategories] = await Promise.all([
@@ -524,8 +525,7 @@ CRITICAL RULES:
 4. Omit empty or null properties (do NOT output fields that are not present on the document).
 5. Strictly ZERO hallucination. Return valid JSON only.`;
 
-  try {
-    const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
+  const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
 
     const rawPrimary = resolveGeminiModel(aiConfig.model);
 
@@ -597,7 +597,7 @@ CRITICAL RULES:
 
         // If the error is an invalid API key, no other model will work with this key
         if (errMsg.includes("API key not valid") || errMsg.includes("API_KEY_INVALID")) {
-          throw err;
+          break;
         }
 
         // On 503 high demand spikes, add a brief 100ms delay before advancing to the next model
