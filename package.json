@@ -11,7 +11,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "audit:selectors": "node scripts/lint-fragile-selectors.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
