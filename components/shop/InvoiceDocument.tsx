@@ -195,7 +195,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
           dangerouslySetInnerHTML={{
             __html: `
               @media print {
-                /* Hide layout sidebar, topbar, and controls completely */
+                /* Hide layout sidebar, topbar, buttons, and navigation controls completely */
                 aside, 
                 header, 
                 nav, 
@@ -203,46 +203,63 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                 .w-64,
                 div.w-64,
                 .print\\:hidden,
+                [data-sidebar],
+                [data-topbar],
                 [role="navigation"],
                 [role="banner"],
                 [data-sonner-toaster],
                 [data-sonner-toast],
                 .toaster,
                 div[aria-live="polite"],
-                div[aria-live="assertive"],
-                .flex.h-screen.overflow-hidden > div:first-child {
+                div[aria-live="assertive"] {
                   display: none !important;
                   width: 0 !important;
                   height: 0 !important;
                   overflow: hidden !important;
                   opacity: 0 !important;
                   visibility: hidden !important;
+                  pointer-events: none !important;
                 }
 
-                /* Reset layout container system for full-bleed print flow */
-                .flex.h-screen.overflow-hidden {
-                  display: block !important;
+                /* Reset all ancestor and shell layout containers to unconstrained flow */
+                html,
+                body {
+                  width: 210mm !important;
+                  min-width: 210mm !important;
                   height: auto !important;
-                  width: 100% !important;
+                  min-height: auto !important;
+                  max-height: none !important;
                   overflow: visible !important;
+                  position: static !important;
                   background: white !important;
+                  background-color: white !important;
+                  padding: 0 !important;
+                  margin: 0 auto !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
                 }
 
-                .flex.flex-1.flex-col.overflow-hidden {
+                .flex.h-screen.overflow-hidden,
+                .flex-col.h-screen,
+                div[class*="h-screen"],
+                div[class*="overflow-hidden"],
+                div[class*="overflow-y-auto"],
+                div[class*="overflow-x-auto"],
+                main,
+                #root,
+                #__next {
                   display: block !important;
                   height: auto !important;
+                  min-height: auto !important;
+                  max-height: none !important;
                   width: 100% !important;
                   overflow: visible !important;
-                }
-
-                main.flex-1.overflow-y-auto {
-                  display: block !important;
-                  height: auto !important;
-                  width: 100% !important;
-                  overflow: visible !important;
+                  position: static !important;
+                  background: white !important;
                   padding: 0 !important;
                   margin: 0 !important;
-                  background: white !important;
+                  border: none !important;
+                  box-shadow: none !important;
                 }
 
                 /* Set up strict A4 page boundaries */
@@ -251,27 +268,36 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
                   margin: 0;
                 }
 
-                body {
-                  width: 210mm;
-                  background-color: white !important;
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
+                #invoice-print-area {
+                  display: block !important;
+                  visibility: visible !important;
+                  width: 210mm !important;
+                  max-width: 210mm !important;
+                  margin: 0 auto !important;
+                  padding: 0 !important;
+                  overflow: visible !important;
+                  position: relative !important;
+                  background: white !important;
                 }
 
                 .print-page {
-                  width: 210mm;
-                  height: 297mm;
-                  max-height: 297mm;
-                  page-break-before: avoid;
-                  page-break-after: avoid;
-                  page-break-inside: avoid;
-                  break-before: avoid;
-                  break-after: avoid;
-                  break-inside: avoid;
-                  position: relative;
-                  box-sizing: border-box;
+                  width: 210mm !important;
+                  max-width: 210mm !important;
+                  height: 297mm !important;
+                  min-height: 297mm !important;
+                  max-height: 297mm !important;
+                  page-break-before: avoid !important;
+                  page-break-after: avoid !important;
+                  page-break-inside: avoid !important;
+                  break-before: avoid !important;
+                  break-after: avoid !important;
+                  break-inside: avoid !important;
+                  position: relative !important;
+                  box-sizing: border-box !important;
                   background: white !important;
-                  overflow: hidden;
+                  border: none !important;
+                  box-shadow: none !important;
+                  overflow: hidden !important;
                 }
 
                 table {
@@ -1035,23 +1061,90 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
           dangerouslySetInnerHTML={{
             __html: `
               @media print {
-                aside, header, nav, button, .print\\:hidden, [data-sonner-toaster], [data-sonner-toast], .toaster, div[aria-live="polite"], div[aria-live="assertive"] {
+                aside, 
+                header, 
+                nav, 
+                button, 
+                .print\\:hidden, 
+                [data-sidebar],
+                [data-topbar],
+                [role="navigation"],
+                [role="banner"],
+                [data-sonner-toaster], 
+                [data-sonner-toast], 
+                .toaster, 
+                div[aria-live="polite"], 
+                div[aria-live="assertive"] {
                   display: none !important;
                   visibility: hidden !important;
+                  width: 0 !important;
+                  height: 0 !important;
+                  overflow: hidden !important;
+                  opacity: 0 !important;
+                  pointer-events: none !important;
                 }
+
+                html,
                 body {
+                  height: auto !important;
+                  min-height: auto !important;
+                  max-height: none !important;
+                  overflow: visible !important;
+                  position: static !important;
+                  background: white !important;
+                  background-color: white !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+
+                .flex.h-screen.overflow-hidden,
+                .flex-col.h-screen,
+                div[class*="h-screen"],
+                div[class*="overflow-hidden"],
+                div[class*="overflow-y-auto"],
+                div[class*="overflow-x-auto"],
+                main,
+                #root,
+                #__next {
+                  display: block !important;
+                  height: auto !important;
+                  min-height: auto !important;
+                  max-height: none !important;
+                  width: 100% !important;
+                  overflow: visible !important;
+                  position: static !important;
                   background: white !important;
                   padding: 0 !important;
                   margin: 0 !important;
+                  border: none !important;
+                  box-shadow: none !important;
                 }
+
+                @page {
+                  size: A4 portrait;
+                  margin: 10mm;
+                }
+
+                #invoice-print-area,
                 .print-container {
+                  display: block !important;
+                  visibility: visible !important;
                   border: none !important;
                   box-shadow: none !important;
                   padding: 0 !important;
-                  margin: 0 !important;
+                  margin: 0 auto !important;
                   max-width: 100% !important;
                   width: 100% !important;
                   background: transparent !important;
+                  position: static !important;
+                  overflow: visible !important;
+                }
+
+                * {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
                 }
               }
             `,

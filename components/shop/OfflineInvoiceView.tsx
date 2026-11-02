@@ -129,7 +129,7 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
   const balanceDue = Math.max(0, grandTotal - amountPaid);
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6">
+    <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 print:py-0 print:px-0 print:m-0 print:max-w-none print:w-full">
       {/* Top Action Bar (Hidden when printing) */}
       <div className="print:hidden mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200/80 p-4 rounded-2xl shadow-xs">
         <div className="flex items-center gap-3">

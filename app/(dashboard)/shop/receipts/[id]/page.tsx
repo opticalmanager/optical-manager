@@ -73,7 +73,7 @@ export default async function ReceiptDetailPage({
   }
 
   return (
-    <div className="bg-slate-100 min-h-screen py-6 px-2 sm:px-4 flex flex-col items-center gap-6 print:bg-white print:py-0 print:px-0 font-sans text-black w-full min-w-0">
+    <div className="bg-slate-100 min-h-screen py-6 px-2 sm:px-4 flex flex-col items-center gap-6 print:bg-white print:py-0 print:px-0 print:m-0 print:min-h-0 print:block font-sans text-black w-full min-w-0">
       <DocumentActionBar documentType="Receipt" data={data} />
       <InvoiceDocument data={data} mode="RECEIPT" />
     </div>
