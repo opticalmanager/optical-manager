@@ -142,7 +142,7 @@ export function Topbar({ user, shopName, onMenuClick }: TopbarProps) {
     : "Search patients, invoices, or stock...";
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 md:px-8 select-none z-20">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 md:px-8 select-none z-20 print:hidden" data-topbar="true">
       
       {/* Autocomplete Search Bar */}
       <div className="relative flex-1 max-w-md flex items-center gap-2.5" ref={searchContainerRef}>

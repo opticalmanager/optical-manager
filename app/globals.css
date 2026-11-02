@@ -308,8 +308,47 @@
   --sidebar-ring: #71717a;
 }
 
-/* Global Print Styles: Completely suppress toasters, popups, and notification banners */
+/* Global Print Styles: Robust resets, suppress UI elements, toasters, and layout clipping */
 @media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reset dashboard layout containers to allow unconstrained document flow */
+  .flex.h-screen.overflow-hidden,
+  .flex-col.h-screen,
+  div[class*="h-screen"],
+  div[class*="overflow-hidden"],
+  div[class*="overflow-y-auto"],
+  div[class*="overflow-x-auto"],
+  main,
+  #root,
+  #__next {
+    display: block !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Completely suppress toasters, popups, and notification banners */
   [data-sonner-toaster],
   [data-sonner-toast],
   .toaster,
@@ -323,7 +362,6 @@
     pointer-events: none !important;
   }
 }
-
 
 /* Industrial Tech Subtle Floating Keyframes */
 @keyframes float-gentle {

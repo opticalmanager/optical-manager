@@ -37,7 +37,7 @@ export default async function PublicReceiptPage({
   }
 
   return (
-    <main className="bg-slate-100 min-h-screen py-2 px-1 sm:py-6 sm:px-4 md:py-8 flex flex-col items-center print:bg-white print:p-0 font-sans text-black w-full min-w-0">
+    <main className="bg-slate-100 min-h-screen py-2 px-1 sm:py-6 sm:px-4 md:py-8 flex flex-col items-center print:bg-white print:p-0 print:m-0 print:min-h-0 print:block font-sans text-black w-full min-w-0">
       <SharedInvoiceViewer data={data} mode="RECEIPT" />
     </main>
   );

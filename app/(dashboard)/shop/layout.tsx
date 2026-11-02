@@ -74,9 +74,9 @@ export default async function ShopDashboardLayout({
     organization?.name || shop?.name || "OPTICAL STORE";
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#F6F7F9]">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#F6F7F9] print:h-auto print:overflow-visible print:bg-white print:block">
       {user.isImpersonating && (
-        <div className="bg-indigo-900 text-white px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-3 border-b border-indigo-950 shrink-0 shadow-md z-40 relative">
+        <div className="bg-indigo-900 text-white px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-3 border-b border-indigo-950 shrink-0 shadow-md z-40 relative print:hidden">
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-4 h-4 text-indigo-200 shrink-0 animate-pulse" />
             <span className="text-[11px] sm:text-xs font-bold tracking-wider uppercase truncate">

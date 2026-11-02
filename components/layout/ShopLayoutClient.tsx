@@ -80,9 +80,9 @@ export function ShopLayoutClient({ children, user, shop, organizationName }: Sho
 
   return (
     <OfflineProvider shopId={shop?.id || user?.shopId}>
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative print:block print:overflow-visible print:h-auto print:static">
         {/* Desktop Sidebar (visible on desktop monitors) */}
-        <div className="hidden lg:flex shrink-0 transition-all duration-300 h-full">
+        <div className="hidden lg:flex shrink-0 transition-all duration-300 h-full print:hidden" data-sidebar="true">
           <Sidebar 
             shopName={shop?.name || undefined} 
             shopAddress={shop?.address || undefined} 
@@ -95,7 +95,7 @@ export function ShopLayoutClient({ children, user, shop, organizationName }: Sho
 
         {/* Mobile Sidebar overlay drawer */}
         {isSidebarOpen && (
-          <div className="fixed inset-0 z-50 flex lg:hidden">
+          <div className="fixed inset-0 z-50 flex lg:hidden print:hidden">
             {/* Blur Glassmorphic Backdrop overlay */}
             <div
               onClick={() => setIsSidebarOpen(false)}
@@ -117,13 +117,13 @@ export function ShopLayoutClient({ children, user, shop, organizationName }: Sho
         )}
 
         {/* Main content display column */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden print:block print:overflow-visible print:h-auto print:static min-w-0">
           <Topbar
             user={user}
             shopName={shop?.name || "Corporate Outlet"}
             onMenuClick={() => setIsSidebarOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto bg-[#F6F7F9] p-4 md:p-8">
+          <main className="flex-1 overflow-y-auto bg-[#F6F7F9] p-4 md:p-8 print:p-0 print:m-0 print:overflow-visible print:h-auto print:bg-white print:block">
             {children}
           </main>
         </div>

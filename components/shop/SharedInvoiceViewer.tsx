@@ -306,6 +306,31 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
 
   return (
     <div className="w-full flex flex-col items-center">
+      {/* Strict Print CSS Overrides for Shared Public Viewer */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @media print {
+              [data-shared-sizer] {
+                width: auto !important;
+                min-width: 0 !important;
+                height: auto !important;
+                margin: 0 auto !important;
+                position: static !important;
+              }
+              [data-shared-canvas] {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                transform: none !important;
+                position: static !important;
+                top: auto !important;
+                left: auto !important;
+              }
+            }
+          `,
+        }}
+      />
       {/* ========================================================================= */}
       {/* TOP ACTION & ZOOM TOOLBAR (Sticky & responsive) */}
       {/* ========================================================================= */}
@@ -448,6 +473,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
       >
         {/* Dynamic Sizer Stage: sized precisely to scaled dimensions */}
         <div
+          data-shared-sizer="true"
           style={{
             width: `${Math.round(794 * scale)}px`,
             minWidth: `${Math.round(794 * scale)}px`,
@@ -461,6 +487,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
           {/* Rigid 794px Document Canvas: scaled from top-left */}
           <div
             ref={contentRef}
+            data-shared-canvas="true"
             style={{
               width: "794px",
               minWidth: "794px",
