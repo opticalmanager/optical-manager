@@ -29,7 +29,46 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
 
 ---
 
-## 2. Store POS Billing & Patient Prescription Workflow
+## 2. Store Overview & Operational Command Hub (`/shop/dashboard`)
+
+```
+┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌───────────────────┐
+│ Shop Landing │────>│ Pending Orders   │────>│ WhatsApp Contact │────>│ Ledger Drilldown  │
+│ /shop/dash   │     │ (Default Card 1) │     │ & Pickup Alert   │     │ & Fast Restock    │
+└──────────────┘     └──────────────────┘     └──────────────────┘     └───────────────────┘
+```
+
+1. **Default Actionable Refraction & Order Pipeline (Pending Orders Active)**:
+   - When a store manager or optical technician logs in or navigates to `/shop/dashboard`, the system defaults immediately to the **First KPI Card: PENDING ORDERS** (`activeTab === "pending"`).
+   - This prioritizes ongoing lens fitting, lab manufacturing, and dispensing queues over passive consultation appointments.
+2. **Dynamic Header & Timeframe Selection**:
+   - The top header identifies the physical outlet (`shopName`), displays a live status indicator (`● Live Outlet`), and integrates a live timeframe selector (`Today (24h)`, `Yesterday`, `Last 7 Days`, `Last 30 Days`, `Last 90 Days`, `Last 12 Months`, `Year to Date`, `All Time`).
+   - Changing timeframes pushes cleanly to the URL query string (`?timeframe=...`), dynamically refreshing telemetry without breaking deep links.
+3. **Executive Financial Snapshot Ribbon**:
+   - Displays real-time operational financials:
+     - **Billed Revenue (₹)**: Total gross invoiced sales for the selected period.
+     - **Cash Collected (₹)**: Instant cash inflow from full and partial payments.
+     - **Pending Dues (₹)**: Outstanding receivables across pending and delivered orders.
+     - **Avg Ticket Size (₹)**: Average billing volume per customer order.
+4. **Interactive High-Density KPI Cards**:
+   - **PENDING ORDERS**: Active eyewear manufacturing queue with order totals and pending balance indicators.
+   - **READY FOR PICKUP**: Finished spectacles verified by the lab and awaiting customer collection.
+   - **DELAYED ORDERS**: Orders past their expected delivery dates requiring proactive lab expediting or customer notification.
+   - **APPOINTMENTS TODAY**: Scheduled optometry exams, refraction sessions, and frame fittings.
+   - Each card features crisp active selection borders (`border-2 border-[#2563eb] shadow-md shadow-blue-500/10 scale-[1.01]`) and updates the main table below with zero latency.
+5. **Operational Upper Table with 1-Click WhatsApp Shortcuts**:
+   - High-density rows (`py-2.5 px-4`) showing order IDs, customer names, phone numbers with 1-click WhatsApp messaging (`wa.me/+91...`), items summary, payment status, and delivery dates.
+   - Rich graphical empty states with quick-action shortcuts (`+ Create New Bill`, `+ Book Consultation`) when queues are empty.
+6. **Bottom Multi-Tab Ledger**:
+   - **Recent Activity**: Chronological audit trail of bills, appointments, and fulfillment events.
+   - **Recent Orders**: Document-linked order log.
+   - **Low Stock Alerts**: Stock deficit notifications with 1-click reorder shortcuts to `/shop/purchases/new`.
+7. **Offline-Resilient Dexie.js Fallback**:
+   - In offline environments, the dashboard seamlessly hydrates metrics, tables, and queues from local IndexedDB databanks with zero blocking.
+
+---
+
+## 3. Store POS Billing & Patient Prescription Workflow
 
 ```
 ââââââââââââââââ    âââââââââââââââââââ    âââââââââââââââââââ    ââââââââââââââââââââ

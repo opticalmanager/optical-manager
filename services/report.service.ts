@@ -1,5 +1,7 @@
 "use server";
 
+import { sanitizeCSVValue } from "@/lib/csv-security";
+
 import { db } from "@/lib/drizzle";
 import { 
   invoices, 
@@ -1353,9 +1355,7 @@ export async function exportReportToCSV(
   endDate?: string
 ): Promise<string> {
   const escapeCSV = (str: any) => {
-    if (str === null || str === undefined) return '""';
-    const val = String(str).replace(/"/g, '""');
-    return `"${val}"`;
+    return sanitizeCSVValue(str);
   };
 
   if (reportType === "sales") {

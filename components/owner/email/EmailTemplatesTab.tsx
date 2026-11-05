@@ -1,5 +1,7 @@
 "use client";
 
+import { sanitizePreviewHtml } from "@/lib/sanitize-html";
+
 import React, { useState } from "react";
 import { 
   Plus, 
@@ -426,10 +428,10 @@ export function EmailTemplatesTab({ initialTemplates }: EmailTemplatesTabProps) 
                     <div><span className="text-slate-400 font-medium">Subject:</span> <span className="font-bold text-slate-900 font-mono">{previewSubject || "(No Subject)"}</span></div>
                   </div>
 
-                  {/* Rendered Body */}
+                  {/* Rendered Body (Sanitized) */}
                   <div 
                     className="p-4 overflow-x-auto text-slate-800 leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: previewBody }}
+                    dangerouslySetInnerHTML={{ __html: sanitizePreviewHtml(previewBody) }}
                   />
                 </div>
               </div>

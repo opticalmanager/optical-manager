@@ -51,3 +51,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 14. **Strict Real Data & Zero Mock Data Policy**:
     - Never use hardcoded mock/fake data, placeholder dummy arrays, or simulated stub responses in components, services, or actions. All code deployed to the codebase must strictly integrate with authentic production database queries, live schema models, multi-tenant organization contexts, and real API/server actions to ensure immediate production readiness without risk of shipping dummy data.
 
+15. **Zero-Positional Selectors & Strict Print Chrome Isolation**:
+    - Never use positional DOM selectors (e.g. `> div:first-child`, `> div:nth-child(n)`, `> * > *`) in CSS or `<style>` blocks to target or hide external layout elements like sidebars, headers, or navbars.
+    - All shell layout components (`Sidebar`, `Topbar`, `ShopLayoutClient`, modals) must declare their own print visibility explicitly using `print:hidden` or semantic data attributes (`[data-sidebar]`, `[data-topbar]`).
+    - Inner document components (`InvoiceDocument`, `ReceiptDocument`, `SharedInvoiceViewer`) must strictly format their own bounding box and never attempt to manipulate parent flex or grid containers through un-scoped global rules.

@@ -1,3 +1,4 @@
+import { resolveAuthorizedShop } from "@/lib/tenant-guard";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/services/auth.service";
 import { db } from "@/lib/drizzle";
@@ -15,34 +16,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const isOwner = user.role === "OWNER";
-    let activeShopId = user.shopId;
-
-    if (isOwner) {
-      const cookieStore = await cookies();
-      const contextShopId = cookieStore.get("active_shop_context_id")?.value;
-      if (contextShopId) {
-        activeShopId = contextShopId;
-      }
-    }
-
-    // If activeShopId is still null for owner, try resolving first shop
-    if (!activeShopId && isOwner && user.organizationId) {
-      const [firstShop] = await db
-        .select({ id: shops.id })
-        .from(shops)
-        .where(eq(shops.organizationId, user.organizationId))
-        .limit(1);
-      if (firstShop) {
-        activeShopId = firstShop.id;
-      }
-    }
-
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") ?? "";
     const shopParam = searchParams.get("shopId");
-    if (shopParam && shopParam.trim()) {
-      activeShopId = shopParam.trim();
+
+    let activeShopId: string | null = null;
+    try {
+      activeShopId = await resolveAuthorizedShop(user, shopParam);
+    } catch (authErr: any) {
+      return NextResponse.json({ error: authErr.message || "Forbidden" }, { status: 403 });
     }
 
     if (query.trim().length < 1) {

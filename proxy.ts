@@ -1,3 +1,4 @@
+import { verifyOfflineSession } from "@/lib/offline-auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
@@ -62,25 +63,24 @@ export async function proxy(request: NextRequest) {
 
 function extractOfflineUserFromCookies(request: NextRequest): any | null {
   try {
-    // 1. Primary: Fast check for synced session profile cookie
+    // 1. Primary: Cryptographically verified HMAC offline session profile
     const optRaw = request.cookies.get("opt_session_profile")?.value;
-    if (optRaw) {
-      try {
-        const opt = JSON.parse(optRaw.startsWith("%") ? decodeURIComponent(optRaw) : optRaw);
-        if (opt?.id) {
-          return {
-            id: opt.id,
-            email: opt.email || "",
-            user_metadata: {
-              full_name: opt.fullName,
-              role: opt.role,
-              organization_id: opt.organizationId,
-              shop_id: opt.shopId,
-            },
-            app_metadata: {},
-          };
-        }
-      } catch {}
+    const optSig = request.cookies.get("opt_session_sig")?.value;
+    if (optRaw && optSig) {
+      const verified = verifyOfflineSession(optRaw, optSig);
+      if (verified && verified.id) {
+        return {
+          id: verified.id,
+          email: verified.email || "",
+          user_metadata: {
+            full_name: verified.fullName,
+            role: verified.role,
+            organization_id: verified.organizationId,
+            shop_id: verified.shopId,
+          },
+          app_metadata: {},
+        };
+      }
     }
 
     // 2. Secondary: Parse Supabase JWT tokens from sb-*-auth-token cookies

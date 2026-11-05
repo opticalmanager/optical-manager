@@ -187,6 +187,17 @@ export async function createAppointmentBooking(payload: {
   additionalNotes?: string;
 }) {
   try {
+    // Verify that the requested shop branch belongs to the specified organization
+    const [validShop] = await db
+      .select({ id: shops.id })
+      .from(shops)
+      .where(and(eq(shops.id, payload.shopId), eq(shops.organizationId, payload.organizationId)))
+      .limit(1);
+
+    if (!validShop) {
+      return { success: false, error: "Invalid store branch outlet selected." };
+    }
+
     const [appointment] = await db
       .insert(appointments)
       .values({
@@ -213,17 +224,31 @@ export async function createAppointmentBooking(payload: {
  */
 export async function updateAppointmentStatus(
   appointmentId: string,
-  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
+  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED",
+  organizationId?: string,
+  shopId?: string
 ) {
   try {
+    const filters = [eq(appointments.id, appointmentId)];
+    if (organizationId) {
+      filters.push(eq(appointments.organizationId, organizationId));
+    }
+    if (shopId) {
+      filters.push(eq(appointments.shopId, shopId));
+    }
+
     const [updated] = await db
       .update(appointments)
       .set({
         status,
         updatedAt: new Date(),
       })
-      .where(eq(appointments.id, appointmentId))
+      .where(and(...filters))
       .returning();
+
+    if (!updated) {
+      return { success: false, error: "Appointment not found or unauthorized." };
+    }
 
     return { success: true, data: updated };
   } catch (error) {

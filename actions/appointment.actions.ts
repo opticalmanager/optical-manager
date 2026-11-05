@@ -95,12 +95,17 @@ export async function updateAppointmentStatusAction(
   status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
 ) {
   const user = await getCurrentUser();
-  if (!user) {
-    return { success: false, error: "Unauthorized." };
+  if (!user || user.isActive === false) {
+    return { success: false, error: "Unauthorized or account deactivated." };
   }
 
   const { updateAppointmentStatus } = await import("@/services/appointment.service");
-  const res = await updateAppointmentStatus(appointmentId, status);
+  const res = await updateAppointmentStatus(
+    appointmentId,
+    status,
+    user.organizationId || undefined,
+    user.role === "SHOP_MANAGER" ? (user.shopId || undefined) : undefined
+  );
 
   if (res.success) {
     safeRevalidatePath("/shop/dashboard");

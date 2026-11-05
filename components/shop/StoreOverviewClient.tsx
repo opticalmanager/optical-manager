@@ -2,31 +2,32 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   ClipboardList, 
   ShoppingBag, 
   AlertTriangle, 
   Calendar, 
   ChevronRight, 
-  Zap, 
+  ChevronDown,
   AlertCircle, 
   Package, 
   Truck,
   RotateCcw,
   Receipt,
-  MessageSquare,
-  Clock,
-  ExternalLink,
-  Activity,
-  ArrowUpRight,
-  Eye,
-  CheckCircle2,
-  Phone,
-  UserCheck,
-  Sparkles,
-  Inbox
+  MessageSquare, 
+  Clock, 
+  Activity, 
+  ArrowUpRight, 
+  CheckCircle2, 
+  Phone, 
+  Inbox, 
+  TrendingUp, 
+  Wallet, 
+  CircleDollarSign, 
+  CreditCard,
+  Plus
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { formatCurrency, cn } from "@/lib/utils";
 import { 
   DashboardData, 
@@ -37,11 +38,24 @@ import {
 } from "@/services/dashboard.service";
 import { AppointmentDetailsModal } from "./AppointmentDetailsModal";
 import { offlineDB } from "@/lib/offline/db";
+import { openWhatsAppChat } from "@/utils/whatsapp-parser";
 
 interface StoreOverviewClientProps {
   data: DashboardData;
   shopName?: string;
+  currentTimeframe?: string;
 }
+
+const timeframeOptions = [
+  { value: "24h", label: "Today (24h)" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "7d", label: "Last 7 Days" },
+  { value: "30d", label: "Last 30 Days" },
+  { value: "90d", label: "Last 90 Days" },
+  { value: "12m", label: "Last 12 Months" },
+  { value: "ytd", label: "Year to Date" },
+  { value: "all", label: "All Time" },
+];
 
 function getRelativeTimeString(dateIso: string) {
   try {
@@ -64,8 +78,15 @@ function getRelativeTimeString(dateIso: string) {
   }
 }
 
-export default function StoreOverviewClient({ data, shopName }: StoreOverviewClientProps) {
-  const [activeTab, setActiveTab] = useState<"appointments" | "pending" | "pickup" | "delayed">("appointments");
+export default function StoreOverviewClient({ 
+  data, 
+  shopName = "Vision Plus Outlet", 
+  currentTimeframe = "24h" 
+}: StoreOverviewClientProps) {
+  const router = useRouter();
+
+  // DEFAULT ACTIVE TAB: Starts with 1st KPI Card (Pending Orders)
+  const [activeTab, setActiveTab] = useState<"pending" | "pickup" | "delayed" | "appointments">("pending");
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentItem | null>(null);
 
   const [appointmentsList, setAppointmentsList] = useState<AppointmentItem[]>(data?.todayAppointments || data?.appointments || []);
@@ -289,6 +310,17 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
     return name.slice(0, 2).toUpperCase();
   };
 
+  const handleTimeframeChange = (newTf: string) => {
+    router.push(`/shop/dashboard?timeframe=${newTf}`);
+  };
+
+  const handleWhatsAppContact = (e: React.MouseEvent, phone?: string, name?: string, orderNum?: string) => {
+    e.stopPropagation();
+    if (!phone) return;
+    const greeting = `Hello ${name || "Customer"}, this is ${shopName} regarding your order ${orderNum || ""}.`;
+    openWhatsAppChat(phone, greeting);
+  };
+
   // Filtered Activities
   const filteredActivities = useMemo(() => {
     if (activityFilter === "ALL") return recentActivities;
@@ -296,45 +328,157 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
   }, [recentActivities, activityFilter]);
 
   return (
-    <div className="space-y-5 select-none max-w-[1400px] mx-auto pb-8">
-      {/* Page Title Header (Sticky Topbar is the single primary CTA source) */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-4.5 select-none max-w-[1400px] mx-auto pb-8">
+      {/* ========================================================================= */}
+      {/* PAGE HEADER & DYNAMIC TIMEFRAME CONTROLS */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200/90 rounded-2xl p-4 sm:px-5 shadow-xs">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#111827]">
-            Store Overview
-          </h1>
-          <p className="text-xs text-[#6B7280] font-medium mt-0.5">
-            Real-time outlet operations, fulfillment statuses, and store activities
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+              Store Overview
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Outlet
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
+            <span>Managing counter:</span>
+            <strong className="text-slate-800 font-bold">{shopName}</strong>
+            <span className="text-slate-300">•</span>
+            <span>Real-time POS queue & fulfillment tracking</span>
           </p>
+        </div>
+
+        {/* Timeframe Selector Controls */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <div className="relative">
+            <select
+              value={currentTimeframe}
+              onChange={(e) => handleTimeframeChange(e.target.value)}
+              className="appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold py-2 pl-3 pr-8 rounded-xl cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              {timeframeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          <Link
+            href="/shop/invoices/new"
+            className="h-9 px-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">New Invoice</span>
+            <span className="sm:hidden">Bill</span>
+          </Link>
         </div>
       </div>
 
-      {/* Top 4 Interactive KPI Cards Grid (Accurate Live Metrics + 0ms Filter Reactivity) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
-        {/* Card 1: PENDING ORDERS */}
+      {/* ========================================================================= */}
+      {/* FINANCIAL OVERVIEW SNAPSHOT STRIP (Live Revenue, Cash Inflow, Dues, Ticket) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-xs">
+        {/* Metric 1: Billed Sales */}
+        <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50/70 border border-slate-100/90">
+          <div className="h-8 w-8 rounded-lg bg-blue-50 text-[#2563EB] flex items-center justify-center shrink-0">
+            <TrendingUp className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Billed Revenue
+            </span>
+            <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight truncate block">
+              {formatCurrency(kpis.revenue || 0)}
+            </span>
+          </div>
+        </div>
+
+        {/* Metric 2: Cash Collections */}
+        <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50/70 border border-slate-100/90">
+          <div className="h-8 w-8 rounded-lg bg-emerald-50 text-[#059669] flex items-center justify-center shrink-0">
+            <Wallet className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Cash Collected
+            </span>
+            <span className="text-sm sm:text-base font-black text-emerald-600 tracking-tight truncate block">
+              {formatCurrency(kpis.collections || 0)}
+            </span>
+          </div>
+        </div>
+
+        {/* Metric 3: Active Dues */}
+        <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50/70 border border-slate-100/90">
+          <div className={cn(
+            "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+            (kpis.pendingPayments || 0) > 0 ? "bg-rose-50 text-[#DC2626]" : "bg-emerald-50 text-[#059669]"
+          )}>
+            <CircleDollarSign className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Pending Dues
+            </span>
+            <span className={cn(
+              "text-sm sm:text-base font-black tracking-tight truncate block",
+              (kpis.pendingPayments || 0) > 0 ? "text-rose-600" : "text-slate-900"
+            )}>
+              {formatCurrency(kpis.pendingPayments || 0)}
+            </span>
+          </div>
+        </div>
+
+        {/* Metric 4: Average Order Value */}
+        <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50/70 border border-slate-100/90">
+          <div className="h-8 w-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <CreditCard className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Avg Ticket Size
+            </span>
+            <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight truncate block">
+              {formatCurrency(kpis.avgOrderValue || 0)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TOP 4 INTERACTIVE FULFILLMENT KPI CARDS (0ms Table Filter Switch) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
+        {/* Card 1: PENDING ORDERS (Default Landing Selection) */}
         <div 
           onClick={() => setActiveTab("pending")}
           className={cn(
-            "bg-white rounded-xl p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[110px]",
+            "rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[104px] relative",
             activeTab === "pending"
-              ? "border-2 border-[#2563EB] shadow-md scale-[1.01]"
-              : "border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
+              ? "bg-blue-50/25 border-2 border-[#2563EB] shadow-md shadow-blue-500/10 scale-[1.01]"
+              : "bg-white border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 rounded-lg bg-blue-50 text-[#2563EB]">
+            <div className="p-2 rounded-xl bg-blue-50 text-[#2563EB]">
               <ClipboardList className="h-4.5 w-4.5" />
             </div>
-            <span className="bg-[#EFF6FF] text-[#2563EB] text-[11px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-              Active
+            <span className="bg-[#EFF6FF] text-[#2563EB] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-blue-200">
+              In Fulfillment
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-3">
+            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-2.5">
               PENDING ORDERS
             </span>
-            <div className="text-2xl font-extrabold text-[#111827] tracking-tight mt-0.5">
-              {kpis.pendingOrders}
+            <div className="text-2xl font-black text-[#111827] tracking-tight mt-0.5 flex items-baseline gap-1.5">
+              <span>{kpis.pendingOrders}</span>
+              <span className="text-[11px] font-bold text-slate-400">active jobs</span>
             </div>
           </div>
         </div>
@@ -343,26 +487,27 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
         <div 
           onClick={() => setActiveTab("pickup")}
           className={cn(
-            "bg-white rounded-xl p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[110px]",
+            "rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[104px] relative",
             activeTab === "pickup"
-              ? "border-2 border-[#2563EB] shadow-md scale-[1.01]"
-              : "border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
+              ? "bg-emerald-50/25 border-2 border-[#2563EB] shadow-md shadow-emerald-500/10 scale-[1.01]"
+              : "bg-white border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 rounded-lg bg-emerald-50 text-[#059669]">
+            <div className="p-2 rounded-xl bg-emerald-50 text-[#059669]">
               <ShoppingBag className="h-4.5 w-4.5" />
             </div>
-            <span className="bg-[#ECFDF5] text-[#059669] text-[11px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+            <span className="bg-[#ECFDF5] text-[#059669] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200">
               Ready
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-3">
+            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-2.5">
               READY FOR PICKUP
             </span>
-            <div className="text-2xl font-extrabold text-[#111827] tracking-tight mt-0.5">
-              {kpis.readyForPickupOrders}
+            <div className="text-2xl font-black text-[#111827] tracking-tight mt-0.5 flex items-baseline gap-1.5">
+              <span>{kpis.readyForPickupOrders}</span>
+              <span className="text-[11px] font-bold text-slate-400">awaiting pickup</span>
             </div>
           </div>
         </div>
@@ -371,34 +516,35 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
         <div 
           onClick={() => setActiveTab("delayed")}
           className={cn(
-            "bg-white rounded-xl p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[110px]",
+            "rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[104px] relative",
             activeTab === "delayed"
-              ? "border-2 border-[#2563EB] shadow-md scale-[1.01]"
-              : "border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
+              ? "bg-rose-50/25 border-2 border-[#2563EB] shadow-md shadow-rose-500/10 scale-[1.01]"
+              : "bg-white border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 rounded-lg bg-red-50 text-[#DC2626]">
+            <div className="p-2 rounded-xl bg-rose-50 text-[#DC2626]">
               <AlertTriangle className="h-4.5 w-4.5" />
             </div>
             <span className={cn(
-              "text-[11px] font-bold px-2 py-0.5 rounded-full border",
+              "text-[10px] font-extrabold px-2 py-0.5 rounded-full border",
               kpis.delayedOrders > 0
-                ? "bg-[#FEF2F2] text-[#DC2626] border-red-200"
-                : "bg-[#F3F4F6] text-[#6B7280] border-[#E5E7EB]"
+                ? "bg-[#FEF2F2] text-[#DC2626] border-rose-200"
+                : "bg-emerald-50 text-[#059669] border-emerald-200"
             )}>
-              {kpis.delayedOrders > 0 ? "Requires Action" : "Clear"}
+              {kpis.delayedOrders > 0 ? "Requires Action" : "All On Track"}
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-3">
+            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-2.5">
               DELAYED ORDERS
             </span>
             <div className={cn(
-              "text-2xl font-extrabold tracking-tight mt-0.5",
+              "text-2xl font-black tracking-tight mt-0.5 flex items-baseline gap-1.5",
               kpis.delayedOrders > 0 ? "text-[#DC2626]" : "text-[#111827]"
             )}>
-              {kpis.delayedOrders}
+              <span>{kpis.delayedOrders}</span>
+              <span className="text-[11px] font-bold text-slate-400">overdue</span>
             </div>
           </div>
         </div>
@@ -407,46 +553,49 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
         <div 
           onClick={() => setActiveTab("appointments")}
           className={cn(
-            "bg-white rounded-xl p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[110px]",
+            "rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all duration-200 cursor-pointer min-h-[104px] relative",
             activeTab === "appointments"
-              ? "border-2 border-[#2563EB] shadow-md scale-[1.01]"
-              : "border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
+              ? "bg-indigo-50/25 border-2 border-[#2563EB] shadow-md shadow-indigo-500/10 scale-[1.01]"
+              : "bg-white border border-[#E5E7EB] hover:border-slate-300 hover:shadow-xs"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 rounded-lg bg-blue-50 text-[#2563EB]">
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
               <Calendar className="h-4.5 w-4.5" />
             </div>
-            <span className="bg-[#EFF6FF] text-[#2563EB] text-[11px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-              Today
+            <span className="bg-indigo-50 text-indigo-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-indigo-200">
+              Consultations
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-3">
+            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider block mt-2.5">
               APPOINTMENTS TODAY
             </span>
-            <div className="text-2xl font-extrabold text-[#111827] tracking-tight mt-0.5">
-              {kpis.appointmentsToday}
+            <div className="text-2xl font-black text-[#111827] tracking-tight mt-0.5 flex items-baseline gap-1.5">
+              <span>{kpis.appointmentsToday}</span>
+              <span className="text-[11px] font-bold text-slate-400">scheduled</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Dynamic Upper Table Container (Updates in 0ms when clicking any KPI Card) */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-xs overflow-hidden">
-        {/* Card Table Header */}
-        <div className="px-5 py-3.5 border-b border-[#E5E7EB] flex items-center justify-between bg-white">
-          <div className="flex items-center gap-2">
-            {activeTab === "appointments" && <Calendar className="h-4.5 w-4.5 text-[#2563EB]" />}
+      {/* ========================================================================= */}
+      {/* DYNAMIC UPPER TABLE CONTAINER (Updates in 0ms when clicking any KPI Card) */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-xs overflow-hidden">
+        {/* Table Header Bar */}
+        <div className="px-4 sm:px-5 py-3 border-b border-[#E5E7EB] flex items-center justify-between bg-white">
+          <div className="flex items-center gap-2.5">
             {activeTab === "pending" && <ClipboardList className="h-4.5 w-4.5 text-[#2563EB]" />}
             {activeTab === "pickup" && <ShoppingBag className="h-4.5 w-4.5 text-[#059669]" />}
             {activeTab === "delayed" && <AlertTriangle className="h-4.5 w-4.5 text-[#DC2626]" />}
+            {activeTab === "appointments" && <Calendar className="h-4.5 w-4.5 text-indigo-600 text-[#2563EB]" />}
             
-            <h2 className="text-base font-extrabold text-[#111827] tracking-tight">
-              {activeTab === "appointments" && `Today's Appointments (${appointmentsList.length})`}
+            <h2 className="text-sm sm:text-base font-black text-[#111827] tracking-tight">
               {activeTab === "pending" && `Pending Orders in Fulfillment (${pendingOrders.length})`}
               {activeTab === "pickup" && `Orders Ready for Pickup (${pickupOrders.length})`}
               {activeTab === "delayed" && `Delayed Orders Requiring Follow-Up (${delayedOrders.length})`}
+              {activeTab === "appointments" && `Today's Optometry Appointments (${appointmentsList.length})`}
             </h2>
           </div>
 
@@ -456,14 +605,16 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                 href="/shop/appointments" 
                 className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-1"
               >
-                View Full Calendar <ChevronRight className="h-3 w-3" />
+                <span>Full Calendar</span>
+                <ChevronRight className="h-3 w-3" />
               </Link>
             ) : (
               <Link 
                 href="/shop/orders" 
                 className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-1"
               >
-                View All Orders <ChevronRight className="h-3 w-3" />
+                <span>All Orders</span>
+                <ChevronRight className="h-3 w-3" />
               </Link>
             )}
           </div>
@@ -471,121 +622,79 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
 
         {/* Dynamic Table Content based on activeTab */}
         <div className="overflow-x-auto">
-          {/* TAB 1: Appointments Today */}
-          {activeTab === "appointments" && (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[#E5E7EB] bg-[#F3F6FA] text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
-                  <th className="py-2.5 px-5">PATIENT NAME</th>
-                  <th className="py-2.5 px-5">PHONE NUMBER</th>
-                  <th className="py-2.5 px-5">TIME</th>
-                  <th className="py-2.5 px-5">PURPOSE</th>
-                  <th className="py-2.5 px-5">STATUS</th>
-                  <th className="py-2.5 px-5 text-right">ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5E7EB] bg-white">
-                {appointmentsList.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8 text-xs text-[#6B7280] font-semibold">
-                      No appointments scheduled for today
-                    </td>
-                  </tr>
-                ) : (
-                  appointmentsList.map((app) => (
-                    <tr 
-                      key={app.id} 
-                      onClick={() => setSelectedAppointment(app)}
-                      className="hover:bg-[#F9FAFB] transition-colors group cursor-pointer"
-                    >
-                      <td className="py-3 px-5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-7 w-7 rounded-full bg-blue-100 text-[#2563EB] font-bold text-[10px] flex items-center justify-center shrink-0">
-                            {getInitials(app.customerName)}
-                          </div>
-                          <span className="text-xs font-bold text-[#111827]">
-                            {app.customerName}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-5 text-xs font-semibold text-[#6B7280]">
-                        {app.customerPhone}
-                      </td>
-                      <td className="py-3 px-5 text-xs font-semibold text-[#111827]">
-                        {app.visitTime}
-                      </td>
-                      <td className="py-3 px-5">
-                        <span className="text-xs font-medium text-[#111827]">
-                          {app.purposeOfVisit}
-                        </span>
-                      </td>
-                      <td className="py-3 px-5">
-                        <span className={cn(
-                          "inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border",
-                          app.status === "COMPLETED"
-                            ? "bg-[#ECFDF5] text-[#059669] border-emerald-200"
-                            : app.status === "CANCELLED"
-                            ? "bg-[#FEF2F2] text-[#DC2626] border-red-200"
-                            : "bg-[#EFF6FF] text-[#2563EB] border-blue-200"
-                        )}>
-                          {app.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-5 text-right">
-                        <button
-                          type="button"
-                          className="h-7 px-2.5 rounded-lg bg-white border border-[#D1D5DB] hover:bg-[#F9FAFB] text-[#374151] text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                        >
-                          Check In <ChevronRight className="h-3 w-3 text-[#6B7280]" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-
-          {/* TAB 2: Pending Orders */}
+          {/* TAB 1: PENDING ORDERS (Default Landing Selection) */}
           {activeTab === "pending" && (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F3F6FA] text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
-                  <th className="py-2.5 px-5">ORDER #</th>
-                  <th className="py-2.5 px-5">CUSTOMER</th>
-                  <th className="py-2.5 px-5 text-right">TOTAL AMOUNT</th>
-                  <th className="py-2.5 px-5 text-center">PAYMENT</th>
-                  <th className="py-2.5 px-5 text-center">FULFILLMENT</th>
-                  <th className="py-2.5 px-5 text-right">ACTION</th>
+                  <th className="py-2.5 px-4 sm:px-5">ORDER #</th>
+                  <th className="py-2.5 px-4 sm:px-5">PATIENT / CUSTOMER</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-right">TOTAL AMOUNT</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-center">PAYMENT</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-center">FULFILLMENT</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E7EB] bg-white">
                 {pendingOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-xs text-[#6B7280] font-semibold">
-                      All orders fulfilled! No pending orders.
+                    <td colSpan={6}>
+                      <div className="py-12 px-4 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-blue-50 text-[#2563EB] flex items-center justify-center mx-auto mb-3 shadow-inner">
+                          <ClipboardList className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800">All Orders Fulfilled</h3>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          There are currently zero pending jobs in the optical lab or edging queue.
+                        </p>
+                        <div className="mt-4">
+                          <Link
+                            href="/shop/invoices/new"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Create New Bill</span>
+                          </Link>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   pendingOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-[#F9FAFB] transition-colors group">
-                      <td className="py-3 px-5 font-mono text-xs font-bold text-[#2563EB]">
-                        {order.invoiceNumber || order.id}
+                      <td className="py-2.5 px-4 sm:px-5 font-mono text-xs font-bold text-[#2563EB]">
+                        <Link href="/shop/orders" className="hover:underline">
+                          {order.invoiceNumber || order.id}
+                        </Link>
                       </td>
-                      <td className="py-3 px-5">
-                        <span className="text-xs font-bold text-[#111827] block">
-                          {order.customerName}
-                        </span>
-                        {order.customerPhone && (
-                          <span className="text-[10px] text-[#6B7280]">{order.customerPhone}</span>
-                        )}
+                      <td className="py-2.5 px-4 sm:px-5">
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <span className="text-xs font-bold text-[#111827] block">
+                              {order.customerName}
+                            </span>
+                            {order.customerPhone && (
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-[#6B7280]">{order.customerPhone}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleWhatsAppContact(e, order.customerPhone, order.customerName, order.invoiceNumber)}
+                                  className="text-emerald-600 hover:text-emerald-700 p-0.5 rounded cursor-pointer"
+                                  title="Contact on WhatsApp"
+                                >
+                                  <MessageSquare className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </td>
-                      <td className="py-3 px-5 text-right text-xs font-extrabold text-[#111827]">
+                      <td className="py-2.5 px-4 sm:px-5 text-right text-xs font-black text-[#111827]">
                         {formatCurrency(order.amount)}
                       </td>
-                      <td className="py-3 px-5 text-center">
+                      <td className="py-2.5 px-4 sm:px-5 text-center">
                         <span className={cn(
-                          "inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border",
+                          "inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border",
                           order.status === "PAID"
                             ? "bg-[#ECFDF5] text-[#059669] border-emerald-200"
                             : order.status === "PARTIALLY_PAID"
@@ -595,12 +704,12 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                           {order.status === "PARTIALLY_PAID" ? "Partial" : order.status}
                         </span>
                       </td>
-                      <td className="py-3 px-5 text-center">
+                      <td className="py-2.5 px-4 sm:px-5 text-center">
                         <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-[#374151] border border-slate-200">
-                          {order.fulfillmentStatus || "PROCESSING"}
+                          {order.fulfillmentStatus || "UNDER_PROCESSING"}
                         </span>
                       </td>
-                      <td className="py-3 px-5 text-right">
+                      <td className="py-2.5 px-4 sm:px-5 text-right">
                         <Link 
                           href="/shop/orders" 
                           className="h-7 px-2.5 rounded-lg bg-white border border-[#D1D5DB] hover:bg-[#F9FAFB] text-[#374151] text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
@@ -615,54 +724,85 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
             </table>
           )}
 
-          {/* TAB 3: Ready for Pickup Orders */}
+          {/* TAB 2: READY FOR PICKUP */}
           {activeTab === "pickup" && (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F3F6FA] text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
-                  <th className="py-2.5 px-5">ORDER #</th>
-                  <th className="py-2.5 px-5">CUSTOMER NAME</th>
-                  <th className="py-2.5 px-5">CONTACT PHONE</th>
-                  <th className="py-2.5 px-5 text-right">TOTAL AMOUNT</th>
-                  <th className="py-2.5 px-5 text-center">STATUS</th>
-                  <th className="py-2.5 px-5 text-right">ACTION</th>
+                  <th className="py-2.5 px-4 sm:px-5">ORDER #</th>
+                  <th className="py-2.5 px-4 sm:px-5">CUSTOMER NAME</th>
+                  <th className="py-2.5 px-4 sm:px-5">CONTACT PHONE</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-right">TOTAL AMOUNT</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-center">STATUS</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E7EB] bg-white">
                 {pickupOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-xs text-[#6B7280] font-semibold">
-                      No orders currently awaiting customer pickup.
+                    <td colSpan={6}>
+                      <div className="py-12 px-4 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-[#059669] flex items-center justify-center mx-auto mb-3 shadow-inner">
+                          <ShoppingBag className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800">No Orders Awaiting Pickup</h3>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          All completed spectacles and contact lenses have been handed over to customers.
+                        </p>
+                        <div className="mt-4">
+                          <Link
+                            href="/shop/orders"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs"
+                          >
+                            <span>View All Orders</span>
+                            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                          </Link>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   pickupOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-[#F9FAFB] transition-colors group">
-                      <td className="py-3 px-5 font-mono text-xs font-bold text-[#2563EB]">
+                      <td className="py-2.5 px-4 sm:px-5 font-mono text-xs font-bold text-[#2563EB]">
                         {order.invoiceNumber || order.id}
                       </td>
-                      <td className="py-3 px-5">
+                      <td className="py-2.5 px-4 sm:px-5">
                         <span className="text-xs font-bold text-[#111827]">
                           {order.customerName}
                         </span>
                       </td>
-                      <td className="py-3 px-5 text-xs text-[#6B7280]">
-                        {order.customerPhone || "N/A"}
+                      <td className="py-2.5 px-4 sm:px-5">
+                        {order.customerPhone ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[#6B7280]">{order.customerPhone}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleWhatsAppContact(e, order.customerPhone, order.customerName, order.invoiceNumber)}
+                              className="text-emerald-600 hover:text-emerald-700 p-0.5 rounded cursor-pointer"
+                              title="Notify ready for pickup via WhatsApp"
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">N/A</span>
+                        )}
                       </td>
-                      <td className="py-3 px-5 text-right text-xs font-extrabold text-[#111827]">
+                      <td className="py-2.5 px-4 sm:px-5 text-right text-xs font-black text-[#111827]">
                         {formatCurrency(order.amount)}
                       </td>
-                      <td className="py-3 px-5 text-center">
+                      <td className="py-2.5 px-4 sm:px-5 text-center">
                         <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#ECFDF5] text-[#059669] border border-emerald-200">
-                          Ready For Pickup
+                          Ready In Store
                         </span>
                       </td>
-                      <td className="py-3 px-5 text-right">
+                      <td className="py-2.5 px-4 sm:px-5 text-right">
                         <Link 
                           href="/shop/orders" 
-                          className="h-7 px-2.5 rounded-lg bg-white border border-[#D1D5DB] hover:bg-[#F9FAFB] text-[#374151] text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                          className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         >
-                          Deliver <ChevronRight className="h-3 w-3 text-[#6B7280]" />
+                          Deliver <ChevronRight className="h-3 w-3 text-emerald-100" />
                         </Link>
                       </td>
                     </tr>
@@ -672,33 +812,41 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
             </table>
           )}
 
-          {/* TAB 4: Delayed Orders */}
+          {/* TAB 3: DELAYED ORDERS */}
           {activeTab === "delayed" && (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F3F6FA] text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
-                  <th className="py-2.5 px-5">ORDER #</th>
-                  <th className="py-2.5 px-5">CUSTOMER NAME</th>
-                  <th className="py-2.5 px-5">ESTIMATED DELIVERY</th>
-                  <th className="py-2.5 px-5 text-right">TOTAL AMOUNT</th>
-                  <th className="py-2.5 px-5 text-center">URGENCY</th>
-                  <th className="py-2.5 px-5 text-right">ACTION</th>
+                  <th className="py-2.5 px-4 sm:px-5">ORDER #</th>
+                  <th className="py-2.5 px-4 sm:px-5">CUSTOMER NAME</th>
+                  <th className="py-2.5 px-4 sm:px-5">ESTIMATED DELIVERY</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-right">TOTAL AMOUNT</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-center">URGENCY</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E7EB] bg-white">
                 {delayedOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-xs text-[#059669] font-semibold bg-[#ECFDF5]/30">
-                      Excellent! There are no delayed orders.
+                    <td colSpan={6}>
+                      <div className="py-12 px-4 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-[#059669] flex items-center justify-center mx-auto mb-3 shadow-inner">
+                          <CheckCircle2 className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800">All Delivery Promises On Track</h3>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          Outstanding! Zero delayed customer orders across active glazing and delivery schedules.
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   delayedOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-[#F9FAFB] transition-colors group">
-                      <td className="py-3 px-5 font-mono text-xs font-bold text-[#DC2626]">
+                      <td className="py-2.5 px-4 sm:px-5 font-mono text-xs font-bold text-[#DC2626]">
                         {order.invoiceNumber || order.id}
                       </td>
-                      <td className="py-3 px-5">
+                      <td className="py-2.5 px-4 sm:px-5">
                         <span className="text-xs font-bold text-[#111827] block">
                           {order.customerName}
                         </span>
@@ -706,24 +854,116 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                           <span className="text-[10px] text-[#6B7280]">{order.customerPhone}</span>
                         )}
                       </td>
-                      <td className="py-3 px-5 text-xs font-bold text-[#DC2626]">
+                      <td className="py-2.5 px-4 sm:px-5 text-xs font-bold text-[#DC2626]">
                         {order.estimatedDelivery ? new Date(order.estimatedDelivery).toLocaleDateString() : "Overdue"}
                       </td>
-                      <td className="py-3 px-5 text-right text-xs font-extrabold text-[#111827]">
+                      <td className="py-2.5 px-4 sm:px-5 text-right text-xs font-black text-[#111827]">
                         {formatCurrency(order.amount)}
                       </td>
-                      <td className="py-3 px-5 text-center">
+                      <td className="py-2.5 px-4 sm:px-5 text-center">
                         <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#FEF2F2] text-[#DC2626] border border-red-200">
                           Delayed
                         </span>
                       </td>
-                      <td className="py-3 px-5 text-right">
+                      <td className="py-2.5 px-4 sm:px-5 text-right">
                         <Link 
                           href="/shop/orders" 
+                          className="h-7 px-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        >
+                          Expedite <ChevronRight className="h-3 w-3 text-rose-100" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {/* TAB 4: APPOINTMENTS TODAY */}
+          {activeTab === "appointments" && (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#E5E7EB] bg-[#F3F6FA] text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
+                  <th className="py-2.5 px-4 sm:px-5">PATIENT NAME</th>
+                  <th className="py-2.5 px-4 sm:px-5">PHONE NUMBER</th>
+                  <th className="py-2.5 px-4 sm:px-5">SCHEDULED TIME</th>
+                  <th className="py-2.5 px-4 sm:px-5">PURPOSE OF VISIT</th>
+                  <th className="py-2.5 px-4 sm:px-5">STATUS</th>
+                  <th className="py-2.5 px-4 sm:px-5 text-right">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5E7EB] bg-white">
+                {appointmentsList.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="py-12 px-4 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                          <Calendar className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800">No Appointments Scheduled Today</h3>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          The optometry calendar has open consultation slots available for walk-in patients.
+                        </p>
+                        <div className="mt-4">
+                          <Link
+                            href="/shop/appointments"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Book Consultation</span>
+                          </Link>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  appointmentsList.map((app) => (
+                    <tr 
+                      key={app.id} 
+                      onClick={() => setSelectedAppointment(app)}
+                      className="hover:bg-[#F9FAFB] transition-colors group cursor-pointer"
+                    >
+                      <td className="py-2.5 px-4 sm:px-5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-7 w-7 rounded-full bg-blue-100 text-[#2563EB] font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {getInitials(app.customerName)}
+                          </div>
+                          <span className="text-xs font-bold text-[#111827]">
+                            {app.customerName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-4 sm:px-5 text-xs font-semibold text-[#6B7280]">
+                        {app.customerPhone}
+                      </td>
+                      <td className="py-2.5 px-4 sm:px-5 text-xs font-semibold text-[#111827]">
+                        {app.visitTime}
+                      </td>
+                      <td className="py-2.5 px-4 sm:px-5">
+                        <span className="text-xs font-medium text-[#111827]">
+                          {app.purposeOfVisit}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-4 sm:px-5">
+                        <span className={cn(
+                          "inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border",
+                          app.status === "COMPLETED"
+                            ? "bg-[#ECFDF5] text-[#059669] border-emerald-200"
+                            : app.status === "CANCELLED"
+                            ? "bg-[#FEF2F2] text-[#DC2626] border-red-200"
+                            : "bg-[#EFF6FF] text-[#2563EB] border-blue-200"
+                        )}>
+                          {app.status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-4 sm:px-5 text-right">
+                        <button
+                          type="button"
                           className="h-7 px-2.5 rounded-lg bg-white border border-[#D1D5DB] hover:bg-[#F9FAFB] text-[#374151] text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         >
-                          Expedite <ChevronRight className="h-3 w-3 text-[#6B7280]" />
-                        </Link>
+                          Check In <ChevronRight className="h-3 w-3 text-[#6B7280]" />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -740,14 +980,14 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               href="/shop/appointments" 
               className="text-xs font-bold text-[#6B7280] hover:text-[#2563EB] transition-colors"
             >
-              Show All Appointments →
+              Show All Optometry Appointments →
             </Link>
           ) : (
             <Link 
               href="/shop/orders" 
               className="text-xs font-bold text-[#6B7280] hover:text-[#2563EB] transition-colors"
             >
-              Show All Orders →
+              Show Full Orders Ledger →
             </Link>
           )}
         </div>
@@ -756,7 +996,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
       {/* ========================================================================= */}
       {/* BOTTOM SECTION: Dedicated Tabbed Panel (Recent Activity, Orders, Stock Alerts) */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-xs overflow-hidden">
         {/* Navigation Tabs Bar */}
         <div className="px-4 sm:px-5 pt-3 border-b border-[#E5E7EB] flex items-center justify-between flex-wrap gap-2 bg-white">
           <div className="flex items-center gap-1 sm:gap-2">
@@ -764,7 +1004,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               type="button"
               onClick={() => setBottomTab("activities")}
               className={cn(
-                "px-3.5 py-2 rounded-t-lg text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center gap-2",
+                "px-3.5 py-2 rounded-t-xl text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center gap-2",
                 bottomTab === "activities"
                   ? "border-[#2563EB] text-[#2563EB] bg-[#EFF6FF]/40"
                   : "border-transparent text-[#6B7280] hover:text-[#111827] hover:bg-[#F9FAFB]"
@@ -781,7 +1021,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               type="button"
               onClick={() => setBottomTab("orders")}
               className={cn(
-                "px-3.5 py-2 rounded-t-lg text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center gap-2",
+                "px-3.5 py-2 rounded-t-xl text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center gap-2",
                 bottomTab === "orders"
                   ? "border-[#2563EB] text-[#2563EB] bg-[#EFF6FF]/40"
                   : "border-transparent text-[#6B7280] hover:text-[#111827] hover:bg-[#F9FAFB]"
@@ -798,7 +1038,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
               type="button"
               onClick={() => setBottomTab("stock")}
               className={cn(
-                "px-3.5 py-2 rounded-t-lg text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center gap-2",
+                "px-3.5 py-2 rounded-t-xl text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center gap-2",
                 bottomTab === "stock"
                   ? "border-[#2563EB] text-[#2563EB] bg-[#EFF6FF]/40"
                   : "border-transparent text-[#6B7280] hover:text-[#111827] hover:bg-[#F9FAFB]"
@@ -817,7 +1057,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
           <div className="pb-2">
             {bottomTab === "activities" && (
               <span className="text-[11px] font-semibold text-[#6B7280] flex items-center gap-1">
-                <Clock className="h-3 w-3" /> Live Event Feed
+                <Clock className="h-3 w-3" /> Live Store Log
               </span>
             )}
             {bottomTab === "orders" && (
@@ -970,10 +1210,10 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                 ) : (
                   recentOrders.map((order, idx) => (
                     <tr key={order.id || idx} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="px-5 py-3 font-mono text-xs font-bold text-[#2563EB]">
+                      <td className="px-5 py-2.5 font-mono text-xs font-bold text-[#2563EB]">
                         {order.invoiceNumber || order.id}
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-2.5">
                         <span className="text-xs font-bold text-[#111827] block">
                           {order.customerName}
                         </span>
@@ -981,12 +1221,12 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                           <span className="text-[10px] text-[#6B7280]">{order.dateStr}</span>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-right">
+                      <td className="px-5 py-2.5 text-right">
                         <span className="text-xs font-extrabold text-[#111827]">
                           {formatCurrency(order.amount)}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-center">
+                      <td className="px-5 py-2.5 text-center">
                         <span 
                           className={cn(
                             "inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border",
@@ -1000,7 +1240,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                           {order.status === "PARTIALLY_PAID" ? "Partially Paid" : order.status}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right">
+                      <td className="px-5 py-2.5 text-right">
                         <Link
                           href="/shop/orders"
                           className="h-7 px-2.5 rounded-lg bg-white border border-[#D1D5DB] hover:bg-[#F9FAFB] text-[#374151] text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
@@ -1038,7 +1278,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                 ) : (
                   stockAlerts.map((alert, idx) => (
                     <tr key={alert.id || idx} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-2.5">
                         <span className="text-xs font-bold text-[#111827] block">
                           {alert.name}
                         </span>
@@ -1046,12 +1286,12 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                           <span className="text-[10px] font-mono text-[#6B7280]">SKU: {alert.sku}</span>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-center">
+                      <td className="px-5 py-2.5 text-center">
                         <span className="text-xs font-extrabold text-[#111827]">
                           {alert.units}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-center">
+                      <td className="px-5 py-2.5 text-center">
                         <span 
                           className={cn(
                             "inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border",
@@ -1065,7 +1305,7 @@ export default function StoreOverviewClient({ data, shopName }: StoreOverviewCli
                           {alert.status === "LOW_STOCK" ? "Low Stock" : alert.status === "OUT_OF_STOCK" ? "Out of Stock" : "In Stock"}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right">
+                      <td className="px-5 py-2.5 text-right">
                         <Link
                           href="/shop/purchases/new"
                           className="h-7 px-2.5 rounded-lg bg-white border border-[#D1D5DB] hover:bg-[#F9FAFB] text-[#374151] text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"

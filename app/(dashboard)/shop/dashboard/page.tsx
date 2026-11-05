@@ -93,5 +93,11 @@ export default async function ShopDashboardPage({ searchParams }: PageProps) {
     console.warn("[ShopDashboardPage] Failed to fetch dashboard data (offline/timeout fallback):", err);
   }
 
-  return <StoreOverviewClient data={data} shopName={shop?.name || "Vision Plus Outlet"} />;
+  return (
+    <StoreOverviewClient 
+      data={data} 
+      shopName={shop?.name || "Vision Plus Outlet"} 
+      currentTimeframe={timeframe} 
+    />
+  );
 }

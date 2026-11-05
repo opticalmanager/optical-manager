@@ -1,12 +1,30 @@
 import crypto from "crypto";
 
 /**
- // AES-256-GCM Encryption / Decryption Helper
- // Uses process.env.EMAIL_ENCRYPTION_KEY or a fallback key derived from process.env.NEXTAUTH_SECRET
+ * AES-256-GCM Encryption / Decryption Helper
+ * Uses process.env.EMAIL_ENCRYPTION_KEY or process.env.ENCRYPTION_SECRET.
+ * In production, fails safely if an encryption secret is not configured.
  */
 
 function getEncryptionKey(): Buffer {
-  const envKey = process.env.EMAIL_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || "optical-manager-gmail-smtp-encryption-key-32b";
+  const envKey =
+    process.env.EMAIL_ENCRYPTION_KEY ||
+    process.env.ENCRYPTION_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.BROADCAST_SSO_SECRET ||
+    process.env.SUPABASE_JWT_SECRET ||
+    process.env.NEXTAUTH_SECRET;
+
+  if (!envKey) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "FATAL SECURITY CONFIGURATION: EMAIL_ENCRYPTION_KEY or SUPABASE_SERVICE_ROLE_KEY must be set in production environment."
+      );
+    }
+    // Development-only fallback
+    return crypto.createHash("sha256").update("optical-manager-dev-smtp-salt-key-32b").digest();
+  }
+
   // Always derive a strict 32-byte key using SHA-256 hash
   return crypto.createHash("sha256").update(envKey).digest();
 }
@@ -39,7 +57,7 @@ export function decryptPassword(encryptedString: string): string {
   try {
     const parts = encryptedString.split(":");
     if (parts.length !== 3) {
-      // Fallback for legacy plain text or raw passwords if any
+      // Backwards compatibility: gracefully return legacy plaintext password if not yet migrated
       return encryptedString;
     }
 

@@ -114,6 +114,26 @@
 - **Collapsible Floating Flyout**: When the sidebar is collapsed, hovering over the Purchases icon dynamically triggers a floating flyout menu displaying the module header and action links with zero latency.
 - **Granular RBAC Module Permission**: Backed by the `purchases` permission key in `ModulePermissions` and configurable within Owner Outlet Access Roles (`OutletConfigurePanel.tsx`).
 
+### 6. High-Density Store Overview & Operational Command Hub (`/shop/dashboard`)
+- **Default Actionable Landing (Pending Orders First)**: Store Overview lands directly with the **Pending Orders** KPI card active on mount (`activeTab === "pending"`), prioritizing production queue and lab dispatches over appointments for counter staff.
+- **Store Identity & Live Timeframe Navigation Strip**: Header bar displays physical store outlet name, real-time status pill (`● Live Outlet`), and an interactive timeframe selector (`Today (24h)`, `Yesterday`, `Last 7 Days`, `Last 30 Days`, `Last 90 Days`, `Last 12 Months`, `Year to Date`, `All Time`) dynamically synchronizing with URL query state (`?timeframe=...`).
+- **Executive Financial Snapshot Ribbon**: Sleek metric strip displaying total billed revenue (₹), actual cash collected (₹), pending customer dues (₹), and average ticket size (₹) for instant store cashflow visibility.
+- **Top 4 Interactive KPI Cards & Zero-Latency Active Selection**:
+  - `PENDING ORDERS` (Blue): Active manufacturing and dispensing queue.
+  - `READY FOR PICKUP` (Emerald): Finished spectacles awaiting customer collection.
+  - `DELAYED ORDERS` (Rose): Overdue orders requiring immediate store follow-up.
+  - `APPOINTMENTS TODAY` (Amber): Scheduled optometry consultations and checkups.
+  - Every card features crisp active selection borders (`border-2 border-[#2563eb] shadow-md shadow-blue-500/10 scale-[1.01]`) with zero-latency table view toggling.
+- **High-Density Upper Action Table (`py-2.5 px-4`)**:
+  - Direct 1-click WhatsApp customer contact shortcuts (`wa.me/+91...`) for order status updates and pickup alerts.
+  - Status and payment pills (`PAID`, `PARTIAL`, `DUE`, `READY`, `PROCESSING`).
+  - Rich graphical empty states with contextual quick action buttons (`+ Create New Bill`, `+ Book Consultation`).
+- **Bottom Tabbed Operational Ledger**:
+  - `Recent Activity`: Real-time chronological audit trail of bills, appointments, and fulfillment events.
+  - `Recent Orders`: Quick-access ledger with document shortcuts and customer details.
+  - `Low Stock Alerts`: Stock deficit notifications with 1-click reorder shortcuts to `/shop/purchases/new`.
+- **100% Offline IndexedDB Hydration**: Hydrates instantly from local Dexie.js databank when offline, ensuring counter continuity during internet outages.
+
 ### 6. PWA Offline-First Operating Architecture & Local Databank Synchronization
 - **Zero-Downtime Offline POS & Dashboard Access**: If internet connectivity is lost, store managers, optometrists, and system owners can continue creating new bills, registering new patients, updating patient details, creating prescriptions, adding stock, adjusting inventory, booking appointments, changing appointment statuses, updating order delivery details, recording partial payments, settling dues, processing returns, looking up patient records, inspecting multi-branch inventory, reviewing returns, configuring outlet settings, and downloading/printing invoices with zero latency.
 - **Offline Session Preservation ("Remembered Login") & Resilient API Auth**: Client credentials, user profile, and active shop context are safely retained via `opt_session_profile` cookies, IndexedDB metadata, and localStorage. All offline and sync API endpoints (`/api/offline/sync-all`, `/api/offline/customers`, `/api/offline/inventory`, `/api/search`, `/api/sync/offline-invoices`, `/api/sync/offline-mutations`) utilize `getCurrentUser()` from `services/auth.service`, eliminating 401 Unauthorized errors caused by expired Supabase token handshakes and supporting both `OWNER` and `SHOP_MANAGER` roles.

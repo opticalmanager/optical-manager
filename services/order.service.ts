@@ -1,5 +1,7 @@
 "use server";
 
+import { sanitizeCSVValue } from "@/lib/csv-security";
+
 import { db } from "@/lib/drizzle";
 import { orders, invoices, customers, invoiceItems, inventory, shops, receipts, orderEditHistory, profiles } from "@/db/schema";
 import { eq, ne, and, or, ilike, sql, desc, inArray, lte, lt, gt, gte, isNull } from "drizzle-orm";
@@ -697,15 +699,9 @@ export async function exportOrdersToCSVData(params: {
       .where(inArray(invoiceItems.invoiceId, invoiceIds));
   }
 
-  // 4. Construct CSV rows with double-quote escaping (RFC 4180)
+  // 4. Construct CSV rows with double-quote escaping & formula injection neutralization (RFC 4180 + OWASP)
   const escapeCSV = (val: string | null | undefined): string => {
-    if (val === null || val === undefined) return "";
-    let str = String(val);
-    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
-      str = str.replace(/"/g, '""');
-      return `"${str}"`;
-    }
-    return str;
+    return sanitizeCSVValue(val);
   };
 
   const headers = [

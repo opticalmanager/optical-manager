@@ -9,12 +9,17 @@ import type { Prescription, NewPrescription } from "@/types";
  * Get all prescriptions for a customer.
  */
 export async function getPrescriptionsByCustomer(
-  customerId: string
+  customerId: string,
+  organizationId?: string
 ): Promise<Prescription[]> {
+  const filters = [eq(prescriptions.customerId, customerId)];
+  if (organizationId) {
+    filters.push(eq(prescriptions.organizationId, organizationId));
+  }
   return db
     .select()
     .from(prescriptions)
-    .where(eq(prescriptions.customerId, customerId))
+    .where(and(...filters))
     .orderBy(desc(prescriptions.createdAt));
 }
 

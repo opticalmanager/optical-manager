@@ -7,6 +7,15 @@ export type ContactActionResponse = {
   message: string;
 };
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 /**
  * Server Action: Process public contact form inquiries from opticalmanager.in
  * Automatically sends an email notification to support@opticalmanager.in with Reply-To set to the sender.
@@ -46,6 +55,13 @@ export async function submitContactInquiryAction(
       `• Forwarding To: support@opticalmanager.in`
     );
 
+    // Escape all dynamic inputs to prevent stored HTML injection
+    const safeName = escapeHtml(name);
+    const safeEmail = escapeHtml(email);
+    const safePhone = escapeHtml(phone);
+    const safeShop = escapeHtml(shopName);
+    const safeMessage = escapeHtml(message);
+
     // HTML Email Template for support team
     const htmlContent = `
       <div style="font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
@@ -57,31 +73,30 @@ export async function submitContactInquiryAction(
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-weight: bold; width: 140px;">Sender Name:</td>
-            <td style="padding: 8px 0; color: #0f172a; font-weight: 600;">${name}</td>
+            <td style="padding: 8px 0; color: #0f172a; font-weight: 600;">${safeName}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Email Address:</td>
-            <td style="padding: 8px 0;"><a href="mailto:${email}" style="color: #0052cc; font-weight: 600; text-decoration: none;">${email}</a></td>
+            <td style="padding: 8px 0;"><a href="mailto:${safeEmail}" style="color: #0052cc; font-weight: 600; text-decoration: none;">${safeEmail}</a></td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Phone Number:</td>
-            <td style="padding: 8px 0;"><a href="tel:${phone}" style="color: #0052cc; font-weight: 600; text-decoration: none;">${phone}</a></td>
+            <td style="padding: 8px 0;"><a href="tel:${safePhone}" style="color: #0052cc; font-weight: 600; text-decoration: none;">${safePhone}</a></td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Shop / Business:</td>
-            <td style="padding: 8px 0; color: #0f172a;">${shopName}</td>
+            <td style="padding: 8px 0; color: #0f172a;">${safeShop}</td>
           </tr>
         </table>
 
         <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px;">
           <h4 style="margin: 0 0 8px 0; color: #334155; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Message / Inquiry:</h4>
-          <p style="margin: 0; color: #0f172a; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${message}</p>
+          <p style="margin: 0; color: #0f172a; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${safeMessage}</p>
         </div>
 
-        <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0 16px 0;" />
-        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">
-          Tip: You can hit <strong>Reply</strong> in your email client to respond directly to ${name} (${email}).
-        </p>
+        <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+          Optical Manager Notification System • support@opticalmanager.in
+        </div>
       </div>
     `;
 
@@ -98,13 +113,13 @@ export async function submitContactInquiryAction(
 
     return {
       success: true,
-      message: "Your inquiry has been submitted successfully! Gaurav Tiwari (Head of Tech) & Deepak Mishra (Head of Research & UI/UX) will get back to you shortly.",
+      message: "Your inquiry has been submitted successfully! Our team will get back to you shortly.",
     };
   } catch (error: any) {
-    console.error("[Contact Action Error]", error);
+    console.error("[submitContactInquiryAction] Unexpected error:", error);
     return {
       success: false,
-      message: "An unexpected error occurred while sending your message. Please try calling us directly.",
+      message: "An unexpected error occurred while sending your message. Please try again or reach out on WhatsApp.",
     };
   }
 }

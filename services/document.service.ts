@@ -197,7 +197,10 @@ export async function getPublicInvoiceDocumentData(
   if (!invoiceId) return null;
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoiceId);
-    const condition = isUuid ? eq(invoices.id, invoiceId) : eq(invoices.invoiceNumber, invoiceId);
+    // Security: Only cryptographically unguessable UUIDs may be accessed via public share URLs.
+    // Plain sequential invoice numbers (e.g. INV-1-2026-0001) are rejected to prevent enumeration.
+    if (!isUuid) return null;
+    const condition = eq(invoices.id, invoiceId);
 
     const [invoice] = await db
       .select()
@@ -225,9 +228,9 @@ export async function getPublicReceiptDocumentData(
   if (!id) return null;
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-    // 1. Try finding by receipt ID or receiptNumber
-    const rcptCondition = isUuid ? eq(receipts.id, id) : eq(receipts.receiptNumber, id);
+    // Security: Only cryptographically unguessable UUIDs may be accessed via public share URLs.
+    if (!isUuid) return null;
+    const rcptCondition = eq(receipts.id, id);
     const [receipt] = await db
       .select()
       .from(receipts)
