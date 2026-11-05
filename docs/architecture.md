@@ -513,3 +513,38 @@ The AI Bill Scanning engine digitizes complex supplier invoices (multi-page PDFs
 │    - Multi-file item aggregation and live table hydration              │
 └────────────────────────────────────────────────────────────────────────┘
 ```
+
+
+---
+
+## 8. Enterprise Security, Multi-Tenant Isolation & Hardening Architecture
+
+1. **Cryptographically Signed Offline Session Tokens (`lib/offline-auth.ts`)**:
+   - Replaced plain client-side cookie trust with HMAC-SHA256 authenticated sessions (`opt_session_sig`).
+   - Generates a constant-time verified cryptographic digest over the session profile payload using `ENCRYPTION_SECRET`.
+   - Enforces 7-day expiration (`exp`) and active user status verification (`isActive !== false`), completely neutralizing cookie tampering and privilege escalation attacks when offline.
+2. **Central Tenant & Branch Authorization Guard (`lib/tenant-guard.ts`)**:
+   - `resolveAuthorizedShop`: Restricts `SHOP_MANAGER` sessions strictly to their assigned `shopId`. Client-supplied foreign shop IDs in API parameters or query strings are rejected with `403 Forbidden`. Restricts `OWNER` sessions to branch outlets verified to belong to their `organizationId`.
+   - `assertEntityAccess`: Validates entity organization and shop ownership across record reads and mutations.
+   - `getInvoiceAccessCondition`: Dynamically applies branch-level isolation to `SHOP_MANAGER` operations across all order actions (`actions/order.actions.ts`).
+3. **Offline Mutation Idempotency Engine (`lib/mutation-idempotency.ts`)**:
+   - Memory-bounded, 24-hour TTL idempotency cache keyed by `organizationId:shopId:mutationId`.
+   - Idempotently absorbs retried sync packets from offline clients, preventing duplicate financial transactions (payments, dues settlements, returns, stock adjustments).
+4. **Authoritative Server-Side Financial Recalculation (`/api/sync/offline-invoices`)**:
+   - Strips client-supplied subtotals, GST distributions, and balance amounts on incoming offline bills. Authoritatively recalculates item subtotals (`qty * unitPrice`), discount caps, statutory CGST/SGST/IGST splits, and accounts receivable balances on the server.
+5. **Strict Return Valuation Capping (`actions/return.actions.ts`)**:
+   - Calculates the maximum returnable value of each item based on the original invoice item's billed subtotal and quantity. Caps custom refund amounts to the verified item valuation, preventing arbitrary refund inflation.
+6. **Public Document Exposure Protection (`services/document.service.ts`)**:
+   - Restricts public invoice and booking receipt sharing (`/share/invoice/[id]`, `/share/receipt/[id]`) strictly to 128-bit cryptographically random UUIDs. Completely blocks sequential invoice/receipt number enumeration.
+7. **Public Appointment Anti-Tampering (`services/appointment.service.ts`)**:
+   - Enforces branch ownership verification in `createAppointmentBooking` to confirm that `shopId` belongs to `organizationId`. Scopes `updateAppointmentStatus` by organization and branch.
+8. **OWASP CSV Formula Injection Shield (`lib/csv-security.ts`)**:
+   - Neutralizes formula triggers (`=`, `+`, `-`, `@`, `\t`, `\r`) in order and report CSV exports by prepending a single quote (`'`), neutralizing spreadsheet macro execution in Excel and Google Sheets.
+9. **Zero-Trust AI Scan Bill Upload Protection (`app/api/ai/scan-bill`)**:
+   - Enforces strict 10MB payload size limits and a MIME type whitelist (`image/jpeg`, `image/png`, `image/webp`, `image/heic`, `application/pdf`) with deactivated user blocking.
+10. **Defense-in-Depth HTTP Security Headers (`next.config.ts`)**:
+    - `X-Frame-Options: SAMEORIGIN`
+    - `X-Content-Type-Options: nosniff`
+    - `Referrer-Policy: strict-origin-when-cross-origin`
+    - `X-XSS-Protection: 1; mode=block`
+    - `Permissions-Policy: camera=(self), microphone=(), geolocation=()`

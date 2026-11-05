@@ -1,5 +1,7 @@
 "use server";
 
+import { verifyOfflineSession } from "@/lib/offline-auth";
+
 import { db } from "@/lib/drizzle";
 import { profiles, organizations, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -24,8 +26,9 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
       const { cookies } = await import("next/headers");
       const cookieStore = await cookies();
       const optRaw = cookieStore.get("opt_session_profile")?.value;
-      if (optRaw) {
-        cachedSessionProfile = JSON.parse(optRaw.startsWith("%") ? decodeURIComponent(optRaw) : optRaw);
+      const optSig = cookieStore.get("opt_session_sig")?.value;
+      if (optRaw && optSig) {
+        cachedSessionProfile = verifyOfflineSession(optRaw, optSig);
       }
       activeShopContextId = cookieStore.get("active_shop_context_id")?.value;
     } catch {}
@@ -245,42 +248,44 @@ export async function createOwnerWithOrganization({
   fullName: string;
   organizationName: string;
 }) {
-  // Create organization
-  const [org] = await db
-    .insert(organizations)
-    .values({
-      name: organizationName,
-      slug: slugify(organizationName),
-      email,
-    })
-    .returning();
+  return await db.transaction(async (tx) => {
+    // 1. Create organization
+    const [org] = await tx
+      .insert(organizations)
+      .values({
+        name: organizationName,
+        slug: slugify(organizationName),
+        email,
+      })
+      .returning();
 
-  // Create profile linked to auth user
-  const [profile] = await db
-    .insert(profiles)
-    .values({
-      id: userId,
+    // 2. Create profile linked to auth user
+    const [profile] = await tx
+      .insert(profiles)
+      .values({
+        id: userId,
+        organizationId: org.id,
+        fullName,
+        email,
+        role: "OWNER",
+      })
+      .returning();
+
+    // 3. Create trial subscription
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DURATION_DAYS);
+
+    await tx.insert(subscriptions).values({
       organizationId: org.id,
-      fullName,
-      email,
-      role: "OWNER",
-    })
-    .returning();
+      plan: "TRIAL",
+      status: "ACTIVE",
+      trialEndsAt,
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: trialEndsAt,
+    });
 
-  // Create trial subscription
-  const trialEndsAt = new Date();
-  trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DURATION_DAYS);
-
-  await db.insert(subscriptions).values({
-    organizationId: org.id,
-    plan: "TRIAL",
-    status: "ACTIVE",
-    trialEndsAt,
-    currentPeriodStart: new Date(),
-    currentPeriodEnd: trialEndsAt,
+    return { organization: org, profile };
   });
-
-  return { organization: org, profile };
 }
 
 /**
@@ -294,4 +299,18 @@ export async function profileExists(userId: string): Promise<boolean> {
     .limit(1);
 
   return !!profile;
+}
+
+/**
+ * Require active authenticated user. Throws if unauthenticated or deactivated.
+ */
+export async function requireActiveUser(): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("Unauthorized: Please log in to proceed.");
+  }
+  if (user.isActive === false) {
+    throw new Error("Forbidden: Your account has been deactivated. Please contact your organization administrator.");
+  }
+  return user;
 }

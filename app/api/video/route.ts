@@ -17,8 +17,20 @@ export async function GET(req: NextRequest) {
     const parts = range.replace(/bytes=/, "").split("-");
     const start = parseInt(parts[0], 10);
     const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-    const chunksize = end - start + 1;
-    const file = fs.createReadStream(filePath, { start, end });
+
+    // Validate range bounds according to RFC 7233
+    if (isNaN(start) || isNaN(end) || start < 0 || start > end || start >= fileSize) {
+      return new NextResponse(null, {
+        status: 416,
+        headers: {
+          "Content-Range": `bytes */${fileSize}`,
+        },
+      });
+    }
+
+    const clampedEnd = Math.min(end, fileSize - 1);
+    const chunksize = clampedEnd - start + 1;
+    const file = fs.createReadStream(filePath, { start, end: clampedEnd });
 
     const stream = new ReadableStream({
       start(controller) {
@@ -31,7 +43,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(stream as any, {
       status: 206,
       headers: {
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Content-Range": `bytes ${start}-${clampedEnd}/${fileSize}`,
         "Accept-Ranges": "bytes",
         "Content-Length": chunksize.toString(),
         "Content-Type": "video/mp4",

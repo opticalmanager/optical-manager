@@ -1,5 +1,7 @@
 "use server";
 
+import { getInvoiceAccessCondition } from "@/lib/tenant-guard";
+
 import { db } from "@/lib/drizzle";
 import { invoices, customers, shops, orders, receipts, invoiceItems, inventory, stockMovements, orderEditHistory } from "@/db/schema";
 import { eq, and, or, sql } from "drizzle-orm";
@@ -23,7 +25,7 @@ export async function sendPaymentReminderAction(
 ): Promise<ActionResponse> {
   try {
     const user = await getCurrentUser();
-    if (!user) {
+    if (!user || user.isActive === false) {
       return { success: false, message: "Unauthorized." };
     }
 
@@ -39,10 +41,7 @@ export async function sendPaymentReminderAction(
       })
       .from(invoices)
       .where(
-        and(
-          eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId!)
-        )
+        getInvoiceAccessCondition(invoiceId, user)
       )
       .limit(1);
 
@@ -139,7 +138,7 @@ export async function updateDeliveryDaysAction(
 ): Promise<ActionResponse> {
   try {
     const user = await getCurrentUser();
-    if (!user) {
+    if (!user || user.isActive === false) {
       return { success: false, message: "Unauthorized." };
     }
 
@@ -147,10 +146,7 @@ export async function updateDeliveryDaysAction(
       .select({ id: invoices.id })
       .from(invoices)
       .where(
-        and(
-          eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId!)
-        )
+        getInvoiceAccessCondition(invoiceId, user)
       )
       .limit(1);
 
@@ -203,7 +199,7 @@ export async function updateOrderStatusAction(
 ): Promise<ActionResponse> {
   try {
     const user = await getCurrentUser();
-    if (!user) {
+    if (!user || user.isActive === false) {
       return { success: false, message: "Unauthorized." };
     }
 
@@ -216,10 +212,7 @@ export async function updateOrderStatusAction(
       })
       .from(invoices)
       .where(
-        and(
-          eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId!)
-        )
+        getInvoiceAccessCondition(invoiceId, user)
       )
       .limit(1);
 
@@ -289,7 +282,7 @@ export async function generateFullPaymentInvoiceAction(
 ): Promise<{ success: boolean; message: string; redirectUrl?: string }> {
   try {
     const user = await getCurrentUser();
-    if (!user) {
+    if (!user || user.isActive === false) {
       return { success: false, message: "Unauthorized." };
     }
 
@@ -298,10 +291,7 @@ export async function generateFullPaymentInvoiceAction(
       .select()
       .from(invoices)
       .where(
-        and(
-          eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId!)
-        )
+        getInvoiceAccessCondition(invoiceId, user)
       )
       .limit(1);
 
@@ -386,7 +376,7 @@ export async function sendRescheduledDeliveryEmailAction(
 ): Promise<ActionResponse> {
   try {
     const user = await getCurrentUser();
-    if (!user) {
+    if (!user || user.isActive === false) {
       return { success: false, message: "Unauthorized." };
     }
 
@@ -404,10 +394,7 @@ export async function sendRescheduledDeliveryEmailAction(
       .innerJoin(customers, eq(invoices.customerId, customers.id))
       .leftJoin(orders, eq(orders.invoiceId, invoices.id))
       .where(
-        and(
-          eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId!)
-        )
+        getInvoiceAccessCondition(invoiceId, user)
       )
       .limit(1);
 
@@ -491,7 +478,7 @@ export async function recordPartialPaymentAction(
 ): Promise<{ success: boolean; message: string; receiptId?: string; redirectUrl?: string }> {
   try {
     const user = await getCurrentUser();
-    if (!user) {
+    if (!user || user.isActive === false) {
       return { success: false, message: "Unauthorized." };
     }
 
@@ -504,10 +491,7 @@ export async function recordPartialPaymentAction(
       .select()
       .from(invoices)
       .where(
-        and(
-          eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId!)
-        )
+        getInvoiceAccessCondition(invoiceId, user)
       )
       .limit(1);
 
@@ -609,7 +593,7 @@ export async function settleDuesWithDiscountAction(
 ): Promise<{ success: boolean; message: string; receiptId?: string; redirectUrl?: string }> {
   try {
     const user = await getCurrentUser();
-    if (!user) {
+    if (!user || user.isActive === false) {
       return { success: false, message: "Unauthorized." };
     }
 
@@ -618,10 +602,7 @@ export async function settleDuesWithDiscountAction(
       .select()
       .from(invoices)
       .where(
-        and(
-          eq(invoices.id, invoiceId),
-          eq(invoices.organizationId, user.organizationId!)
-        )
+        getInvoiceAccessCondition(invoiceId, user)
       )
       .limit(1);
 

@@ -1,3 +1,5 @@
+import { getProcessedMutation, recordProcessedMutation } from "@/lib/mutation-idempotency";
+import { resolveAuthorizedShop } from "@/lib/tenant-guard";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/services/auth.service";
 import { db } from "@/lib/drizzle";
@@ -38,13 +40,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { shopId, mutations } = body;
 
-    const isOwner = user.role === "OWNER";
-    const effectiveShopId = isOwner && shopId ? shopId : (user.shopId || shopId);
-    if (!effectiveShopId) {
-      return NextResponse.json(
-        { error: "No active shop outlet associated with your session." },
-        { status: 400 }
-      );
+    let effectiveShopId: string;
+    try {
+      effectiveShopId = await resolveAuthorizedShop(user, shopId);
+    } catch (authErr: any) {
+      return NextResponse.json({ error: authErr.message || "Forbidden" }, { status: 403 });
     }
     const organizationId = user.organizationId;
 
@@ -56,6 +56,13 @@ export async function POST(request: Request) {
 
     for (const mutation of mutations) {
       const { id, type, payload } = mutation;
+
+      // Idempotency: skip already processed mutation
+      const cached = getProcessedMutation(organizationId, effectiveShopId, id);
+      if (cached) {
+        results.push(cached);
+        continue;
+      }
 
       try {
         if (type === "PATIENT_CREATE") {
@@ -72,13 +79,15 @@ export async function POST(request: Request) {
             .limit(1);
 
           if (existingCust) {
-            results.push({
+            const _res = {
               id,
               type,
               success: true,
               serverResultId: existingCust.id,
               registrationId: existingCust.registrationId,
-            });
+            };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
             continue;
           }
 
@@ -104,13 +113,15 @@ export async function POST(request: Request) {
             })
             .returning();
 
-          results.push({
+          const _res = {
             id,
             type,
             success: true,
             serverResultId: newCust.id,
             registrationId: newCust.registrationId,
-          });
+          };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "APPOINTMENT_CREATE") {
           const visitDate = payload.visitTime ? new Date(payload.visitTime) : new Date();
 
@@ -128,12 +139,14 @@ export async function POST(request: Request) {
             })
             .returning();
 
-          results.push({
+          const _res = {
             id,
             type,
             success: true,
             serverResultId: newApp.id,
-          });
+          };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "APPOINTMENT_STATUS") {
           if (payload.appointmentId && !payload.appointmentId.startsWith("off-")) {
             await db
@@ -149,11 +162,13 @@ export async function POST(request: Request) {
                 )
               );
           }
-          results.push({
+          const _res = {
             id,
             type,
             success: true,
-          });
+          };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "ORDER_STATUS_UPDATE") {
           const { invoiceId, fulfillmentStatus, estimatedDelivery } = payload;
           if (invoiceId && !invoiceId.startsWith("off-")) {
@@ -171,7 +186,9 @@ export async function POST(request: Request) {
                 )
               );
           }
-          results.push({ id, type, success: true });
+          const _res = { id, type, success: true };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "ORDER_PAYMENT_RECORD") {
           const { invoiceId, amountPaid, paymentMethod, transactionId } = payload;
           if (invoiceId && !invoiceId.startsWith("off-")) {
@@ -228,7 +245,9 @@ export async function POST(request: Request) {
               });
             }
           }
-          results.push({ id, type, success: true });
+          const _res = { id, type, success: true };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "ORDER_SETTLE_DUES") {
           const { invoiceId, amountReceived, discountAmount, paymentMethod, transactionId } = payload;
           if (invoiceId && !invoiceId.startsWith("off-")) {
@@ -292,7 +311,9 @@ export async function POST(request: Request) {
               });
             }
           }
-          results.push({ id, type, success: true });
+          const _res = { id, type, success: true };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "INVENTORY_CREATE") {
           const cat = payload.category || "FRAME";
           const brand = payload.brand || null;
@@ -409,13 +430,15 @@ export async function POST(request: Request) {
             }
           });
 
-          results.push({
+          const _res = {
             id,
             type,
             success: true,
             serverResultId: createdInvId,
             sku: skuCode,
-          });
+          };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "STOCK_ADJUST") {
           const { inventoryId, quantityChange, movementType, notes } = payload;
           if (inventoryId && !inventoryId.startsWith("off-")) {
@@ -457,7 +480,9 @@ export async function POST(request: Request) {
               });
             }
           }
-          results.push({ id, type, success: true });
+          const _res = { id, type, success: true };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "PATIENT_UPDATE") {
           const targetId = payload.patientId || payload.customerId;
           const patientData = payload.data || payload;
@@ -491,7 +516,9 @@ export async function POST(request: Request) {
                 )
               );
           }
-          results.push({ id, type, success: true });
+          const _res = { id, type, success: true };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "INVENTORY_UPDATE") {
           const { itemId, name, brand, model, price, costPrice, minQuantity } = payload;
           if (itemId && !itemId.startsWith("off-") && !itemId.startsWith("inv-")) {
@@ -513,7 +540,9 @@ export async function POST(request: Request) {
                 )
               );
           }
-          results.push({ id, type, success: true });
+          const _res = { id, type, success: true };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         } else if (type === "PRESCRIPTION_CREATE") {
           const {
             customerId,
@@ -592,14 +621,18 @@ export async function POST(request: Request) {
               }
             });
 
-            results.push({
+            const _res = {
               id,
               type,
               success: true,
               serverResultId: createdRxId,
-            });
+            };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
           } else {
-            results.push({ id, type, success: false, error: "Missing customerId" });
+            const _res = { id, type, success: false, error: "Missing customerId" };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
           }
         } else if (type === "RETURN_CREATE") {
           if (payload.returnNumber) {
@@ -615,13 +648,15 @@ export async function POST(request: Request) {
               .limit(1);
 
             if (existing) {
-              results.push({
+              const _res = {
                 id,
                 type,
                 success: true,
                 serverResultId: existing.id,
                 returnNumber: existing.returnNumber,
-              });
+              };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
               continue;
             }
           }
@@ -649,37 +684,45 @@ export async function POST(request: Request) {
           });
 
           if (retRes.success && "returnNumber" in retRes) {
-            results.push({
+            const _res = {
               id,
               type,
               success: true,
               serverResultId: retRes.returnId,
               returnNumber: retRes.returnNumber,
-            });
+            };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
           } else {
-            results.push({
+            const _res = {
               id,
               type,
               success: false,
               error: (retRes as any).error || "Failed to process return sync",
-            });
+            };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
           }
         } else {
-          results.push({
+          const _res = {
             id,
             type,
             success: false,
             error: `Unknown mutation type: ${type}`,
-          });
+          };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
         }
       } catch (err: any) {
         console.error(`[SyncMutations] Failed mutation ${id}:`, err);
-        results.push({
+        const _res = {
           id,
           type,
           success: false,
           error: err.message || "Mutation execution failed",
-        });
+        };
+          recordProcessedMutation(organizationId, effectiveShopId, id, _res);
+          results.push(_res);
       }
     }
 

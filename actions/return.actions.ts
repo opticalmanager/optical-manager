@@ -1,5 +1,7 @@
 "use server";
 
+import { hasModulePermission } from "@/utils/permissions";
+
 import { db } from "@/lib/drizzle";
 import {
   salesReturns,
@@ -51,8 +53,12 @@ export interface SubmitReturnPayload {
 export async function submitReturnAction(payload: SubmitReturnPayload) {
   try {
     const user = await getCurrentUser();
-    if (!user || !user.organizationId || !user.shopId) {
-      return { success: false, error: "Unauthorized session. Please log in." };
+    if (!user || !user.organizationId || !user.shopId || user.isActive === false) {
+      return { success: false, error: "Unauthorized session or account deactivated." };
+    }
+
+    if (!hasModulePermission(user, "sales")) {
+      return { success: false, error: "Forbidden: You do not have permission to process sales returns." };
     }
 
     const organizationId: string = user.organizationId;
@@ -116,8 +122,10 @@ export async function submitReturnAction(payload: SubmitReturnPayload) {
           (returnedMap[pr.invoiceItemId] || 0) + pr.quantityReturned;
       });
 
-      // 4. Validate return item quantities
+      // 4. Validate return item quantities and strictly compute maximum allowable refunds
       let totalRefund = 0;
+      let maxAllowedRefundAcrossItems = 0;
+
       for (const item of payload.items) {
         const originalItem = dbInvoiceItems.find((oi) => oi.id === item.invoiceItemId);
         if (!originalItem) {
@@ -137,7 +145,27 @@ export async function submitReturnAction(payload: SubmitReturnPayload) {
           );
         }
 
-        totalRefund += item.refundAmount;
+        // Server-verified price per unit based on original billed item total (including tax & discounts)
+        const lineSubtotal = parseFloat(originalItem.subtotal || "0");
+        const lineDiscount = parseFloat(originalItem.discountAmount || "0");
+        const lineTax =
+          parseFloat(originalItem.cgstAmount || "0") +
+          parseFloat(originalItem.sgstAmount || "0") +
+          parseFloat(originalItem.igstAmount || "0");
+        const lineTotal = Math.max(0, lineSubtotal - lineDiscount + lineTax);
+        const effectiveLineValue = lineTotal > 0 ? lineTotal : lineSubtotal;
+
+        const unitBilledPrice = originalItem.quantity > 0 
+          ? (effectiveLineValue / originalItem.quantity) 
+          : parseFloat(originalItem.unitPrice || "0");
+        const itemMaxValuation = Math.round(unitBilledPrice * item.quantityReturned * 100) / 100;
+        maxAllowedRefundAcrossItems += itemMaxValuation;
+
+        const safeItemRefund = typeof item.refundAmount === "number" && item.refundAmount >= 0
+          ? Math.min(item.refundAmount, itemMaxValuation)
+          : itemMaxValuation;
+
+        totalRefund += safeItemRefund;
       }
 
       // 5. Generate sequential return number
@@ -145,12 +173,15 @@ export async function submitReturnAction(payload: SubmitReturnPayload) {
       const isDraft = payload.isDraft === true;
       const returnStatus = isDraft ? "DRAFT" : "COMPLETED";
 
-      const finalRefundAmount =
+      // Final refund is capped to maximum allowed return valuation of the items
+      const requestedRefund =
         typeof payload.customRefundAmount === "number" &&
         !isNaN(payload.customRefundAmount) &&
         payload.customRefundAmount >= 0
           ? payload.customRefundAmount
           : totalRefund;
+
+      const finalRefundAmount = Math.min(requestedRefund, maxAllowedRefundAcrossItems);
 
       const refundMethod = payload.refundMethod === "STORE_CREDIT" ? "STORE_CREDIT" : "CASH";
       const creditAmount = refundMethod === "STORE_CREDIT" ? finalRefundAmount : 0;

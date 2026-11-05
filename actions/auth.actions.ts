@@ -1,5 +1,7 @@
 "use server";
 
+import { generateOfflineSignature } from "@/lib/offline-auth";
+
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -174,25 +176,33 @@ export async function login(
   try {
     const { cookies } = await import("next/headers");
     const cookieStore = await cookies();
-    cookieStore.set(
-      "opt_session_profile",
-      JSON.stringify({
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        organizationId: user.organizationId,
-        shopId: user.shopId,
-        isActive: user.isActive,
-      }),
-      {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-        sameSite: "lax",
-      }
-    );
+    const profileData = {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      organizationId: user.organizationId,
+      shopId: user.shopId,
+      isActive: user.isActive,
+      exp: Date.now() + 1000 * 60 * 60 * 24 * 7,
+    };
+    const profileStr = JSON.stringify(profileData);
+    const profileSig = generateOfflineSignature(profileStr);
+
+    cookieStore.set("opt_session_profile", profileStr, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+    });
+    cookieStore.set("opt_session_sig", profileSig, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+    });
   } catch {}
 
   // Role-based redirect
@@ -220,6 +230,7 @@ export async function logout() {
     
     // Explicitly delete custom session cookies with root path
     cookieStore.delete("opt_session_profile");
+    cookieStore.delete("opt_session_sig");
     cookieStore.delete("active_shop_context_id");
 
     // Clear all Supabase auth cookies
@@ -292,11 +303,21 @@ export async function accessShopConsoleAction(shopId: string) {
     try {
       const opt = JSON.parse(optRaw.startsWith("%") ? decodeURIComponent(optRaw) : optRaw);
       opt.shopId = shopId;
-      cookieStore.set("opt_session_profile", JSON.stringify(opt), {
+      opt.exp = Date.now() + 1000 * 60 * 60 * 24 * 7;
+      const optStr = JSON.stringify(opt);
+      const optSig = generateOfflineSignature(optStr);
+      cookieStore.set("opt_session_profile", optStr, {
         httpOnly: false,
         secure: process.env.NODE_ENV === "production",
         path: "/",
-        maxAge: 60 * 60 * 24 * 30,
+        maxAge: 60 * 60 * 24 * 7,
+        sameSite: "lax",
+      });
+      cookieStore.set("opt_session_sig", optSig, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
         sameSite: "lax",
       });
     } catch {}
@@ -321,11 +342,21 @@ export async function exitShopConsoleAction() {
       const opt = JSON.parse(optRaw.startsWith("%") ? decodeURIComponent(optRaw) : optRaw);
       if (opt.role === "OWNER") {
         opt.shopId = null;
-        cookieStore.set("opt_session_profile", JSON.stringify(opt), {
+        opt.exp = Date.now() + 1000 * 60 * 60 * 24 * 7;
+        const optStr = JSON.stringify(opt);
+        const optSig = generateOfflineSignature(optStr);
+        cookieStore.set("opt_session_profile", optStr, {
           httpOnly: false,
           secure: process.env.NODE_ENV === "production",
           path: "/",
-          maxAge: 60 * 60 * 24 * 30,
+          maxAge: 60 * 60 * 24 * 7,
+          sameSite: "lax",
+        });
+        cookieStore.set("opt_session_sig", optSig, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
           sameSite: "lax",
         });
       }

@@ -1,3 +1,4 @@
+import { resolveAuthorizedShop } from "@/lib/tenant-guard";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/services/auth.service";
 import { db } from "@/lib/drizzle";
@@ -35,14 +36,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { shopId, invoices: rawInvoices } = body;
 
-    // Safety: ensure shopId matches user.shopId (or owner)
-    const isOwner = user.role === "OWNER";
-    const effectiveShopId = isOwner && shopId ? shopId : (user.shopId || shopId);
-    if (!effectiveShopId) {
-      return NextResponse.json(
-        { error: "No active shop outlet associated with your session." },
-        { status: 400 }
-      );
+    let effectiveShopId: string;
+    try {
+      effectiveShopId = await resolveAuthorizedShop(user, shopId);
+    } catch (authErr: any) {
+      return NextResponse.json({ error: authErr.message || "Forbidden" }, { status: 403 });
     }
     const organizationId = user.organizationId;
 
@@ -229,23 +227,33 @@ export async function POST(request: Request) {
           // Generate official sequential invoice number
           const serverInvoiceNumber = await generateInvoiceNumber(effectiveShopId, tx);
 
-          // Calculate subtotal & tax
+          // Authoritative server-side recalculation of subtotal, discounts & statutory tax
           let subtotal = 0;
           let totalTax = 0;
           let calculatedDiscount = 0;
 
           if (data.invoiceItems) {
             for (const item of data.invoiceItems) {
-              subtotal += item.subtotal;
-              calculatedDiscount += item.discountAmount || 0;
-              totalTax += (item.cgstAmount || 0) + (item.sgstAmount || 0) + (item.igstAmount || 0);
+              const qty = Math.max(1, item.quantity || 1);
+              const price = Math.max(0, item.unitPrice || 0);
+              const lineSubtotal = qty * price;
+              const lineDiscount = Math.min(Math.max(0, item.discountAmount || 0), lineSubtotal);
+              const lineTaxable = Math.max(0, lineSubtotal - lineDiscount);
+
+              const cgst = (lineTaxable * Math.max(0, item.cgstPercent || 0)) / 100;
+              const sgst = (lineTaxable * Math.max(0, item.sgstPercent || 0)) / 100;
+              const igst = (lineTaxable * Math.max(0, item.igstPercent || 0)) / 100;
+
+              subtotal += lineSubtotal;
+              calculatedDiscount += lineDiscount;
+              totalTax += (cgst + sgst + igst);
             }
           }
 
           const taxableAmount = Math.max(0, subtotal - calculatedDiscount);
-          const grandTotal = taxableAmount + totalTax;
+          const grandTotal = Math.round((taxableAmount + totalTax) * 100) / 100;
 
-          const amountPaid = typeof data.amountPaid === "number" ? data.amountPaid : grandTotal;
+          const amountPaid = typeof data.amountPaid === "number" ? Math.max(0, data.amountPaid) : grandTotal;
           const balanceDue = Math.max(0, grandTotal - amountPaid);
           const paymentStatus = balanceDue <= 0 ? "PAID" : "PENDING";
 

@@ -14,11 +14,11 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || !user.organizationId) {
+    if (!user || !user.organizationId || user.isActive === false) {
       return NextResponse.json(
         {
           success: false,
-          error: "Authentication required. Please log in.",
+          error: "Authentication required or account deactivated.",
         },
         { status: 401 }
       );
@@ -54,6 +54,37 @@ export async function POST(req: NextRequest) {
           error: "No bill document data was received. Please re-select the file.",
         },
         { status: 400 }
+      );
+    }
+
+    // 10MB payload size restriction (base64 length limit ~14MB)
+    const MAX_BASE64_LENGTH = 14 * 1024 * 1024;
+    if (base64Data.length > MAX_BASE64_LENGTH) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Document payload exceeds maximum permitted file size of 10MB.",
+        },
+        { status: 413 }
+      );
+    }
+
+    // MIME type whitelist enforcement
+    const ALLOWED_MIME_TYPES = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "application/pdf",
+    ];
+    if (mimeType && !ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase())) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unsupported file type. Please upload a PDF, PNG, JPG, or WEBP image.",
+        },
+        { status: 415 }
       );
     }
 

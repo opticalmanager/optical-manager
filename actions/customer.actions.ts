@@ -1,5 +1,8 @@
 "use server";
 
+import { hasModulePermission } from "@/utils/permissions";
+import { resolveAuthorizedShop } from "@/lib/tenant-guard";
+
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/services/auth.service";
 import { createCustomer, updateCustomer } from "@/services/customer.service";
@@ -13,10 +16,20 @@ export async function createCustomerAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user || !user.organizationId) return { success: false, message: "Unauthorized." };
+  if (!user || !user.organizationId || user.isActive === false) {
+    return { success: false, message: "Unauthorized or account deactivated." };
+  }
 
-  const shopId = user.shopId || (formData.get("shopId") as string);
-  if (!shopId) return { success: false, message: "Shop ID is required." };
+  if (!hasModulePermission(user, "customers")) {
+    return { success: false, message: "Forbidden: You do not have permission to manage customers." };
+  }
+
+  let shopId: string;
+  try {
+    shopId = await resolveAuthorizedShop(user, formData.get("shopId") as string);
+  } catch (err: any) {
+    return { success: false, message: err.message || "Invalid shop outlet." };
+  }
 
   const validatedFields = customerSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -72,7 +85,13 @@ export async function updateCustomerAction(
   formData: FormData
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user || !user.organizationId) return { success: false, message: "Unauthorized." };
+  if (!user || !user.organizationId || user.isActive === false) {
+    return { success: false, message: "Unauthorized or account deactivated." };
+  }
+
+  if (!hasModulePermission(user, "customers")) {
+    return { success: false, message: "Forbidden: You do not have permission to manage customers." };
+  }
 
   const validatedFields = customerSchema.safeParse({
     fullName: formData.get("fullName"),
