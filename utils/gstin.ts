@@ -102,6 +102,19 @@ const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const MOD_36_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /**
+ * Normalizes statutory GSTIN string.
+ * Automatically corrects common cashier typos like uppercase letter 'O' instead of digit '0' for state codes 01-09.
+ */
+export function normalizeGSTIN(gstin?: string | null): string {
+  if (!gstin || typeof gstin !== "string") return "";
+  let clean = gstin.trim().toUpperCase().replace(/[^0-9A-Z]/g, "");
+  if (clean.length >= 2 && clean.startsWith("O") && /^[0-9]/.test(clean[1])) {
+    clean = "0" + clean.substring(1);
+  }
+  return clean;
+}
+
+/**
  * Computes official Luhn Modulo 36 checksum character for the first 14 chars of GSTIN.
  */
 export function calculateGSTINChecksum(gstin14: string): string | null {
@@ -130,7 +143,7 @@ export function calculateGSTINChecksum(gstin14: string): string | null {
  */
 export function isValidGSTIN(gstin?: string | null): boolean {
   if (!gstin || typeof gstin !== "string") return false;
-  const clean = gstin.trim().toUpperCase();
+  const clean = normalizeGSTIN(gstin);
   if (!GSTIN_REGEX.test(clean)) return false;
 
   const expectedChecksum = calculateGSTINChecksum(clean.substring(0, 14));
@@ -143,7 +156,7 @@ export function isValidGSTIN(gstin?: string | null): boolean {
  */
 export function getStateFromGSTIN(gstin?: string | null): string | null {
   if (!gstin || typeof gstin !== "string") return null;
-  const clean = gstin.trim().replace(/[^a-zA-Z0-9]/g, "");
+  const clean = normalizeGSTIN(gstin);
   if (clean.length < 2) return null;
   const code = clean.substring(0, 2);
   return GSTIN_STATE_MAP[code] || null;
@@ -154,7 +167,7 @@ export function getStateFromGSTIN(gstin?: string | null): string | null {
  */
 export function getStateCodeFromGSTIN(gstin?: string | null): string | null {
   if (!gstin || typeof gstin !== "string") return null;
-  const clean = gstin.trim().replace(/[^a-zA-Z0-9]/g, "");
+  const clean = normalizeGSTIN(gstin);
   if (clean.length < 2) return null;
   const code = clean.substring(0, 2);
   return GSTIN_STATE_MAP[code] ? code : null;
@@ -185,7 +198,7 @@ export function extractGSTINMetadata(gstin?: string | null): GSTINMetadata {
   };
 
   if (!gstin || typeof gstin !== "string") return result;
-  const clean = gstin.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const clean = normalizeGSTIN(gstin);
   if (clean.length < 2) return result;
 
   // 1. State
