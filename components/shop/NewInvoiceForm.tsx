@@ -74,7 +74,7 @@ import {
   Tag,
   Sparkles,
 } from "lucide-react";
-import { verifyGstinAction } from "@/actions/gst-lookup.actions";
+import { verifyGstinAction, checkGstAutofetchStatusAction } from "@/actions/gst-lookup.actions";
 import { INDIAN_STATES, GSTIN_STATE_MAP, getStateFromGSTIN, isValidGSTINChecksum } from "@/utils/gstin";
 
 interface PastRxGroup {
@@ -312,7 +312,12 @@ function formatDateTimeLocal(d: Date | string = new Date()): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-export function NewInvoiceForm() {
+export function NewInvoiceForm({
+  isGstAutofetchEnabled: initialGstAutofetchEnabled,
+}: {
+  isGstAutofetchEnabled?: boolean;
+} = {}) {
+
   const router = useRouter();
   const { isOnline, shopId } = useOffline();
   const [isPending, setIsPending] = useState(false);
@@ -393,6 +398,18 @@ export function NewInvoiceForm() {
   const [pincode, setPincode] = useState("");
 
   // GST Auto-Fetch & Taxpayer Verification States
+  const [isGstAutofetchEnabled, setIsGstAutofetchEnabled] = useState<boolean>(initialGstAutofetchEnabled ?? false);
+
+  useEffect(() => {
+    if (initialGstAutofetchEnabled !== undefined) {
+      setIsGstAutofetchEnabled(initialGstAutofetchEnabled);
+    } else {
+      checkGstAutofetchStatusAction().then((res) => {
+        setIsGstAutofetchEnabled(res.isEnabled);
+      });
+    }
+  }, [initialGstAutofetchEnabled]);
+
   const [isVerifyingGstin, setIsVerifyingGstin] = useState(false);
   const [gstinVerifiedStatus, setGstinVerifiedStatus] = useState<{
     status: string;
@@ -2670,34 +2687,49 @@ export function NewInvoiceForm() {
                       setState(detectedState);
                     }
 
-                    // Hybrid: 400ms debounce when valid 15-character GSTIN is entered
-                    if (cleaned.length === 15 && isValidGSTINChecksum(cleaned)) {
+                    // Hybrid: 400ms debounce when valid 15-character GSTIN is entered AND feature is enabled for org
+                    if (isGstAutofetchEnabled && cleaned.length === 15 && isValidGSTINChecksum(cleaned)) {
                       if (gstinDebounceRef.current) clearTimeout(gstinDebounceRef.current);
                       gstinDebounceRef.current = setTimeout(() => {
                         handleFetchGstinDetails(cleaned, false);
                       }, 400);
                     }
                   }}
-                  className="w-full h-7.5 pl-6 pr-20 rounded border border-slate-300 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <Building className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-
-                {/* Fetch GST Spark Button */}
-                <button
-                  type="button"
-                  onClick={() => handleFetchGstinDetails(gstin, true)}
-                  disabled={isVerifyingGstin || gstin.length !== 15}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[10px] font-bold text-[#2563eb] hover:bg-blue-50 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-30 disabled:pointer-events-none shadow-2xs border border-transparent hover:border-blue-200"
-                  title="Auto-fetch official trade name and address from GST registry"
-                >
-                  {isVerifyingGstin ? (
-                    <Loader2 className="h-3 w-3 animate-spin text-[#2563eb]" />
-                  ) : (
-                    <Sparkles className="h-3 w-3 text-[#2563eb]" />
-                  )}
-                  <span>Fetch GST</span>
-                </button>
               </div>
+
+              {/* Small Attached Button Below Input Box (Only shown if toggled ON for this organisation by admin) */}
+              {isGstAutofetchEnabled && (
+                <div className="mt-1 flex items-center justify-between gap-1.5 animate-in fade-in duration-150">
+                  <button
+                    type="button"
+                    onClick={() => handleFetchGstinDetails(gstin, true)}
+                    disabled={isVerifyingGstin || gstin.length !== 15}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#2563eb] border border-blue-200/80 hover:bg-blue-100/70 hover:border-blue-300 transition-all cursor-pointer shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                    title="Auto-fetch official trade name and address from GST registry"
+                  >
+                    {isVerifyingGstin ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-[#2563eb]" />
+                    ) : (
+                      <Sparkles className="h-3 w-3 text-[#2563eb]" />
+                    )}
+                    <span>Fetch GST Details</span>
+                  </button>
+
+                  {isVerifyingGstin && (
+                    <span className="text-[10px] font-medium text-blue-600 animate-pulse">
+                      Verifying...
+                    </span>
+                  )}
+                  {gstinVerifiedStatus && !isVerifyingGstin && (
+                    <span className="text-[10px] text-slate-500 truncate max-w-[150px]" title={gstinVerifiedStatus.tradeName}>
+                      {gstinVerifiedStatus.tradeName}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* FULL ADDRESS */}

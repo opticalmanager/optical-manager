@@ -110,3 +110,32 @@ export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLoo
     };
   }
 }
+
+/**
+ * Server Action: Check if GST_AUTOFETCH add-on is enabled for the current user's organization.
+ */
+export async function checkGstAutofetchStatusAction(): Promise<{ isEnabled: boolean }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !user.organizationId) {
+      return { isEnabled: false };
+    }
+
+    const [addon] = await db
+      .select({ isEnabled: organizationAddons.isEnabled })
+      .from(organizationAddons)
+      .where(
+        and(
+          eq(organizationAddons.organizationId, user.organizationId),
+          eq(organizationAddons.addonKey, "GST_AUTOFETCH")
+        )
+      )
+      .limit(1);
+
+    return { isEnabled: addon?.isEnabled || false };
+  } catch (err) {
+    console.error("[checkGstAutofetchStatusAction] Error:", err);
+    return { isEnabled: false };
+  }
+}
+

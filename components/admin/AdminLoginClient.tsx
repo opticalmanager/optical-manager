@@ -89,7 +89,7 @@ export default function AdminLoginClient() {
       )}
 
       {/* Login Card */}
-      <div className="bg-[#0d1424] border border-slate-800/80 p-6 sm:p-7 rounded-2xl shadow-2xl space-y-5">
+      <div className="bg-[#111827] border border-slate-800/80 p-6 sm:p-7 rounded-2xl shadow-2xl space-y-5">
         <div className="flex items-center justify-between pb-1">
           <Link
             href="/"
@@ -113,7 +113,7 @@ export default function AdminLoginClient() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-[#070b13] border border-slate-800 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-[#0f172a] border border-slate-800 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
               />
             </div>
           </div>
@@ -130,7 +130,7 @@ export default function AdminLoginClient() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-10 py-2.5 bg-[#070b13] border border-slate-800 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                className="w-full pl-10 pr-10 py-2.5 bg-[#0f172a] border border-slate-800 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
               />
               <button
                 type="button"

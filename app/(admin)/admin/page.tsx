@@ -1,5 +1,10 @@
 import React from "react";
-import { getPlatformStats, getAllOrganizations } from "@/services/admin.service";
+import { 
+  getPlatformStats, 
+  getAllOrganizations, 
+  getExpiringSubscriptions, 
+  getPlatformActivityPulse 
+} from "@/services/admin.service";
 import AdminDashboardClient from "@/components/admin/AdminDashboardClient";
 
 export const metadata = {
@@ -8,13 +13,19 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  const stats = await getPlatformStats();
-  const organizations = await getAllOrganizations();
+  const [stats, organizations, expiringSubscriptions, activityPulse] = await Promise.all([
+    getPlatformStats(),
+    getAllOrganizations(),
+    getExpiringSubscriptions(),
+    getPlatformActivityPulse(),
+  ]);
 
   return (
     <AdminDashboardClient 
       stats={stats}
       recentOrganizations={organizations}
+      expiringSubscriptions={expiringSubscriptions}
+      activityPulse={activityPulse}
     />
   );
 }

@@ -136,7 +136,7 @@ export default function OrganizationAddonsCard({
   };
 
   return (
-    <div className="bg-[#0d1424] border border-slate-800/80 rounded-2xl p-5 shadow-xl space-y-5 text-white">
+    <div className="bg-[#111827] border border-slate-800/80 rounded-2xl p-5 shadow-xl space-y-5 text-white">
       {/* Section Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
         <div>

@@ -7,7 +7,12 @@ import {
   profiles, 
   subscriptions, 
   demoRequests, 
-  invoices
+  invoices,
+  prescriptions,
+  whatsappDispatchQueue,
+  addonUsageLogs,
+  customers,
+  organizationAddons
 } from "@/db/schema";
 import { eq, count, sql, desc, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -25,16 +30,84 @@ export async function verifySuperAdmin() {
   return user;
 }
 
-// ── 1. Platform Overview Telemetry ──
+// ── 1. Platform Overview Telemetry (High-Grade SaaS Intelligence) ──
 export async function getPlatformStats() {
   await verifySuperAdmin();
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fourteenDaysLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
   const [orgCount] = await db.select({ value: count() }).from(organizations);
   const [shopCount] = await db.select({ value: count() }).from(shops);
   const [activeSubCount] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "ACTIVE"));
   const [pendingLeadsCount] = await db.select({ value: count() }).from(demoRequests).where(eq(demoRequests.status, "PENDING"));
   const [approvedLeadsCount] = await db.select({ value: count() }).from(demoRequests).where(eq(demoRequests.status, "APPROVED"));
-  const [totalInvoiceSum] = await db.select({ total: sql<string>`COALESCE(SUM(total), 0)` }).from(invoices);
+  const [totalInvoiceSum] = await db.select({ total: sql<string>`COALESCE(SUM(total), 0)`, count: count() }).from(invoices);
+
+  // Velocity metrics
+  const [monthInvoiceStats] = await db
+    .select({ total: sql<string>`COALESCE(SUM(total), 0)`, count: count() })
+    .from(invoices)
+    .where(sql`${invoices.createdAt} >= ${startOfMonth}`);
+
+  const [todayInvoiceStats] = await db
+    .select({ total: sql<string>`COALESCE(SUM(total), 0)`, count: count() })
+    .from(invoices)
+    .where(sql`${invoices.createdAt} >= ${startOfToday}`);
+
+  // Operational metrics
+  const [prescriptionCount] = await db.select({ value: count() }).from(prescriptions);
+  const [whatsappCount] = await db.select({ value: count() }).from(whatsappDispatchQueue);
+  const [addonStats] = await db
+    .select({ count: count(), cost: sql<string>`COALESCE(SUM(cost_inr), 0)` })
+    .from(addonUsageLogs);
+
+  // Expiring in next 14 days
+  const [expiringSubCount] = await db
+    .select({ value: count() })
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.status, "ACTIVE"),
+        sql`${subscriptions.currentPeriodEnd} <= ${fourteenDaysLater}`
+      )
+    );
+
+  // All active subscriptions to calculate MRR / ARR & Plan Distribution
+  const activeSubs = await db
+    .select({
+      plan: subscriptions.plan,
+      billingCycle: subscriptions.billingCycle,
+    })
+    .from(subscriptions)
+    .where(eq(subscriptions.status, "ACTIVE"));
+
+  let calculatedMrr = 0;
+  const planDistribution = {
+    enterprise: 0,
+    pro: 0,
+    basic: 0,
+    trial: 0,
+  };
+
+  const planMonthlyRates: Record<string, number> = {
+    ENTERPRISE: 4999,
+    PRO: 2499,
+    BASIC: 999,
+    TRIAL: 0,
+  };
+
+  activeSubs.forEach((sub) => {
+    const p = (sub.plan || "PRO").toUpperCase();
+    if (p === "ENTERPRISE") planDistribution.enterprise++;
+    else if (p === "BASIC") planDistribution.basic++;
+    else if (p === "TRIAL") planDistribution.trial++;
+    else planDistribution.pro++;
+
+    calculatedMrr += planMonthlyRates[p] ?? 2499;
+  });
 
   return {
     totalOrganizations: orgCount.value,
@@ -43,6 +116,19 @@ export async function getPlatformStats() {
     pendingLeads: pendingLeadsCount.value,
     approvedLeads: approvedLeadsCount.value,
     totalPlatformRevenue: parseFloat(totalInvoiceSum.total || "0"),
+    totalInvoicesCount: totalInvoiceSum.count,
+    monthGmv: parseFloat(monthInvoiceStats.total || "0"),
+    monthInvoicesCount: monthInvoiceStats.count,
+    todayGmv: parseFloat(todayInvoiceStats.total || "0"),
+    todayInvoicesCount: todayInvoiceStats.count,
+    totalPrescriptionsCount: prescriptionCount.value,
+    whatsappMessagesCount: whatsappCount.value,
+    gstinLookupsCount: addonStats.count,
+    totalAddonCost: parseFloat(addonStats.cost || "0"),
+    expiringSubscriptionsCount: expiringSubCount.value,
+    mrr: calculatedMrr,
+    arr: calculatedMrr * 12,
+    planDistribution,
   };
 }
 
@@ -154,6 +240,33 @@ export async function getOrganizationDetailsById(orgId: string) {
       createdAt: org.createdAt,
     },
     shops: shopsWithManagers,
+    billingStats: {
+      totalRevenue: parseFloat(
+        (await db.select({ total: sql<string>`COALESCE(SUM(total), 0)` }).from(invoices).where(eq(invoices.organizationId, orgId)))[0]?.total || "0"
+      ),
+      totalInvoicesCount: (
+        await db.select({ value: count() }).from(invoices).where(eq(invoices.organizationId, orgId))
+      )[0]?.value ?? 0,
+      totalPrescriptions: (
+        await db.select({ value: count() }).from(prescriptions).where(eq(prescriptions.organizationId, orgId))
+      )[0]?.value ?? 0,
+      totalCustomers: (
+        await db.select({ value: count() }).from(customers).where(eq(customers.organizationId, orgId))
+      )[0]?.value ?? 0,
+      recentInvoices: await db
+        .select({
+          id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
+          total: invoices.total,
+          status: invoices.status,
+          paymentMethod: invoices.paymentMethod,
+          createdAt: invoices.createdAt,
+        })
+        .from(invoices)
+        .where(eq(invoices.organizationId, orgId))
+        .orderBy(desc(invoices.createdAt))
+        .limit(5),
+    },
   };
 }
 
@@ -580,3 +693,261 @@ export async function deleteShopOutlet(shopId: string, organizationId: string) {
 }
 
 
+
+
+// ── 9. Expiring Subscriptions Radar (Churn Prevention) ──
+export async function getExpiringSubscriptions() {
+  await verifySuperAdmin();
+  const now = new Date();
+  const fourteenDaysLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+  const subs = await db
+    .select({
+      id: subscriptions.id,
+      organizationId: subscriptions.organizationId,
+      plan: subscriptions.plan,
+      status: subscriptions.status,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
+      billingCycle: subscriptions.billingCycle,
+      orgName: organizations.name,
+      orgSlug: organizations.slug,
+      orgPhone: organizations.phone,
+    })
+    .from(subscriptions)
+    .innerJoin(organizations, eq(subscriptions.organizationId, organizations.id))
+    .where(
+      and(
+        eq(subscriptions.status, "ACTIVE"),
+        sql`${subscriptions.currentPeriodEnd} <= ${fourteenDaysLater}`
+      )
+    )
+    .orderBy(subscriptions.currentPeriodEnd);
+
+  const enriched = await Promise.all(
+    subs.map(async (sub) => {
+      const [owner] = await db
+        .select({ fullName: profiles.fullName, email: profiles.email })
+        .from(profiles)
+        .where(and(eq(profiles.organizationId, sub.organizationId), eq(profiles.role, "OWNER")))
+        .limit(1);
+
+      const endDate = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : now;
+      const diffTime = endDate.getTime() - now.getTime();
+      const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      return {
+        ...sub,
+        ownerName: owner?.fullName || "Store Owner",
+        ownerEmail: owner?.email || "N/A",
+        ownerPhone: sub.orgPhone || "",
+        daysRemaining: Math.max(0, daysRemaining),
+      };
+    })
+  );
+
+  return enriched;
+}
+
+// ── 10. Platform Activity Pulse (Real-Time SaaS Event Timeline) ──
+export interface PlatformActivityItem {
+  id: string;
+  type: "STORE_ONBOARDED" | "LEAD_RECEIVED" | "ADDON_QUERY";
+  title: string;
+  description: string;
+  timestamp: string;
+  badge: string;
+  badgeColor: "emerald" | "blue" | "purple" | "amber";
+}
+
+export async function getPlatformActivityPulse(): Promise<PlatformActivityItem[]> {
+  await verifySuperAdmin();
+
+  // 1. Recent Organizations
+  const recentOrgs = await db
+    .select({ id: organizations.id, name: organizations.name, createdAt: organizations.createdAt })
+    .from(organizations)
+    .orderBy(desc(organizations.createdAt))
+    .limit(4);
+
+  // 2. Recent Demo Leads
+  const recentLeads = await db
+    .select({ id: demoRequests.id, storeName: demoRequests.storeName, city: demoRequests.city, createdAt: demoRequests.createdAt })
+    .from(demoRequests)
+    .orderBy(desc(demoRequests.createdAt))
+    .limit(4);
+
+  // 3. Recent Add-on Lookups
+  const recentAddons = await db
+    .select({ id: addonUsageLogs.id, identifier: addonUsageLogs.referenceIdentifier, createdAt: addonUsageLogs.createdAt })
+    .from(addonUsageLogs)
+    .orderBy(desc(addonUsageLogs.createdAt))
+    .limit(3);
+
+  const items: PlatformActivityItem[] = [];
+
+  recentOrgs.forEach((o) => {
+    items.push({
+      id: `org-${o.id}`,
+      type: "STORE_ONBOARDED",
+      title: o.name,
+      description: "New optical retail chain onboarded",
+      timestamp: o.createdAt.toISOString(),
+      badge: "Tenant Store",
+      badgeColor: "emerald",
+    });
+  });
+
+  recentLeads.forEach((l) => {
+    items.push({
+      id: `lead-${l.id}`,
+      type: "LEAD_RECEIVED",
+      title: l.storeName || "Inbound Demo Lead",
+      description: `Demo requested from ${l.city || "Website"}`,
+      timestamp: l.createdAt.toISOString(),
+      badge: "Inbound Lead",
+      badgeColor: "amber",
+    });
+  });
+
+  recentAddons.forEach((a) => {
+    items.push({
+      id: `addon-${a.id}`,
+      type: "ADDON_QUERY",
+      title: `GSTIN Lookup: ${a.identifier || "Verified"}`,
+      description: "Automated taxpayer verification API call",
+      timestamp: a.createdAt.toISOString(),
+      badge: "Add-on API",
+      badgeColor: "purple",
+    });
+  });
+
+  return items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 8);
+}
+
+// ── 11. Export SaaS Telemetry (CSV) ──
+export async function exportSaaSTelemetryAction() {
+  await verifySuperAdmin();
+  const orgs = await getAllOrganizations();
+
+  const headers = [
+    "Organization ID",
+    "Store Chain Name",
+    "Slug",
+    "Owner Full Name",
+    "Owner Email",
+    "Plan",
+    "Subscription Status",
+    "Current Period End",
+    "Outlets Count",
+    "Onboarded Date",
+  ];
+
+  const rows = orgs.map((o) => [
+    `"${o.id}"`,
+    `"${(o.name || "").replace(/"/g, '""')}"`,
+    `"${o.slug || ""}"`,
+    `"${(o.ownerName || "").replace(/"/g, '""')}"`,
+    `"${o.ownerEmail || ""}"`,
+    `"${o.plan || "PRO"}"`,
+    `"${o.status || "ACTIVE"}"`,
+    `"${o.currentPeriodEnd ? new Date(o.currentPeriodEnd).toISOString().split("T")[0] : "N/A"}"`,
+    `"${o.shopsCount || 1}"`,
+    `"${o.createdAt ? new Date(o.createdAt).toISOString().split("T")[0] : "N/A"}"`,
+  ]);
+
+  const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+  return { 
+    success: true, 
+    csv: csvContent, 
+    filename: `optical_manager_saas_telemetry_${new Date().toISOString().split("T")[0]}.csv` 
+  };
+}
+
+
+// ── 12. Platform Add-on Services Overview ──
+export async function getPlatformAddonsOverview() {
+  await verifySuperAdmin();
+
+  const [totalStats] = await db
+    .select({
+      count: count(),
+      totalCost: sql<string>`COALESCE(SUM(cost_inr), 0)`,
+    })
+    .from(addonUsageLogs);
+
+  const [cachedStats] = await db
+    .select({ count: count() })
+    .from(addonUsageLogs)
+    .where(eq(addonUsageLogs.isCached, true));
+
+  const [whatsappTotal] = await db
+    .select({ count: count() })
+    .from(whatsappDispatchQueue);
+
+  const totalQueries = totalStats?.count ?? 0;
+  const cachedHits = cachedStats?.count ?? 0;
+  const liveCalls = totalQueries - cachedHits;
+  const cacheHitRatio = totalQueries > 0 ? Math.round((cachedHits / totalQueries) * 100) : 0;
+
+  const allOrgs = await db
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      slug: organizations.slug,
+      createdAt: organizations.createdAt,
+      plan: subscriptions.plan,
+    })
+    .from(organizations)
+    .leftJoin(subscriptions, eq(organizations.id, subscriptions.organizationId))
+    .orderBy(desc(organizations.createdAt));
+
+  const tenantMatrix = await Promise.all(
+    allOrgs.map(async (org) => {
+      const [addonEntry] = await db
+        .select()
+        .from(organizationAddons)
+        .where(
+          and(
+            eq(organizationAddons.organizationId, org.id),
+            eq(organizationAddons.addonKey, "GST_AUTOFETCH")
+          )
+        )
+        .limit(1);
+
+      const [usage] = await db
+        .select({
+          count: count(),
+          cost: sql<string>`COALESCE(SUM(cost_inr), 0)`,
+        })
+        .from(addonUsageLogs)
+        .where(eq(addonUsageLogs.organizationId, org.id));
+
+      const isEnabled = addonEntry?.isEnabled ?? false;
+      const costPerCall = (addonEntry?.config as any)?.costPerCall ?? "0.40";
+
+      return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        plan: org.plan || "PRO",
+        gstAddonEnabled: isEnabled,
+        costPerCall,
+        totalCalls: usage?.count ?? 0,
+        totalCostInr: parseFloat(usage?.cost || "0"),
+        createdAt: org.createdAt.toISOString(),
+      };
+    })
+  );
+
+  return {
+    telemetry: {
+      totalQueries,
+      cachedHits,
+      liveCalls,
+      cacheHitRatio,
+      totalCostInr: parseFloat(totalStats?.totalCost || "0"),
+      whatsappDispatches: whatsappTotal?.count ?? 0,
+    },
+    tenants: tenantMatrix,
+  };
+}
