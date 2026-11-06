@@ -9,7 +9,9 @@ import {
   getAppointmentReport,
   getDayWiseCollectionReport,
   getOutstandingDuesReport,
-  getDeadStockReport
+  getDeadStockReport,
+  getCreditNotesReport,
+  getDocumentSummary
 } from "@/services/report.service";
 import { OwnerReportsClient } from "@/components/owner/OwnerReportsClient";
 import { db } from "@/lib/drizzle";
@@ -68,6 +70,8 @@ export default async function OwnerReportsPage({ searchParams }: PageProps) {
   let dayWiseData: any = [];
   let duesData: any = { totalDues: 0, rows: [] };
   let deadStockData: any = { totalDeadStockQty: 0, totalDeadStockValue: 0, rows: [] };
+  let creditNotesData: any = { totalNotes: 0, registeredCount: 0, unregisteredCount: 0, totalRefundValue: 0, notes: [] };
+  let documentSummaryData: any = { rows: [], hasGaps: false };
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
@@ -86,6 +90,8 @@ export default async function OwnerReportsPage({ searchParams }: PageProps) {
         dData,
         dueData,
         deadData,
+        cnData,
+        docData
       ],
     ] = await Promise.race([
       Promise.all([
@@ -107,6 +113,8 @@ export default async function OwnerReportsPage({ searchParams }: PageProps) {
           getDayWiseCollectionReport(currentShopId, from, to, user.organizationId),
           getOutstandingDuesReport(currentShopId, user.organizationId),
           getDeadStockReport(currentShopId, user.organizationId),
+          getCreditNotesReport(currentShopId, from, to, user.organizationId),
+          getDocumentSummary(currentShopId, from, to, user.organizationId),
         ]),
       ]),
       timeoutPromise,
@@ -122,6 +130,8 @@ export default async function OwnerReportsPage({ searchParams }: PageProps) {
     dayWiseData = dData || [];
     duesData = dueData || duesData;
     deadStockData = deadData || deadStockData;
+    creditNotesData = cnData || creditNotesData;
+    documentSummaryData = docData || documentSummaryData;
   } catch (err) {
     // Graceful offline fallback
   }
@@ -139,6 +149,8 @@ export default async function OwnerReportsPage({ searchParams }: PageProps) {
       dayWiseData={dayWiseData}
       duesData={duesData}
       deadStockData={deadStockData}
+      creditNotesData={creditNotesData}
+      documentSummaryData={documentSummaryData}
       initialFrom={from}
       initialTo={to}
     />

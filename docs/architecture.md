@@ -548,3 +548,20 @@ The AI Bill Scanning engine digitizes complex supplier invoices (multi-page PDFs
     - `Referrer-Policy: strict-origin-when-cross-origin`
     - `X-XSS-Protection: 1; mode=block`
     - `Permissions-Policy: camera=(self), microphone=(), geolocation=()`
+
+
+## 12. GST Statutory Audit & CA Reporting Architecture
+
+Optical Manager includes a statutory taxation module built for Indian GST compliance (GSTR-1 & GSTR-3B):
+
+- **Core Library (`lib/gst-utils.ts`)**: Maps 37 statutory Indian state codes (01-38), performs regex validation on 15-character GSTINs, derives Place of Supply from recipient GSTIN or shipping address, determines Intra-State vs Inter-State supply, and maps optical retail HSN codes (9003 frames, 9004 sunglasses, 9001 lenses, 3307 solutions).
+
+- **B2B vs B2C Segmentation**: Invoices are classified into B2B (GSTR-1 Table 4A) when a valid 15-character recipient GSTIN is present, and B2C (Table 7/8) otherwise. B2C transactions are subdivided into B2C-Large (> ₹2.5L inter-state) and B2C-Small.
+
+- **Credit / Debit Notes (Table 9A/9B)**: Sales returns from `salesReturns` and `salesReturnItems` are tracked as credit notes.
+
+- **HSN / SAC Summary (Table 12)**: Aggregates line items by HSN code with UQC `"NOS"`, total quantities, taxable valuation, and CGST/SGST/IGST tax splits.
+
+- **Document Serial Continuity (Table 13)**: Continuously checks outgoing invoice numbers for sequential numbering gaps.
+
+- **Header Period Selector**: Replaces static date dropdowns with a horizontal period control matching store accountant workflows (`[This Month]`, `[Last Month]`, `[Month ▾]`, `[Year / FY ▾]`, and `[Custom Dates]`).

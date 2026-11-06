@@ -12,7 +12,9 @@ import {
   AppointmentReportData,
   DayWiseCollectionReportData,
   OutstandingDuesReportData,
-  DeadStockReportData
+  DeadStockReportData,
+  CreditNotesReportData,
+  DocumentSummaryData
 } from "@/services/report.service";
 
 interface OwnerReportsClientProps {
@@ -27,6 +29,8 @@ interface OwnerReportsClientProps {
   dayWiseData: DayWiseCollectionReportData;
   duesData: OutstandingDuesReportData;
   deadStockData: DeadStockReportData;
+  creditNotesData?: CreditNotesReportData;
+  documentSummaryData?: DocumentSummaryData;
   autoReportSchedule?: { type: "daily" | "weekly" | "off"; email?: string };
   initialFrom?: string;
   initialTo?: string;
@@ -44,6 +48,8 @@ export function OwnerReportsClient({
   dayWiseData,
   duesData,
   deadStockData,
+  creditNotesData,
+  documentSummaryData,
   autoReportSchedule,
   initialFrom,
   initialTo,
@@ -69,6 +75,8 @@ export function OwnerReportsClient({
         dayWiseData={dayWiseData}
         duesData={duesData}
         deadStockData={deadStockData}
+        creditNotesData={creditNotesData}
+        documentSummaryData={documentSummaryData}
         autoReportSchedule={autoReportSchedule}
         initialFrom={initialFrom}
         initialTo={initialTo}

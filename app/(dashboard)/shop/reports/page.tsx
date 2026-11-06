@@ -8,7 +8,9 @@ import {
   getAppointmentReport,
   getDayWiseCollectionReport,
   getOutstandingDuesReport,
-  getDeadStockReport
+  getDeadStockReport,
+  getCreditNotesReport,
+  getDocumentSummary
 } from "@/services/report.service";
 import { getShopById } from "@/services/shop.service";
 import { hasModulePermission } from "@/utils/permissions";
@@ -87,7 +89,9 @@ export default async function ShopReportsPage({ searchParams }: PageProps) {
     appointmentData,
     dayWiseData,
     duesData,
-    deadStockData
+    deadStockData,
+    creditNotesData,
+    documentSummaryData
   ] = await Promise.all([
     getSalesSummaryReport(shopId, from, to),
     getItemWiseReport(shopId, from, to),
@@ -98,6 +102,8 @@ export default async function ShopReportsPage({ searchParams }: PageProps) {
     getDayWiseCollectionReport(shopId, from, to),
     getOutstandingDuesReport(shopId),
     getDeadStockReport(shopId),
+    getCreditNotesReport(shopId, from, to),
+    getDocumentSummary(shopId, from, to)
   ]);
 
   return (
@@ -112,6 +118,8 @@ export default async function ShopReportsPage({ searchParams }: PageProps) {
       dayWiseData={dayWiseData}
       duesData={duesData}
       deadStockData={deadStockData}
+      creditNotesData={creditNotesData}
+      documentSummaryData={documentSummaryData}
       autoReportSchedule={autoReportSchedule}
       initialFrom={from}
       initialTo={to}
