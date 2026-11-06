@@ -20,13 +20,29 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Response**: `200 OK` with `Content-Type: text/csv` download header.
 
 #### `GET /api/reports/export`
-- **Description**: Exports detailed financial revenue reports, GST tax breakdowns, payment collections, day-wise ledgers, and single-day customer transaction reports into CSV format.
+- **Description**: Exports detailed financial revenue reports, CA-standard GST statutory registers (GSTR-1 & GSTR-3B compliant), payment collections, day-wise ledgers, inventory valuation, and single-day customer transaction reports into CSV format. Automatically escapes potential formula injection characters (`=`, `+`, `-`, `@`) using `sanitizeCSVValue`.
 - **Query Parameters**:
-  - `type`: `sales` | `items` | `gst` | `inventory` | `payments` | `appointments` | `daywise` | `daily` | `dues` | `deadstock`.
+  - `type`:
+    - `b2b`: Statutory B2B Invoices register with Recipient GSTIN, Place of Supply, Taxable value, CGST/SGST/IGST splits, and unguessable public invoice share links (`/share/invoice/[uuid]`).
+    - `b2c`: Retail B2C consumer invoices register with B2C-Large vs B2C-Small classification and tax breakdowns.
+    - `gstr1` / `gstr1-portal`: Exact column layout matching the official GST Portal offline utility tool (Table 4A).
+    - `hsn`: Statutory Table 12 HSN/SAC summary grouped by optical commodity codes (9003, 9004, 9001, etc.) with UQC units and tax splits.
+    - `creditnotes`: Statutory Table 9A/9B credit notes register issued for sales returns and refunds.
+    - `docsummary`: Statutory Table 13 document serial number continuity audit with sequence gap detection.
+    - `sales`: Sales summary ledger.
+    - `items`: Item-wise sales report.
+    - `inventory`: Complete stock valuation and inventory health.
+    - `payments`: Customer payment receipt collection register.
+    - `appointments`: Patient optometry recall and visit log.
+    - `daywise`: Daily settlement ledger with cash/UPI/card breakdowns.
+    - `daily`: Single-day itemized customer transaction ledger.
+    - `dues`: Accounts receivable and overdue balance aging.
+    - `deadstock`: Zero-movement inventory audit for capital recovery.
   - `from` (optional): Start date string (`YYYY-MM-DD`).
   - `to` (optional): End date string (`YYYY-MM-DD`).
   - `date` (optional): Specific date string (`YYYY-MM-DD`) for `type=daily` single-day customer transaction ledger export.
-- **Response**: `200 OK` with `Content-Type: text/csv` download header.
+  - `shopId` (optional): Target store branch ID. For store owners (`OWNER`) and super administrators, defaults to `"all"` for consolidated multi-branch audits or accepts a specific branch UUID.
+- **Response**: `200 OK` with `Content-Type: text/csv` download header and dynamic date-stamped filename (e.g. `B2B-GST-Report-2026-11-01-to-2026-11-30.csv`).
 
 ---
 

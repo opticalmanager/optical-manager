@@ -11,9 +11,20 @@ import {
   receipts, 
   appointments, 
   orders,
-  stockMovements
+  stockMovements,
+  shops,
+  salesReturns,
+  salesReturnItems
 } from "@/db/schema";
-import { eq, and, gte, lte, sql, desc, sum, count, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, sum, count, inArray, isNull, ne } from "drizzle-orm";
+import {
+  isValidGSTIN,
+  getPlaceOfSupply,
+  getSupplyType,
+  formatIndianDate,
+  HSN_DESCRIPTIONS,
+  INSPECTION_REASON_LABELS
+} from "@/lib/gst-utils";
 
 export interface ReportDateRange {
   startDate?: string;
@@ -63,7 +74,7 @@ export interface ItemWiseReportData {
   items: ItemWiseReportItem[];
 }
 
-// 3. GST Tax Filing Report Data
+// 3. GST Tax Filing Report Data (Statutory CA-Grade & GSTR-1/GSTR-3B Compliant)
 export interface GSTReportItem {
   invoiceNumber: string;
   createdAt: Date;
@@ -77,13 +88,133 @@ export interface GSTReportItem {
   totalAmount: number;
 }
 
+export interface GSTInvoiceRow {
+  invoiceId: string;
+  invoiceNumber: string;
+  invoiceDate: Date;
+  invoiceValue: number;
+  customerName: string;
+  customerPhone: string | null;
+  customerGstin: string | null;
+  customerState: string | null;
+  customerCity: string | null;
+  supplierGstin: string | null;
+  shopName: string;
+  placeOfSupply: string;
+  supplyType: "Intra-State" | "Inter-State";
+  isB2B: boolean;
+  isB2CLarge: boolean;
+  reverseCharge: "Y" | "N";
+  invoiceType: "Regular";
+  taxableValue: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  cessAmount: number;
+  totalTax: number;
+  effectiveRate: number;
+  paymentMethod: string;
+  paymentStatus: "PAID" | "PARTIAL" | "PENDING";
+  amountPaid: number;
+  balanceDue: number;
+  hsnCodes: string[];
+  hasMissingHsn: boolean;
+  isZeroTax: boolean;
+  isInvalidGstin: boolean;
+}
+
+export interface GSTSummaryTotals {
+  invoiceCount: number;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  cess: number;
+  totalTax: number;
+  totalValue: number;
+}
+
+export interface HSNSummaryRow {
+  hsnCode: string;
+  description: string;
+  uqc: string;
+  totalQuantity: number;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  totalTax: number;
+  totalValue: number;
+}
+
+export interface GSTRateSummaryRow {
+  rate: number;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  totalTax: number;
+}
+
+export interface CreditNoteRow {
+  noteType: "Credit Note";
+  noteNumber: string;
+  noteDate: Date;
+  originalInvoiceNumber: string;
+  originalInvoiceDate: Date;
+  customerName: string;
+  customerGstin: string | null;
+  isRegistered: boolean;
+  reason: string;
+  noteValue: number;
+  refundMethod: string;
+}
+
+export interface CreditNotesReportData {
+  totalNotes: number;
+  registeredCount: number;
+  unregisteredCount: number;
+  totalRefundValue: number;
+  notes: CreditNoteRow[];
+}
+
+export interface DocumentSummaryRow {
+  documentType: string;
+  serialFrom: string;
+  serialTo: string;
+  totalNumber: number;
+  cancelled: number;
+  netIssued: number;
+  missingNumbers: string[];
+}
+
+export interface DocumentSummaryData {
+  rows: DocumentSummaryRow[];
+  hasGaps: boolean;
+}
+
 export interface GSTReportData {
   totalTaxableValue: number;
   totalCGST: number;
   totalSGST: number;
   totalIGST: number;
   totalTaxCollected: number;
-  items: GSTReportItem[];
+  overallSummary: GSTSummaryTotals;
+  b2bSummary: GSTSummaryTotals;
+  b2cSummary: GSTSummaryTotals;
+  b2cLargeSummary: GSTSummaryTotals;
+  b2cSmallSummary: GSTSummaryTotals;
+  b2bInvoices: GSTInvoiceRow[];
+  b2cInvoices: GSTInvoiceRow[];
+  hsnSummary: HSNSummaryRow[];
+  rateSummary: GSTRateSummaryRow[];
+  dataQuality: {
+    totalInvoicesAnalyzed: number;
+    missingHsnCount: number;
+    invalidGstinCount: number;
+    zeroTaxCount: number;
+  };
+  items: GSTReportItem[]; // Legacy backwards compatibility
 }
 
 // 4. Inventory Valuation Report Data
@@ -342,7 +473,7 @@ export async function getItemWiseReport(
 }
 
 /**
- * 3. GST Tax Filing Report
+ * 3. GST Tax Filing Report (Statutory CA-Grade B2B, B2C, HSN & Rate Slabs)
  */
 export async function getGSTReport(
   shopId: string,
@@ -352,60 +483,317 @@ export async function getGSTReport(
 ): Promise<GSTReportData> {
   const { start, end } = getStartAndEndDates(startDate, endDate);
 
-  const rawRows = await db
+  // 1. Query all valid non-cancelled invoices in date range
+  const rawInvoices = await db
     .select({
+      id: invoices.id,
       invoiceNumber: invoices.invoiceNumber,
       createdAt: invoices.createdAt,
+      total: invoices.total,
+      subtotal: invoices.subtotal,
+      discount: invoices.discount,
+      tax: invoices.tax,
+      status: invoices.status,
+      paymentMethod: invoices.paymentMethod,
+      amountPaid: invoices.amountPaid,
+      balanceDue: invoices.balanceDue,
+      customerId: invoices.customerId,
       customerName: customers.fullName,
-      hsnCode: inventory.hsnCode,
+      customerPhone: customers.phone,
+      customerGstin: customers.gstin,
+      customerState: customers.state,
+      customerCity: customers.city,
+      shopId: invoices.shopId,
+      shopName: shops.name,
+      shopGstin: shops.gstin,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customerId, customers.id))
+    .innerJoin(shops, eq(invoices.shopId, shops.id))
+    .where(
+      and(
+        getShopFilter(invoices.shopId, invoices.organizationId, shopId, organizationId),
+        gte(invoices.createdAt, start),
+        lte(invoices.createdAt, end),
+        ne(invoices.status, "CANCELLED"),
+        isNull(invoices.deletedAt)
+      )
+    )
+    .orderBy(desc(invoices.createdAt));
+
+  // 2. Query line items with HSN codes for these invoices
+  const rawItems = await db
+    .select({
+      invoiceId: invoiceItems.invoiceId,
+      description: invoiceItems.description,
+      quantity: invoiceItems.quantity,
       subtotal: invoiceItems.subtotal,
+      discountAmount: invoiceItems.discountAmount,
+      cgstPercent: invoiceItems.cgstPercent,
       cgstAmount: invoiceItems.cgstAmount,
+      sgstPercent: invoiceItems.sgstPercent,
       sgstAmount: invoiceItems.sgstAmount,
+      igstPercent: invoiceItems.igstPercent,
       igstAmount: invoiceItems.igstAmount,
+      hsnCode: inventory.hsnCode,
     })
     .from(invoiceItems)
     .innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
-    .innerJoin(customers, eq(invoices.customerId, customers.id))
     .leftJoin(inventory, eq(invoiceItems.inventoryId, inventory.id))
     .where(
       and(
         getShopFilter(invoiceItems.shopId, invoiceItems.organizationId, shopId, organizationId),
         gte(invoices.createdAt, start),
-        lte(invoices.createdAt, end)
+        lte(invoices.createdAt, end),
+        ne(invoices.status, "CANCELLED"),
+        isNull(invoices.deletedAt)
       )
-    )
-    .orderBy(desc(invoices.createdAt));
+    );
+
+  const itemsByInvoice = new Map<string, typeof rawItems>();
+  for (const item of rawItems) {
+    const existing = itemsByInvoice.get(item.invoiceId) || [];
+    existing.push(item);
+    itemsByInvoice.set(item.invoiceId, existing);
+  }
+
+  const b2bInvoices: GSTInvoiceRow[] = [];
+  const b2cInvoices: GSTInvoiceRow[] = [];
+  const legacyItems: GSTReportItem[] = [];
 
   let totalTaxableValue = 0;
   let totalCGST = 0;
   let totalSGST = 0;
   let totalIGST = 0;
 
-  const items: GSTReportItem[] = rawRows.map((row) => {
-    const sub = parseFloat(row.subtotal) || 0;
-    const cgst = parseFloat(row.cgstAmount) || 0;
-    const sgst = parseFloat(row.sgstAmount) || 0;
-    const igst = parseFloat(row.igstAmount) || 0;
-    const tx = cgst + sgst + igst;
+  let missingHsnCount = 0;
+  let invalidGstinCount = 0;
+  let zeroTaxCount = 0;
 
-    totalTaxableValue += sub;
-    totalCGST += cgst;
-    totalSGST += sgst;
-    totalIGST += igst;
+  const hsnMap = new Map<string, HSNSummaryRow>();
+  const rateMap = new Map<number, GSTRateSummaryRow>();
 
-    return {
-      invoiceNumber: row.invoiceNumber,
-      createdAt: row.createdAt,
-      customerName: row.customerName,
-      hsnCode: row.hsnCode || "N/A",
-      subtotal: sub,
-      cgstAmount: cgst,
-      sgstAmount: sgst,
-      igstAmount: igst,
-      totalTax: tx,
-      totalAmount: sub + tx,
+  for (const inv of rawInvoices) {
+    const items = itemsByInvoice.get(inv.id) || [];
+    let invTaxable = 0;
+    let invCgst = 0;
+    let invSgst = 0;
+    let invIgst = 0;
+    const hsnSet = new Set<string>();
+    let invMissingHsn = false;
+
+    if (items.length > 0) {
+      for (const it of items) {
+        const sub = parseFloat(it.subtotal) || 0;
+        const disc = parseFloat(it.discountAmount) || 0;
+        const taxable = Math.max(0, sub - disc);
+        const cgst = parseFloat(it.cgstAmount) || 0;
+        const sgst = parseFloat(it.sgstAmount) || 0;
+        const igst = parseFloat(it.igstAmount) || 0;
+        const itemTax = cgst + sgst + igst;
+        const qty = it.quantity || 1;
+
+        invTaxable += taxable;
+        invCgst += cgst;
+        invSgst += sgst;
+        invIgst += igst;
+
+        const hsn = (it.hsnCode || "").trim();
+        if (!hsn || hsn === "N/A") {
+          invMissingHsn = true;
+        } else {
+          hsnSet.add(hsn);
+        }
+
+        // HSN summary grouping
+        const hsnKey = hsn || "N/A";
+        const descText = HSN_DESCRIPTIONS[hsnKey] || (hsnKey === "N/A" ? "Unclassified Optical Goods" : "Optical Goods & Accessories");
+        const existingHsn = hsnMap.get(hsnKey) || {
+          hsnCode: hsnKey,
+          description: descText,
+          uqc: "NOS",
+          totalQuantity: 0,
+          taxableValue: 0,
+          cgst: 0,
+          sgst: 0,
+          igst: 0,
+          totalTax: 0,
+          totalValue: 0,
+        };
+        existingHsn.totalQuantity += qty;
+        existingHsn.taxableValue += taxable;
+        existingHsn.cgst += cgst;
+        existingHsn.sgst += sgst;
+        existingHsn.igst += igst;
+        existingHsn.totalTax += itemTax;
+        existingHsn.totalValue += (taxable + itemTax);
+        hsnMap.set(hsnKey, existingHsn);
+
+        // Rate slab aggregation
+        const itemRate = Math.round((parseFloat(it.cgstPercent) || 0) + (parseFloat(it.sgstPercent) || 0) + (parseFloat(it.igstPercent) || 0));
+        const existingRate = rateMap.get(itemRate) || {
+          rate: itemRate,
+          taxableValue: 0,
+          cgst: 0,
+          sgst: 0,
+          igst: 0,
+          totalTax: 0,
+        };
+        existingRate.taxableValue += taxable;
+        existingRate.cgst += cgst;
+        existingRate.sgst += sgst;
+        existingRate.igst += igst;
+        existingRate.totalTax += itemTax;
+        rateMap.set(itemRate, existingRate);
+
+        // Legacy format item
+        legacyItems.push({
+          invoiceNumber: inv.invoiceNumber,
+          createdAt: inv.createdAt,
+          customerName: inv.customerName,
+          hsnCode: hsn || "N/A",
+          subtotal: taxable,
+          cgstAmount: cgst,
+          sgstAmount: sgst,
+          igstAmount: igst,
+          totalTax: itemTax,
+          totalAmount: taxable + itemTax,
+        });
+      }
+    } else {
+      // Fallback if no item records found
+      const sub = parseFloat(inv.subtotal) || 0;
+      const disc = parseFloat(inv.discount) || 0;
+      invTaxable = Math.max(0, sub - disc);
+      const tax = parseFloat(inv.tax) || 0;
+      invCgst = tax / 2;
+      invSgst = tax / 2;
+      invMissingHsn = true;
+
+      legacyItems.push({
+        invoiceNumber: inv.invoiceNumber,
+        createdAt: inv.createdAt,
+        customerName: inv.customerName,
+        hsnCode: "N/A",
+        subtotal: invTaxable,
+        cgstAmount: invCgst,
+        sgstAmount: invSgst,
+        igstAmount: 0,
+        totalTax: tax,
+        totalAmount: invTaxable + tax,
+      });
+    }
+
+    const invTotalTax = invCgst + invSgst + invIgst;
+    const invTotalVal = parseFloat(inv.total) || (invTaxable + invTotalTax);
+
+    totalTaxableValue += invTaxable;
+    totalCGST += invCgst;
+    totalSGST += invSgst;
+    totalIGST += invIgst;
+
+    if (invMissingHsn) missingHsnCount++;
+    if (invTaxable > 0 && invTotalTax === 0) zeroTaxCount++;
+
+    const rawGstin = (inv.customerGstin || "").trim();
+    const hasGstin = rawGstin.length > 0 && rawGstin.toUpperCase() !== "URP" && rawGstin.toUpperCase() !== "UNREGISTERED";
+    const isGstinValid = isValidGSTIN(rawGstin);
+    if (hasGstin && !isGstinValid) {
+      invalidGstinCount++;
+    }
+
+    const isB2B = isGstinValid;
+    const placeOfSupply = getPlaceOfSupply(inv.customerState, inv.customerGstin, inv.shopGstin);
+    const supplyType = getSupplyType(placeOfSupply, inv.shopGstin);
+    const isB2CLarge = !isB2B && supplyType === "Inter-State" && invTotalVal > 250000;
+
+    const effectiveRate = invTaxable > 0 ? Math.round((invTotalTax / invTaxable) * 100) : 0;
+    const amountPaid = parseFloat(inv.amountPaid) || 0;
+    const balanceDue = parseFloat(inv.balanceDue) || 0;
+    let paymentStatus: "PAID" | "PARTIAL" | "PENDING" = "PENDING";
+    if (balanceDue <= 0 && amountPaid > 0) {
+      paymentStatus = "PAID";
+    } else if (amountPaid > 0 && balanceDue > 0) {
+      paymentStatus = "PARTIAL";
+    }
+
+    const invoiceRow: GSTInvoiceRow = {
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceDate: inv.createdAt,
+      invoiceValue: invTotalVal,
+      customerName: inv.customerName,
+      customerPhone: inv.customerPhone,
+      customerGstin: hasGstin ? rawGstin : null,
+      customerState: inv.customerState,
+      customerCity: inv.customerCity,
+      supplierGstin: inv.shopGstin,
+      shopName: inv.shopName,
+      placeOfSupply,
+      supplyType,
+      isB2B,
+      isB2CLarge,
+      reverseCharge: "N",
+      invoiceType: "Regular",
+      taxableValue: invTaxable,
+      cgstAmount: invCgst,
+      sgstAmount: invSgst,
+      igstAmount: invIgst,
+      cessAmount: 0,
+      totalTax: invTotalTax,
+      effectiveRate,
+      paymentMethod: inv.paymentMethod || "CASH",
+      paymentStatus,
+      amountPaid,
+      balanceDue,
+      hsnCodes: Array.from(hsnSet),
+      hasMissingHsn: invMissingHsn,
+      isZeroTax: invTaxable > 0 && invTotalTax === 0,
+      isInvalidGstin: hasGstin && !isGstinValid,
     };
-  });
+
+    if (isB2B) {
+      b2bInvoices.push(invoiceRow);
+    } else {
+      b2cInvoices.push(invoiceRow);
+    }
+  }
+
+  function computeSummary(rows: GSTInvoiceRow[]): GSTSummaryTotals {
+    let taxableValue = 0;
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+    let totalTax = 0;
+    let totalValue = 0;
+    for (const r of rows) {
+      taxableValue += r.taxableValue;
+      cgst += r.cgstAmount;
+      sgst += r.sgstAmount;
+      igst += r.igstAmount;
+      totalTax += r.totalTax;
+      totalValue += r.invoiceValue;
+    }
+    return {
+      invoiceCount: rows.length,
+      taxableValue,
+      cgst,
+      sgst,
+      igst,
+      cess: 0,
+      totalTax,
+      totalValue,
+    };
+  }
+
+  const b2bSummary = computeSummary(b2bInvoices);
+  const b2cSummary = computeSummary(b2cInvoices);
+  const b2cLargeSummary = computeSummary(b2cInvoices.filter((r) => r.isB2CLarge));
+  const b2cSmallSummary = computeSummary(b2cInvoices.filter((r) => !r.isB2CLarge));
+  const overallSummary = computeSummary([...b2bInvoices, ...b2cInvoices]);
+
+  const hsnSummary = Array.from(hsnMap.values()).sort((a, b) => b.totalValue - a.totalValue);
+  const rateSummary = Array.from(rateMap.values()).sort((a, b) => a.rate - b.rate);
 
   return {
     totalTaxableValue,
@@ -413,7 +801,212 @@ export async function getGSTReport(
     totalSGST,
     totalIGST,
     totalTaxCollected: totalCGST + totalSGST + totalIGST,
-    items,
+    overallSummary,
+    b2bSummary,
+    b2cSummary,
+    b2cLargeSummary,
+    b2cSmallSummary,
+    b2bInvoices,
+    b2cInvoices,
+    hsnSummary,
+    rateSummary,
+    dataQuality: {
+      totalInvoicesAnalyzed: rawInvoices.length,
+      missingHsnCount,
+      invalidGstinCount,
+      zeroTaxCount,
+    },
+    items: legacyItems,
+  };
+}
+
+export const getGSTReportV2 = getGSTReport;
+
+/**
+ * 3b. Credit / Debit Notes Report (GSTR-1 Table 9A/9B)
+ */
+export async function getCreditNotesReport(
+  shopId: string,
+  startDate?: string,
+  endDate?: string,
+  organizationId?: string
+): Promise<CreditNotesReportData> {
+  const { start, end } = getStartAndEndDates(startDate, endDate);
+
+  const rawReturns = await db
+    .select({
+      id: salesReturns.id,
+      returnNumber: salesReturns.returnNumber,
+      createdAt: salesReturns.createdAt,
+      totalRefundAmount: salesReturns.totalRefundAmount,
+      refundMethod: salesReturns.refundMethod,
+      notes: salesReturns.notes,
+      customerId: salesReturns.customerId,
+      customerName: customers.fullName,
+      customerGstin: customers.gstin,
+      invoiceNumber: invoices.invoiceNumber,
+      invoiceDate: invoices.createdAt,
+    })
+    .from(salesReturns)
+    .innerJoin(invoices, eq(salesReturns.invoiceId, invoices.id))
+    .innerJoin(customers, eq(salesReturns.customerId, customers.id))
+    .where(
+      and(
+        getShopFilter(salesReturns.shopId, salesReturns.organizationId, shopId, organizationId),
+        gte(salesReturns.createdAt, start),
+        lte(salesReturns.createdAt, end),
+        eq(salesReturns.status, "COMPLETED")
+      )
+    )
+    .orderBy(desc(salesReturns.createdAt));
+
+  let registeredCount = 0;
+  let unregisteredCount = 0;
+  let totalRefundValue = 0;
+
+  const notes: CreditNoteRow[] = rawReturns.map((ret) => {
+    const val = parseFloat(ret.totalRefundAmount) || 0;
+    totalRefundValue += val;
+    const isReg = isValidGSTIN(ret.customerGstin);
+    if (isReg) registeredCount++;
+    else unregisteredCount++;
+
+    return {
+      noteType: "Credit Note",
+      noteNumber: ret.returnNumber,
+      noteDate: ret.createdAt,
+      originalInvoiceNumber: ret.invoiceNumber,
+      originalInvoiceDate: ret.invoiceDate,
+      customerName: ret.customerName,
+      customerGstin: ret.customerGstin || null,
+      isRegistered: isReg,
+      reason: ret.notes || "Customer Return",
+      noteValue: val,
+      refundMethod: ret.refundMethod,
+    };
+  });
+
+  return {
+    totalNotes: rawReturns.length,
+    registeredCount,
+    unregisteredCount,
+    totalRefundValue,
+    notes,
+  };
+}
+
+/**
+ * 3c. Document Serial Summary (GSTR-1 Table 13)
+ */
+export async function getDocumentSummary(
+  shopId: string,
+  startDate?: string,
+  endDate?: string,
+  organizationId?: string
+): Promise<DocumentSummaryData> {
+  const { start, end } = getStartAndEndDates(startDate, endDate);
+
+  const invList = await db
+    .select({
+      invoiceNumber: invoices.invoiceNumber,
+      status: invoices.status,
+      createdAt: invoices.createdAt,
+    })
+    .from(invoices)
+    .where(
+      and(
+        getShopFilter(invoices.shopId, invoices.organizationId, shopId, organizationId),
+        gte(invoices.createdAt, start),
+        lte(invoices.createdAt, end),
+        isNull(invoices.deletedAt)
+      )
+    )
+    .orderBy(invoices.createdAt);
+
+  const docRows: DocumentSummaryRow[] = [];
+  let hasGaps = false;
+
+  if (invList.length > 0) {
+    const serialFrom = invList[0].invoiceNumber;
+    const serialTo = invList[invList.length - 1].invoiceNumber;
+    const cancelled = invList.filter((i) => i.status === "CANCELLED").length;
+    const netIssued = invList.length - cancelled;
+
+    // Detect numeric sequence gaps
+    const numbers: number[] = [];
+    for (const inv of invList) {
+      const match = inv.invoiceNumber.match(/(\d+)$/);
+      if (match) {
+        numbers.push(parseInt(match[1], 10));
+      }
+    }
+
+    const missing: string[] = [];
+    if (numbers.length > 1) {
+      const minNum = Math.min(...numbers);
+      const maxNum = Math.max(...numbers);
+      const numSet = new Set(numbers);
+      for (let n = minNum; n <= maxNum; n++) {
+        if (!numSet.has(n)) {
+          missing.push(`Missing #${n}`);
+          if (missing.length >= 8) {
+            missing.push(`+ more gaps`);
+            break;
+          }
+        }
+      }
+    }
+
+    if (missing.length > 0) hasGaps = true;
+
+    docRows.push({
+      documentType: "Invoices for outward supply",
+      serialFrom,
+      serialTo,
+      totalNumber: invList.length,
+      cancelled,
+      netIssued,
+      missingNumbers: missing,
+    });
+  }
+
+  // Also check Credit Notes
+  const retList = await db
+    .select({
+      returnNumber: salesReturns.returnNumber,
+      status: salesReturns.status,
+      createdAt: salesReturns.createdAt,
+    })
+    .from(salesReturns)
+    .where(
+      and(
+        getShopFilter(salesReturns.shopId, salesReturns.organizationId, shopId, organizationId),
+        gte(salesReturns.createdAt, start),
+        lte(salesReturns.createdAt, end)
+      )
+    )
+    .orderBy(salesReturns.createdAt);
+
+  if (retList.length > 0) {
+    const serialFrom = retList[0].returnNumber;
+    const serialTo = retList[retList.length - 1].returnNumber;
+    const cancelled = retList.filter((r) => r.status === "CANCELLED").length;
+    const netIssued = retList.length - cancelled;
+
+    docRows.push({
+      documentType: "Credit Notes for sales returns",
+      serialFrom,
+      serialTo,
+      totalNumber: retList.length,
+      cancelled,
+      netIssued,
+      missingNumbers: [],
+    });
+  }
+
+  return {
+    rows: docRows,
+    hasGaps,
   };
 }
 
@@ -1352,13 +1945,205 @@ export async function exportReportToCSV(
   shopId: string,
   reportType: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  organizationId?: string,
+  origin: string = ""
 ): Promise<string> {
   const escapeCSV = (str: any) => {
     return sanitizeCSVValue(str);
   };
 
-  if (reportType === "sales") {
+  if (reportType === "b2b") {
+    const data = await getGSTReport(shopId, startDate, endDate, organizationId);
+    const headers = [
+      "GSTIN/UIN of Recipient",
+      "Receiver Name",
+      "Invoice Number",
+      "Invoice Date",
+      "Invoice Value",
+      "Place of Supply",
+      "Supply Type",
+      "Reverse Charge",
+      "Invoice Type",
+      "Rate (%)",
+      "Taxable Value",
+      "Cess Amount",
+      "CGST Amount",
+      "SGST Amount",
+      "IGST Amount",
+      "Payment Mode",
+      "Payment Status",
+      "Public Invoice Link"
+    ];
+    const rows = data.b2bInvoices.map((inv) => [
+      escapeCSV(inv.customerGstin || "N/A"),
+      escapeCSV(inv.customerName),
+      escapeCSV(inv.invoiceNumber),
+      escapeCSV(formatIndianDate(inv.invoiceDate)),
+      escapeCSV(inv.invoiceValue.toFixed(2)),
+      escapeCSV(inv.placeOfSupply),
+      escapeCSV(inv.supplyType),
+      escapeCSV(inv.reverseCharge),
+      escapeCSV(inv.invoiceType),
+      escapeCSV(inv.effectiveRate),
+      escapeCSV(inv.taxableValue.toFixed(2)),
+      escapeCSV(inv.cessAmount.toFixed(2)),
+      escapeCSV(inv.cgstAmount.toFixed(2)),
+      escapeCSV(inv.sgstAmount.toFixed(2)),
+      escapeCSV(inv.igstAmount.toFixed(2)),
+      escapeCSV(inv.paymentMethod),
+      escapeCSV(inv.paymentStatus),
+      escapeCSV(origin ? `${origin}/share/invoice/${inv.invoiceId}` : `/share/invoice/${inv.invoiceId}`),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "b2c") {
+    const data = await getGSTReport(shopId, startDate, endDate, organizationId);
+    const headers = [
+      "Type",
+      "Customer Name",
+      "Phone",
+      "Invoice Number",
+      "Invoice Date",
+      "Place of Supply",
+      "Supply Type",
+      "Rate (%)",
+      "Taxable Value",
+      "CGST Amount",
+      "SGST Amount",
+      "IGST Amount",
+      "Invoice Value",
+      "Payment Mode",
+      "Payment Status",
+      "Public Invoice Link"
+    ];
+    const rows = data.b2cInvoices.map((inv) => [
+      escapeCSV(inv.isB2CLarge ? "B2C-Large" : "B2C-Small"),
+      escapeCSV(inv.customerName),
+      escapeCSV(inv.customerPhone || "N/A"),
+      escapeCSV(inv.invoiceNumber),
+      escapeCSV(formatIndianDate(inv.invoiceDate)),
+      escapeCSV(inv.placeOfSupply),
+      escapeCSV(inv.supplyType),
+      escapeCSV(inv.effectiveRate),
+      escapeCSV(inv.taxableValue.toFixed(2)),
+      escapeCSV(inv.cgstAmount.toFixed(2)),
+      escapeCSV(inv.sgstAmount.toFixed(2)),
+      escapeCSV(inv.igstAmount.toFixed(2)),
+      escapeCSV(inv.invoiceValue.toFixed(2)),
+      escapeCSV(inv.paymentMethod),
+      escapeCSV(inv.paymentStatus),
+      escapeCSV(origin ? `${origin}/share/invoice/${inv.invoiceId}` : `/share/invoice/${inv.invoiceId}`),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "gstr1" || reportType === "gstr1-portal") {
+    const data = await getGSTReport(shopId, startDate, endDate, organizationId);
+    const headers = [
+      "GSTIN/UIN of Recipient",
+      "Receiver Name",
+      "Invoice Number",
+      "Invoice date",
+      "Invoice Value",
+      "Place Of Supply",
+      "Reverse Charge",
+      "Applicable % of Tax Rate",
+      "Invoice Type",
+      "Rate",
+      "Taxable Value",
+      "Cess Amount"
+    ];
+    const rows = data.b2bInvoices.map((inv) => [
+      escapeCSV(inv.customerGstin || ""),
+      escapeCSV(inv.customerName),
+      escapeCSV(inv.invoiceNumber),
+      escapeCSV(formatIndianDate(inv.invoiceDate)),
+      escapeCSV(inv.invoiceValue.toFixed(2)),
+      escapeCSV(inv.placeOfSupply),
+      escapeCSV(inv.reverseCharge),
+      escapeCSV(""),
+      escapeCSV(inv.invoiceType),
+      escapeCSV(inv.effectiveRate),
+      escapeCSV(inv.taxableValue.toFixed(2)),
+      escapeCSV(inv.cessAmount.toFixed(2)),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "hsn") {
+    const data = await getGSTReport(shopId, startDate, endDate, organizationId);
+    const headers = [
+      "HSN",
+      "Description",
+      "UQC",
+      "Total Quantity",
+      "Total Value",
+      "Taxable Value",
+      "Integrated Tax Amount",
+      "Central Tax Amount",
+      "State/UT Tax Amount",
+      "Cess Amount"
+    ];
+    const rows = data.hsnSummary.map((h) => [
+      escapeCSV(h.hsnCode),
+      escapeCSV(h.description),
+      escapeCSV(h.uqc),
+      escapeCSV(h.totalQuantity),
+      escapeCSV(h.totalValue.toFixed(2)),
+      escapeCSV(h.taxableValue.toFixed(2)),
+      escapeCSV(h.igst.toFixed(2)),
+      escapeCSV(h.cgst.toFixed(2)),
+      escapeCSV(h.sgst.toFixed(2)),
+      escapeCSV("0.00"),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "creditnotes") {
+    const data = await getCreditNotesReport(shopId, startDate, endDate, organizationId);
+    const headers = [
+      "Note Type",
+      "Note Number",
+      "Note Date",
+      "Original Invoice No",
+      "Original Invoice Date",
+      "Customer Name",
+      "GSTIN",
+      "Supply Category",
+      "Reason",
+      "Refund Amount",
+      "Refund Method"
+    ];
+    const rows = data.notes.map((n) => [
+      escapeCSV(n.noteType),
+      escapeCSV(n.noteNumber),
+      escapeCSV(formatIndianDate(n.noteDate)),
+      escapeCSV(n.originalInvoiceNumber),
+      escapeCSV(formatIndianDate(n.originalInvoiceDate)),
+      escapeCSV(n.customerName),
+      escapeCSV(n.customerGstin || "URP"),
+      escapeCSV(n.isRegistered ? "Table 9A (Registered)" : "Table 9B (Unregistered)"),
+      escapeCSV(n.reason),
+      escapeCSV(n.noteValue.toFixed(2)),
+      escapeCSV(n.refundMethod),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "docsummary") {
+    const data = await getDocumentSummary(shopId, startDate, endDate, organizationId);
+    const headers = [
+      "Nature of Document",
+      "Sr. No. From",
+      "Sr. No. To",
+      "Total Number",
+      "Cancelled",
+      "Net Issued",
+      "Missing Serial Numbers"
+    ];
+    const rows = data.rows.map((d) => [
+      escapeCSV(d.documentType),
+      escapeCSV(d.serialFrom),
+      escapeCSV(d.serialTo),
+      escapeCSV(d.totalNumber),
+      escapeCSV(d.cancelled),
+      escapeCSV(d.netIssued),
+      escapeCSV(d.missingNumbers.join("; ") || "None (Continuous)"),
+    ]);
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  } else if (reportType === "sales") {
     const data = await getSalesSummaryReport(shopId, startDate, endDate);
     const headers = ["Invoice No", "Date", "Customer Name", "Subtotal", "Discount", "Tax", "Total Amount", "Amount Paid", "Balance Due", "Payment Method", "Status"];
     const rows = data.items.map((i) => [
