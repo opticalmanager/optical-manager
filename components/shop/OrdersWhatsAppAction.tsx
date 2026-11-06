@@ -6,6 +6,7 @@ import { offlineDB } from "@/lib/offline/db";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { getCustomerPrescriptionsAction } from "@/actions/prescription.actions";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
 import { parseWhatsAppTemplate, openWhatsAppChat, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
 import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
 import { formatCurrency } from "@/lib/utils";
@@ -125,7 +126,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
       }
 
       // Format template variables
-      const invoiceUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/share/invoice/${order.invoiceId}`;
+      const invoiceUrl = getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
 
       // Determine the primary booking receipt (Order Form) chronologically
       const receiptsList = order.receipts || [];
@@ -135,7 +136,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
       const bookingReceipt = chronologicalReceipts[0] || (order.receiptId ? { id: order.receiptId, receiptNumber: order.orderNumber } : null);
       const primaryReceiptId = bookingReceipt?.id || order.receiptId || order.invoiceId;
       const primaryReceiptNumber = (bookingReceipt as any)?.receiptNumber || order.receipts?.[0]?.receiptNumber || order.orderNumber || "ORDER FORM";
-      const orderFormUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/share/receipt/${primaryReceiptId}`;
+      const orderFormUrl = getLivePublicReceiptUrl(primaryReceiptId, typeof window !== "undefined" ? window.location.origin : undefined);
 
       const parsedText = parseWhatsAppTemplate(templateText, {
         customer_name: order.customerName || "Valued Customer",

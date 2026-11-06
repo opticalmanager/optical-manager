@@ -25,6 +25,7 @@ import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { offlineDB } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
 
 interface QuickEditModalProps {
   order: OrderItem;
@@ -173,12 +174,12 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
         fulfillment_status: fulfillmentStatus ? fulfillmentStatus.replace("_", " ") : "PROCESSING",
         estimated_delivery: safeFormatDateLocale(estimatedDelivery, "N/A"),
-        invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`,
-        order_form_url: `${window.location.origin}/share/receipt/${order.receiptId || order.invoiceId}`,
+        invoice_url: getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
+        order_form_url: getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
       });
 
-      const orderFormUrl = `${window.location.origin}/share/receipt/${order.receiptId || order.invoiceId}`;
-      const invoiceUrl = `${window.location.origin}/share/invoice/${order.invoiceId}`;
+      const orderFormUrl = getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
+      const invoiceUrl = getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
 
       const res = await sendUniversalWhatsAppMessage(
         {

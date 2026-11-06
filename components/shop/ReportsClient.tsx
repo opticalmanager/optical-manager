@@ -338,6 +338,9 @@ export default function ReportsClient({
     if (shopId && shopId !== "all") {
       exportUrl += `&shopId=${shopId}`;
     }
+    if (typeof window !== "undefined" && window.location.origin) {
+      exportUrl += `&origin=${encodeURIComponent(window.location.origin)}`;
+    }
     setIsExportMenuOpen(false);
     window.open(exportUrl, "_blank");
   };

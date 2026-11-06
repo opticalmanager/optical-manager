@@ -11,7 +11,13 @@ export async function GET(request: Request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { searchParams, origin } = new URL(request.url);
+    const { searchParams } = new URL(request.url);
+    const clientOrigin = searchParams.get("origin") || undefined;
+    const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+    const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+    const headerOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : undefined;
+    const origin = clientOrigin || headerOrigin || new URL(request.url).origin;
+
     const reportType = searchParams.get("type") || "sales";
     const format = (searchParams.get("format") || "csv").toLowerCase();
     const startDate = searchParams.get("from") || searchParams.get("date") || undefined;
