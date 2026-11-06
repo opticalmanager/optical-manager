@@ -222,3 +222,34 @@ export function formatIndianDate(date: Date | string | null | undefined): string
   const year = d.getFullYear();
   return `${day}/${month}/${year}`;
 }
+
+/**
+ * Formats a Date object into DD-MMM-YYYY (e.g. 08-Oct-2026)
+ * Prevents Excel date overflow (########) and ensures unambiguous CA date recognition.
+ */
+export function formatDateOfSale(date: Date | string | null | undefined): string {
+  if (!date) return "N/A";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "N/A";
+  const day = String(d.getDate()).padStart(2, "0");
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = monthNames[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+/**
+ * Resolves the canonical public invoice URL.
+ * Falls back to live production domain (https://www.opticalmanager.in)
+ * when origin is localhost or missing.
+ */
+export function getLivePublicInvoiceUrl(invoiceId: string, origin?: string): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+    return `${envUrl.replace(/\/$/, "")}/share/invoice/${invoiceId}`;
+  }
+  if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
+    return `${origin.replace(/\/$/, "")}/share/invoice/${invoiceId}`;
+  }
+  return `https://www.opticalmanager.in/share/invoice/${invoiceId}`;
+}
