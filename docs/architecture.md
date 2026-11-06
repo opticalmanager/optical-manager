@@ -554,7 +554,7 @@ The AI Bill Scanning engine digitizes complex supplier invoices (multi-page PDFs
 
 Optical Manager includes a statutory taxation module built for Indian GST compliance (GSTR-1 & GSTR-3B):
 
-- **Core Library (`lib/gst-utils.ts`)**: Maps 37 statutory Indian state codes (01-38), performs regex validation on 15-character GSTINs, derives Place of Supply from recipient GSTIN or shipping address, determines Intra-State vs Inter-State supply, and maps optical retail HSN codes (9003 frames, 9004 sunglasses, 9001 lenses, 3307 solutions).
+- **Core Library (`lib/gst-utils.ts` & `utils/gstin.ts`)**: Maps 37 statutory Indian state codes (01-38), performs regex validation on 15-character GSTINs with automatic typo normalization (correcting uppercase letter 'O' to digit '0' for state codes 01-09), derives Place of Supply strictly from authentic customer data (GSTIN state code or customer address) or the store's verified location under Section 10(1)(c) of the IGST Act for over-the-counter retail sales without pre-assuming or hardcoding dummy states, determines Intra-State vs Inter-State supply, and maps optical retail HSN codes (9003 frames, 9004 sunglasses, 9001 lenses, 3307 solutions).
 
 - **B2B vs B2C Segmentation**: Invoices are classified into B2B (GSTR-1 Table 4A) when a valid 15-character recipient GSTIN is present, and B2C (Table 7/8) otherwise. B2C transactions are subdivided into B2C-Large (> ₹2.5L inter-state) and B2C-Small.
 
@@ -563,5 +563,15 @@ Optical Manager includes a statutory taxation module built for Indian GST compli
 - **HSN / SAC Summary (Table 12)**: Aggregates line items by HSN code with UQC `"NOS"`, total quantities, taxable valuation, and CGST/SGST/IGST tax splits.
 
 - **Document Serial Continuity (Table 13)**: Continuously checks outgoing invoice numbers for sequential numbering gaps.
+
+- **Strict B2B vs B2C Statutory Segregation**: B2B reports and exports strictly filter registered business invoices with valid GSTINs (GSTR-1 Table 4A), while B2C reports and exports strictly filter retail consumer sales (Table 7/8), preventing data mixing and meeting exact Chartered Accountant statutory filing boundaries.
+
+- **Strict Real Data & Zero Dummy State Guarantee**: Completely eliminated all hardcoded state fallbacks (such as dummy "27-Maharashtra"). In B2C exports and tables, the customer's authentic entered state is displayed in a dedicated `Customer State` column (showing `"Not Provided (Walk-in)"` when cashiers leave the optional state selector unpopulated at retail checkout), while statutory `Place of Supply` correctly reflects the store's authentic jurisdiction under Section 10(1)(c) of the IGST Act.
+
+- **Dual-Engine Spreadsheet Export Architecture (`.xlsx` & `.csv`)**: Provides styled Microsoft Excel (`.xlsx`) workbooks powered by SheetJS with dynamic column auto-width calculation (`wch`), eliminating Excel column overflow errors (`########`) and text truncation, alongside RFC-compliant statutory CSV exports prepended with UTF-8 BOM (`\uFEFF`).
+
+- **Canonical Public Invoice URLs**: Ensures all exported public invoice share links and clipboard triggers resolve to the production live platform (`https://www.opticalmanager.in/share/invoice/[uuid]`) rather than local development origins.
+
+- **Date of Sale Uniformity**: Standardizes all invoice date representations to unambiguous `Date of Sale` (`DD-MMM-YYYY`, e.g. `08-Oct-2026`) across UI tables, CSVs, and Excel sheets to prevent regional date confusion and Excel numeric date clamping.
 
 - **Header Period Selector**: Replaces static date dropdowns with a horizontal period control matching store accountant workflows (`[This Month]`, `[Last Month]`, `[Month ▾]`, `[Year / FY ▾]`, and `[Custom Dates]`).

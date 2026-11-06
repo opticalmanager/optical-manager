@@ -143,10 +143,7 @@ export default function ReportsClient({
       setTimeout(() => {
         workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 150);
-    } else if (sub === "all" || sub === "invoices" || sub === "gst") {
-      setActiveCategory("invoices");
-      setActiveSubReport("All Invoices");
-    } else if (sub === "b2b") {
+    } else if (sub === "b2b" || sub === "invoices" || sub === "gst") {
       setActiveCategory("invoices");
       setActiveSubReport("B2B Invoices");
     } else if (sub === "b2c") {
@@ -319,13 +316,12 @@ export default function ReportsClient({
     if (specificType) {
       reportType = specificType;
     } else if (activeCategory === "invoices") {
-      if (activeSubReport === "All Invoices" || activeSubReport === "GST Compliance") reportType = "all";
-      else if (activeSubReport === "B2B Invoices") reportType = "b2b";
+      if (activeSubReport === "B2B Invoices" || activeSubReport === "GST Compliance") reportType = "b2b";
       else if (activeSubReport === "B2C Invoices") reportType = "b2c";
       else if (activeSubReport === "Credit / Debit Notes") reportType = "creditnotes";
       else if (activeSubReport === "HSN Summary") reportType = "hsn";
       else if (activeSubReport === "Document Summary") reportType = "docsummary";
-      else reportType = "all";
+      else reportType = "b2b";
     } else if (activeSubReport === "Day-Wise Collection") reportType = "daywise";
     else if (activeSubReport === "Outstanding Dues") reportType = "dues";
     else if (activeSubReport === "Dead Stock Audit") reportType = "deadstock";
@@ -373,7 +369,6 @@ export default function ReportsClient({
       title: "GST REPORTS",
       icon: Receipt,
       items: [
-        "All Invoices",
         "B2B Invoices",
         "B2C Invoices",
         "Credit / Debit Notes",
@@ -445,20 +440,6 @@ export default function ReportsClient({
   }, [itemData.items, query]);
 
   // GST Specific Filtered Memos
-  const filteredAllInvoices = useMemo(() => {
-    const list = gstData.allInvoices || [...(gstData.b2bInvoices || []), ...(gstData.b2cInvoices || [])];
-    if (!query) return list;
-    return list.filter(
-      (item) =>
-        item.invoiceNumber.toLowerCase().includes(query) ||
-        item.customerName.toLowerCase().includes(query) ||
-        (item.customerGstin && item.customerGstin.toLowerCase().includes(query)) ||
-        (item.customerPhone && item.customerPhone.includes(query)) ||
-        item.placeOfSupply.toLowerCase().includes(query) ||
-        item.paymentMethod.toLowerCase().includes(query)
-    );
-  }, [gstData.allInvoices, gstData.b2bInvoices, gstData.b2cInvoices, query]);
-
   const filteredB2B = useMemo(() => {
     const list = gstData.b2bInvoices || [];
     if (!query) return list;
@@ -706,15 +687,11 @@ export default function ReportsClient({
                   <Button
                     onClick={() => handleExport(undefined, "xlsx")}
                     className="h-8.5 px-3 text-xs font-bold bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-l-xl cursor-pointer flex items-center gap-1.5 border-r border-blue-400/40"
-                    title="Export styled Excel (.xlsx) with auto-calculated column widths"
+                    title="Export in formatted Excel (.xlsx) with auto-spaced columns"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span>
-                      {activeCategory === "invoices"
-                        ? activeSubReport === "All Invoices"
-                          ? "Export All Invoices"
-                          : `Export ${activeSubReport}`
-                        : "Export Excel"}
+                      {activeCategory === "invoices" ? `Export ${activeSubReport}` : "Export Excel"}
                     </span>
                   </Button>
                   <Button
@@ -734,41 +711,15 @@ export default function ReportsClient({
                       <span className="text-[9px] text-[#2563eb] font-semibold">CA Audit Grade</span>
                     </div>
 
-                    {/* Master All Invoices (Both B2B and B2C) */}
-                    <button
-                      type="button"
-                      onClick={() => handleExport("all", "xlsx")}
-                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50/50 flex items-center justify-between cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileSpreadsheet className="h-4 w-4 text-[#2563eb]" />
-                        <span className="font-bold text-slate-900 group-hover:text-[#2563eb]">
-                          Export All Invoices (Excel .xlsx)
-                        </span>
-                      </div>
-                      <span className="text-[10px] bg-blue-100 text-[#2563eb] px-1.5 py-0.5 rounded font-bold">
-                        Master
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExport("all", "csv")}
-                      className="w-full text-left px-3 py-1 text-xs text-slate-500 hover:bg-slate-50 flex items-center gap-2 cursor-pointer pl-9"
-                    >
-                      <span>Export All Invoices (CSV)</span>
-                    </button>
-
-                    <div className="border-t border-slate-100 my-1"></div>
-
                     {/* B2B Invoices */}
                     <button
                       type="button"
                       onClick={() => handleExport("b2b", "xlsx")}
-                      className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
                     >
                       <div className="flex items-center gap-2">
                         <FileSpreadsheet className="h-4 w-4 text-[#2563eb]" />
-                        <span>Export B2B Invoices (Excel .xlsx)</span>
+                        <span className="font-bold text-slate-900">Export B2B Invoices (Excel .xlsx)</span>
                       </div>
                       <span className="text-[10px] text-slate-400 font-medium">Table 4A</span>
                     </button>
@@ -780,15 +731,17 @@ export default function ReportsClient({
                       <span>Export B2B (CSV)</span>
                     </button>
 
+                    <div className="border-t border-slate-100 my-1"></div>
+
                     {/* B2C Retail */}
                     <button
                       type="button"
                       onClick={() => handleExport("b2c", "xlsx")}
-                      className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
                     >
                       <div className="flex items-center gap-2">
                         <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                        <span>Export B2C Retail (Excel .xlsx)</span>
+                        <span className="font-bold text-slate-900">Export B2C Retail (Excel .xlsx)</span>
                       </div>
                       <span className="text-[10px] text-slate-400 font-medium">Table 5/7</span>
                     </button>
@@ -1009,231 +962,8 @@ export default function ReportsClient({
               </div>
             )}
 
-            {/* Sub-Report 0: All Invoices (Master GST Sales Register - B2B + B2C) */}
-            {(activeSubReport === "All Invoices" || activeSubReport === "GST Compliance") && (
-              <div className="space-y-4">
-                {/* Master KPI Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 print:hidden">
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      Total Invoices
-                    </span>
-                    <span className="text-xl font-extrabold text-[#2563eb] tracking-tight mt-1 block">
-                      {gstData.allInvoices?.length || (gstData.b2bInvoices.length + gstData.b2cInvoices.length)}
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      B2B Registered
-                    </span>
-                    <span className="text-xl font-extrabold text-blue-600 tracking-tight mt-1 block">
-                      {gstData.b2bSummary?.invoiceCount || 0}
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      B2C Retail
-                    </span>
-                    <span className="text-xl font-extrabold text-emerald-600 tracking-tight mt-1 block">
-                      {gstData.b2cSummary?.invoiceCount || 0}
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      Taxable Turnover
-                    </span>
-                    <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                      {formatCurrency(gstData.overallSummary?.taxableValue || 0)}
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      Total Tax (GST)
-                    </span>
-                    <span className="text-xl font-extrabold text-purple-600 tracking-tight mt-1 block">
-                      {formatCurrency(gstData.overallSummary?.totalTax || 0)}
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      Total Sales (Gross)
-                    </span>
-                    <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-1 block">
-                      {formatCurrency(gstData.overallSummary?.totalValue || 0)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Master Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <tr>
-                        <th className="px-3.5 py-2.5 rounded-l-lg">Type</th>
-                        <th className="px-3.5 py-2.5">Invoice No</th>
-                        <th className="px-3.5 py-2.5">Date of Sale</th>
-                        <th className="px-3.5 py-2.5">Party / Customer Name</th>
-                        <th className="px-3.5 py-2.5">GSTIN / UIN</th>
-                        <th className="px-3.5 py-2.5">Place of Supply</th>
-                        <th className="px-3.5 py-2.5 text-right">Taxable (₹)</th>
-                        <th className="px-3.5 py-2.5 text-right">CGST</th>
-                        <th className="px-3.5 py-2.5 text-right">SGST</th>
-                        <th className="px-3.5 py-2.5 text-right">IGST</th>
-                        <th className="px-3.5 py-2.5 text-right">Total (₹)</th>
-                        <th className="px-3.5 py-2.5 text-center">Payment</th>
-                        <th className="px-3.5 py-2.5 text-center rounded-r-lg">Bill Link</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAllInvoices.length === 0 ? (
-                        <tr>
-                          <td colSpan={13} className="text-center py-8 text-xs font-semibold text-slate-400">
-                            No invoices found for the selected period
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredAllInvoices.map((item) => (
-                          <tr key={item.invoiceId} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-b-0">
-                            <td className="px-3.5 py-2.5 text-xs">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold border ${
-                                item.isB2B
-                                  ? "bg-blue-50 text-[#2563eb] border-blue-200"
-                                  : item.isB2CLarge
-                                  ? "bg-purple-50 text-purple-700 border-purple-200"
-                                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              }`}>
-                                {item.isB2B ? "B2B" : (item.isB2CLarge ? "B2C-Large" : "B2C-Small")}
-                              </span>
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-extrabold text-[#2563eb]">
-                              {item.invoiceNumber}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-500 whitespace-nowrap">
-                              {formatDateOfSale(item.invoiceDate)}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">
-                              <div className="flex items-center gap-1.5">
-                                {item.isB2B ? (
-                                  <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
-                                ) : (
-                                  <User className="h-3 w-3 text-slate-400 shrink-0" />
-                                )}
-                                <span>{item.customerName}</span>
-                              </div>
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs">
-                              {item.customerGstin ? (
-                                <button
-                                  type="button"
-                                  onClick={() => copyToClipboard(item.customerGstin!, `gstin-${item.invoiceId}`)}
-                                  className="group flex items-center gap-1 font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded hover:bg-slate-200 transition-colors cursor-pointer"
-                                  title="Click to copy GSTIN"
-                                >
-                                  <span>{item.customerGstin}</span>
-                                  {copiedKey === `gstin-${item.invoiceId}` ? (
-                                    <Check className="h-3 w-3 text-emerald-600" />
-                                  ) : (
-                                    <Copy className="h-3 w-3 text-slate-400 group-hover:text-slate-600" />
-                                  )}
-                                </button>
-                              ) : (
-                                <span className="text-slate-400 text-[10px]">Unregistered</span>
-                              )}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold border ${
-                                item.supplyType === "Inter-State"
-                                  ? "bg-purple-50 text-purple-700 border-purple-200"
-                                  : "bg-blue-50 text-[#2563eb] border-blue-200"
-                              }`}>
-                                {item.placeOfSupply}
-                              </span>
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-700 text-right">
-                              {formatCurrency(item.taxableValue)}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">
-                              {formatCurrency(item.cgstAmount)}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-600 text-right">
-                              {formatCurrency(item.sgstAmount)}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-semibold text-purple-600 text-right">
-                              {formatCurrency(item.igstAmount)}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-xs font-extrabold text-slate-900 text-right">
-                              {formatCurrency(item.invoiceValue)}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                                item.paymentStatus === "PAID"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-amber-50 text-amber-700"
-                              }`}>
-                                {item.paymentMethod}
-                              </span>
-                            </td>
-                            <td className="px-3.5 py-2.5 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <a
-                                  href={getPublicShareUrl(item.invoiceId)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-1 rounded hover:bg-slate-100 text-slate-600 hover:text-[#2563eb] transition-colors"
-                                  title="View Public Invoice"
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    copyToClipboard(getPublicShareUrl(item.invoiceId), `link-${item.invoiceId}`);
-                                  }}
-                                  className="p-1 rounded hover:bg-slate-100 text-slate-600 hover:text-[#2563eb] transition-colors cursor-pointer"
-                                  title="Copy Public Link"
-                                >
-                                  {copiedKey === `link-${item.invoiceId}` ? (
-                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                  ) : (
-                                    <Copy className="h-3.5 w-3.5" />
-                                  )}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                    {filteredAllInvoices.length > 0 && (
-                      <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200 text-xs text-slate-900">
-                        <tr>
-                          <td colSpan={6} className="px-3.5 py-2.5 font-extrabold">Total ({filteredAllInvoices.length} Invoices)</td>
-                          <td className="px-3.5 py-2.5 text-right font-extrabold text-slate-900">
-                            {formatCurrency(filteredAllInvoices.reduce((acc, i) => acc + i.taxableValue, 0))}
-                          </td>
-                          <td className="px-3.5 py-2.5 text-right font-bold text-slate-700">
-                            {formatCurrency(filteredAllInvoices.reduce((acc, i) => acc + i.cgstAmount, 0))}
-                          </td>
-                          <td className="px-3.5 py-2.5 text-right font-bold text-slate-700">
-                            {formatCurrency(filteredAllInvoices.reduce((acc, i) => acc + i.sgstAmount, 0))}
-                          </td>
-                          <td className="px-3.5 py-2.5 text-right font-bold text-purple-700">
-                            {formatCurrency(filteredAllInvoices.reduce((acc, i) => acc + i.igstAmount, 0))}
-                          </td>
-                          <td className="px-3.5 py-2.5 text-right font-extrabold text-[#2563eb]">
-                            {formatCurrency(filteredAllInvoices.reduce((acc, i) => acc + i.invoiceValue, 0))}
-                          </td>
-                          <td colSpan={2}></td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
-              </div>
-            )}
-
             {/* Sub-Report 1: B2B Invoices (GSTR-1 Table 4A) */}
-            {activeSubReport === "B2B Invoices" && (
+            {(activeSubReport === "B2B Invoices" || activeSubReport === "GST Compliance") && (
               <div className="space-y-4">
                 {/* B2B KPI Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 print:hidden">
@@ -1532,9 +1262,14 @@ export default function ReportsClient({
                               {item.customerPhone || "—"}
                             </td>
                             <td className="px-3.5 py-2.5 text-xs">
-                              <span className="text-slate-600 text-xs font-medium">
-                                {item.placeOfSupply}
-                              </span>
+                              <div className="flex flex-col">
+                                <span className="text-slate-800 text-xs font-semibold">
+                                  {item.placeOfSupply}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                  {item.customerState ? "Customer State" : "Store POS (Counter Sale)"}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-700 text-right">
                               {formatCurrency(item.taxableValue)}

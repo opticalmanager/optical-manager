@@ -123,11 +123,25 @@ export const INSPECTION_REASON_LABELS: Record<string, string> = {
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
 /**
+ * Normalizes statutory GSTIN string.
+ * Automatically corrects common cashier typos like uppercase letter 'O' instead of digit '0' for state codes 01-09.
+ */
+export function normalizeGSTIN(gstin?: string | null): string {
+  if (!gstin || typeof gstin !== "string") return "";
+  let clean = gstin.trim().toUpperCase().replace(/[^0-9A-Z]/g, "");
+  // Common typo: cashiers type letter 'O' instead of digit '0' in state code (e.g. O7 -> 07, O8 -> 08)
+  if (clean.length >= 2 && clean.startsWith("O") && /^[0-9]/.test(clean[1])) {
+    clean = "0" + clean.substring(1);
+  }
+  return clean;
+}
+
+/**
  * Validates 15-character statutory GSTIN format
  */
 export function isValidGSTIN(gstin?: string | null): boolean {
   if (!gstin) return false;
-  const clean = gstin.trim().toUpperCase();
+  const clean = normalizeGSTIN(gstin);
   if (clean === "URP" || clean === "UNREGISTERED" || clean === "N/A") return false;
   return GSTIN_REGEX.test(clean);
 }
@@ -136,11 +150,27 @@ export function isValidGSTIN(gstin?: string | null): boolean {
  * Extracts 2-digit state code and human state name from GSTIN
  */
 export function getStateFromGSTIN(gstin?: string | null): { code: string; name: string } | null {
-  if (!isValidGSTIN(gstin)) return null;
-  const clean = gstin!.trim().toUpperCase();
+  const clean = normalizeGSTIN(gstin);
+  if (!clean || clean.length < 2) return null;
   const code = clean.substring(0, 2);
-  const name = GST_STATE_CODES[code] || "Unknown State";
+  const name = GST_STATE_CODES[code];
+  if (!name) return null;
   return { code, name };
+}
+
+/**
+ * Resolves 2-digit state code and name from full address text (e.g. "Cannaught Palace, new Delhi")
+ */
+export function getStateFromAddress(address?: string | null): { code: string; name: string } | null {
+  if (!address || typeof address !== "string") return null;
+  const lower = address.toLowerCase();
+  for (const [name, code] of Object.entries(STATE_NAME_TO_CODE)) {
+    const regex = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    if (regex.test(lower)) {
+      return { code, name: GST_STATE_CODES[code] };
+    }
+  }
+  return null;
 }
 
 /**
@@ -162,35 +192,38 @@ export function getStateCodeByName(stateName?: string | null): string | null {
 }
 
 /**
- * Returns formatted Place of Supply e.g. "27-Maharashtra"
+ * Returns formatted Place of Supply e.g. "07-Delhi"
+ * Strictly adheres to authentic data - NEVER falls back to dummy/hardcoded states.
  */
 export function getPlaceOfSupply(
   customerState?: string | null,
   customerGstin?: string | null,
-  shopGstin?: string | null
+  shopGstin?: string | null,
+  shopAddress?: string | null
 ): string {
   // 1. If customer has valid GSTIN, place of supply is always derived from GSTIN state code
-  const fromGstin = getStateFromGSTIN(customerGstin);
-  if (fromGstin) {
-    return `${fromGstin.code}-${fromGstin.name}`;
+  const fromCustomerGstin = getStateFromGSTIN(customerGstin);
+  if (fromCustomerGstin) {
+    return `${fromCustomerGstin.code}-${fromCustomerGstin.name}`;
   }
 
-  // 2. If customer has state text, match it
-  if (customerState) {
+  // 2. If customer has explicitly entered state, match it
+  if (customerState && customerState.trim()) {
     const code = getStateCodeByName(customerState);
     if (code && GST_STATE_CODES[code]) {
       return `${code}-${GST_STATE_CODES[code]}`;
     }
   }
 
-  // 3. Fallback to supplier shop's state from shopGstin
-  const shopState = getStateFromGSTIN(shopGstin);
+  // 3. For walk-in retail counter sales (where customer did not enter state):
+  // Under Section 10(1)(c) of the IGST Act, the statutory Place of Supply is the store location where goods are handed over.
+  const shopState = getStateFromGSTIN(shopGstin) || getStateFromAddress(shopAddress);
   if (shopState) {
     return `${shopState.code}-${shopState.name}`;
   }
 
-  // 4. Default if no shop GSTIN available
-  return "27-Maharashtra";
+  // 4. Zero dummy fallback: if neither customer nor shop has identifiable state
+  return "Not Provided";
 }
 
 /**
@@ -198,16 +231,23 @@ export function getPlaceOfSupply(
  */
 export function getSupplyType(
   placeOfSupply: string,
-  shopGstin?: string | null
+  shopGstin?: string | null,
+  shopAddress?: string | null
 ): "Intra-State" | "Inter-State" {
-  const shopState = getStateFromGSTIN(shopGstin);
-  const shopCode = shopState?.code || "27"; // Default home state
-  const posCode = placeOfSupply.split("-")[0]?.trim();
-
-  if (posCode && posCode === shopCode) {
+  if (!placeOfSupply || placeOfSupply === "Not Provided" || placeOfSupply === "—") {
+    // Over-the-counter retail sales without out-of-state shipping default to local Intra-State
     return "Intra-State";
   }
-  return "Inter-State";
+
+  const shopState = getStateFromGSTIN(shopGstin) || getStateFromAddress(shopAddress);
+  const posCode = placeOfSupply.split("-")[0]?.trim();
+
+  // If store state is known and matches POS -> Intra-State
+  if (shopState && posCode) {
+    return posCode === shopState.code ? "Intra-State" : "Inter-State";
+  }
+
+  return "Intra-State";
 }
 
 /**

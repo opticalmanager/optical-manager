@@ -20,6 +20,7 @@ import {
 import { eq, and, gte, lte, sql, desc, sum, count, inArray, isNull, ne } from "drizzle-orm";
 import {
   isValidGSTIN,
+  getStateFromGSTIN,
   getPlaceOfSupply,
   getSupplyType,
   formatIndianDate,
@@ -510,6 +511,7 @@ export async function getGSTReport(
       shopId: invoices.shopId,
       shopName: shops.name,
       shopGstin: shops.gstin,
+      shopAddress: shops.address,
     })
     .from(invoices)
     .innerJoin(customers, eq(invoices.customerId, customers.id))
@@ -707,8 +709,8 @@ export async function getGSTReport(
     }
 
     const isB2B = isGstinValid;
-    const placeOfSupply = getPlaceOfSupply(inv.customerState, inv.customerGstin, inv.shopGstin);
-    const supplyType = getSupplyType(placeOfSupply, inv.shopGstin);
+    const placeOfSupply = getPlaceOfSupply(inv.customerState, inv.customerGstin, inv.shopGstin, inv.shopAddress);
+    const supplyType = getSupplyType(placeOfSupply, inv.shopGstin, inv.shopAddress);
     const isB2CLarge = !isB2B && supplyType === "Inter-State" && invTotalVal > 250000;
 
     const effectiveRate = invTaxable > 0 ? Math.round((invTotalTax / invTaxable) * 100) : 0;
@@ -1973,6 +1975,7 @@ export async function getReportExportPayload(
       "GSTIN / UIN",
       "Party / Customer Name",
       "Contact Phone",
+      "Customer State",
       "Invoice No",
       "Date of Sale",
       "Place of Supply",
@@ -1995,6 +1998,7 @@ export async function getReportExportPayload(
       inv.customerGstin || "Unregistered",
       inv.customerName,
       inv.customerPhone || "N/A",
+      inv.customerState || (inv.isB2B ? (getStateFromGSTIN(inv.customerGstin)?.name || "—") : "Not Provided (Walk-in)"),
       inv.invoiceNumber,
       formatDateOfSale(inv.invoiceDate),
       inv.placeOfSupply,
@@ -2018,6 +2022,7 @@ export async function getReportExportPayload(
     const headers = [
       "GSTIN / UIN",
       "Receiver Name",
+      "Customer State",
       "Invoice No",
       "Date of Sale",
       "Invoice Value (₹)",
@@ -2038,6 +2043,7 @@ export async function getReportExportPayload(
     const rows = data.b2bInvoices.map((inv) => [
       inv.customerGstin || "N/A",
       inv.customerName,
+      inv.customerState || getStateFromGSTIN(inv.customerGstin)?.name || "—",
       inv.invoiceNumber,
       formatDateOfSale(inv.invoiceDate),
       parseFloat(inv.invoiceValue.toFixed(2)),
@@ -2062,6 +2068,7 @@ export async function getReportExportPayload(
       "Tax Category",
       "Customer Name",
       "Contact Phone",
+      "Customer State",
       "Invoice No",
       "Date of Sale",
       "Place of Supply",
@@ -2080,6 +2087,7 @@ export async function getReportExportPayload(
       inv.isB2CLarge ? "B2C-Large" : "B2C-Small",
       inv.customerName,
       inv.customerPhone || "N/A",
+      inv.customerState || "Not Provided (Walk-in)",
       inv.invoiceNumber,
       formatDateOfSale(inv.invoiceDate),
       inv.placeOfSupply,
