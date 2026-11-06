@@ -1,6 +1,7 @@
 "use server";
 
 import { sanitizeCSVValue } from "@/lib/csv-security";
+import * as XLSX from "xlsx";
 
 import { db } from "@/lib/drizzle";
 import { 
@@ -22,6 +23,8 @@ import {
   getPlaceOfSupply,
   getSupplyType,
   formatIndianDate,
+  formatDateOfSale,
+  getLivePublicInvoiceUrl,
   HSN_DESCRIPTIONS,
   INSPECTION_REASON_LABELS
 } from "@/lib/gst-utils";
@@ -204,6 +207,7 @@ export interface GSTReportData {
   b2cSummary: GSTSummaryTotals;
   b2cLargeSummary: GSTSummaryTotals;
   b2cSmallSummary: GSTSummaryTotals;
+  allInvoices: GSTInvoiceRow[];
   b2bInvoices: GSTInvoiceRow[];
   b2cInvoices: GSTInvoiceRow[];
   hsnSummary: HSNSummaryRow[];
@@ -792,6 +796,10 @@ export async function getGSTReport(
   const b2cSmallSummary = computeSummary(b2cInvoices.filter((r) => !r.isB2CLarge));
   const overallSummary = computeSummary([...b2bInvoices, ...b2cInvoices]);
 
+  const allInvoices = [...b2bInvoices, ...b2cInvoices].sort(
+    (a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime()
+  );
+
   const hsnSummary = Array.from(hsnMap.values()).sort((a, b) => b.totalValue - a.totalValue);
   const rateSummary = Array.from(rateMap.values()).sort((a, b) => a.rate - b.rate);
 
@@ -806,6 +814,7 @@ export async function getGSTReport(
     b2cSummary,
     b2cLargeSummary,
     b2cSmallSummary,
+    allInvoices,
     b2bInvoices,
     b2cInvoices,
     hsnSummary,
@@ -1938,110 +1947,161 @@ export async function getDeadStockReport(shopId: string, organizationId?: string
   };
 }
 
+export interface ReportExportPayload {
+  sheetName: string;
+  headers: string[];
+  rows: (string | number)[][];
+}
+
 /**
- * CSV Exporter for Reports
+ * Single source of truth payload builder for both CSV and Excel exports.
  */
-export async function exportReportToCSV(
+export async function getReportExportPayload(
   shopId: string,
   reportType: string,
   startDate?: string,
   endDate?: string,
   organizationId?: string,
   origin: string = ""
-): Promise<string> {
-  const escapeCSV = (str: any) => {
-    return sanitizeCSVValue(str);
-  };
+): Promise<ReportExportPayload> {
+  const normType = reportType.toLowerCase();
 
-  if (reportType === "b2b") {
+  if (normType === "all" || normType === "gst-all" || normType === "invoices") {
     const data = await getGSTReport(shopId, startDate, endDate, organizationId);
     const headers = [
-      "GSTIN/UIN of Recipient",
-      "Receiver Name",
-      "Invoice Number",
-      "Invoice Date",
-      "Invoice Value",
+      "Tax Category",
+      "GSTIN / UIN",
+      "Party / Customer Name",
+      "Contact Phone",
+      "Invoice No",
+      "Date of Sale",
       "Place of Supply",
       "Supply Type",
       "Reverse Charge",
       "Invoice Type",
       "Rate (%)",
-      "Taxable Value",
-      "Cess Amount",
-      "CGST Amount",
-      "SGST Amount",
-      "IGST Amount",
+      "Taxable Value (₹)",
+      "CGST Amount (₹)",
+      "SGST Amount (₹)",
+      "IGST Amount (₹)",
+      "Cess Amount (₹)",
+      "Total Invoice Value (₹)",
+      "Payment Mode",
+      "Payment Status",
+      "Public Invoice Link"
+    ];
+    const rows = data.allInvoices.map((inv) => [
+      inv.isB2B ? "B2B" : (inv.isB2CLarge ? "B2C-Large" : "B2C-Small"),
+      inv.customerGstin || "Unregistered",
+      inv.customerName,
+      inv.customerPhone || "N/A",
+      inv.invoiceNumber,
+      formatDateOfSale(inv.invoiceDate),
+      inv.placeOfSupply,
+      inv.supplyType,
+      inv.reverseCharge,
+      inv.invoiceType,
+      inv.effectiveRate,
+      parseFloat(inv.taxableValue.toFixed(2)),
+      parseFloat(inv.cgstAmount.toFixed(2)),
+      parseFloat(inv.sgstAmount.toFixed(2)),
+      parseFloat(inv.igstAmount.toFixed(2)),
+      parseFloat(inv.cessAmount.toFixed(2)),
+      parseFloat(inv.invoiceValue.toFixed(2)),
+      inv.paymentMethod,
+      inv.paymentStatus,
+      getLivePublicInvoiceUrl(inv.invoiceId, origin),
+    ]);
+    return { sheetName: "GST All Invoices", headers, rows };
+  } else if (normType === "b2b") {
+    const data = await getGSTReport(shopId, startDate, endDate, organizationId);
+    const headers = [
+      "GSTIN / UIN",
+      "Receiver Name",
+      "Invoice No",
+      "Date of Sale",
+      "Invoice Value (₹)",
+      "Place of Supply",
+      "Supply Type",
+      "Reverse Charge",
+      "Invoice Type",
+      "Rate (%)",
+      "Taxable Value (₹)",
+      "Cess Amount (₹)",
+      "CGST Amount (₹)",
+      "SGST Amount (₹)",
+      "IGST Amount (₹)",
       "Payment Mode",
       "Payment Status",
       "Public Invoice Link"
     ];
     const rows = data.b2bInvoices.map((inv) => [
-      escapeCSV(inv.customerGstin || "N/A"),
-      escapeCSV(inv.customerName),
-      escapeCSV(inv.invoiceNumber),
-      escapeCSV(formatIndianDate(inv.invoiceDate)),
-      escapeCSV(inv.invoiceValue.toFixed(2)),
-      escapeCSV(inv.placeOfSupply),
-      escapeCSV(inv.supplyType),
-      escapeCSV(inv.reverseCharge),
-      escapeCSV(inv.invoiceType),
-      escapeCSV(inv.effectiveRate),
-      escapeCSV(inv.taxableValue.toFixed(2)),
-      escapeCSV(inv.cessAmount.toFixed(2)),
-      escapeCSV(inv.cgstAmount.toFixed(2)),
-      escapeCSV(inv.sgstAmount.toFixed(2)),
-      escapeCSV(inv.igstAmount.toFixed(2)),
-      escapeCSV(inv.paymentMethod),
-      escapeCSV(inv.paymentStatus),
-      escapeCSV(origin ? `${origin}/share/invoice/${inv.invoiceId}` : `/share/invoice/${inv.invoiceId}`),
+      inv.customerGstin || "N/A",
+      inv.customerName,
+      inv.invoiceNumber,
+      formatDateOfSale(inv.invoiceDate),
+      parseFloat(inv.invoiceValue.toFixed(2)),
+      inv.placeOfSupply,
+      inv.supplyType,
+      inv.reverseCharge,
+      inv.invoiceType,
+      inv.effectiveRate,
+      parseFloat(inv.taxableValue.toFixed(2)),
+      parseFloat(inv.cessAmount.toFixed(2)),
+      parseFloat(inv.cgstAmount.toFixed(2)),
+      parseFloat(inv.sgstAmount.toFixed(2)),
+      parseFloat(inv.igstAmount.toFixed(2)),
+      inv.paymentMethod,
+      inv.paymentStatus,
+      getLivePublicInvoiceUrl(inv.invoiceId, origin),
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "b2c") {
+    return { sheetName: "B2B Invoices", headers, rows };
+  } else if (normType === "b2c") {
     const data = await getGSTReport(shopId, startDate, endDate, organizationId);
     const headers = [
-      "Type",
+      "Tax Category",
       "Customer Name",
-      "Phone",
-      "Invoice Number",
-      "Invoice Date",
+      "Contact Phone",
+      "Invoice No",
+      "Date of Sale",
       "Place of Supply",
       "Supply Type",
       "Rate (%)",
-      "Taxable Value",
-      "CGST Amount",
-      "SGST Amount",
-      "IGST Amount",
-      "Invoice Value",
+      "Taxable Value (₹)",
+      "CGST Amount (₹)",
+      "SGST Amount (₹)",
+      "IGST Amount (₹)",
+      "Invoice Value (₹)",
       "Payment Mode",
       "Payment Status",
       "Public Invoice Link"
     ];
     const rows = data.b2cInvoices.map((inv) => [
-      escapeCSV(inv.isB2CLarge ? "B2C-Large" : "B2C-Small"),
-      escapeCSV(inv.customerName),
-      escapeCSV(inv.customerPhone || "N/A"),
-      escapeCSV(inv.invoiceNumber),
-      escapeCSV(formatIndianDate(inv.invoiceDate)),
-      escapeCSV(inv.placeOfSupply),
-      escapeCSV(inv.supplyType),
-      escapeCSV(inv.effectiveRate),
-      escapeCSV(inv.taxableValue.toFixed(2)),
-      escapeCSV(inv.cgstAmount.toFixed(2)),
-      escapeCSV(inv.sgstAmount.toFixed(2)),
-      escapeCSV(inv.igstAmount.toFixed(2)),
-      escapeCSV(inv.invoiceValue.toFixed(2)),
-      escapeCSV(inv.paymentMethod),
-      escapeCSV(inv.paymentStatus),
-      escapeCSV(origin ? `${origin}/share/invoice/${inv.invoiceId}` : `/share/invoice/${inv.invoiceId}`),
+      inv.isB2CLarge ? "B2C-Large" : "B2C-Small",
+      inv.customerName,
+      inv.customerPhone || "N/A",
+      inv.invoiceNumber,
+      formatDateOfSale(inv.invoiceDate),
+      inv.placeOfSupply,
+      inv.supplyType,
+      inv.effectiveRate,
+      parseFloat(inv.taxableValue.toFixed(2)),
+      parseFloat(inv.cgstAmount.toFixed(2)),
+      parseFloat(inv.sgstAmount.toFixed(2)),
+      parseFloat(inv.igstAmount.toFixed(2)),
+      parseFloat(inv.invoiceValue.toFixed(2)),
+      inv.paymentMethod,
+      inv.paymentStatus,
+      getLivePublicInvoiceUrl(inv.invoiceId, origin),
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "gstr1" || reportType === "gstr1-portal") {
+    return { sheetName: "B2C Invoices", headers, rows };
+  } else if (normType === "gstr1" || normType === "gstr1-portal") {
     const data = await getGSTReport(shopId, startDate, endDate, organizationId);
     const headers = [
       "GSTIN/UIN of Recipient",
       "Receiver Name",
       "Invoice Number",
-      "Invoice date",
+      "Date of Sale",
       "Invoice Value",
       "Place Of Supply",
       "Reverse Charge",
@@ -2052,77 +2112,77 @@ export async function exportReportToCSV(
       "Cess Amount"
     ];
     const rows = data.b2bInvoices.map((inv) => [
-      escapeCSV(inv.customerGstin || ""),
-      escapeCSV(inv.customerName),
-      escapeCSV(inv.invoiceNumber),
-      escapeCSV(formatIndianDate(inv.invoiceDate)),
-      escapeCSV(inv.invoiceValue.toFixed(2)),
-      escapeCSV(inv.placeOfSupply),
-      escapeCSV(inv.reverseCharge),
-      escapeCSV(""),
-      escapeCSV(inv.invoiceType),
-      escapeCSV(inv.effectiveRate),
-      escapeCSV(inv.taxableValue.toFixed(2)),
-      escapeCSV(inv.cessAmount.toFixed(2)),
+      inv.customerGstin || "",
+      inv.customerName,
+      inv.invoiceNumber,
+      formatDateOfSale(inv.invoiceDate),
+      parseFloat(inv.invoiceValue.toFixed(2)),
+      inv.placeOfSupply,
+      inv.reverseCharge,
+      "",
+      inv.invoiceType,
+      inv.effectiveRate,
+      parseFloat(inv.taxableValue.toFixed(2)),
+      parseFloat(inv.cessAmount.toFixed(2)),
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "hsn") {
+    return { sheetName: "GSTR-1 Portal", headers, rows };
+  } else if (normType === "hsn") {
     const data = await getGSTReport(shopId, startDate, endDate, organizationId);
     const headers = [
-      "HSN",
+      "HSN Code",
       "Description",
       "UQC",
       "Total Quantity",
-      "Total Value",
-      "Taxable Value",
-      "Integrated Tax Amount",
-      "Central Tax Amount",
-      "State/UT Tax Amount",
-      "Cess Amount"
+      "Total Value (₹)",
+      "Taxable Value (₹)",
+      "Integrated Tax Amount (₹)",
+      "Central Tax Amount (₹)",
+      "State/UT Tax Amount (₹)",
+      "Cess Amount (₹)"
     ];
     const rows = data.hsnSummary.map((h) => [
-      escapeCSV(h.hsnCode),
-      escapeCSV(h.description),
-      escapeCSV(h.uqc),
-      escapeCSV(h.totalQuantity),
-      escapeCSV(h.totalValue.toFixed(2)),
-      escapeCSV(h.taxableValue.toFixed(2)),
-      escapeCSV(h.igst.toFixed(2)),
-      escapeCSV(h.cgst.toFixed(2)),
-      escapeCSV(h.sgst.toFixed(2)),
-      escapeCSV("0.00"),
+      h.hsnCode,
+      h.description,
+      h.uqc,
+      h.totalQuantity,
+      parseFloat(h.totalValue.toFixed(2)),
+      parseFloat(h.taxableValue.toFixed(2)),
+      parseFloat(h.igst.toFixed(2)),
+      parseFloat(h.cgst.toFixed(2)),
+      parseFloat(h.sgst.toFixed(2)),
+      0.00,
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "creditnotes") {
+    return { sheetName: "HSN Summary", headers, rows };
+  } else if (normType === "creditnotes") {
     const data = await getCreditNotesReport(shopId, startDate, endDate, organizationId);
     const headers = [
       "Note Type",
       "Note Number",
-      "Note Date",
+      "Date of Sale / Issue",
       "Original Invoice No",
       "Original Invoice Date",
       "Customer Name",
       "GSTIN",
       "Supply Category",
       "Reason",
-      "Refund Amount",
+      "Refund Amount (₹)",
       "Refund Method"
     ];
     const rows = data.notes.map((n) => [
-      escapeCSV(n.noteType),
-      escapeCSV(n.noteNumber),
-      escapeCSV(formatIndianDate(n.noteDate)),
-      escapeCSV(n.originalInvoiceNumber),
-      escapeCSV(formatIndianDate(n.originalInvoiceDate)),
-      escapeCSV(n.customerName),
-      escapeCSV(n.customerGstin || "URP"),
-      escapeCSV(n.isRegistered ? "Table 9A (Registered)" : "Table 9B (Unregistered)"),
-      escapeCSV(n.reason),
-      escapeCSV(n.noteValue.toFixed(2)),
-      escapeCSV(n.refundMethod),
+      n.noteType,
+      n.noteNumber,
+      formatDateOfSale(n.noteDate),
+      n.originalInvoiceNumber,
+      formatDateOfSale(n.originalInvoiceDate),
+      n.customerName,
+      n.customerGstin || "URP",
+      n.isRegistered ? "Table 9A (Registered)" : "Table 9B (Unregistered)",
+      n.reason,
+      parseFloat(n.noteValue.toFixed(2)),
+      n.refundMethod,
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "docsummary") {
+    return { sheetName: "Credit Notes", headers, rows };
+  } else if (normType === "docsummary") {
     const data = await getDocumentSummary(shopId, startDate, endDate, organizationId);
     const headers = [
       "Nature of Document",
@@ -2134,167 +2194,244 @@ export async function exportReportToCSV(
       "Missing Serial Numbers"
     ];
     const rows = data.rows.map((d) => [
-      escapeCSV(d.documentType),
-      escapeCSV(d.serialFrom),
-      escapeCSV(d.serialTo),
-      escapeCSV(d.totalNumber),
-      escapeCSV(d.cancelled),
-      escapeCSV(d.netIssued),
-      escapeCSV(d.missingNumbers.join("; ") || "None (Continuous)"),
+      d.documentType,
+      d.serialFrom,
+      d.serialTo,
+      d.totalNumber,
+      d.cancelled,
+      d.netIssued,
+      d.missingNumbers.join("; ") || "None (Continuous)",
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "sales") {
+    return { sheetName: "Document Summary", headers, rows };
+  } else if (normType === "sales") {
     const data = await getSalesSummaryReport(shopId, startDate, endDate);
-    const headers = ["Invoice No", "Date", "Customer Name", "Subtotal", "Discount", "Tax", "Total Amount", "Amount Paid", "Balance Due", "Payment Method", "Status"];
+    const headers = ["Invoice No", "Date of Sale", "Customer Name", "Subtotal (₹)", "Discount (₹)", "Tax (₹)", "Total Amount (₹)", "Amount Paid (₹)", "Balance Due (₹)", "Payment Method", "Status"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.invoiceNumber),
-      escapeCSV(new Date(i.createdAt).toLocaleDateString()),
-      escapeCSV(i.customerName),
-      escapeCSV(i.subtotal.toFixed(2)),
-      escapeCSV(i.discount.toFixed(2)),
-      escapeCSV(i.tax.toFixed(2)),
-      escapeCSV(i.total.toFixed(2)),
-      escapeCSV(i.amountPaid.toFixed(2)),
-      escapeCSV(i.balanceDue.toFixed(2)),
-      escapeCSV(i.paymentMethod || "N/A"),
-      escapeCSV(i.status),
+      i.invoiceNumber,
+      formatDateOfSale(i.createdAt),
+      i.customerName,
+      parseFloat(i.subtotal.toFixed(2)),
+      parseFloat(i.discount.toFixed(2)),
+      parseFloat(i.tax.toFixed(2)),
+      parseFloat(i.total.toFixed(2)),
+      parseFloat(i.amountPaid.toFixed(2)),
+      parseFloat(i.balanceDue.toFixed(2)),
+      i.paymentMethod || "N/A",
+      i.status,
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "items") {
+    return { sheetName: "Sales Summary", headers, rows };
+  } else if (normType === "items") {
     const data = await getItemWiseReport(shopId, startDate, endDate);
-    const headers = ["Item Description", "Category", "Quantity Sold", "Avg Unit Price", "Total Revenue"];
+    const headers = ["Item Description", "Category", "Quantity Sold", "Avg Unit Price (₹)", "Total Revenue (₹)"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.description),
-      escapeCSV(i.category),
-      escapeCSV(i.totalQuantity),
-      escapeCSV(i.avgPrice.toFixed(2)),
-      escapeCSV(i.totalSales.toFixed(2)),
+      i.description,
+      i.category,
+      i.totalQuantity,
+      parseFloat(i.avgPrice.toFixed(2)),
+      parseFloat(i.totalSales.toFixed(2)),
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "gst") {
+    return { sheetName: "Item Wise Report", headers, rows };
+  } else if (normType === "gst") {
     const data = await getGSTReport(shopId, startDate, endDate);
-    const headers = ["Invoice No", "Date", "Customer Name", "HSN Code", "Taxable Subtotal", "CGST Amount", "SGST Amount", "IGST Amount", "Total Tax", "Total Amount"];
+    const headers = ["Invoice No", "Date of Sale", "Customer Name", "HSN Code", "Taxable Subtotal (₹)", "CGST (₹)", "SGST (₹)", "IGST (₹)", "Total Tax (₹)", "Total Amount (₹)"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.invoiceNumber),
-      escapeCSV(new Date(i.createdAt).toLocaleDateString()),
-      escapeCSV(i.customerName),
-      escapeCSV(i.hsnCode),
-      escapeCSV(i.subtotal.toFixed(2)),
-      escapeCSV(i.cgstAmount.toFixed(2)),
-      escapeCSV(i.sgstAmount.toFixed(2)),
-      escapeCSV(i.igstAmount.toFixed(2)),
-      escapeCSV(i.totalTax.toFixed(2)),
-      escapeCSV(i.totalAmount.toFixed(2)),
+      i.invoiceNumber,
+      formatDateOfSale(i.createdAt),
+      i.customerName,
+      i.hsnCode,
+      parseFloat(i.subtotal.toFixed(2)),
+      parseFloat(i.cgstAmount.toFixed(2)),
+      parseFloat(i.sgstAmount.toFixed(2)),
+      parseFloat(i.igstAmount.toFixed(2)),
+      parseFloat(i.totalTax.toFixed(2)),
+      parseFloat(i.totalAmount.toFixed(2)),
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "inventory") {
+    return { sheetName: "GST Summary", headers, rows };
+  } else if (normType === "inventory") {
     const data = await getInventoryReport(shopId);
-    const headers = ["Item Name", "Category", "Brand", "SKU", "In Stock Quantity", "Unit Cost Price", "Selling Price", "Total Cost Valuation", "Total Retail Valuation", "Stock Status"];
+    const headers = ["Item Name", "Category", "Brand", "SKU", "In Stock Quantity", "Unit Cost Price (₹)", "Selling Price (₹)", "Total Cost Valuation (₹)", "Total Retail Valuation (₹)", "Stock Status"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.name),
-      escapeCSV(i.category),
-      escapeCSV(i.brand || "N/A"),
-      escapeCSV(i.sku || "N/A"),
-      escapeCSV(i.quantity),
-      escapeCSV(i.costPrice.toFixed(2)),
-      escapeCSV(i.sellingPrice.toFixed(2)),
-      escapeCSV(i.totalCostValue.toFixed(2)),
-      escapeCSV(i.totalRetailValue.toFixed(2)),
-      escapeCSV(i.status),
+      i.name,
+      i.category,
+      i.brand || "N/A",
+      i.sku || "N/A",
+      i.quantity,
+      parseFloat(i.costPrice.toFixed(2)),
+      parseFloat(i.sellingPrice.toFixed(2)),
+      parseFloat(i.totalCostValue.toFixed(2)),
+      parseFloat(i.totalRetailValue.toFixed(2)),
+      i.status,
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "payments") {
+    return { sheetName: "Inventory Valuation", headers, rows };
+  } else if (normType === "payments") {
     const data = await getPaymentCollectionReport(shopId, startDate, endDate);
-    const headers = ["Receipt No", "Invoice No", "Date", "Customer Name", "Payment Method", "Amount Paid", "Balance Remaining", "Transaction ID"];
+    const headers = ["Receipt No", "Invoice No", "Date of Payment", "Customer Name", "Payment Method", "Amount Paid (₹)", "Balance Remaining (₹)", "Transaction ID"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.receiptNumber),
-      escapeCSV(i.invoiceNumber),
-      escapeCSV(new Date(i.createdAt).toLocaleDateString()),
-      escapeCSV(i.customerName),
-      escapeCSV(i.paymentMethod),
-      escapeCSV(i.amountPaid.toFixed(2)),
-      escapeCSV(i.balanceDue.toFixed(2)),
-      escapeCSV(i.transactionId || "N/A"),
+      i.receiptNumber,
+      i.invoiceNumber,
+      formatDateOfSale(i.createdAt),
+      i.customerName,
+      i.paymentMethod,
+      parseFloat(i.amountPaid.toFixed(2)),
+      parseFloat(i.balanceDue.toFixed(2)),
+      i.transactionId || "N/A",
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "appointments") {
+    return { sheetName: "Payment Collections", headers, rows };
+  } else if (normType === "appointments") {
     const data = await getAppointmentReport(shopId, startDate, endDate);
     const headers = ["Patient Name", "Phone", "Date", "Time", "Purpose of Visit", "Status", "Notes"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.customerName),
-      escapeCSV(i.customerPhone),
-      escapeCSV(i.dateKey),
-      escapeCSV(i.visitTime),
-      escapeCSV(i.purposeOfVisit),
-      escapeCSV(i.status),
-      escapeCSV(i.notes || ""),
+      i.customerName,
+      i.customerPhone,
+      i.dateKey,
+      i.visitTime,
+      i.purposeOfVisit,
+      i.status,
+      i.notes || "",
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "daywise") {
+    return { sheetName: "Appointments", headers, rows };
+  } else if (normType === "daywise") {
     const data = await getDayWiseCollectionReport(shopId, startDate, endDate);
-    const headers = ["Date", "Total Invoices", "Subtotal", "Tax Amount", "Total Revenue", "Total Collected", "Cash Total", "UPI Total", "Card Total", "Balance Outstanding"];
+    const headers = ["Date", "Total Invoices", "Subtotal (₹)", "Tax Amount (₹)", "Total Revenue (₹)", "Total Collected (₹)", "Cash (₹)", "UPI (₹)", "Card (₹)", "Balance Outstanding (₹)"];
     const rows = data.days.map((d) => [
-      escapeCSV(d.date),
-      escapeCSV(d.totalInvoices),
-      escapeCSV(d.subtotal.toFixed(2)),
-      escapeCSV(d.tax.toFixed(2)),
-      escapeCSV(d.totalRevenue.toFixed(2)),
-      escapeCSV(d.totalCollected.toFixed(2)),
-      escapeCSV(d.cashTotal.toFixed(2)),
-      escapeCSV(d.upiTotal.toFixed(2)),
-      escapeCSV(d.cardTotal.toFixed(2)),
-      escapeCSV(d.balanceDue.toFixed(2)),
+      d.date,
+      d.totalInvoices,
+      parseFloat(d.subtotal.toFixed(2)),
+      parseFloat(d.tax.toFixed(2)),
+      parseFloat(d.totalRevenue.toFixed(2)),
+      parseFloat(d.totalCollected.toFixed(2)),
+      parseFloat(d.cashTotal.toFixed(2)),
+      parseFloat(d.upiTotal.toFixed(2)),
+      parseFloat(d.cardTotal.toFixed(2)),
+      parseFloat(d.balanceDue.toFixed(2)),
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "daily" || reportType === "singleday") {
+    return { sheetName: "Day-Wise Collection", headers, rows };
+  } else if (normType === "daily" || normType === "singleday") {
     const dateStr = startDate || new Date().toISOString().split("T")[0];
     const data = await getSingleDayCollectionReport(shopId, dateStr);
-    const headers = ["Time", "Customer Name", "Phone", "Invoice No", "Receipt No", "Type", "Items Summary", "Payment Mode", "Bill Amount", "Amount Paid Today", "Balance Due"];
+    const headers = ["Time", "Customer Name", "Phone", "Invoice No", "Receipt No", "Collection Type", "Items Summary", "Payment Mode", "Bill Amount (₹)", "Amount Paid Today (₹)", "Balance Due (₹)"];
     const rows = data.collections.map((c) => [
-      escapeCSV(c.time),
-      escapeCSV(c.customerName),
-      escapeCSV(c.customerPhone || "N/A"),
-      escapeCSV(c.invoiceNumber),
-      escapeCSV(c.receiptNumber || "N/A"),
-      escapeCSV(c.collectionType),
-      escapeCSV(c.itemsSummary),
-      escapeCSV(c.paymentMethod),
-      escapeCSV(c.totalBillAmount.toFixed(2)),
-      escapeCSV(c.amountCollectedToday.toFixed(2)),
-      escapeCSV(c.balanceRemaining.toFixed(2)),
+      c.time,
+      c.customerName,
+      c.customerPhone || "N/A",
+      c.invoiceNumber,
+      c.receiptNumber || "N/A",
+      c.collectionType,
+      c.itemsSummary,
+      c.paymentMethod,
+      parseFloat(c.totalBillAmount.toFixed(2)),
+      parseFloat(c.amountCollectedToday.toFixed(2)),
+      parseFloat(c.balanceRemaining.toFixed(2)),
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "dues") {
+    return { sheetName: "Daily Collections", headers, rows };
+  } else if (normType === "dues") {
     const data = await getOutstandingDuesReport(shopId);
-    const headers = ["Invoice No", "Date", "Patient Name", "Phone", "Total Invoice", "Amount Paid", "Balance Overdue", "Overdue Days", "Aging Bucket"];
+    const headers = ["Invoice No", "Date of Sale", "Patient Name", "Phone", "Total Invoice (₹)", "Amount Paid (₹)", "Balance Overdue (₹)", "Overdue Days", "Aging Bucket"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.invoiceNumber),
-      escapeCSV(new Date(i.createdAt).toLocaleDateString()),
-      escapeCSV(i.customerName),
-      escapeCSV(i.customerPhone),
-      escapeCSV(i.totalAmount.toFixed(2)),
-      escapeCSV(i.amountPaid.toFixed(2)),
-      escapeCSV(i.balanceDue.toFixed(2)),
-      escapeCSV(i.ageDays),
-      escapeCSV(i.agingBucket),
+      i.invoiceNumber,
+      formatDateOfSale(i.createdAt),
+      i.customerName,
+      i.customerPhone || "N/A",
+      parseFloat(i.totalAmount.toFixed(2)),
+      parseFloat(i.amountPaid.toFixed(2)),
+      parseFloat(i.balanceDue.toFixed(2)),
+      i.ageDays,
+      i.agingBucket,
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  } else if (reportType === "deadstock") {
+    return { sheetName: "Outstanding Dues", headers, rows };
+  } else if (normType === "deadstock") {
     const data = await getDeadStockReport(shopId);
-    const headers = ["Product Name", "Category", "Brand", "SKU", "Units Unsold", "Unit Cost Price", "Selling Price", "Dead Cost Value", "Days in Inventory"];
+    const headers = ["Product Name", "Category", "Brand", "SKU", "Units Unsold", "Unit Cost Price (₹)", "Selling Price (₹)", "Dead Cost Value (₹)", "Days in Inventory"];
     const rows = data.items.map((i) => [
-      escapeCSV(i.name),
-      escapeCSV(i.category),
-      escapeCSV(i.brand || "N/A"),
-      escapeCSV(i.sku || "N/A"),
-      escapeCSV(i.quantity),
-      escapeCSV(i.costPrice.toFixed(2)),
-      escapeCSV(i.sellingPrice.toFixed(2)),
-      escapeCSV(i.deadCostValuation.toFixed(2)),
-      escapeCSV(i.daysInStock),
+      i.name,
+      i.category,
+      i.brand || "N/A",
+      i.sku || "N/A",
+      i.quantity,
+      parseFloat(i.costPrice.toFixed(2)),
+      parseFloat(i.sellingPrice.toFixed(2)),
+      parseFloat(i.deadCostValuation.toFixed(2)),
+      i.daysInStock,
     ]);
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    return { sheetName: "Dead Stock Audit", headers, rows };
   }
 
-  return "No data";
+  return { sheetName: "Report", headers: ["Status"], rows: [["No data available"]] };
+}
+
+/**
+ * CSV Exporter for Reports
+ * Includes UTF-8 BOM (\uFEFF) for immediate Excel compatibility and clean text encoding.
+ */
+export async function exportReportToCSV(
+  shopId: string,
+  reportType: string,
+  startDate?: string,
+  endDate?: string,
+  organizationId?: string,
+  origin: string = ""
+): Promise<string> {
+  const { headers, rows } = await getReportExportPayload(
+    shopId,
+    reportType,
+    startDate,
+    endDate,
+    organizationId,
+    origin
+  );
+
+  const escapeCSV = (str: any) => sanitizeCSVValue(str);
+
+  const csvRows = [
+    headers.map(escapeCSV).join(","),
+    ...rows.map((row) => row.map(escapeCSV).join(","))
+  ];
+
+  return "\uFEFF" + csvRows.join("\n");
+}
+
+/**
+ * Industrial-Grade Excel (.xlsx) Exporter with Auto-Calculated Column Widths.
+ * Opens seamlessly in Microsoft Excel, Apple Numbers, and Google Sheets without '########' or truncated columns.
+ */
+export async function exportReportToExcel(
+  shopId: string,
+  reportType: string,
+  startDate?: string,
+  endDate?: string,
+  organizationId?: string,
+  origin: string = ""
+): Promise<Buffer> {
+  const { sheetName, headers, rows } = await getReportExportPayload(
+    shopId,
+    reportType,
+    startDate,
+    endDate,
+    organizationId,
+    origin
+  );
+
+  // Build sheet
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Compute responsive, generous column widths with minimum padding
+  const colWidths = headers.map((header, colIdx) => {
+    let maxLen = header.length;
+    for (const r of rows) {
+      const valStr = String(r[colIdx] ?? "");
+      if (valStr.length > maxLen) {
+        maxLen = valStr.length;
+      }
+    }
+    // Generous column width: minimum 14 chars, maximum 60 chars for URLs
+    return { wch: Math.min(Math.max(maxLen + 4, 14), 60) };
+  });
+
+  worksheet["!cols"] = colWidths;
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.slice(0, 31));
+
+  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+  return buffer as Buffer;
 }
