@@ -2,6 +2,9 @@ import { getCurrentUser } from "@/services/auth.service";
 import { hasModulePermission } from "@/utils/permissions";
 import { AccessDenied } from "@/components/shop/AccessDenied";
 import { NewInvoiceForm } from "@/components/shop/NewInvoiceForm";
+import { db } from "@/lib/drizzle";
+import { organizationAddons } from "@/db/schema/addons";
+import { eq, and } from "drizzle-orm";
 
 export const metadata = {
   title: "New Invoice | Optical Manager",
@@ -20,9 +23,29 @@ export default async function NewInvoicePage() {
     );
   }
 
+  let isGstAutofetchEnabled = false;
+  if (user?.organizationId) {
+    try {
+      const [addon] = await db
+        .select({ isEnabled: organizationAddons.isEnabled })
+        .from(organizationAddons)
+        .where(
+          and(
+            eq(organizationAddons.organizationId, user.organizationId),
+            eq(organizationAddons.addonKey, "GST_AUTOFETCH")
+          )
+        )
+        .limit(1);
+      isGstAutofetchEnabled = addon?.isEnabled || false;
+    } catch (err) {
+      console.error("[NewInvoicePage] Error fetching GST autofetch addon status:", err);
+    }
+  }
+
   return (
     <div className="p-0">
-      <NewInvoiceForm />
+      <NewInvoiceForm isGstAutofetchEnabled={isGstAutofetchEnabled} />
     </div>
   );
 }
+

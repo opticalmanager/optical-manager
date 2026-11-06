@@ -6,13 +6,20 @@
 
 ## 🌟 Core Business Capabilities
 
-### 1. Super Admin Platform Control Panel & Lead CRM (`admin.opticalmanager.in`)
-- **Restricted Admin Authentication**: Dedicated dark glassmorphic login (`/admin/login`) with zero public signup option and standalone full-screen layout.
-- **CLI Account Seeding (Method 1)**: Super Admin accounts are seeded securely via command line (`scripts/seed-super-admin.ts`) using Supabase Service Role APIs.
-- **SaaS Platform Telemetry**: 4 core SaaS telemetry metrics (Platform B2B Revenue, Active Outlets, Subscription Health, Approved Lead Conversions). Patient clinical counts are strictly isolated from platform admins.
-- **Tenant Store Detail View (`/admin/organizations/[id]`)**: Deep-dive administrative page showing tenant profile, subscription LTV, physical branch outlets directory, assigned managers, and subscription extension/suspension controls.
-- **Verified Demo Requests CRM (`/admin/leads`)**: Captures landing page store access requests, featuring 1-click WhatsApp messaging (`wa.me/+91...`) and status tracking (`PENDING` ➔ `CONTACTED` ➔ `DEMO_SCHEDULED` ➔ `APPROVED`).
-- **Subscription Extensions & Store Pause**: Super Admins can add +1, +3, +6, or +12 months to any tenant's subscription and toggle instant store access suspension (`SUSPENDED`).
+### 1. Super Admin Platform Control Panel & Lead CRM (`admin.opticalmanager.in` / `/admin`)
+- **Restricted Admin Authentication**: Dedicated dark glassmorphic login (`/admin/login`) with zero public signup option, standalone full-screen layout, and strict `SUPER_ADMIN` RBAC verification.
+- **Unified Obsidian Dark Theme & CSS Isolation**: Scoped dark theme engine (`[data-admin-theme="dark"]` in `app/globals.css`) that cleanly overrides shop billing portal styles, ensuring high-contrast `#0b0f17` backgrounds, `#111827` surface cards, `#0F172A` table headers, and `#1E293B` borders with zero light-mode CSS leaks.
+- **High-Density Executive Sidebar (`AdminSidebar.tsx`)**: 5 organized functional tiers (`PLATFORM CONTROL`, `TENANT MANAGEMENT`, `GROWTH & PIPELINE`, `ADMIN CONTROLS`, `STORE SHORTCUTS`), live pending leads pill badge, live renewals radar badge, Global Command Palette trigger (`Ctrl+K`), Platform Broadcast modal launcher, and 1-click SaaS CSV exporter.
+- **Platform Telemetry & Churn Radar (`/admin`)**: High-grade SaaS executive cockpit with live calculation of Estimated MRR, ARR, Platform GMV, Monthly Billing Velocity, Invoices Today, Prescriptions Logged, WhatsApp Dispatches, and Add-on API costs. Includes the **Expiring Subscriptions Radar** highlighting stores due in $\le 14$ days with 1-click WhatsApp outreach.
+- **Platform Activity Pulse**: Live audit timeline displaying authentic database events (new tenant chains onboarded, demo leads requested, add-on lookups verified) in real-time.
+- **Tenant Chains & Subscriptions Hub (`/admin/organizations`)**: Dual-tab architecture (`Tenant Chains` vs `Subscriptions & Billing`), plan & status filters (`ALL`, `ACTIVE`, `TRIAL`, `EXPIRING SOON`, `SUSPENDED`), preset quick-renewal chips (+1 Mo to +2 Yrs), and 1-click Telemetry CSV export.
+- **Verified Demo Requests CRM (`/admin/leads`)**: Pipeline status tabs (`All`, `Pending`, `Contacted`, `Demo Scheduled`, `Approved`), instant search, 1-click WhatsApp demo launcher (`wa.me/+91...`), and 1-click "Approve & Provision Store" conversion modal.
+- **Tenant Store Detail View (`/admin/organizations/[id]`)**: Deep-dive 2-column obsidian console displaying tenant profile, physical branch outlets directory, manager credentials, subscription history with preset renewal chips, and modular add-on toggles (`OrganizationAddonsCard.tsx`).
+
+
+
+
+
 
 ### 2. Multi-Tenant & Multi-Branch Hierarchy
 - **Organization Management**: System Owners can manage multi-branch optical retail networks under a single clinical organization profile (`organizationId`).

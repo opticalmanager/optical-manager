@@ -84,6 +84,39 @@
     background-color: #F9FAFB !important;
   }
 
+  /* Admin Scoped Dark Table & Card Specifications */
+  [data-admin-theme="dark"] table {
+    border-color: #1E293B !important;
+  }
+
+  [data-admin-theme="dark"] thead, 
+  [data-admin-theme="dark"] thead tr,
+  [data-admin-theme="dark"] thead th {
+    background-color: #0F172A !important;
+    border-color: #1E293B !important;
+    color: #94A3B8 !important;
+  }
+
+  [data-admin-theme="dark"] tbody {
+    background-color: #111827 !important;
+  }
+
+  [data-admin-theme="dark"] tbody tr {
+    background-color: #111827 !important;
+    border-color: #1E293B !important;
+    color: #F1F5F9 !important;
+  }
+
+  [data-admin-theme="dark"] tbody tr:hover {
+    background-color: #1E293B !important;
+  }
+
+  [data-admin-theme="dark"] .card, 
+  [data-admin-theme="dark"] [data-card] {
+    background-color: #111827 !important;
+    border-color: #1E293B !important;
+  }
+
   /* Forms & Cards Global Default */
   .card, [data-card] {
     background-color: #FFFFFF;

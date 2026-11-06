@@ -182,7 +182,8 @@ function extractOfflineUserFromCookies(request: NextRequest): any | null {
   const { pathname } = request.nextUrl;
   const forwardedHost = request.headers.get("x-forwarded-host");
   const host = forwardedHost || request.headers.get("host") || "";
-  const isAdminSubdomain = host.startsWith("admin.") || forwardedHost?.startsWith("admin.");
+  const isLocalHost = host.includes("localhost") || host.includes("127.0.0.1");
+  const isAdminSubdomain = host.startsWith("admin.") || forwardedHost?.startsWith("admin.") || (isLocalHost && pathname.startsWith("/admin"));
 
   const isSuperAdmin = user?.user_metadata?.role === "SUPER_ADMIN";
 

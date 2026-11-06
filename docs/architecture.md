@@ -282,6 +282,42 @@ The proxy middleware intercepts top-level shorthand URLs (such as `/setting`, `/
 
 ---
 
+## ⚡ Super Admin Platform Control Plane & Theme Isolation Architecture
+
+The Super Admin Control Plane (`/admin`) is designed as an isolated multi-tenant management cockpit for platform operators:
+
+1. **Strict Data-Theme Isolation (`[data-admin-theme="dark"]`)**:
+   - The admin shell (`app/(admin)/admin/layout.tsx`) binds `data-admin-theme="dark"`.
+   - Scoped global rules in `app/globals.css` override default light-mode table and card rules (`table`, `thead`, `thead th`, `tbody`, `tbody tr`, `.card`), preventing light-mode POS CSS leaks and enforcing consistent `#0b0f17` (obsidian canvas), `#111827` (elevated panels), `#0F172A` (table headers), and `#1E293B` (grid borders).
+
+2. **Executive Multi-Tier Navigation (`AdminSidebar.tsx`)**:
+   - Organized into 5 operational tiers:
+     - `PLATFORM CONTROL`: Platform Overview (`/admin`), Renewals & Churn Radar (`/admin?view=renewals`) with live badge
+     - `TENANT MANAGEMENT`: Tenant Store Chains (`/admin/organizations`), Subscriptions & Billing (`/admin/organizations?tab=subscriptions`), Add-on Quotas & APIs (`/admin/organizations?tab=addons`)
+     - `GROWTH & PIPELINE`: Demo Requests CRM (`/admin/leads`) with dynamic live pending leads badge
+     - `ADMIN CONTROLS`: Global Command Palette trigger (`Ctrl+K`), Platform Announcement Broadcast modal, and 1-click Telemetry CSV exporter
+     - `STORE SHORTCUTS`: Direct links into POS Billing (`/shop/dashboard`) and Owner Hub (`/owner`)
+   - Bottom Super Admin profile badge with user initials, active email, and 1-click logout.
+
+3. **High-Density Interactive Telemetry & Churn Radar (`AdminDashboardClient.tsx`)**:
+   - High-density KPI cards (`p-3.5` to `p-4`) displaying Estimated MRR & ARR, Active Outlets & Chains, Renewals Radar (expiring in $\le 14$ days), and Platform GMV with active selection states (`border-2 border-blue-500 scale-[1.01] bg-[#162238]`).
+   - Operational Velocity Bar tracking Invoices Today, Prescriptions Logged, WhatsApp Dispatches, and GSTIN Add-on Costs.
+   - Dedicated Expiring Subscriptions Radar section with 1-click WhatsApp renewal messaging (`wa.me/+91...`) and quick extension chips.
+   - Platform Activity Pulse: Live real-time audit feed streaming database events (store onboardings, demo leads, add-on queries).
+   - Tenant Chains Data Ledger with instant search and status tabs (`ALL`, `ACTIVE`, `TRIAL`, `EXPIRING SOON`, `SUSPENDED`).
+
+4. **Tenant Chains & Subscriptions Management (`AdminOrganizationsClient.tsx`)**:
+   - Dual-tab workflow (`Tenant Chains` vs `Subscriptions & Billing`).
+   - Quick renewal duration chips (`+1 Mo`, `+3 Mo`, `+6 Mo`, `+1 Yr`, `+2 Yrs`) calculating exact ISO extension dates.
+   - 2-Step interactive tenant onboarding modal with automatic slug creation, password hashing, and default store provisioning.
+
+5. **Demo Requests & Lead Conversion CRM (`AdminLeadsClient.tsx`)**:
+   - Status pipeline tabs (`All`, `Pending`, `Contacted`, `Demo Scheduled`, `Approved`).
+   - 1-click WhatsApp launcher for verified demo outreach.
+   - 1-click Lead-to-Store approval modal prefilling organization and owner records.
+
+---
+
 ## 📁 Complete Directory Structure
 
 ```
