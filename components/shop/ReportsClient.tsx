@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
-import { formatIndianDate, formatDateOfSale } from "@/lib/gst-utils";
+import { formatIndianDate, formatDateOfSale, getLivePublicInvoiceUrl } from "@/lib/gst-utils";
 import ScheduleReportModal from "./ScheduleReportModal";
 import { 
   SalesSummaryReportData, 
@@ -305,15 +305,8 @@ export default function ReportsClient({
   };
 
   // Canonical Live Public Invoice Link Resolver (Never points to localhost)
-  const getPublicShareUrl = (invoiceId: string) => {
-    if (typeof window !== "undefined") {
-      const origin = window.location.origin;
-      if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
-        return `${origin}/share/invoice/${invoiceId}`;
-      }
-    }
-    return `https://www.opticalmanager.in/share/invoice/${invoiceId}`;
-  };
+  const getPublicShareUrl = (invoiceId: string) =>
+    getLivePublicInvoiceUrl(invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
 
   // Browser print layout
   const handlePrint = () => {
