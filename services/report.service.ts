@@ -24,6 +24,7 @@ import {
   getSupplyType,
   formatIndianDate,
   formatDateOfSale,
+  getLivePublicInvoiceUrl,
   HSN_DESCRIPTIONS,
   INSPECTION_REASON_LABELS
 } from "@/lib/gst-utils";
@@ -1944,22 +1945,6 @@ export async function getDeadStockReport(shopId: string, organizationId?: string
     totalDeadCostValuation,
     items,
   };
-}
-
-/**
- * Resolves the canonical public invoice URL.
- * Falls back to live production domain (https://www.opticalmanager.in)
- * when origin is localhost or missing.
- */
-export function getLivePublicInvoiceUrl(invoiceId: string, origin?: string): string {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
-    return `${envUrl.replace(/\/$/, "")}/share/invoice/${invoiceId}`;
-  }
-  if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
-    return `${origin.replace(/\/$/, "")}/share/invoice/${invoiceId}`;
-  }
-  return `https://www.opticalmanager.in/share/invoice/${invoiceId}`;
 }
 
 export interface ReportExportPayload {
