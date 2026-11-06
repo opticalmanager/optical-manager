@@ -519,3 +519,57 @@ Stores the individual line items received in a purchase invoice matching the SS2
 
 
 
+
+---
+
+### 38. `organization_addons`
+Manages per-organization feature add-ons and dynamic capabilities (e.g., GSTIN auto-fetch).
+
+| Column Name | Data Type | Constraints & Flags | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Addon toggle record ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Organization reference |
+| `addonKey` | `text` | NOT NULL | Key e.g. `'GST_AUTOFETCH'` |
+| `isEnabled` | `boolean` | NOT NULL, DEFAULT false | Active status |
+| `config` | `jsonb` | DEFAULT `{"costPerCall": "0.40"}` | Per-call rate and options |
+| `createdAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Timestamp created |
+| `updatedAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Timestamp updated |
+
+---
+
+### 39. `addon_usage_logs`
+Telemetry log for all add-on executions (API calls, cache hits, billing tracking).
+
+| Column Name | Data Type | Constraints & Flags | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Usage log ID |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE) | Tenant identifier |
+| `shopId` | `uuid` | FK -> `shops.id` (SET NULL) | Specific store outlet |
+| `userId` | `uuid` | FK -> `profiles.id` (SET NULL) | Staff member who queried |
+| `addonKey` | `text` | NOT NULL | Addon identifier |
+| `referenceIdentifier` | `text` | NULLABLE | 15-char GSTIN looked up |
+| `isCached` | `boolean` | NOT NULL, DEFAULT false | Whether served free from cache |
+| `costInr` | `numeric(10,2)`| NOT NULL, DEFAULT 0.40 | Cost incurred in INR |
+| `metadata` | `jsonb` | DEFAULT `{}` | Taxpayer trade name and status |
+| `createdAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Execution timestamp |
+
+---
+
+### 40. `customer_gstin_cache`
+System-wide cache for verified GSTIN taxpayers, preventing duplicate API charges.
+
+| Column Name | Data Type | Constraints & Flags | Description |
+| :--- | :--- | :--- | :--- |
+| `gstin` | `text` | PK | 15-character uppercase GSTIN |
+| `legalName` | `text` | NOT NULL | Registered legal entity name |
+| `tradeName` | `text` | NULLABLE | Commercial trade name |
+| `status` | `text` | NOT NULL | "Active", "Cancelled", "Suspended" |
+| `taxpayerType` | `text` | NULLABLE | Business constitution |
+| `addressLine` | `text` | NULLABLE | Standardized street address |
+| `city` | `text` | NULLABLE | City / District |
+| `state` | `text` | NULLABLE | Registered state name |
+| `stateCode` | `text` | NULLABLE | 2-digit GST state code |
+| `pincode` | `text` | NULLABLE | 6-digit postal code |
+| `rawResponse` | `jsonb` | NULLABLE | Full provider JSON payload |
+| `createdAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Cache creation time |
+| `updatedAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Cache update time |
