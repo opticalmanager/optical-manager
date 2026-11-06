@@ -68,3 +68,14 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 - **Measurement ID**: `G-8C5QB8TZ1E` (configured via `NEXT_PUBLIC_GA_MEASUREMENT_ID`).
 - **Cost Analysis**: Standard Google Analytics free tier (**$0.00 / month**).
 
+
+### 7. Appyflow GSTIN Verification API
+- **Primary Function**: Live verification and taxpayer detail auto-fill for 15-character GST numbers in invoice and customer creation. Auto-populates official legal entity name, trade name, principal place of business (street, city, state, pincode), and active filing status.
+- **Implementation**: Powered by `services/gst-lookup.service.ts` and `actions/gst-lookup.actions.ts` via endpoint `https://appyflow.in/api/verifyGST`.
+- **Hybrid 3-Tier Optimization**:
+  - **Tier 1 (0ms, ₹0)**: Offline Luhn Modulo 36 checksum in `utils/gstin.ts`.
+  - **Tier 2 (2ms, ₹0)**: Local PostgreSQL cache table `customer_gstin_cache`.
+  - **Tier 3 (Live API)**: Appyflow lookup triggered only for uncached valid GST numbers.
+- **Admin Management**: Managed per-tenant in `/admin/organizations/[id]` with toggle controls, period filters, and consumption analytics.
+- **Credentials & Multi-Tenancy**: Secured via server environment variable `APPYFLOW_KEY_SECRET` (never exposed to client browser bundles).
+- **Cost Analysis**: Fixed at **₹0.40 per live API lookup**, with ₹0.00 cost on all local database cache hits.

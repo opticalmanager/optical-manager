@@ -11,6 +11,7 @@ import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
 import { formatCurrency } from "@/lib/utils";
 import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
 
 interface DocumentActionBarProps {
   documentType: "Invoice" | "Receipt";
@@ -60,9 +61,9 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       data.shop?.settings?.whatsappTemplates
     );
 
-    const invoiceUrl = `${window.location.origin}/share/invoice/${data.invoice?.id}`;
+    const invoiceUrl = getLivePublicInvoiceUrl(data.invoice?.id, typeof window !== "undefined" ? window.location.origin : undefined);
     const primaryReceiptId = data.receipt?.id || data.allReceipts?.[0]?.id || data.invoice?.id;
-    const orderFormUrl = `${window.location.origin}/share/receipt/${primaryReceiptId}`;
+    const orderFormUrl = getLivePublicReceiptUrl(primaryReceiptId, typeof window !== "undefined" ? window.location.origin : undefined);
     const targetMediaUrl = isInvoice ? invoiceUrl : orderFormUrl;
 
     const prescriptions = data.prescriptions || [];

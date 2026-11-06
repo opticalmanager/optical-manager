@@ -72,7 +72,10 @@ import {
   Landmark,
   Eye,
   Tag,
+  Sparkles,
 } from "lucide-react";
+import { verifyGstinAction } from "@/actions/gst-lookup.actions";
+import { INDIAN_STATES, GSTIN_STATE_MAP, getStateFromGSTIN, isValidGSTINChecksum } from "@/utils/gstin";
 
 interface PastRxGroup {
   id: string;
@@ -90,7 +93,6 @@ const formatRxDate = (dateVal: string | Date | null | undefined) => {
   return safeFormatDateLocale(dateVal, "Unknown Date");
 };
 
-import { INDIAN_STATES, GSTIN_STATE_MAP, getStateFromGSTIN } from "@/utils/gstin";
 
 /**
  * Returns true only if customer state is present, shop state is present, and they differ.
@@ -389,6 +391,85 @@ export function NewInvoiceForm() {
   const [state, setState] = useState("");
   const [showStateSuggestions, setShowStateSuggestions] = useState(false);
   const [pincode, setPincode] = useState("");
+
+  // GST Auto-Fetch & Taxpayer Verification States
+  const [isVerifyingGstin, setIsVerifyingGstin] = useState(false);
+  const [gstinVerifiedStatus, setGstinVerifiedStatus] = useState<{
+    status: string;
+    tradeName?: string;
+    isCached?: boolean;
+    isCancelled?: boolean;
+  } | null>(null);
+  const gstinDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastQueriedGstinRef = useRef<string>("");
+
+  const handleFetchGstinDetails = async (targetGstin?: string, manual = false) => {
+    const clean = (targetGstin || gstin).trim().toUpperCase();
+
+    if (!clean || clean.length !== 15) {
+      if (manual) toast.error("Please enter a valid 15-character GSTIN.");
+      return;
+    }
+
+    if (!isValidGSTINChecksum(clean)) {
+      if (manual) toast.error("Invalid GSTIN checksum. Please check for typos.");
+      return;
+    }
+
+    // Prevent redundant queries if already verified
+    if (lastQueriedGstinRef.current === clean && gstinVerifiedStatus) {
+      if (manual) toast.info(`Already verified: ${gstinVerifiedStatus.tradeName || "Taxpayer Active"}`);
+      return;
+    }
+
+    setIsVerifyingGstin(true);
+    try {
+      const res = await verifyGstinAction(clean);
+      if (res.success && res.data) {
+        lastQueriedGstinRef.current = clean;
+        const isCancelled = res.data.status.toLowerCase() !== "active";
+        setGstinVerifiedStatus({
+          status: res.data.status,
+          tradeName: res.data.tradeName,
+          isCached: res.data.isCached,
+          isCancelled,
+        });
+
+        // Autofill Customer / Business Name if empty or default
+        if (!fullName.trim() || fullName === "Walk-in Customer") {
+          setFullName(res.data.tradeName || res.data.legalName);
+        }
+
+        if (res.data.address) setAddress(res.data.address);
+        if (res.data.city) setCity(res.data.city);
+        if (res.data.state) setState(res.data.state);
+        if (res.data.pincode) setPincode(res.data.pincode);
+
+        if (isCancelled) {
+          toast.warning(`Warning: Taxpayer ${res.data.tradeName || clean} is marked as ${res.data.status} in GST Registry.`);
+        } else {
+          toast.success(
+            res.data.isCached
+              ? `⚡ Auto-filled from local cache: ${res.data.tradeName || clean}`
+              : `✅ Verified from GSTN: ${res.data.tradeName || clean}`
+          );
+        }
+      } else if (res.disabled) {
+        if (manual) {
+          toast.info("Auto-fetch GST details add-on is disabled in Admin Panel for your account.");
+        }
+      } else if (res.error) {
+        if (manual) {
+          toast.error(res.error);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to verify GSTIN:", err);
+      if (manual) toast.error("Unable to verify GSTIN at this time.");
+    } finally {
+      setIsVerifyingGstin(false);
+    }
+  };
 
   // Section 02: Medical History States
   const [chiefComplaint, setChiefComplaint] = useState("");
@@ -2558,9 +2639,20 @@ export function NewInvoiceForm() {
 
             {/* GST NUMBER (GSTIN) */}
             <div className="sm:col-span-2">
-              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
-                GST NUMBER (GSTIN)
-              </label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider">
+                  GST NUMBER (GSTIN)
+                </label>
+                {gstinVerifiedStatus && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                    gstinVerifiedStatus.isCancelled
+                      ? "bg-rose-50 text-rose-600 border border-rose-200"
+                      : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                  }`}>
+                    {gstinVerifiedStatus.isCancelled ? "Cancelled" : gstinVerifiedStatus.isCached ? "⚡ Cached" : "Active"}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <input
                   type="text"
@@ -2570,14 +2662,41 @@ export function NewInvoiceForm() {
                   onChange={(e) => {
                     const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 15);
                     setGstin(cleaned);
+                    if (gstinVerifiedStatus && cleaned !== lastQueriedGstinRef.current) {
+                      setGstinVerifiedStatus(null);
+                    }
                     const detectedState = getStateFromGSTIN(cleaned);
                     if (detectedState) {
                       setState(detectedState);
                     }
+
+                    // Hybrid: 400ms debounce when valid 15-character GSTIN is entered
+                    if (cleaned.length === 15 && isValidGSTINChecksum(cleaned)) {
+                      if (gstinDebounceRef.current) clearTimeout(gstinDebounceRef.current);
+                      gstinDebounceRef.current = setTimeout(() => {
+                        handleFetchGstinDetails(cleaned, false);
+                      }, 400);
+                    }
                   }}
-                  className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                  className="w-full h-7.5 pl-6 pr-20 rounded border border-slate-300 bg-white text-xs font-bold font-mono uppercase text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <Building className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+
+                {/* Fetch GST Spark Button */}
+                <button
+                  type="button"
+                  onClick={() => handleFetchGstinDetails(gstin, true)}
+                  disabled={isVerifyingGstin || gstin.length !== 15}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[10px] font-bold text-[#2563eb] hover:bg-blue-50 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-30 disabled:pointer-events-none shadow-2xs border border-transparent hover:border-blue-200"
+                  title="Auto-fetch official trade name and address from GST registry"
+                >
+                  {isVerifyingGstin ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-[#2563eb]" />
+                  ) : (
+                    <Sparkles className="h-3 w-3 text-[#2563eb]" />
+                  )}
+                  <span>Fetch GST</span>
+                </button>
               </div>
             </div>
 

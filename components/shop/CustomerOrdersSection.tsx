@@ -30,6 +30,7 @@ import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { offlineDB } from "@/lib/offline/db";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
 
 // WhatsApp Brand Icon
 function WhatsAppIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -250,12 +251,12 @@ function WhatsAppRowAction({
         payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
         fulfillment_status: order.fulfillmentStatus ? order.fulfillmentStatus.replace("_", " ") : "PROCESSING",
         estimated_delivery: safeFormatDateLocale(order.estimatedDelivery, "N/A"),
-        invoice_url: `${window.location.origin}/share/invoice/${order.invoiceId}`,
-        order_form_url: `${window.location.origin}/share/receipt/${order.receiptId || order.invoiceId}`,
+        invoice_url: getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
+        order_form_url: getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
       });
 
-      const orderFormUrl = `${window.location.origin}/share/receipt/${order.receiptId || order.invoiceId}`;
-      const invoiceUrl = `${window.location.origin}/share/invoice/${order.invoiceId}`;
+      const orderFormUrl = getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
+      const invoiceUrl = getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
 
       const res = await sendUniversalWhatsAppMessage(
         {

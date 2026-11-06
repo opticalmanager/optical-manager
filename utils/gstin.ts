@@ -150,6 +150,8 @@ export function isValidGSTIN(gstin?: string | null): boolean {
   return expectedChecksum === clean.charAt(14);
 }
 
+export const isValidGSTINChecksum = isValidGSTIN;
+
 /**
  * Extracts standard state name from digits 1-2 of GSTIN.
  * Returns null if input is fewer than 2 digits or not a recognized state code.

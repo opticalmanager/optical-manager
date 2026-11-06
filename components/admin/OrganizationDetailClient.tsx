@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { extendSubscription, toggleStoreSuspension, addShopOutletToOrganization, deleteShopOutlet } from "@/services/admin.service";
+import OrganizationAddonsCard from "./OrganizationAddonsCard";
 
 
 
@@ -439,6 +440,8 @@ export default function OrganizationDetailClient({ data }: OrganizationDetailCli
 
       </div>
 
+      {/* Organization Add-ons & Integrations Management */}
+      <OrganizationAddonsCard organizationId={organization.id} />
 
       {/* Admin Notes & Extension Log */}
       {subscription.notes && (
