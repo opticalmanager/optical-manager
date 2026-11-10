@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/services/auth.service";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { db } from "@/lib/drizzle";
 import { demoRequests, subscriptions, organizations, profiles } from "@/db/schema";
-import { eq, count, and, sql, desc } from "drizzle-orm";
+import { eq, count, and, desc, lte } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       db.select({ value: count() }).from(subscriptions).where(
         and(
           eq(subscriptions.status, "ACTIVE"),
-          sql`${subscriptions.currentPeriodEnd} <= ${fourteenDaysLater}`
+          lte(subscriptions.currentPeriodEnd, fourteenDaysLater)
         )
       ),
       db.select({

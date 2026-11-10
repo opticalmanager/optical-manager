@@ -14,7 +14,7 @@ import {
   customers,
   organizationAddons
 } from "@/db/schema";
-import { eq, count, sql, desc, and } from "drizzle-orm";
+import { eq, count, sql, desc, and, gte, lte } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "./auth.service";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -50,12 +50,12 @@ export async function getPlatformStats() {
   const [monthInvoiceStats] = await db
     .select({ total: sql<string>`COALESCE(SUM(total), 0)`, count: count() })
     .from(invoices)
-    .where(sql`${invoices.createdAt} >= ${startOfMonth}`);
+    .where(gte(invoices.createdAt, startOfMonth));
 
   const [todayInvoiceStats] = await db
     .select({ total: sql<string>`COALESCE(SUM(total), 0)`, count: count() })
     .from(invoices)
-    .where(sql`${invoices.createdAt} >= ${startOfToday}`);
+    .where(gte(invoices.createdAt, startOfToday));
 
   // Operational metrics
   const [prescriptionCount] = await db.select({ value: count() }).from(prescriptions);
@@ -71,7 +71,7 @@ export async function getPlatformStats() {
     .where(
       and(
         eq(subscriptions.status, "ACTIVE"),
-        sql`${subscriptions.currentPeriodEnd} <= ${fourteenDaysLater}`
+        lte(subscriptions.currentPeriodEnd, fourteenDaysLater)
       )
     );
 
@@ -718,7 +718,7 @@ export async function getExpiringSubscriptions() {
     .where(
       and(
         eq(subscriptions.status, "ACTIVE"),
-        sql`${subscriptions.currentPeriodEnd} <= ${fourteenDaysLater}`
+        lte(subscriptions.currentPeriodEnd, fourteenDaysLater)
       )
     )
     .orderBy(subscriptions.currentPeriodEnd);
@@ -791,7 +791,7 @@ export async function getPlatformActivityPulse(): Promise<PlatformActivityItem[]
       type: "STORE_ONBOARDED",
       title: o.name,
       description: "New optical retail chain onboarded",
-      timestamp: o.createdAt.toISOString(),
+      timestamp: o.createdAt ? new Date(o.createdAt).toISOString() : new Date().toISOString(),
       badge: "Tenant Store",
       badgeColor: "emerald",
     });
@@ -803,7 +803,7 @@ export async function getPlatformActivityPulse(): Promise<PlatformActivityItem[]
       type: "LEAD_RECEIVED",
       title: l.storeName || "Inbound Demo Lead",
       description: `Demo requested from ${l.city || "Website"}`,
-      timestamp: l.createdAt.toISOString(),
+      timestamp: l.createdAt ? new Date(l.createdAt).toISOString() : new Date().toISOString(),
       badge: "Inbound Lead",
       badgeColor: "amber",
     });
@@ -815,7 +815,7 @@ export async function getPlatformActivityPulse(): Promise<PlatformActivityItem[]
       type: "ADDON_QUERY",
       title: `GSTIN Lookup: ${a.identifier || "Verified"}`,
       description: "Automated taxpayer verification API call",
-      timestamp: a.createdAt.toISOString(),
+      timestamp: a.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
       badge: "Add-on API",
       badgeColor: "purple",
     });
@@ -934,7 +934,7 @@ export async function getPlatformAddonsOverview() {
         costPerCall,
         totalCalls: usage?.count ?? 0,
         totalCostInr: parseFloat(usage?.cost || "0"),
-        createdAt: org.createdAt.toISOString(),
+        createdAt: org.createdAt ? new Date(org.createdAt).toISOString() : new Date().toISOString(),
       };
     })
   );

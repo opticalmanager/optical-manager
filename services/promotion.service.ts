@@ -6,7 +6,6 @@ import {
   whatsappTemplates, 
   promotionTriggers, 
   promotionCampaigns,
-  whatsappDispatchQueue,
 } from "@/db/schema";
 import { eq, desc, and, gt } from "drizzle-orm";
 
@@ -17,15 +16,40 @@ export interface PromotionTelemetry {
   replied: number;
 }
 
-export interface PromotionOverviewData {
-  whatsappStatus: "CONNECTED" | "DISCONNECTED" | "PENDING";
-  providerType?: "META_CLOUD_API" | "TWILIO" | "QR_GATEWAY";
+export interface WabaConfigData {
+  id?: string;
+  status: "CONNECTED" | "DISCONNECTED" | "PENDING";
+  providerType: "META_CLOUD_API" | "ZERNIO";
   phoneNumber?: string;
   businessName?: string;
+  phoneNumberId?: string;
+  wabaId?: string;
+  maskedApiKey?: string;
+  apiKey?: string;
+  webhookSecret?: string;
+  metadata?: {
+    qualityRating?: string;
+    verifiedName?: string;
+    coexistenceMode?: boolean;
+    verifiedAt?: string;
+    [key: string]: any;
+  };
+  updatedAt?: string;
+}
+
+export interface PromotionOverviewData {
+  whatsappStatus: "CONNECTED" | "DISCONNECTED" | "PENDING";
+  providerType?: "META_CLOUD_API" | "ZERNIO";
+  phoneNumber?: string;
+  businessName?: string;
+  phoneNumberId?: string;
+  wabaId?: string;
+  qualityRating?: string;
   activeTemplatesCount: number;
   activeTriggersCount: number;
   upcomingCampaignsCount: number;
   telemetry: PromotionTelemetry;
+  wabaConfig?: WabaConfigData;
   recentCampaigns: Array<{
     id: string;
     name: string;
@@ -44,38 +68,9 @@ export interface PromotionOverviewData {
   }>;
 }
 
-export async function getPromotionDashboardData(orgId: string): Promise<PromotionOverviewData> {
+export async function getWabaConfig(orgId: string): Promise<WabaConfigData | null> {
   try {
-    if (!orgId) {
-      return getFallbackData("DISCONNECTED");
-    }
-
-    // 1. Check live Desktop Assistant Heartbeat (< 45s threshold with isWaConnected === true)
-    const fortyFiveSecondsAgo = new Date(Date.now() - 45 * 1000);
-    const liveHeartbeatRows = await db
-      .select({
-        status: whatsappDispatchQueue.status,
-        metadata: whatsappDispatchQueue.metadata,
-        updatedAt: whatsappDispatchQueue.updatedAt,
-      })
-      .from(whatsappDispatchQueue)
-      .where(
-        and(
-          eq(whatsappDispatchQueue.organizationId, orgId),
-          eq(whatsappDispatchQueue.status, "HEARTBEAT"),
-          gt(whatsappDispatchQueue.updatedAt, fortyFiveSecondsAgo)
-        )
-      )
-      .orderBy(desc(whatsappDispatchQueue.updatedAt))
-      .limit(1)
-      .catch(() => []);
-
-    const liveHeartbeat = liveHeartbeatRows[0];
-    const liveMeta: any = liveHeartbeat?.metadata || null;
-    const isAssistantConnected = Boolean(liveMeta?.isAlive && liveMeta?.isWaConnected);
-    const assistantPhone = isAssistantConnected && liveMeta?.connectedPhone ? String(liveMeta.connectedPhone) : undefined;
-
-    // 2. Fetch Stored Config from DB
+    if (!orgId) return null;
     const configRows = await db
       .select()
       .from(whatsappConfigs)
@@ -84,23 +79,76 @@ export async function getPromotionDashboardData(orgId: string): Promise<Promotio
       .catch(() => []);
 
     const config = configRows[0];
+    if (!config) return null;
 
-    // Priority: Live Desktop Assistant connection -> Stored config -> DISCONNECTED
-    let whatsappStatus: "CONNECTED" | "DISCONNECTED" | "PENDING" = "DISCONNECTED";
-    let phoneNumber: string | undefined = undefined;
-    let providerType: "META_CLOUD_API" | "TWILIO" | "QR_GATEWAY" = "QR_GATEWAY";
+    const maskedKey = config.apiKey
+      ? config.apiKey.length > 8
+        ? `${config.apiKey.slice(0, 4)}••••••••${config.apiKey.slice(-4)}`
+        : "••••••••"
+      : undefined;
 
-    if (isAssistantConnected) {
-      whatsappStatus = "CONNECTED";
-      phoneNumber = assistantPhone ? (assistantPhone.startsWith("+") ? assistantPhone : `+${assistantPhone}`) : undefined;
-      providerType = "QR_GATEWAY";
-    } else if (config?.status === "CONNECTED") {
-      whatsappStatus = "CONNECTED";
-      phoneNumber = config.phoneNumber || undefined;
-      providerType = config.apiKey ? "META_CLOUD_API" : "QR_GATEWAY";
-    } else {
-      whatsappStatus = "DISCONNECTED";
+    return {
+      id: config.id,
+      status: (config.status as any) || "CONNECTED",
+      providerType: (config.providerType as "META_CLOUD_API" | "ZERNIO") || "META_CLOUD_API",
+      phoneNumber: config.phoneNumber || undefined,
+      businessName: config.businessName || undefined,
+      phoneNumberId: config.phoneNumberId || undefined,
+      wabaId: config.wabaId || undefined,
+      maskedApiKey: maskedKey,
+      apiKey: config.apiKey || undefined,
+      webhookSecret: config.webhookSecret || undefined,
+      metadata: (config.metadata as any) || {},
+      updatedAt: config.updatedAt?.toISOString(),
+    };
+  } catch (error) {
+    console.error("[getWabaConfig] Error:", error);
+    return null;
+  }
+}
+
+export async function getPromotionDashboardData(orgId: string): Promise<PromotionOverviewData> {
+  try {
+    if (!orgId) {
+      return getFallbackData("DISCONNECTED");
     }
+
+    // 1. Fetch Stored Official WABA Config from DB
+    const configRows = await db
+      .select()
+      .from(whatsappConfigs)
+      .where(eq(whatsappConfigs.organizationId, orgId))
+      .limit(1)
+      .catch(() => []);
+
+    const config = configRows[0];
+    const isConnected = config?.status === "CONNECTED";
+    const whatsappStatus: "CONNECTED" | "DISCONNECTED" | "PENDING" = isConnected ? "CONNECTED" : "DISCONNECTED";
+    const providerType: "META_CLOUD_API" | "ZERNIO" = (config?.providerType as "META_CLOUD_API" | "ZERNIO") || "META_CLOUD_API";
+    const metaObj: any = (config?.metadata as any) || {};
+    const qualityRating: string = metaObj?.qualityRating || (isConnected ? "GREEN" : "UNKNOWN");
+
+    const maskedKey = config?.apiKey
+      ? config.apiKey.length > 8
+        ? `${config.apiKey.slice(0, 4)}••••••••${config.apiKey.slice(-4)}`
+        : "••••••••"
+      : undefined;
+
+    const wabaConfig: WabaConfigData | undefined = config
+      ? {
+          id: config.id,
+          status: whatsappStatus,
+          providerType,
+          phoneNumber: config.phoneNumber || undefined,
+          businessName: config.businessName || undefined,
+          phoneNumberId: config.phoneNumberId || undefined,
+          wabaId: config.wabaId || undefined,
+          maskedApiKey: maskedKey,
+          webhookSecret: config.webhookSecret || undefined,
+          metadata: metaObj,
+          updatedAt: config.updatedAt?.toISOString(),
+        }
+      : undefined;
 
     // 2. Fetch Counts & Tables from DB
     const templates = await db
@@ -161,8 +209,12 @@ export async function getPromotionDashboardData(orgId: string): Promise<Promotio
     return {
       whatsappStatus: whatsappStatus as any,
       providerType: providerType,
-      phoneNumber: phoneNumber || config?.phoneNumber || undefined,
+      phoneNumber: config?.phoneNumber || undefined,
       businessName: config?.businessName || undefined,
+      phoneNumberId: config?.phoneNumberId || undefined,
+      wabaId: config?.wabaId || undefined,
+      qualityRating,
+      wabaConfig,
       activeTemplatesCount: activeTemplatesCount || 0,
       activeTriggersCount: activeTriggersCount || 0,
       upcomingCampaignsCount: upcomingCampaignsCount || 0,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
@@ -12,13 +12,15 @@ import {
   CheckCircle2, 
   Plug, 
   LogOut,
-  Settings
+  Settings,
+  Sparkles,
+  ShieldCheck
 } from "lucide-react";
 import { OverviewTab } from "./OverviewTab";
 import { TriggersTab } from "./TriggersTab";
 import { TemplatesTab } from "./TemplatesTab";
 import { CampaignsTab } from "./CampaignsTab";
-import { ConnectWhatsAppModal } from "./ConnectWhatsAppModal";
+import { AiGrowthCopilotTab } from "./AiGrowthCopilotTab";
 import { PromotionOverviewData } from "@/services/promotion.service";
 import { disconnectWhatsAppAction } from "@/actions/promotion.actions";
 import { toast } from "sonner";
@@ -33,16 +35,25 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
   const searchParams = useSearchParams();
 
   const [dataState, setDataState] = useState<PromotionOverviewData>(initialData);
-  const [activeTab, setActiveTab] = useState<"overview" | "templates" | "triggers" | "campaigns">(
+  const [activeTab, setActiveTab] = useState<"overview" | "ai-growth" | "templates" | "triggers" | "campaigns">(
     (initialTab as any) || "overview"
   );
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  // Synchronize active tab with URL search parameter whenever query string changes
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["overview", "ai-growth", "templates", "triggers", "campaigns"].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    } else if (!tabParam) {
+      setActiveTab("overview");
+    }
+  }, [searchParams]);
 
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  
   const isConnected = dataState.whatsappStatus === "CONNECTED";
 
-  const handleTabChange = (tab: "overview" | "templates" | "triggers" | "campaigns") => {
+  const handleTabChange = (tab: "overview" | "ai-growth" | "templates" | "triggers" | "campaigns") => {
     setActiveTab(tab);
     const params = new URLSearchParams(searchParams.toString());
     if (tab === "overview") {
@@ -75,6 +86,8 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
 
   const getPageTitle = () => {
     switch (activeTab) {
+            case "ai-growth":
+        return "AI Growth Copilot";
       case "triggers":
         return "Triggers";
       case "templates":
@@ -88,6 +101,8 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
 
   const getPageSubtitle = () => {
     switch (activeTab) {
+            case "ai-growth":
+        return "Actionable, clinically audited sales recommendations and 1-click WhatsApp broadcasts.";
       case "triggers":
         return "Create automated triggers that send WhatsApp messages based on customer events and conditions.";
       case "templates":
@@ -124,22 +139,29 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
                   ({dataState.phoneNumber})
                 </span>
               )}
+              <Link
+                href="/owner/promotions/waba"
+                title="Open Official WABA Settings"
+                className="ml-1 p-0.5 text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </Link>
               <button
                 onClick={handleDisconnect}
                 title="Disconnect WhatsApp"
-                className="ml-1 p-0.5 text-emerald-600 hover:text-rose-600 transition-colors"
+                className="p-0.5 text-emerald-600 hover:text-rose-600 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setIsConnectModalOpen(true)}
+            <Link
+              href="/owner/promotions/waba"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer"
             >
               <Plug className="w-4 h-4 text-white" />
               <span>Connect WhatsApp</span>
-            </button>
+            </Link>
           )}
 
           {/* Create New Dropdown Launcher */}
@@ -155,9 +177,20 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
 
             {isCreateOpen && (
               <div 
-                className="absolute right-0 mt-2 w-52 bg-white rounded-xl border border-slate-200 shadow-xl p-1.5 z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-slate-200 shadow-xl p-1.5 z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150"
                 onClick={() => setIsCreateOpen(false)}
               >
+                <button
+                  onClick={() => handleTabChange("ai-growth")}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100/80 transition-colors text-left"
+                >
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  <span className="flex-1">AI Growth Suggestions</span>
+                  <span className="px-1 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-200 text-indigo-800">
+                    PRO
+                  </span>
+                </button>
+
                 <Link
                   href="/owner/promotions/triggers/new"
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold text-slate-800 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
@@ -181,7 +214,8 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
                   <MessageSquare className="w-4 h-4 text-emerald-600" />
                   <span>New Message Template</span>
                 </button>
-              </div>
+
+                              </div>
             )}
           </div>
         </div>
@@ -198,6 +232,21 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
           }`}
         >
           Overview
+        </button>
+
+        <button
+          onClick={() => handleTabChange("ai-growth")}
+          className={`px-3.5 py-1.5 rounded-t-lg transition-all border-b-2 flex items-center gap-1.5 ${
+            activeTab === "ai-growth"
+              ? "border-indigo-600 text-indigo-600 bg-indigo-50/60"
+              : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+          <span>AI Growth Copilot</span>
+          <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700">
+            PRO
+          </span>
         </button>
 
         <button
@@ -232,7 +281,8 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
         >
           Campaigns
         </button>
-      </div>
+
+              </div>
 
       {/* 3. ACTIVE TAB VIEW RENDERER */}
       <div>
@@ -240,20 +290,15 @@ export function PromotionsMainClient({ initialData, initialTab }: PromotionsMain
           <OverviewTab 
             data={{ ...dataState, whatsappStatus: dataState.whatsappStatus }} 
             onSwitchTab={handleTabChange} 
-            onConnect={() => setIsConnectModalOpen(true)}
+            onConnect={() => router.push("/owner/promotions/waba")}
           />
         )}
+        {activeTab === "ai-growth" && <AiGrowthCopilotTab />}
         {activeTab === "templates" && <TemplatesTab />}
         {activeTab === "triggers" && <TriggersTab />}
         {activeTab === "campaigns" && <CampaignsTab />}
-      </div>
+              </div>
 
-      {/* CONNECT WHATSAPP MODAL */}
-      <ConnectWhatsAppModal
-        isOpen={isConnectModalOpen}
-        onClose={() => setIsConnectModalOpen(false)}
-        onSuccess={handleConnectSuccess}
-      />
-    </div>
+          </div>
   );
 }

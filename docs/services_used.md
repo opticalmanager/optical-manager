@@ -54,9 +54,11 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 | **Growing Retail Chain** | 3 – 10 Stores | 10,000 – 50,000 emails | **~$35.00 – $55.00 / month** |
 | **Enterprise Chain** | 20+ Stores | 100,000+ emails | **~$75.00 – $120.00 / month** |
 
-### 5. Google Gemini AI (Multimodal Vision OCR)
-- **Primary Function**: Auto-extracts supplier invoice details, HSN codes, product classifications, tax rates, and optical specifications from uploaded bill photos and PDFs on the Add Purchase page.
-- **Implementation**: Powered by `@google/generative-ai` via dedicated standalone REST API `/api/ai/scan-bill` (`export const maxDuration = 60`) and pure service `services/bill-scan.service.ts`. Decoupled completely from Server Actions to guarantee immunity against server component render digests. Features structured JSON schema responses, pre-validation MIME normalization, binary magic bytes sniffing (`JVBERi0`, `/9j/`, `iVBORw0KGgo`, `UklGR`), and active high-availability evergreen models (`gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-flash-lite-latest`, `gemini-3.6-flash`, `gemini-3.7-flash`). Arithmetic calculations are verified by the local deterministic math engine.
+### 5. Google Gemini AI (Multimodal Vision OCR & AI Growth Copilot)
+- **Primary Function**: 
+  1. **Multimodal Vision OCR**: Auto-extracts supplier invoice details, HSN codes, product classifications, tax rates, and optical specifications from uploaded bill photos and PDFs on the Add Purchase page.
+  2. **AI Growth Copilot**: Refines clinical WhatsApp promotional message templates across 6 optical cohorts (`ANNUAL_RX_EXPIRY`, `VIP_HIGH_SPENDER`, `UNUSED_STORE_CREDIT`, `PROGRESSIVE_UPGRADE`, `HIGH_CYLINDER_CHECKUP`, `DORMANT_LAPSED`), enforcing strict store discount caps and medical ethics guardrails (preventing unverified cure claims).
+- **Implementation**: Powered by `@google/generative-ai` via standalone REST API `/api/ai/scan-bill` and pure services `services/bill-scan.service.ts` & `services/ai-growth.service.ts`. Decoupled completely from Server Actions to guarantee immunity against server component render digests. Features structured JSON schema responses, pre-validation MIME normalization, binary magic bytes sniffing, and active high-availability models (`gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-flash-latest`). Defensive optical retail fallback templates guarantee 100% uptime if API key is unconfigured.
 - **Credentials & Multi-Tenancy**: Configured per organization in `organizations.settings.ai.geminiApiKey`, with platform fallback to `GEMINI_API_KEY`.
 - **Cost Analysis**:
   - **Google AI Studio Free Tier**: 1,500 requests/day, 1M tokens/minute (**$0.00 / month**).
@@ -79,3 +81,14 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 - **Admin Management**: Managed per-tenant in `/admin/organizations/[id]` with toggle controls, period filters, and consumption analytics.
 - **Credentials & Multi-Tenancy**: Secured via server environment variable `APPYFLOW_KEY_SECRET` (never exposed to client browser bundles).
 - **Cost Analysis**: Fixed at **₹0.40 per live API lookup**, with ₹0.00 cost on all local database cache hits.
+
+### 8. Official WhatsApp Business Cloud API (Meta Cloud API & Zernio)
+- **Primary Function**: Enterprise WhatsApp communication engine for Owner Promotions, automated clinical event triggers (birthdays, Rx renewal reminders, review requests), and bulk marketing broadcasts. Eliminates all phone number ban risks associated with third-party web scrapers.
+- **Integration Options**:
+  1. **Direct Meta Cloud API (Official Enterprise)**: Direct connection to Meta Graph API v21.0 using System User Access Tokens. Zero middleman markup, includes 1,000 free Meta service conversations per month.
+  2. **Zernio (Official WABA with Coexistence)**: Cloud WABA partner integration supporting WhatsApp Coexistence Mode, allowing the optical store's physical smartphone WhatsApp Business app to function simultaneously while cloud broadcasts dispatch in parallel.
+- **Implementation**: Managed via `components/owner/promotions/WabaManagementClient.tsx`, `/owner/promotions/waba`, `actions/promotion.actions.ts`, and `services/promotion.service.ts`. Table `whatsapp_configs` stores encrypted tokens, phone number IDs, and live quality telemetry.
+- **Cost Analysis**:
+  - Meta Free Tier: 1,000 free service conversations per month (**$0.00**).
+  - Marketing conversations: Billed at standard Meta country conversation rates (e.g., ~₹0.80 per marketing conversation in India).
+

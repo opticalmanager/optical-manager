@@ -378,7 +378,7 @@ export function OwnerSettingsClient({ organization, shops }: OwnerSettingsClient
         router.push("/owner/settings/email");
         break;
       case "route_whatsapp":
-        router.push("/owner/promotions");
+        router.push("/owner/promotions/waba");
         break;
       case "route_comm":
         router.push("/owner/settings/email");

@@ -106,3 +106,38 @@ As defined in `AGENTS.md`, all UI development must adhere to enterprise SaaS des
    - **Isolated Failure Resilience**: If an individual image is blurry or unreadable, the failure is isolated to that specific file without failing the entire batch. Successful bills are extracted cleanly and failed images can be retried individually.
    - **Multi-Bill Aggregation**: Aggregates all line items across scanned images into a unified bill payload, preserving vendor/invoice headers from the primary document and recalculating GST and purchase totals.
    - **Smart Append Mode**: When applied to the purchase form, new scans append cleanly below existing items without overwriting previous entries or existing supplier configurations.
+
+---
+
+## 4. AI Growth Copilot & Sales Suggestions Architecture
+
+1. **6 Optical-Specific Cohorts**:
+   - `ANNUAL_RX_EXPIRY`: Patients due for their 12-month optical review (prescription or spectacles invoice > 10–14 months ago). Focuses on visual acuity changes and anti-reflective lens coating degradation.
+   - `VIP_HIGH_SPENDER`: Top 15% spenders (lifetime spend $\ge$ ₹8,000 or $\ge$ 3 orders) with no recent purchase in 45+ days. Focuses on premium designer frame previews and exclusive vouchers.
+   - `UNUSED_STORE_CREDIT`: Patients holding active unredeemed store balance $\ge$ ₹50 without recent visits. Drives immediate footfall and basket sizes exceeding credit balances.
+   - `PROGRESSIVE_UPGRADE`: Multifocal and digital lens candidates (past progressive lens history or age 40+ presbyopia). Focuses on zero-distortion corridors and blue-light protection.
+   - `HIGH_CYLINDER_CHECKUP`: Patients with high astigmatism prescription ($|\text{CYL}| \ge 1.25\text{D}$). Focuses on 5-point frame fit, screw tightening, and optical axis alignment.
+   - `DORMANT_LAPSED`: Inactive past buyers (180+ days since last visit). Focuses on seasonal win-back incentives before customers switch to mall or online competitors.
+
+2. **Single-Pass SQL Aggregation (Sub-40ms Performance)**:
+   - Aggregates lifetime metrics (`lifetime_spend`, `total_orders`, `last_invoice_date`, `last_prescription_date`, `last_lens_type`, `last_rx_category`, `last_right_cyl`, `last_left_cyl`) in a single indexed query grouped by `customer_id`.
+   - In-memory V8 partitioning categorizes customers into cohorts in $<15\text{ms}$, eliminating N+1 query latency across multi-thousand customer datasets.
+
+3. **14-Day Anti-Fatigue Shield & Cooldown Rule**:
+   - Cross-checks `whatsapp_dispatch_queue` dispatches within the last 14 days.
+   - Automatically identifies recently contacted patients with amber badges in the drawer and deselects them by default to prevent spam fatigue, customer complaints, and WhatsApp account bans.
+
+4. **E.164 Clean-Room Phone Sanitizer**:
+   - Validates Indian 10-digit mobile numbers (6-9 prefix), 12-digit `+91` numbers, and strips landlines/malformed numbers.
+   - Prevents socket 400 errors and Baileys JID crashes in the dispatch worker.
+
+5. **Humanized Jitter Pacing (3.5s – 6.8s Randomized Stagger)**:
+   - Staggers bulk message dispatches with incremental randomized intervals:
+     $$\text{Schedule Time} = \text{Now} + \sum_{i=1}^{n} \text{Random}(3500\text{ms}, 6800\text{ms})$$
+   - Prevents queue bursting and simulates authentic human counter typing pace.
+
+6. **Clinical Optometric Tone & Ethics Guardrails**:
+   - System prompts strictly prohibit claiming lenses or spectacles "cure", "heal", or "eliminate" eye diseases, refractive errors, or migraines.
+   - Enforces approved optometric terminology ("routine optical checkup", "strain-free focal comfort", "lens alignment review").
+   - Strict store margin lock: limits discounts to owner-approved caps.
+   - Pre-tuned clinical optical templates guarantee zero-latency fallback when Gemini API keys are unconfigured or rate-limited.

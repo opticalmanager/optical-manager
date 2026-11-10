@@ -15,8 +15,16 @@ export const metadata: Metadata = {
   description:
     "Manage your optical store with ease. Handle shops, customers, prescriptions, inventory, and invoices — all in one platform.",
   icons: {
-    icon: "/optical-manager%20logo.svg",
-    apple: "/optical-manager%20logo.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: ["/favicon.ico"],
   },
   manifest: "/manifest.webmanifest",
   appleWebApp: {

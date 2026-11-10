@@ -14,7 +14,9 @@ import {
   HelpCircle,
   LogOut, 
   Glasses,
-  ChevronDown 
+  ChevronDown,
+  Sparkles,
+  ShieldCheck
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { generateBroadcastSsoUrl } from "@/actions/sso.actions";
@@ -121,9 +123,37 @@ export function OwnerSidebar({ user, onCloseMobile }: OwnerSidebarProps) {
                     <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${showPromoSub ? "rotate-180 text-indigo-600" : ""}`} />
                   </Link>
 
-                  {/* Dropdown Sub-item: Broadcast Engine */}
+                  {/* Dropdown Sub-items: AI Growth Copilot & Broadcast Engine */}
                   {showPromoSub && (
-                    <div className="pl-4 pr-1 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="pl-4 pr-1 py-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <Link
+                        href="/owner/promotions?tab=ai-growth"
+                        onClick={onCloseMobile}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all group duration-150 border border-indigo-200/80 bg-indigo-50/80 text-indigo-950 hover:bg-indigo-100 hover:text-indigo-900 cursor-pointer shadow-2xs text-left"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 shrink-0 text-indigo-600 group-hover:text-indigo-800" />
+                        <span className="flex-1 font-bold">AI Growth Copilot</span>
+                        <span className="text-[9px] uppercase tracking-wider font-black bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded">
+                          PRO
+                        </span>
+                      </Link>
+
+                      <Link
+                        href="/owner/promotions/waba"
+                        onClick={onCloseMobile}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all group duration-150 border cursor-pointer shadow-2xs text-left ${
+                          pathname === "/owner/promotions/waba"
+                            ? "border-emerald-300 bg-emerald-100 text-emerald-950 font-bold"
+                            : "border-slate-200/80 bg-slate-50/80 text-slate-800 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200"
+                        }`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 group-hover:text-emerald-700" />
+                        <span className="flex-1 font-bold">Official WABA Hub</span>
+                        <span className="text-[9px] uppercase tracking-wider font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                          API
+                        </span>
+                      </Link>
+
                       <button
                         type="button"
                         onClick={handleLaunchBroadcast}
