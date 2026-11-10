@@ -1,5 +1,5 @@
 // Optical Manager PWA Service Worker (v19 - Resilient Offline Outbox & Dual-Source Orders Hydration)
-const CACHE_VERSION = "v19";
+const CACHE_VERSION = "v20";
 const CACHE_STATIC = `optical-manager-static-${CACHE_VERSION}`;
 const CACHE_HTML = `optical-manager-html-${CACHE_VERSION}`;
 const CACHE_RSC = `optical-manager-rsc-${CACHE_VERSION}`;
@@ -9,8 +9,13 @@ const PRECACHE_ASSETS = [
   "/",
   "/offline",
   "/manifest.webmanifest",
+  "/favicon.ico",
+  "/favicon-32x32.png",
+  "/favicon-16x16.png",
+  "/apple-touch-icon.png",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
+  "/logo.svg",
   "/optical-manager%20logo.svg",
 ];
 

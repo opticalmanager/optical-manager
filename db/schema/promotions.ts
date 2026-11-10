@@ -60,11 +60,15 @@ export const whatsappConfigs = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    providerType: varchar("provider_type", { length: 50 }).notNull().default("META_CLOUD_API"), // "META_CLOUD_API" | "ZERNIO"
     phoneNumber: varchar("phone_number", { length: 30 }),
     businessName: varchar("business_name", { length: 255 }),
-    status: whatsappConfigStatusEnum("status").notNull().default("CONNECTED"),
+    phoneNumberId: varchar("phone_number_id", { length: 100 }), // Meta Phone Number ID or Zernio Account ID
+    wabaId: varchar("waba_id", { length: 100 }), // Meta WABA ID
     apiKey: text("api_key"),
     webhookSecret: text("webhook_secret"),
+    status: varchar("status", { length: 50 }).notNull().default("CONNECTED"),
+    metadata: jsonb("metadata").default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

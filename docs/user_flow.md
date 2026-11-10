@@ -1045,3 +1045,72 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
    - Global 404 analyzes broken URL and predicts intended destination ("Did You Mean?").
    - Interactive fuzzy route command search allows searching across 13+ optical modules in 0ms.
    - In-dashboard 404 guides user back to the respective data ledger.
+
+
+---
+
+## 14. Statutory GSTIN Auto-Fetch, Field Auto-Filling & Customer Profile Enrichment Flow
+
+1. **Organization Add-on Configuration (Super Admin Control)**:
+   - Super Admin navigates to `/admin/organizations/[id]` and manages the **Add-on Modules & API Extensions** card.
+   - The **Auto-Fetch GST Details** toggle controls access on a per-organization basis.
+   - If toggled OFF: The auto-fetch button and live API lookups are completely hidden/disabled for all users in that organization.
+   - If toggled ON: Users in that organization can auto-fetch taxpayer details during invoice booking and patient registration, while usage is logged to `addon_usage_logs` with date, shop, user, and cost tracking.
+
+2. **New Invoice & Patient Registration Auto-Fill**:
+   - In `NewInvoiceForm` (`/shop/invoices/new`) and `PatientRegistrationForm` (`/shop/patients/edit/[id]`):
+   - Entering a 15-character GSTIN activates the compact `[✨ Fetch GST Details]` button directly below the GSTIN input.
+   - When clicked (or debounced on valid checksum entry), the 3-tier lookup engine runs:
+     - **Tier 1 (0ms Luhn Modulo 36)**: Offline checksum validation.
+     - **Tier 2 (0ms PostgreSQL Cache)**: Checks `customer_gstin_cache` for instant ₹0 response.
+     - **Tier 3 (Live Appyflow API)**: Real-time query to the GST Registry with automatic caching.
+   - **Auto-Populated Visible Fields**:
+     - **Customer Name**: Automatically populated with Trade Name (or Legal Name).
+     - **Full Address**: Populated with principal place of business street address.
+     - **City**: Populated into the visible City input field.
+     - **State**: Automatically selected in the State dropdown.
+     - **Pin Code**: Automatically set in the 6-digit PIN input.
+   - **Preserved Taxpayer Metadata**:
+     - Captured metadata (Legal Name, Trade Name, Constitution / Taxpayer Type, PAN, GST Status) is permanently attached to the customer record (`customers.notes` and `customer_gstin_cache`).
+
+3. **Customer Profile Taxpayer Card Display**:
+   - Navigating to `/shop/customers/[id]` displays the enriched taxpayer profile:
+   - **Auto-Assigned Habit Tags**: Displays a prominent `🏛️ GST Taxpayer (Constitution)` pill in the header badge cloud.
+   - **Taxpayer & GST Registration Card**:
+     - GSTIN with instant copy shortcut and verified status pill (`Active Taxpayer` in emerald or `Cancelled` in rose).
+     - Legal Entity Name (distinct from Trade Name).
+     - Constitution of Business / Taxpayer Type (e.g. `Proprietorship`, `Private Limited Company`, `Partnership`).
+     - Permanent Account Number (PAN) in monospace font with state code.
+     - Full Address, City, State, and Pin Code.
+   - **Customer Notes Callout**: Displays customer notes and taxpayer history cleanly within Section 01.
+
+---
+
+## 15. Owner Promotions Suite, AI Growth Copilot & Official WABA Hub Flow
+
+1. **Promotions Suite Navigation (`/owner/promotions`)**:
+   - Features 5 clean, non-duplicated sub-tabs: **Overview**, **AI Growth Copilot**, **Templates**, **Triggers**, and **Campaigns**.
+   - No intrusive modal popups and no redundant extra sub-tabs cluttering the navigation bar.
+   - The sticky top header features an active connection indicator with quick settings gear icon and a primary `Connect WhatsApp` action, both routing directly to the dedicated Official WABA Hub (`/owner/promotions/waba`).
+   - Settings shortcut: Clicking `WhatsApp Settings` on `/owner/settings` navigates directly to `/owner/promotions/waba`.
+
+2. **Official WABA Hub (`/owner/promotions/waba`)**:
+   - Accessible strictly to store owners for promotional campaigns and broadcast compliance.
+   - Top breadcrumb allows 1-click return to the Promotions Suite (`← Promotions Suite / Official WhatsApp WABA Hub`).
+   - Supports two official, compliant integration engines (Twilio completely decommissioned):
+     - **Option 1: Direct Meta WhatsApp Cloud API**: Enterprise-grade direct integration using Meta Developer Portal credentials (`Phone Number ID`, `WhatsApp Business Account ID`, `System User Permanent Access Token`).
+     - **Option 2: Zernio (Official WABA with Mobile Coexistence)**: Streamlined official WABA setup allowing clinic staff to continue chatting with patients from their physical WhatsApp mobile apps while automated campaigns dispatch via official WABA APIs.
+   - Features credential connection testing, token status inspection, live ping dispatches, and disconnect actions with multi-tenant data isolation.
+
+3. **AI Growth Copilot Workflow**:
+   - The owner selects the **AI Growth Copilot** sub-tab under `/owner/promotions`.
+   - The system aggregates database metrics in 0ms to surface 6 clinical revenue cohorts:
+     - `VIP Inactive (>6 Months)`: High-LTV patients overdue for annual visual acuity reviews.
+     - `Overdue Vision Tests (>1 Year)`: Annual vision test recall based on optometrist prescription expiry dates.
+     - `Contact Lens Replacements (3-6 Months)`: Disposable contact lens restocking prompt based on clinical modalities.
+     - `High-Value Spectacle Upgrades`: Single-vision wearers eligible for progressive/anti-reflective upgrades.
+     - `Follow-Up Balance Reminders`: Patients with positive pending accounts receivable balances.
+     - `Birthday Greetings (This Month)`: Clinical milestone and loyalty celebration outreach.
+   - Interactive KPI cards instantly filter the view with zero re-rendering lag.
+   - **Patient Drawer**: Clicking "View Patients" opens a slide-over drawer displaying patient names, phone numbers, last visit dates, and lifetime spend.
+   - **AI Copy Studio**: Clicking "AI Copy Studio" opens the Gemini-powered prompt modal to generate or adapt clinical WhatsApp templates, calculate estimated ROI and message costs, and dispatch or schedule the cohort campaign.

@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { 
-  User, 
+  User,
+  Building, 
   ShoppingCart, 
   Edit3, 
   ChevronDown, 
@@ -107,6 +108,19 @@ interface InvoiceData {
 
 interface ProfileData {
   customer: CustomerData;
+  gstinDetails?: {
+    gstin: string;
+    legalName: string;
+    tradeName?: string;
+    status: string;
+    taxpayerType?: string;
+    pan?: string;
+    stateCode?: string;
+    state?: string;
+    city?: string;
+    address?: string;
+    pincode?: string;
+  } | null;
   prescriptions: PrescriptionData[];
   invoices: InvoiceData[];
   orders?: OrderItem[];
@@ -373,8 +387,20 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
       tags.push({ name: "PROGRESSIVE", label: "⚡ Progressive Wearer", color: "bg-purple-50 border-purple-200 text-purple-700", desc: "Multifocal progressive lens user" });
     }
 
+        // 4. Statutory & Business Taxpayer Tag
+    if (customer && customer.gstin) {
+      const gstinMeta = profile && profile.gstinDetails ? profile.gstinDetails : null;
+      const typeLabel = gstinMeta && gstinMeta.taxpayerType ? " (" + gstinMeta.taxpayerType + ")" : "";
+      tags.push({
+        name: "GST_TAXPAYER",
+        label: "🏛️ GST Taxpayer" + typeLabel,
+        color: "bg-blue-50 border-blue-200 text-[#0a52c3]",
+        desc: "Verified GSTIN: " + customer.gstin,
+      });
+    }
+
     return tags;
-  }, [invoices, prescriptions]);
+  }, [invoices, prescriptions, customer?.gstin, profile?.gstinDetails]);
 
   // Format power values helper (+1.25, -0.50, -, etc.)
   const formatPower = (val: string | null | undefined) => {
@@ -611,10 +637,60 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
                 <span className="text-xs font-bold text-slate-800 block mt-0.5">{customer.referredBy || "-"}</span>
               </div>
 
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">GST Number (GSTIN)</span>
-                <span className="text-xs font-bold font-mono text-slate-800 block mt-0.5">{customer.gstin || "-"}</span>
-              </div>
+              {/* GSTIN & Taxpayer Details Card */}
+              {customer.gstin ? (
+                <div className="col-span-2 md:col-span-3 bg-slate-50/70 p-2.5 rounded-lg border border-slate-200/80">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-2 pb-1.5 border-b border-slate-200/60">
+                    <div className="flex items-center gap-1.5">
+                      <Building className="h-3.5 w-3.5 text-[#0a52c3]" />
+                      <span className="text-[10px] font-extrabold uppercase text-[#0a52c3] tracking-wider">
+                        Taxpayer & GST Registration
+                      </span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-[9.5px] font-extrabold uppercase tracking-wider ${
+                      profile?.gstinDetails?.status?.toLowerCase() === "cancelled"
+                        ? "bg-rose-50 text-rose-600 border border-rose-200"
+                        : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    }`}>
+                      {profile?.gstinDetails?.status || "Active Taxpayer"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div>
+                      <span className="text-[9.5px] font-extrabold uppercase text-slate-400 tracking-wider block">GSTIN</span>
+                      <span className="text-xs font-bold font-mono text-slate-800 block mt-0.5 select-all">{customer.gstin}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[9.5px] font-extrabold uppercase text-slate-400 tracking-wider block">Legal Name</span>
+                      <span className="text-xs font-bold text-slate-800 block mt-0.5 truncate" title={profile?.gstinDetails?.legalName || customer.fullName}>
+                        {profile?.gstinDetails?.legalName || customer.fullName}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[9.5px] font-extrabold uppercase text-slate-400 tracking-wider block">Constitution</span>
+                      <span className="text-xs font-bold text-slate-800 block mt-0.5 truncate" title={profile?.gstinDetails?.taxpayerType || "Regular"}>
+                        {profile?.gstinDetails?.taxpayerType || "Regular"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[9.5px] font-extrabold uppercase text-slate-400 tracking-wider block">PAN / State Code</span>
+                      <span className="text-xs font-bold font-mono text-slate-800 block mt-0.5">
+                        {profile?.gstinDetails?.pan || customer.gstin.slice(2, 12)}
+                        {profile?.gstinDetails?.stateCode ? ` (${profile.gstinDetails.stateCode})` : ""}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">GST Number (GSTIN)</span>
+                  <span className="text-xs font-bold font-mono text-slate-800 block mt-0.5">-</span>
+                </div>
+              )}
 
               <div className="col-span-2 md:col-span-3 border-t border-slate-100 pt-3">
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">Full Address</span>
@@ -635,6 +711,18 @@ export function CustomerProfileClient({ initialProfile, profile: legacyProfile, 
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">Pin Code</span>
                 <span className="text-xs font-semibold text-slate-700 block mt-0.5">{customer.pincode || "-"}</span>
               </div>
+
+              {/* Customer Notes */}
+              {customer.notes && (
+                <div className="col-span-2 md:col-span-3 border-t border-slate-100 pt-3">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">
+                    Customer Notes & Taxpayer Metadata
+                  </span>
+                  <div className="mt-1 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700 whitespace-pre-wrap leading-relaxed">
+                    {customer.notes}
+                  </div>
+                </div>
+              )}
 
             </div>
           </CardContent>

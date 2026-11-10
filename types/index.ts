@@ -56,3 +56,14 @@ export type {
   NewPurchaseOrderItem,
   SocialReviewLinksSettings,
 } from "./database";
+
+export type {
+  GrowthCohortCategory,
+  SanitizedPatient,
+  GrowthOpportunityCard,
+  GrowthSummaryTelemetry,
+  CampaignRefinementOptions,
+  AiCampaignRefinementResult,
+  DispatchGrowthBroadcastPayload,
+  DispatchGrowthBroadcastResult,
+} from "./ai-growth";

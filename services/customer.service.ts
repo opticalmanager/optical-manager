@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { customers, shops, invoices, prescriptions, customerCreditLedger, orders, invoiceItems, inventory, receipts } from "@/db/schema";
+import { customers, shops, invoices, prescriptions, customerCreditLedger, orders, invoiceItems, inventory, receipts, customerGstinCache } from "@/db/schema";
+import { extractGSTINMetadata } from "@/utils/gstin";
 import { eq, ne, and, ilike, or, sql, desc, inArray, isNull } from "drizzle-orm";
 import type { Customer, NewCustomer } from "@/types";
 import type { OrderItem, SKUDetail, ReceiptItem } from "@/services/order.service";
@@ -556,6 +557,53 @@ export async function getCustomerProfileData(
   const customer = customerResult[0] || null;
   if (!customer) return null;
 
+  // Retrieve cached taxpayer metadata if customer has a registered GSTIN
+  let gstinDetails: any = null;
+  if (customer.gstin) {
+    try {
+      const cleanGstin = customer.gstin.trim().toUpperCase();
+      const [cached] = await db
+        .select()
+        .from(customerGstinCache)
+        .where(eq(customerGstinCache.gstin, cleanGstin))
+        .limit(1);
+
+      const meta = extractGSTINMetadata(cleanGstin);
+
+      if (cached) {
+        gstinDetails = {
+          gstin: cached.gstin,
+          legalName: cached.legalName,
+          tradeName: cached.tradeName || cached.legalName,
+          status: cached.status,
+          taxpayerType: cached.taxpayerType || meta?.entityType || "Regular",
+          pan: meta?.pan || "",
+          stateCode: cached.stateCode || meta?.stateCode || "",
+          state: cached.state || meta?.stateName || "",
+          city: cached.city || "",
+          address: cached.addressLine || "",
+          pincode: cached.pincode || "",
+        };
+      } else if (meta) {
+        gstinDetails = {
+          gstin: cleanGstin,
+          legalName: customer.fullName,
+          tradeName: customer.fullName,
+          status: "Active",
+          taxpayerType: meta.entityType,
+          pan: meta.pan,
+          stateCode: meta.stateCode,
+          state: meta.stateName,
+          city: customer.city || "",
+          address: customer.address || "",
+          pincode: customer.pincode || "",
+        };
+      }
+    } catch (gstErr) {
+      console.error("[getCustomerProfileData] Error querying GST cache:", gstErr);
+    }
+  }
+
   // 4. Calculate aggregates (strictly excluding deleted or cancelled invoices)
   const activeInvoices = customerInvoices.filter(
     (inv) => !inv.deletedAt && inv.status !== "CANCELLED"
@@ -611,6 +659,7 @@ export async function getCustomerProfileData(
     lastVisitDate,
     latestPrescription,
     latestInvoice,
+    gstinDetails,
   };
 }
 

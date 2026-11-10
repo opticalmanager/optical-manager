@@ -27,7 +27,11 @@ import {
   Activity,
   Eye,
   Check,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
+import { verifyGstinAction, checkGstAutofetchStatusAction } from "@/actions/gst-lookup.actions";
+import { isValidGSTINChecksum } from "@/utils/gstin";
 import {
   calculateAgeFromDOB,
   calculateDOBFromAge,
@@ -56,6 +60,93 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
   const [isPending, setIsPending] = useState(false);
   const [regId, setRegId] = useState("OP-2026-XXXX");
   const [showStateSuggestions, setShowStateSuggestions] = useState(false);
+  const [isGstAutofetchEnabled, setIsGstAutofetchEnabled] = useState(false);
+  const [isVerifyingGstin, setIsVerifyingGstin] = useState(false);
+  const [gstinVerifiedStatus, setGstinVerifiedStatus] = useState<{
+    status: string;
+    tradeName?: string;
+    isCached?: boolean;
+    isCancelled?: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    checkGstAutofetchStatusAction().then((res) => {
+      if (res?.isEnabled) {
+        setIsGstAutofetchEnabled(true);
+      }
+    });
+  }, []);
+
+  const handleFetchGstinDetails = async (targetGstin?: string, manual = false) => {
+    const rawGstin = targetGstin || form.watch("customer.gstin") || "";
+    const clean = rawGstin.trim().toUpperCase();
+
+    if (!clean || clean.length !== 15) {
+      if (manual) toast.error("Please enter a valid 15-character GSTIN.");
+      return;
+    }
+
+    if (!isValidGSTINChecksum(clean)) {
+      if (manual) toast.error("Invalid GSTIN checksum. Please check for typos.");
+      return;
+    }
+
+    setIsVerifyingGstin(true);
+    try {
+      const res = await verifyGstinAction(clean);
+      if (res.success && res.data) {
+        const isCancelled = res.data.status.toLowerCase() !== "active";
+        setGstinVerifiedStatus({
+          status: res.data.status,
+          tradeName: res.data.tradeName,
+          isCached: res.data.isCached,
+          isCancelled,
+        });
+
+        const currentName = form.watch("customer.fullName") || "";
+        if (manual || !currentName.trim()) {
+          form.setValue("customer.fullName", res.data.tradeName || res.data.legalName, { shouldValidate: true });
+        }
+        if (res.data.address) form.setValue("customer.address", res.data.address, { shouldValidate: true });
+        if (res.data.city) form.setValue("customer.city", res.data.city, { shouldValidate: true });
+        if (res.data.state) form.setValue("customer.state", res.data.state, { shouldValidate: true });
+        if (res.data.pincode) form.setValue("customer.pincode", res.data.pincode, { shouldValidate: true });
+
+        const metaNotes = [
+          "[GST Taxpayer Details]",
+          res.data.legalName ? `Legal Name: ${res.data.legalName}` : "",
+          res.data.tradeName && res.data.tradeName !== res.data.legalName ? `Trade Name: ${res.data.tradeName}` : "",
+          res.data.taxpayerType ? `Constitution: ${res.data.taxpayerType}` : "",
+          res.data.pan ? `PAN: ${res.data.pan}` : "",
+          res.data.status ? `Status: ${res.data.status}` : "",
+        ].filter(Boolean).join(" | ");
+
+        const existingNotes = form.watch("customer.notes") || "";
+        if (!existingNotes.includes("[GST Taxpayer Details]")) {
+          form.setValue("customer.notes", existingNotes ? `${existingNotes}\n${metaNotes}` : metaNotes);
+        }
+
+        if (isCancelled) {
+          toast.warning(`Warning: Taxpayer ${res.data.tradeName || clean} is marked as ${res.data.status} in GST Registry.`);
+        } else {
+          toast.success(
+            res.data.isCached
+              ? `⚡ Auto-filled from local cache: ${res.data.tradeName || clean}`
+              : `✅ Verified from GSTN: ${res.data.tradeName || clean}`
+          );
+        }
+      } else if (res.disabled && manual) {
+        toast.info("Auto-fetch GST details add-on is disabled in Admin Panel for your account.");
+      } else if (res.error && manual) {
+        toast.error(res.error);
+      }
+    } catch (err) {
+      console.error("Failed to verify GSTIN:", err);
+      if (manual) toast.error("Unable to verify GSTIN at this time.");
+    } finally {
+      setIsVerifyingGstin(false);
+    }
+  };
 
   const form = useForm<PatientVisitFormValues>({
     resolver: zodResolver(patientVisitSchema),
@@ -743,8 +834,41 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                   if (detectedState) {
                     setValue("customer.state", detectedState, { shouldValidate: true });
                   }
+                  if (isGstAutofetchEnabled && cleaned.length === 15 && isValidGSTINChecksum(cleaned)) {
+                    handleFetchGstinDetails(cleaned, false);
+                  }
                 }}
               />
+              {/* Small Attached Button Below Input Box */}
+              {isGstAutofetchEnabled && (
+                <div className="mt-1.5 flex items-center justify-between gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleFetchGstinDetails(watch("customer.gstin") || undefined, true)}
+                    disabled={isVerifyingGstin || (watch("customer.gstin") || "").length !== 15}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-[#0a52c3] border border-blue-200/80 hover:bg-blue-100/70 hover:border-blue-300 transition-all cursor-pointer shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                    title="Auto-fetch official trade name and address from GST registry"
+                  >
+                    {isVerifyingGstin ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-[#0a52c3]" />
+                    ) : (
+                      <Sparkles className="h-3 w-3 text-[#0a52c3]" />
+                    )}
+                    <span>Fetch GST Details</span>
+                  </button>
+
+                  {isVerifyingGstin && (
+                    <span className="text-[10px] font-medium text-blue-600 animate-pulse">
+                      Verifying...
+                    </span>
+                  )}
+                  {gstinVerifiedStatus && !isVerifyingGstin && (
+                    <span className="text-[10px] text-slate-500 truncate max-w-[150px]" title={gstinVerifiedStatus.tradeName}>
+                      {gstinVerifiedStatus.tradeName}
+                    </span>
+                  )}
+                </div>
+              )}
               {watch("customer.gstin") && (watch("customer.gstin") || "").length >= 2 && getStateFromGSTIN(watch("customer.gstin")) && (
                 <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

@@ -108,6 +108,15 @@ This document details the functional, non-functional, and compliance requirement
   - **Default Format & Media**: Out-of-the-box system default is set to **`81x12 mm (Vertical 2-Up)`** on **Continuous Thermal Roll** (`DEFAULT_BARCODE_PRESET` and `DEFAULT_PAPER_SIZE = "continuous"`), while preserving full flexibility for users to select any other preset or paper size.
   - **Automatic User Preference Persistence (`localStorage`)**: Any operator selection—such as barcode preset, paper size (`continuous`, `A4`, `A5`), barcode orientation (`vertical` vs `horizontal`), element visibility toggles (Brand, Price, SKU, Barcode Text), typography sizes, borders, and custom header—is automatically saved to `localStorage` under `optical_barcode_preferences_v1` and restored automatically on subsequent visits across both single-item and bulk batch printing interfaces.
 
+### FR-10: AI Growth Copilot & Automated WhatsApp Sales Suggestions
+- **6 Optical Retail Opportunity Cohorts**: Classifies customer base into Annual Rx Due (`ANNUAL_RX_EXPIRY`), VIP High-Spenders (`VIP_HIGH_SPENDER`), Unclaimed Store Credit (`UNUSED_STORE_CREDIT`), Progressive Lens Upgrades (`PROGRESSIVE_UPGRADE`), High Astigmatism Alignment (`HIGH_CYLINDER_CHECKUP`), and Lapsed Patients (`DORMANT_LAPSED`).
+- **Single-Pass SQL Aggregation**: Single indexed PostgreSQL query across `customers`, `invoices`, and `prescriptions` with sub-40ms execution time.
+- **14-Day Anti-Fatigue Shield**: Cross-checks recent messages within 14 days and automatically flags/deselects recently contacted patients to prevent spamming.
+- **E.164 Clean-Room Sanitizer**: Validates Indian mobile numbers and filters out invalid landlines before dispatch.
+- **Humanized Jitter Pacing**: Applies randomized 3.5s - 6.8s stagger between queued WhatsApp messages to prevent account bans and rate limiting.
+- **Gemini 3.5 Flash Copy Studio**: Constrained copy refinement enforcing clinical optometry ethics (zero unverified cure claims) and store margin locks.
+- **Multi-Branch Scope**: Branch selector chip isolating campaigns by individual physical store or across all outlets.
+
 ---
 
 ## 2. Non-Functional Requirements

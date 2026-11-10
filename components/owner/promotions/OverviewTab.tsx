@@ -44,7 +44,7 @@ interface OverviewTabProps {
       status: "ACTIVE" | "PAUSED" | "INACTIVE";
     }>;
   };
-  onSwitchTab: (tab: "overview" | "templates" | "triggers" | "campaigns") => void;
+  onSwitchTab: (tab: "overview" | "ai-growth" | "templates" | "triggers" | "campaigns") => void;
   onConnect: () => void;
 }
 
@@ -96,16 +96,18 @@ export function OverviewTab({ data, onSwitchTab, onConnect }: OverviewTabProps) 
           <div className="flex items-center gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>
-              <strong>WhatsApp Account Not Connected</strong> — Connect your Meta Cloud API or Twilio account to start sending automated triggers & broadcasts.
+              <strong>WhatsApp Account Not Connected</strong> — Connect your Meta Cloud API or Zernio WABA account to start sending automated triggers & broadcasts.
             </span>
           </div>
-          <button
-            onClick={onConnect}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs shrink-0 self-start sm:self-auto cursor-pointer"
-          >
-            <Plug className="w-3.5 h-3.5" />
-            <span>Connect Account</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <Link
+              href="/owner/promotions/waba"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs shadow-xs cursor-pointer transition-all"
+            >
+              <Plug className="w-3.5 h-3.5" />
+              <span>Connect Official WABA</span>
+            </Link>
+          </div>
         </div>
       )}
 

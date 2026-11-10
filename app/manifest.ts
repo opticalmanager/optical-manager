@@ -35,6 +35,12 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
       {
+        src: "/logo.svg",
+        sizes: "any",
+        type: "image/svg+xml",
+        purpose: "any",
+      },
+      {
         src: "/optical-manager%20logo.svg",
         sizes: "any",
         type: "image/svg+xml",

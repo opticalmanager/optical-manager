@@ -419,6 +419,14 @@ export function NewInvoiceForm({
   } | null>(null);
   const gstinDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastQueriedGstinRef = useRef<string>("");
+  const [gstTaxpayerMeta, setGstTaxpayerMeta] = useState<{
+    legalName?: string;
+    tradeName?: string;
+    taxpayerType?: string;
+    pan?: string;
+    status?: string;
+    stateCode?: string;
+  } | null>(null);
 
   const handleFetchGstinDetails = async (targetGstin?: string, manual = false) => {
     const clean = (targetGstin || gstin).trim().toUpperCase();
@@ -452,8 +460,17 @@ export function NewInvoiceForm({
           isCancelled,
         });
 
+        setGstTaxpayerMeta({
+          legalName: res.data.legalName,
+          tradeName: res.data.tradeName,
+          taxpayerType: res.data.taxpayerType,
+          pan: res.data.pan,
+          status: res.data.status,
+          stateCode: res.data.stateCode,
+        });
+
         // Autofill Customer / Business Name if empty or default
-        if (!fullName.trim() || fullName === "Walk-in Customer") {
+        if (manual || !fullName.trim() || fullName === "Walk-in Customer") {
           setFullName(res.data.tradeName || res.data.legalName);
         }
 
@@ -2024,6 +2041,8 @@ export function NewInvoiceForm({
     setBloodGroup("");
     setReferredBy("");
     setGstin("");
+    setGstinVerifiedStatus(null);
+    setGstTaxpayerMeta(null);
     setAddress("");
     setCity("");
     setState("");
@@ -2209,6 +2228,21 @@ export function NewInvoiceForm({
     const savingToast = toast.loading("Processing order booking and generating Order Form...");
 
     try {
+      const customerNotes = gstTaxpayerMeta
+        ? [
+            `[GST Taxpayer Details]`,
+            gstTaxpayerMeta.legalName ? `Legal Name: ${gstTaxpayerMeta.legalName}` : "",
+            gstTaxpayerMeta.tradeName && gstTaxpayerMeta.tradeName !== gstTaxpayerMeta.legalName
+              ? `Trade Name: ${gstTaxpayerMeta.tradeName}`
+              : "",
+            gstTaxpayerMeta.taxpayerType ? `Constitution: ${gstTaxpayerMeta.taxpayerType}` : "",
+            gstTaxpayerMeta.pan ? `PAN: ${gstTaxpayerMeta.pan}` : "",
+            gstTaxpayerMeta.status ? `Status: ${gstTaxpayerMeta.status}` : "",
+          ]
+            .filter(Boolean)
+            .join(" | ")
+        : undefined;
+
       const payload = {
         customer: {
           id: selectedCustomerId || undefined,
@@ -2228,6 +2262,7 @@ export function NewInvoiceForm({
           systemicIllness: systemicIllness || undefined,
           allergies: allergies || undefined,
           gstin: gstin.trim().toUpperCase() || undefined,
+          notes: customerNotes || undefined,
         },
         prescriptionEnabled: true,
         prescriptionType: {
@@ -2733,7 +2768,7 @@ export function NewInvoiceForm({
             </div>
 
             {/* FULL ADDRESS */}
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-2">
               <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
                 FULL ADDRESS
               </label>
@@ -2746,6 +2781,23 @@ export function NewInvoiceForm({
                   className="w-full h-7.5 pl-6 pr-2 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
                 />
                 <MapPin className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* CITY */}
+            <div className="sm:col-span-1">
+              <label className="block text-[9.5px] font-extrabold uppercase text-slate-500 tracking-wider mb-0.5">
+                CITY
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Mumbai"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full h-7.5 pl-6 pr-1 rounded border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] transition-all shadow-2xs hover:border-slate-400"
+                />
+                <Building className="absolute left-1.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               </div>
             </div>
 

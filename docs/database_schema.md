@@ -573,3 +573,25 @@ System-wide cache for verified GSTIN taxpayers, preventing duplicate API charges
 | `rawResponse` | `jsonb` | NULLABLE | Full provider JSON payload |
 | `createdAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Cache creation time |
 | `updatedAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Cache update time |
+
+---
+
+### 41. `whatsapp_configs`
+Stores organization-level Official WhatsApp Business API (WABA) credentials and cloud provider configurations (`META_CLOUD_API` and `ZERNIO`), guaranteeing 100% phone number ban immunity for marketing campaigns and automated triggers.
+
+| Column Name | Data Type | Constraints & Flags | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, defaultRandom() | Configuration unique identifier |
+| `organizationId` | `uuid` | FK -> `organizations.id` (CASCADE), INDEXED | Multi-tenant organization reference |
+| `providerType` | `varchar(50)` | NOT NULL, DEFAULT 'META_CLOUD_API' | Official Cloud provider: `'META_CLOUD_API'` or `'ZERNIO'` |
+| `phoneNumber` | `varchar(30)` | NULLABLE | E.164 formatted business phone number |
+| `businessName` | `varchar(255)` | NULLABLE | Verified WhatsApp Business display name |
+| `phoneNumberId` | `varchar(100)`| NULLABLE | Meta Phone Number ID or Zernio Channel ID |
+| `wabaId` | `varchar(100)`| NULLABLE | WhatsApp Business Account ID (WABA ID) |
+| `apiKey` | `text` | NULLABLE | Permanent Meta System User Token or Zernio API Secret Key |
+| `webhookSecret` | `text` | NULLABLE | Inbound webhook verification token |
+| `status` | `varchar(50)` | NOT NULL, DEFAULT 'CONNECTED' | Connection status: `'CONNECTED'`, `'DISCONNECTED'`, `'PENDING'` |
+| `metadata` | `jsonb` | DEFAULT `{}` | Quality rating, coexistence mode toggle, verified display name, timestamps |
+| `createdAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Record creation timestamp |
+| `updatedAt` | `timestamp with time zone` | NOT NULL, defaultNow() | Last credential update timestamp |
+

@@ -341,3 +341,64 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Description**: Safely deletes a purchase invoice. For COMPLETED orders, automatically reverses inward stock additions from `inventory` via `RETURN` movements before removing line items and the order header.
 - **Response**: `{ success: boolean, message: string }`.
 
+
+---
+
+### 6. AI Growth Copilot Server Actions (`actions/ai-growth.actions.ts`)
+
+#### `fetchGrowthDashboardAction(shopId?)`
+- **Module**: `actions/ai-growth.actions.ts`
+- **Description**: Single-pass aggregation across `customers`, `invoices`, and `prescriptions` mapping customers into 6 opportunity cohorts (`ANNUAL_RX_EXPIRY`, `VIP_HIGH_SPENDER`, `UNUSED_STORE_CREDIT`, `PROGRESSIVE_UPGRADE`, `HIGH_CYLINDER_CHECKUP`, `DORMANT_LAPSED`). Retrieves telemetry, branches, and live Desktop Assistant status.
+- **Response**: `{ success: boolean, data: { telemetry, cards, shops, activeShopId, desktopAssistant } }`.
+
+#### `fetchCohortPatientsAction(cohortType, shopId?)`
+- **Module**: `actions/ai-growth.actions.ts`
+- **Description**: Retrieves full sanitized patient roster for a specific cohort with reachability flags, E.164 phone validation, and 14-day anti-fatigue cooldown indicators.
+- **Response**: `{ success: boolean, patients: SanitizedPatient[] }`.
+
+#### `dispatchGrowthBroadcastAction(payload)`
+- **Module**: `actions/ai-growth.actions.ts`
+- **Description**: Validates selected patient IDs, filters out invalid phones, applies 3.5s - 6.8s randomized jitter pacing, inserts records into `whatsapp_dispatch_queue`, and logs campaign metrics in `promotion_campaigns`.
+- **Response**: `{ success: boolean, campaignId, enqueuedCount, skippedCount, cooldownSkippedCount, invalidPhoneSkippedCount, isDesktopOnline, estimatedDeliveryTimeSeconds }`.
+
+#### `refineGrowthCopyAction(options)`
+- **Module**: `actions/ai-growth.actions.ts`
+- **Description**: Uses Gemini 3.5 Flash to generate clinical optometry WhatsApp messages constrained to owner discount caps and ethical medical compliance. Fallback to pre-tuned clinical templates if API key is unconfigured.
+- **Response**: `{ success: boolean, data: AiCampaignRefinementResult }`.
+
+---
+
+### 7. Official WhatsApp Business API (WABA) Server Actions (`actions/promotion.actions.ts`)
+
+#### `verifyWabaTokenAction(payload)`
+- **Module**: `actions/promotion.actions.ts`
+- **Description**: Performs live token verification against official Cloud API endpoints before credential persistence:
+  - For `META_CLOUD_API`: Pings Meta Graph API `https://graph.facebook.com/v21.0/{phoneNumberId}?fields=verified_name,code_verification_status,display_phone_number,quality_rating` with Bearer token, extracting verified business name, display phone number, quality rating, and verification status.
+  - For `ZERNIO`: Authenticates against Zernio profiles API (`https://zernio.com/api/v1/profiles` or `profiles/{id}`) with Bearer token to verify active API key and channel status without mock stubs.
+- **Payload**: `{ providerType: "META_CLOUD_API" | "ZERNIO", apiKey, phoneNumberId?, wabaId?, phoneNumber? }`.
+- **Response**: `{ success: boolean, verifiedName?: string, qualityRating?: string, metadata?: object, error?: string }`.
+
+#### `saveWhatsAppConfigAction(payload)`
+- **Module**: `actions/promotion.actions.ts`
+- **Description**: Validates and saves official WABA configuration into `whatsapp_configs` in PostgreSQL. Performs live handshake verification unless skipped, updates metadata, and revalidates `/owner/promotions` and `/owner/promotions/waba`.
+- **Payload**: `SaveWhatsAppConfigPayload` (providerType, phoneNumber, businessName, apiKey, phoneNumberId, wabaId, webhookSecret).
+- **Response**: `{ success: boolean, error?: string }`.
+
+#### `testWhatsAppPingAction(recipientPhone)`
+- **Module**: `actions/promotion.actions.ts`
+- **Description**: Dispatches a live test WhatsApp ping message to a recipient phone number directly via Meta Cloud API or Zernio, allowing the owner to verify end-to-end receipt on their physical smartphone:
+  - For `META_CLOUD_API`: Dispatches message via `https://graph.facebook.com/v21.0/{phoneNumberId}/messages`. If the destination recipient has not initiated a conversation within the last 24 hours (Meta error `131047`), it automatically falls back to sending Meta's pre-approved `hello_world` sample template in `en_US` so test verification always succeeds.
+  - For `ZERNIO`: Dispatches message via `https://zernio.com/api/v1/inbox/conversations` with authentic HTTP status checking and error reporting.
+- **Payload**: `recipientPhone: string`.
+- **Response**: `{ success: boolean, messageId?: string, message?: string, error?: string }`.
+
+#### `getWabaConfigAction()`
+- **Module**: `actions/promotion.actions.ts`
+- **Description**: Retrieves active organization WABA configuration with masked API keys (`••••••••`) for secure UI display.
+- **Response**: `{ success: boolean, data?: WabaConfigData, error?: string }`.
+
+#### `disconnectWhatsAppAction()`
+- **Module**: `actions/promotion.actions.ts`
+- **Description**: Updates `whatsapp_configs` status to `DISCONNECTED` and revalidates relevant paths.
+- **Response**: `{ success: boolean, error?: string }`.
+
