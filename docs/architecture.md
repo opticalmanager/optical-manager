@@ -614,8 +614,8 @@ Optical Manager includes a statutory taxation module built for Indian GST compli
 
 ### 23. Organization Add-ons & GSTIN Verification Engine
 - **3-Tier Zero-Cost Hybrid Verification Architecture**:
-  1. **Tier 1 (0ms, ₹0)**: Offline mathematical validation using Luhn Modulo 36 checksum and standard state/entity decoding in `utils/gstin.ts`. Invalid formats and typographical errors are blocked on client side before hitting external endpoints.
+  1. **Tier 1 (0ms, ₹0)**: Offline mathematical validation using structural pattern matching (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$`), Luhn Modulo 36 checksum calculation, and standard state/entity decoding in `utils/gstin.ts`. Invalid lengths and malformed characters are rejected instantly, while sandbox developer test numbers and verified edge cases proceed seamlessly.
   2. **Tier 2 (2ms, ₹0)**: PostgreSQL local cache table `customer_gstin_cache`. Recurring customer visits or shared optical suppliers are auto-populated from database with zero API cost.
-  3. **Tier 3 (Live API)**: Appyflow taxpayer verification API (`https://appyflow.in/api/verifyGST`) executed securely via Server Action `actions/gst-lookup.actions.ts`.
+  3. **Tier 3 (Live API)**: Appyflow taxpayer verification API (`https://appyflow.in/api/verifyGST`) executed securely via Server Action `actions/gst-lookup.actions.ts`. API key handling includes automatic sanitization to prevent escaped quote and backslash errors.
 - **Admin Add-ons Management**: Super Admin controls add-ons per organization in `/admin/organizations/[id]` using `OrganizationAddonsCard.tsx`. Includes one-click enable/disable toggles, period-filtered consumption telemetry, active call audits, and accrued cost tracking (@ ₹0.40/call).
 - **Extensibility**: Database schema (`organization_addons`, `addon_usage_logs`) is architected with dynamic JSONB configs to support future modular add-ons including WhatsApp Marketing Automation, Government e-Invoicing (IRN & QR), and Transactional SMS alerts.

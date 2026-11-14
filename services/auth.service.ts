@@ -173,7 +173,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
     let shopIdOverride = profile.shopId;
     let isImpersonating = false;
 
-    if (profile.role === "OWNER") {
+    if (profile.role === "OWNER" || profile.role === "SUPER_ADMIN") {
       try {
         const { cookies } = await import("next/headers");
         const cookieStore = await cookies();
@@ -184,17 +184,19 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           if (uuidRegex.test(activeShopContextId)) {
             const { shops } = await import("@/db/schema");
-            const { and } = await import("drizzle-orm");
+            const { and, eq } = await import("drizzle-orm");
             
+            const whereCondition = profile.role === "SUPER_ADMIN"
+              ? eq(shops.id, activeShopContextId)
+              : and(
+                  eq(shops.id, activeShopContextId),
+                  eq(shops.organizationId, profile.organizationId!)
+                );
+
             const dbShopPromise = db
               .select()
               .from(shops)
-              .where(
-                and(
-                  eq(shops.id, activeShopContextId),
-                  eq(shops.organizationId, profile.organizationId!)
-                )
-              )
+              .where(whereCondition)
               .limit(1);
             const timeoutPromise = new Promise<any[]>((_, reject) =>
               setTimeout(() => reject(new Error("Shop DB timeout")), 1500)
@@ -202,8 +204,11 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Ses
             const [shop] = await Promise.race([dbShopPromise, timeoutPromise]);
 
             if (shop) {
-              // Retain native OWNER role, but set active shop context ID
+              // Retain native role, but set active shop context ID
               shopIdOverride = shop.id;
+              if (profile.role === "SUPER_ADMIN" && !profile.organizationId) {
+                profile.organizationId = shop.organizationId;
+              }
               isImpersonating = true;
             }
           }

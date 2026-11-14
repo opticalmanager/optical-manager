@@ -24,21 +24,42 @@ export default async function NewInvoicePage() {
   }
 
   let isGstAutofetchEnabled = false;
-  if (user?.organizationId) {
-    try {
-      const [addon] = await db
-        .select({ isEnabled: organizationAddons.isEnabled })
-        .from(organizationAddons)
-        .where(
-          and(
-            eq(organizationAddons.organizationId, user.organizationId),
-            eq(organizationAddons.addonKey, "GST_AUTOFETCH")
+  if (user?.role === "SUPER_ADMIN") {
+    isGstAutofetchEnabled = true;
+  } else {
+    let orgId = user?.organizationId;
+    if (!orgId && user?.shopId) {
+      try {
+        const { shops } = await import("@/db/schema");
+        const [shop] = await db
+          .select({ organizationId: shops.organizationId })
+          .from(shops)
+          .where(eq(shops.id, user.shopId))
+          .limit(1);
+        if (shop?.organizationId) {
+          orgId = shop.organizationId;
+        }
+      } catch (err) {
+        console.error("[NewInvoicePage] Error resolving shop organization:", err);
+      }
+    }
+
+    if (orgId) {
+      try {
+        const [addon] = await db
+          .select({ isEnabled: organizationAddons.isEnabled })
+          .from(organizationAddons)
+          .where(
+            and(
+              eq(organizationAddons.organizationId, orgId),
+              eq(organizationAddons.addonKey, "GST_AUTOFETCH")
+            )
           )
-        )
-        .limit(1);
-      isGstAutofetchEnabled = addon?.isEnabled || false;
-    } catch (err) {
-      console.error("[NewInvoicePage] Error fetching GST autofetch addon status:", err);
+          .limit(1);
+        isGstAutofetchEnabled = addon?.isEnabled || false;
+      } catch (err) {
+        console.error("[NewInvoicePage] Error fetching GST autofetch addon status:", err);
+      }
     }
   }
 

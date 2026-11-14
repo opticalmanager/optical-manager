@@ -1,7 +1,7 @@
 import { db } from "@/lib/drizzle";
 import { customerGstinCache } from "@/db/schema/addons";
 import { eq } from "drizzle-orm";
-import { isValidGSTINChecksum, extractGSTINMetadata } from "@/utils/gstin";
+import { isValidGSTINChecksum, extractGSTINMetadata, normalizeGSTIN } from "@/utils/gstin";
 
 export interface TaxpayerLookupResult {
   success: boolean;
@@ -40,14 +40,14 @@ function buildAddressLine(addr: any): string {
 
 /**
  * 3-Tier GSTIN Lookup Service:
- * Tier 1: 0ms Luhn Modulo 36 offline checksum validation.
+ * Tier 1: 0ms Structural format & checksum validation.
  * Tier 2: Instant PostgreSQL cache check (customer_gstin_cache) for zero latency & ₹0 cost.
  * Tier 3: Live Appyflow API execution with error handling and automatic cache persistence.
  */
 export async function lookupGSTIN(gstinInput: string): Promise<TaxpayerLookupResult> {
-  const cleanGstin = (gstinInput || "").trim().toUpperCase();
+  const cleanGstin = normalizeGSTIN(gstinInput);
 
-  // Tier 1: Offline format & checksum validation
+  // Tier 1: Structural format validation
   if (!cleanGstin || cleanGstin.length !== 15) {
     return {
       success: false,
@@ -55,11 +55,17 @@ export async function lookupGSTIN(gstinInput: string): Promise<TaxpayerLookupRes
     };
   }
 
-  if (!isValidGSTINChecksum(cleanGstin)) {
+  const GSTIN_STRUCTURAL_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$/;
+  if (!GSTIN_STRUCTURAL_REGEX.test(cleanGstin)) {
     return {
       success: false,
-      error: "Invalid GSTIN checksum. Please check for typographical errors.",
+      error: "Invalid GSTIN format. Expected 15-character alphanumeric format (e.g. 06ISIPD0673L1ZH).",
     };
+  }
+
+  const isChecksumValid = isValidGSTINChecksum(cleanGstin);
+  if (!isChecksumValid) {
+    console.warn(`[GST Lookup Service] GSTIN ${cleanGstin} does not match Mod-36 checksum, checking cache and live verification.`);
   }
 
   const metadata = extractGSTINMetadata(cleanGstin);
@@ -97,7 +103,8 @@ export async function lookupGSTIN(gstinInput: string): Promise<TaxpayerLookupRes
   }
 
   // Tier 3: Live Appyflow API Call
-  const apiKey = process.env.APPYFLOW_KEY_SECRET;
+  const rawKey = process.env.APPYFLOW_KEY_SECRET || "";
+  const apiKey = rawKey.trim().replace(/^["'\\]+|["'\\]+$/g, "").trim();
   if (!apiKey) {
     return {
       success: false,
@@ -106,28 +113,41 @@ export async function lookupGSTIN(gstinInput: string): Promise<TaxpayerLookupRes
   }
 
   try {
-    const endpoint = `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(cleanGstin)}&key_secret=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(endpoint, {
+    const response = await fetch("https://appyflow.in/api/verifyGST", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        gstNo: cleanGstin,
+        key_secret: apiKey,
+      }),
       cache: "no-store",
     });
 
     if (!response.ok) {
       return {
         success: false,
-        error: `Appyflow returned HTTP status ${response.status}.`,
+        error: `GST verification service returned HTTP ${response.status}.`,
       };
     }
 
     const payload = await response.json();
 
     if (payload.error || !payload.taxpayerInfo) {
+      let errorMsg = payload.message || "Taxpayer details not found in government registry.";
+      if (payload.message === "Invalid Key Secret") {
+        errorMsg = "GST verification service authentication error. Please verify the API key.";
+      } else if (payload.message === "Invalid GSTIN / UID" || !payload.message || payload.message.toLowerCase().includes("not found")) {
+        if (!isChecksumValid) {
+          errorMsg = `Taxpayer details not found in government registry for ${cleanGstin}. Please check GSTIN for typographical errors.`;
+        } else {
+          errorMsg = `Taxpayer details not found in government registry for ${cleanGstin}.`;
+        }
+      }
       return {
         success: false,
-        error: payload.message || "Taxpayer details not found in government registry.",
+        error: errorMsg,
       };
     }
 

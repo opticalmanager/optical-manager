@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { patientVisitSchema, type PatientVisitFormValues } from "@/utils/validators";
@@ -31,7 +31,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { verifyGstinAction, checkGstAutofetchStatusAction } from "@/actions/gst-lookup.actions";
-import { isValidGSTINChecksum } from "@/utils/gstin";
+import { isValidGSTINChecksum, normalizeGSTIN } from "@/utils/gstin";
 import {
   calculateAgeFromDOB,
   calculateDOBFromAge,
@@ -68,6 +68,8 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
     isCached?: boolean;
     isCancelled?: boolean;
   } | null>(null);
+  const gstinDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastQueriedGstinRef = useRef<string>("");
 
   useEffect(() => {
     checkGstAutofetchStatusAction().then((res) => {
@@ -79,15 +81,21 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
 
   const handleFetchGstinDetails = async (targetGstin?: string, manual = false) => {
     const rawGstin = targetGstin || form.watch("customer.gstin") || "";
-    const clean = rawGstin.trim().toUpperCase();
+    const clean = normalizeGSTIN(rawGstin);
 
     if (!clean || clean.length !== 15) {
       if (manual) toast.error("Please enter a valid 15-character GSTIN.");
       return;
     }
 
-    if (!isValidGSTINChecksum(clean)) {
-      if (manual) toast.error("Invalid GSTIN checksum. Please check for typos.");
+    const GSTIN_STRUCTURAL_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$/;
+    if (!GSTIN_STRUCTURAL_REGEX.test(clean)) {
+      if (manual) toast.error("Invalid GSTIN format. Expected 15-character alphanumeric format (e.g. 06ISIPD0673L1ZH).");
+      return;
+    }
+
+    if (lastQueriedGstinRef.current === clean && gstinVerifiedStatus) {
+      if (manual) toast.info(`Already verified: ${gstinVerifiedStatus.tradeName || "Taxpayer Active"}`);
       return;
     }
 
@@ -95,6 +103,7 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
     try {
       const res = await verifyGstinAction(clean);
       if (res.success && res.data) {
+        lastQueriedGstinRef.current = clean;
         const isCancelled = res.data.status.toLowerCase() !== "active";
         setGstinVerifiedStatus({
           status: res.data.status,
@@ -834,8 +843,14 @@ export function PatientRegistrationForm({ initialPatientData, patientId }: Patie
                   if (detectedState) {
                     setValue("customer.state", detectedState, { shouldValidate: true });
                   }
-                  if (isGstAutofetchEnabled && cleaned.length === 15 && isValidGSTINChecksum(cleaned)) {
-                    handleFetchGstinDetails(cleaned, false);
+                  if (gstinVerifiedStatus && cleaned !== lastQueriedGstinRef.current) {
+                    setGstinVerifiedStatus(null);
+                  }
+                  if (isGstAutofetchEnabled && cleaned.length === 15 && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$/.test(cleaned)) {
+                    if (gstinDebounceRef.current) clearTimeout(gstinDebounceRef.current);
+                    gstinDebounceRef.current = setTimeout(() => {
+                      handleFetchGstinDetails(cleaned, false);
+                    }, 400);
                   }
                 }}
               />
