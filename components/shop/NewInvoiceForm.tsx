@@ -75,7 +75,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { verifyGstinAction, checkGstAutofetchStatusAction } from "@/actions/gst-lookup.actions";
-import { INDIAN_STATES, GSTIN_STATE_MAP, getStateFromGSTIN, isValidGSTINChecksum } from "@/utils/gstin";
+import { INDIAN_STATES, GSTIN_STATE_MAP, getStateFromGSTIN, isValidGSTINChecksum, normalizeGSTIN } from "@/utils/gstin";
 
 interface PastRxGroup {
   id: string;
@@ -429,15 +429,16 @@ export function NewInvoiceForm({
   } | null>(null);
 
   const handleFetchGstinDetails = async (targetGstin?: string, manual = false) => {
-    const clean = (targetGstin || gstin).trim().toUpperCase();
+    const clean = normalizeGSTIN(targetGstin || gstin);
 
     if (!clean || clean.length !== 15) {
       if (manual) toast.error("Please enter a valid 15-character GSTIN.");
       return;
     }
 
-    if (!isValidGSTINChecksum(clean)) {
-      if (manual) toast.error("Invalid GSTIN checksum. Please check for typos.");
+    const GSTIN_STRUCTURAL_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$/;
+    if (!GSTIN_STRUCTURAL_REGEX.test(clean)) {
+      if (manual) toast.error("Invalid GSTIN format. Expected 15-character alphanumeric format (e.g. 06ISIPD0673L1ZH).");
       return;
     }
 
@@ -2723,7 +2724,7 @@ export function NewInvoiceForm({
                     }
 
                     // Hybrid: 400ms debounce when valid 15-character GSTIN is entered AND feature is enabled for org
-                    if (isGstAutofetchEnabled && cleaned.length === 15 && isValidGSTINChecksum(cleaned)) {
+                    if (isGstAutofetchEnabled && cleaned.length === 15 && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$/.test(cleaned)) {
                       if (gstinDebounceRef.current) clearTimeout(gstinDebounceRef.current);
                       gstinDebounceRef.current = setTimeout(() => {
                         handleFetchGstinDetails(cleaned, false);

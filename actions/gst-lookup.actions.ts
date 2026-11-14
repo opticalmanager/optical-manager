@@ -37,35 +37,80 @@ function checkRateLimit(orgId: string): boolean {
 export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLookupResult & { disabled?: boolean }> {
   try {
     const user = await getCurrentUser();
-    if (!user || !user.organizationId) {
+    if (!user) {
       return {
         success: false,
         error: "Unauthorized: Please log in to perform GST verification.",
       };
     }
 
-    // 1. Check if organization has GST_AUTOFETCH add-on enabled
-    const [addon] = await db
-      .select()
-      .from(organizationAddons)
-      .where(
-        and(
-          eq(organizationAddons.organizationId, user.organizationId),
-          eq(organizationAddons.addonKey, "GST_AUTOFETCH")
-        )
-      )
-      .limit(1);
+    let orgId = user.organizationId;
+    if (!orgId && user.shopId) {
+      const { shops } = await import("@/db/schema");
+      const [shop] = await db
+        .select({ organizationId: shops.organizationId })
+        .from(shops)
+        .where(eq(shops.id, user.shopId))
+        .limit(1);
+      if (shop?.organizationId) {
+        orgId = shop.organizationId;
+      }
+    }
 
-    if (!addon || !addon.isEnabled) {
-      return {
-        success: false,
-        disabled: true,
-        error: "GST Auto-fetch add-on is disabled for your organization. Please contact your administrator.",
-      };
+    const isSuperAdmin = user.role === "SUPER_ADMIN";
+
+    let addonConfigCost = "0.40";
+
+    // 1. Enforce organization add-on permission for regular tenants
+    if (!isSuperAdmin) {
+      if (!orgId) {
+        return {
+          success: false,
+          error: "Unauthorized: No organization associated with this account.",
+        };
+      }
+
+      const [addon] = await db
+        .select()
+        .from(organizationAddons)
+        .where(
+          and(
+            eq(organizationAddons.organizationId, orgId),
+            eq(organizationAddons.addonKey, "GST_AUTOFETCH")
+          )
+        )
+        .limit(1);
+
+      if (!addon || !addon.isEnabled) {
+        return {
+          success: false,
+          disabled: true,
+          error: "GST Auto-fetch add-on is disabled for your organization. Please contact your administrator.",
+        };
+      }
+
+      const config = (addon.config as any) || {};
+      addonConfigCost = config.costPerCall || "0.40";
+    } else if (orgId) {
+      const [addon] = await db
+        .select()
+        .from(organizationAddons)
+        .where(
+          and(
+            eq(organizationAddons.organizationId, orgId),
+            eq(organizationAddons.addonKey, "GST_AUTOFETCH")
+          )
+        )
+        .limit(1);
+      if (addon) {
+        const config = (addon.config as any) || {};
+        addonConfigCost = config.costPerCall || "0.40";
+      }
     }
 
     // 2. Rate limit check
-    if (!checkRateLimit(user.organizationId)) {
+    const rateLimitKey = orgId || user.id || "super-admin";
+    if (!checkRateLimit(rateLimitKey)) {
       return {
         success: false,
         error: "Rate limit exceeded (maximum 30 lookups per minute). Please wait a moment.",
@@ -76,13 +121,12 @@ export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLoo
     const result = await lookupGSTIN(gstinInput);
 
     // 4. Log usage if successful
-    if (result.success && result.data) {
-      const config = (addon.config as any) || {};
-      const costPerCall = result.data.isCached ? "0.00" : (config.costPerCall || "0.40");
+    if (result.success && result.data && orgId) {
+      const costPerCall = result.data.isCached ? "0.00" : addonConfigCost;
 
       try {
         await db.insert(addonUsageLogs).values({
-          organizationId: user.organizationId,
+          organizationId: orgId,
           shopId: user.shopId || null,
           userId: user.id || null,
           addonKey: "GST_AUTOFETCH",
@@ -117,7 +161,28 @@ export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLoo
 export async function checkGstAutofetchStatusAction(): Promise<{ isEnabled: boolean }> {
   try {
     const user = await getCurrentUser();
-    if (!user || !user.organizationId) {
+    if (!user) {
+      return { isEnabled: false };
+    }
+
+    if (user.role === "SUPER_ADMIN") {
+      return { isEnabled: true };
+    }
+
+    let orgId = user.organizationId;
+    if (!orgId && user.shopId) {
+      const { shops } = await import("@/db/schema");
+      const [shop] = await db
+        .select({ organizationId: shops.organizationId })
+        .from(shops)
+        .where(eq(shops.id, user.shopId))
+        .limit(1);
+      if (shop?.organizationId) {
+        orgId = shop.organizationId;
+      }
+    }
+
+    if (!orgId) {
       return { isEnabled: false };
     }
 
@@ -126,7 +191,7 @@ export async function checkGstAutofetchStatusAction(): Promise<{ isEnabled: bool
       .from(organizationAddons)
       .where(
         and(
-          eq(organizationAddons.organizationId, user.organizationId),
+          eq(organizationAddons.organizationId, orgId),
           eq(organizationAddons.addonKey, "GST_AUTOFETCH")
         )
       )
