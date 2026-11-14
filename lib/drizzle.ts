@@ -26,11 +26,18 @@ declare global {
   var __postgresClient: postgres.Sql | undefined;
 }
 
+// Max connections: configurable via ENV, defaulting to 4 in production (serverless concurrency safe) and 8 in development
+const maxConnections = process.env.DB_MAX_CONNECTIONS
+  ? parseInt(process.env.DB_MAX_CONNECTIONS, 10)
+  : process.env.NODE_ENV === "production"
+    ? 4
+    : 8;
+
 const client =
   globalThis.__postgresClient ||
   postgres(connectionString, {
     prepare: false, // Required for Supabase pgbouncer in transaction mode
-    max: 10, // Cap connections per Node process to avoid exceeding Supabase connection limits
+    max: maxConnections, // Optimized for serverless concurrency without exhausting Supavisor pooler
     idle_timeout: 20, // Close idle connections after 20 seconds
     connect_timeout: 10, // 10 seconds connection timeout
   });

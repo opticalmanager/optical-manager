@@ -1064,8 +1064,12 @@ This document outlines the end-to-end user workflows for System Owners, Store Ma
      - **Tier 1 (0ms Luhn Modulo 36)**: Offline checksum validation.
      - **Tier 2 (0ms PostgreSQL Cache)**: Checks `customer_gstin_cache` for instant ₹0 response.
      - **Tier 3 (Live Appyflow API)**: Real-time query to the GST Registry with automatic caching.
+   - **Streamlined UI & State Transitions**:
+     - Once verified, the action button cleanly switches from `[✨ Fetch GST Details]` to a compact emerald `[✓ Fetched]` indicator without layout shift.
+     - Modifying or clearing the GSTIN input immediately reverts the button back to `[✨ Fetch GST Details]`.
+     - Internal caching status (`Cached`) and redundant organization name labels below the input are hidden from front-end operators to preserve minimal, high-density layout. The field label badge displays statutory registry status (`Active` or `Cancelled`).
    - **Auto-Populated Visible Fields**:
-     - **Customer Name**: Automatically populated with Trade Name (or Legal Name).
+     - **Customer Name**: Always updated with verified Trade Name (or Legal Name), ensuring pre-entered customer names are properly synchronized.
      - **Full Address**: Populated with principal place of business street address.
      - **City**: Populated into the visible City input field.
      - **State**: Automatically selected in the State dropdown.

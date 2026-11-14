@@ -75,7 +75,7 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 - **Primary Function**: Live verification and taxpayer detail auto-fill for 15-character GST numbers in invoice and customer creation. Auto-populates official legal entity name, trade name, principal place of business (street, city, state, pincode), and active filing status.
 - **Implementation**: Powered by `services/gst-lookup.service.ts` and `actions/gst-lookup.actions.ts` via endpoint `https://appyflow.in/api/verifyGST`.
 - **Hybrid 3-Tier Optimization**:
-  - **Tier 1 (0ms, ₹0)**: Offline structural format validation (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$`) and Luhn Modulo 36 checksum in `utils/gstin.ts`. Typographical errors are detected while permitting sandbox test numbers and government edge cases to reach verification.
+  - **Tier 1 (0ms, ₹0)**: Strict offline pre-flight validation (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$`) and Luhn Modulo 36 checksum calculation in `utils/gstin.ts`. Any typographical errors or invalid checksums are strictly rejected offline in 0ms at ₹0 cost, preventing wasted API calls and unwanted charges.
   - **Tier 2 (2ms, ₹0)**: Local PostgreSQL cache table `customer_gstin_cache`.
   - **Tier 3 (Live API)**: Appyflow lookup triggered for uncached valid GST numbers.
 - **Admin Management**: Managed per-tenant in `/admin/organizations/[id]` with toggle controls, period filters, and consumption analytics.

@@ -65,7 +65,10 @@ export async function lookupGSTIN(gstinInput: string): Promise<TaxpayerLookupRes
 
   const isChecksumValid = isValidGSTINChecksum(cleanGstin);
   if (!isChecksumValid) {
-    console.warn(`[GST Lookup Service] GSTIN ${cleanGstin} does not match Mod-36 checksum, checking cache and live verification.`);
+    return {
+      success: false,
+      error: "Invalid GST number. Please check for typographical errors.",
+    };
   }
 
   const metadata = extractGSTINMetadata(cleanGstin);

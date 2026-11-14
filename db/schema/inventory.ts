@@ -73,6 +73,7 @@ export const inventory = pgTable("inventory", {
   orgIdIdx: index("inventory_org_id_idx").on(table.organizationId),
   categoryIdx: index("inventory_category_idx").on(table.category),
   skuIdx: index("inventory_sku_idx").on(table.sku),
+  nameIdx: index("inventory_name_idx").on(table.name),
   productCodeShopIdx: uniqueIndex("inventory_shop_product_code_idx").on(table.shopId, table.productCode),
   productCodeIdx: index("inventory_product_code_idx").on(table.productCode),
   shopActiveIdx: index("inventory_shop_active_idx").on(table.shopId, table.isActive),
