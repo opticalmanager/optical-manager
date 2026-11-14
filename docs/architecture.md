@@ -73,8 +73,8 @@ The codebase cleanly separates mutation handling from data fetching:
 - **Action Layer (`actions/*.actions.ts`)**: Next.js Server Actions invoked by client forms for data mutations. Executes validation (`zod`), concurrency retry loops (handling Postgres `23505` conflicts gracefully), and invalidates Next.js cache using `revalidatePath`. Example: `registerPatientAndInvoiceAction` and `updateShopDocumentSeriesAction`.
 - **Utility Layer (`utils/document-series.ts`)**: Pure TypeScript helper routines for formatting document numbers, calculating Indian financial years (`getIndianFinancialYear`), and extracting trailing serial integers (`extractTrailingSerial`).
 
-### 3. Database Connection & Pooling (`lib/drizzle.ts`)
-Database interactions use Drizzle ORM over a pooled PostgreSQL connection managed by Supabase PgBouncer:
+### 3. Database Connection & Dynamic Pooling (`lib/drizzle.ts`)
+Database interactions use Drizzle ORM over a pooled PostgreSQL connection managed by Supabase Supavisor / PgBouncer:
 
 ```ts
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -87,11 +87,18 @@ declare global {
   var __postgresClient: postgres.Sql | undefined;
 }
 
+// Configurable connection ceiling: defaults to 4 in production (serverless safety) and 8 in development
+const maxConnections = process.env.DB_MAX_CONNECTIONS
+  ? parseInt(process.env.DB_MAX_CONNECTIONS, 10)
+  : process.env.NODE_ENV === "production"
+    ? 4
+    : 8;
+
 const client =
   globalThis.__postgresClient ||
   postgres(connectionString, {
     prepare: false, // Required for Supabase pgbouncer in transaction mode
-    max: 10,        // Cap connections per process to prevent connection exhaustion
+    max: maxConnections, // Optimized for serverless concurrency without exhausting Supavisor pooler
     idle_timeout: 20,
     connect_timeout: 10,
   });
@@ -102,7 +109,8 @@ if (process.env.NODE_ENV !== "production") {
 
 export const db = drizzle(client, { schema });
 ```
-- `prepare: false` is required for PgBouncer transaction pooling mode (`port 6543`).
+- `prepare: false` is required for Supavisor transaction pooling mode (`port 6543`).
+- **Dynamic Connection Ceiling**: Automatically throttles connection acquisition to `max: 4` per worker in production, guaranteeing that up to 40 concurrent AWS Amplify serverless workers can execute concurrently without ever exceeding Supavisor's 200 client connection lobby. Supports instant runtime tuning via `DB_MAX_CONNECTIONS`.
 - `globalThis.__postgresClient` singleton prevents connection leaks across Next.js Hot Module Replacement (HMR) reloads, eliminating `(EMAXCONN) max client connections reached` errors.
 - `DIRECT_DATABASE_URL` (`port 5432`) is used for schema migrations via `drizzle-kit`.
 
@@ -614,7 +622,7 @@ Optical Manager includes a statutory taxation module built for Indian GST compli
 
 ### 23. Organization Add-ons & GSTIN Verification Engine
 - **3-Tier Zero-Cost Hybrid Verification Architecture**:
-  1. **Tier 1 (0ms, ₹0)**: Offline mathematical validation using structural pattern matching (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$`), Luhn Modulo 36 checksum calculation, and standard state/entity decoding in `utils/gstin.ts`. Invalid lengths and malformed characters are rejected instantly, while sandbox developer test numbers and verified edge cases proceed seamlessly.
+  1. **Tier 1 (0ms, ₹0)**: Strict offline pre-flight validation using structural pattern matching (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$`), Luhn Modulo 36 checksum calculation, and standard state/entity decoding in `utils/gstin.ts`. Any typographical errors or invalid checksums are strictly rejected offline in 0ms at ₹0 cost, preventing wasted API calls and unwanted charges.
   2. **Tier 2 (2ms, ₹0)**: PostgreSQL local cache table `customer_gstin_cache`. Recurring customer visits or shared optical suppliers are auto-populated from database with zero API cost.
   3. **Tier 3 (Live API)**: Appyflow taxpayer verification API (`https://appyflow.in/api/verifyGST`) executed securely via Server Action `actions/gst-lookup.actions.ts`. API key handling includes automatic sanitization to prevent escaped quote and backslash errors.
 - **Admin Add-ons Management**: Super Admin controls add-ons per organization in `/admin/organizations/[id]` using `OrganizationAddonsCard.tsx`. Includes one-click enable/disable toggles, period-filtered consumption telemetry, active call audits, and accrued cost tracking (@ ₹0.40/call).

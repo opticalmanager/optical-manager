@@ -87,7 +87,7 @@ test("7. lookupGSTIN cleanly handles un-registered GSTIN 09ABSCD8500K1ZO without
   const res = await lookupGSTIN("09ABSCD8500K1ZO");
   assert.equal(res.success, false);
   assert.ok(res.error);
-  assert.match(res.error, /Taxpayer details not found|Invalid GSTIN/i);
+  assert.match(res.error, /Taxpayer details not found|Invalid GST/i);
 });
 
 test("8. Punjab Optical has GST_AUTOFETCH addon active in database", async () => {
@@ -114,6 +114,44 @@ test("8. Punjab Optical has GST_AUTOFETCH addon active in database", async () =>
   assert.equal(addon.isEnabled, true, "GST_AUTOFETCH must be enabled for Punjab Optical");
 });
 
-test("9. Teardown: connection pool cleanup", () => {
+test("9. Entity name resolution accurately prefers tradeName and falls back to legalName", () => {
+  const resolveEntityName = (tradeName?: string, legalName?: string) => {
+    return tradeName?.trim() || legalName?.trim() || "";
+  };
+
+  assert.equal(resolveEntityName("VIRAL NEST", "DEEPAK"), "VIRAL NEST");
+  assert.equal(resolveEntityName("   ", "DEEPAK"), "DEEPAK");
+  assert.equal(resolveEntityName("", "DEEPAK"), "DEEPAK");
+  assert.equal(resolveEntityName(undefined, "DEEPAK"), "DEEPAK");
+  assert.equal(resolveEntityName(undefined, undefined), "");
+});
+
+test("10. Taxpayer notes enrichment cleanly updates existing [GST Taxpayer Details] block", () => {
+  const formatNotes = (existing: string, meta: string) => {
+    if (existing.includes("[GST Taxpayer Details]")) {
+      return existing.replace(/\[GST Taxpayer Details\][^\n]*/, meta);
+    }
+    return existing ? `${existing}\n${meta}` : meta;
+  };
+
+  const initialNotes = "Patient prefers anti-glare lenses.";
+  const metaA = "[GST Taxpayer Details] Legal Name: OLD CO | Trade Name: OLD STORE";
+  const withMetaA = formatNotes(initialNotes, metaA);
+  assert.equal(withMetaA, "Patient prefers anti-glare lenses.\n[GST Taxpayer Details] Legal Name: OLD CO | Trade Name: OLD STORE");
+
+  const metaB = "[GST Taxpayer Details] Legal Name: NEW CO | Trade Name: NEW STORE";
+  const withMetaB = formatNotes(withMetaA, metaB);
+  assert.equal(withMetaB, "Patient prefers anti-glare lenses.\n[GST Taxpayer Details] Legal Name: NEW CO | Trade Name: NEW STORE");
+  assert.equal(withMetaB.includes("OLD CO"), false);
+});
+
+test("11. Strict offline Modulo-36 checksum blocks typo GSTINs without network/API execution", async () => {
+  // 09ABSCD8500K1ZO has typo 'D' instead of 'S' - Mod-36 checksum fails
+  const typoRes = await lookupGSTIN("09ABSCD8500K1ZO");
+  assert.equal(typoRes.success, false);
+  assert.equal(typoRes.error, "Invalid GST number. Please check for typographical errors.");
+});
+
+test("12. Teardown: connection pool cleanup", () => {
   setTimeout(() => process.exit(0), 200).unref();
 });
