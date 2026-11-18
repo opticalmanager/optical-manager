@@ -60,6 +60,7 @@ export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLoo
     const isSuperAdmin = user.role === "SUPER_ADMIN";
 
     let addonConfigCost = "0.40";
+    let customApiKey: string | undefined = undefined;
 
     // 1. Enforce organization add-on permission for regular tenants
     if (!isSuperAdmin) {
@@ -91,6 +92,7 @@ export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLoo
 
       const config = (addon.config as any) || {};
       addonConfigCost = config.costPerCall || "0.40";
+      customApiKey = config.apiKey || undefined;
     } else if (orgId) {
       const [addon] = await db
         .select()
@@ -105,6 +107,7 @@ export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLoo
       if (addon) {
         const config = (addon.config as any) || {};
         addonConfigCost = config.costPerCall || "0.40";
+        customApiKey = config.apiKey || undefined;
       }
     }
 
@@ -118,7 +121,7 @@ export async function verifyGstinAction(gstinInput: string): Promise<TaxpayerLoo
     }
 
     // 3. Execute 3-Tier Lookup
-    const result = await lookupGSTIN(gstinInput);
+    const result = await lookupGSTIN(gstinInput, customApiKey);
 
     // 4. Log usage if successful
     if (result.success && result.data && orgId) {

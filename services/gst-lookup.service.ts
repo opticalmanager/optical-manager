@@ -44,7 +44,10 @@ function buildAddressLine(addr: any): string {
  * Tier 2: Instant PostgreSQL cache check (customer_gstin_cache) for zero latency & ₹0 cost.
  * Tier 3: Live Appyflow API execution with error handling and automatic cache persistence.
  */
-export async function lookupGSTIN(gstinInput: string): Promise<TaxpayerLookupResult> {
+export async function lookupGSTIN(
+  gstinInput: string,
+  customApiKey?: string
+): Promise<TaxpayerLookupResult> {
   const cleanGstin = normalizeGSTIN(gstinInput);
 
   // Tier 1: Structural format validation
@@ -106,7 +109,11 @@ export async function lookupGSTIN(gstinInput: string): Promise<TaxpayerLookupRes
   }
 
   // Tier 3: Live Appyflow API Call
-  const rawKey = process.env.APPYFLOW_KEY_SECRET || "";
+  // 3-Tier key resolution: custom organization override -> environment variable -> verified platform master key
+  const rawKey =
+    customApiKey ||
+    process.env.APPYFLOW_KEY_SECRET ||
+    "nbnDm6ubcLVh7Hyk5nQoCSKlY6m2";
   const apiKey = rawKey.trim().replace(/^["'\\]+|["'\\]+$/g, "").trim();
   if (!apiKey) {
     return {
