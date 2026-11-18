@@ -109,16 +109,14 @@ export async function lookupGSTIN(
   }
 
   // Tier 3: Live Appyflow API Call
-  // 3-Tier key resolution: custom organization override -> environment variable -> verified platform master key
-  const rawKey =
-    customApiKey ||
-    process.env.APPYFLOW_KEY_SECRET ||
-    "nbnDm6ubcLVh7Hyk5nQoCSKlY6m2";
+  // Secure Key Resolution: (1) Organization Addon Database Key -> (2) Server Environment Variable
+  const rawKey = customApiKey || process.env.APPYFLOW_KEY_SECRET || "";
   const apiKey = rawKey.trim().replace(/^["'\\]+|["'\\]+$/g, "").trim();
   if (!apiKey) {
+    console.error("[GST Lookup Service] APPYFLOW_KEY_SECRET is not configured in environment or database add-on config.");
     return {
       success: false,
-      error: "Appyflow API key is not configured on the server.",
+      error: "GST verification service is temporarily unavailable. Please enter details manually or contact support.",
     };
   }
 

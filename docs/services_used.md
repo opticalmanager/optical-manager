@@ -79,7 +79,7 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
   - **Tier 2 (2ms, ₹0)**: Local PostgreSQL cache table `customer_gstin_cache`.
   - **Tier 3 (Live API)**: Appyflow lookup triggered for uncached valid GST numbers.
 - **Admin Management**: Managed per-tenant in `/admin/organizations/[id]` with toggle controls, period filters, and consumption analytics.
-- **Credentials & Multi-Tenancy**: Secured via server environment variable `APPYFLOW_KEY_SECRET` with automatic trimming and quote/backslash sanitization (never exposed to client browser bundles).
+- **Credentials & Multi-Tenancy**: Secured via enterprise multi-tier resolution: (1) Organization database add-on config override (`organizationAddons.config.apiKey`), and (2) Server environment variable `APPYFLOW_KEY_SECRET` (injected via `amplify.yml` into `.env.production`). Raw secrets are strictly excluded from source code to prevent credential leaks in version control, while client-facing errors sanitize infrastructure details.
 - **Cost Analysis**: Fixed at **₹0.40 per live API lookup**, with ₹0.00 cost on all local database cache hits.
 
 ### 8. Official WhatsApp Business Cloud API (Meta Cloud API & Zernio)
