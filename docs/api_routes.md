@@ -121,6 +121,15 @@ Optical Manager exposes RESTful API endpoints for data exporting, inventory quic
 - **Identifier Resolution**: Multi-level resolution against receipt ID/number, order ID/number, or invoice ID/number with automated fallback receipt synthesis for zero-advance bookings.
 - **Features**: Live clinical optometry Rx grid (SPH, CYL, AXIS, ADD, NV, CADD, PD), payment transaction details, responsive mobile viewing, and 1-click PDF download.
 
+#### `GET /share/prescription/[id]`
+- **Description**: Public zero-authentication portal rendering standalone clinical A4 Eye Prescriptions (OD/OS distance & near optical powers, doctor attribution, optional price-free frame/lens specifications, and clinical advisory notes) with zero financial or billing amounts exposed.
+- **Identifier Resolution**: Strict UUID lookup via `getPublicPrescriptionDocumentData` against `invoices.id`, `receipts.id`, `orders.id`, or `prescriptions.id` with visit-matched Distance/Near grouping (`resolveOrderPrescriptionPair`).
+- **Features**: Fit-to-width mobile pinch-to-zoom viewer (`ResponsiveDocumentStage`), social review engagement pills (`showOnPrescriptions`), direct Print button, and A4 PDF export (`exportElementToA4Pdf`).
+
+#### Prescription Template Server Action (`actions/shop-settings.actions.ts`)
+- **Action**: `updateShopDocumentTemplatesAction(shopId, payload)`
+- **Description**: Persists Clinical Eye Prescription print visibility toggles (`printRxShowEyewearDetails`, `printRxShowMedicalHistory`, `printRxShowDoctorSignature`, `printRxShowGstin`, `prescriptionAdvisoryNote`) into `shops.settings.documentTemplates` and `customization.invoices.items` without modifying Order Form or Tax Invoice settings, revalidating `/shop/settings`, `/shop/orders`, and `/shop/prescriptions`.
+
 ---
 
 #### Shorthand Route Normalizer (`proxy.ts`)

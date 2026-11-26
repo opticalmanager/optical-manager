@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Printer, ArrowLeft, Send, X, PhoneCall, Loader2, CheckCircle2 } from "lucide-react";
+import { Printer, ArrowLeft, Send, X, PhoneCall, Loader2, CheckCircle2, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateCustomerPhoneAction } from "@/actions/customer.actions";
@@ -11,10 +11,12 @@ import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
 import { formatCurrency } from "@/lib/utils";
 import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
-import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl, getLivePublicPrescriptionUrl } from "@/lib/gst-utils";
+import { resolveOrderPrescriptionPair } from "@/lib/prescription-helpers";
+import { buildDocumentPdfFileName, exportElementToA4Pdf, sanitizeDocumentFileSegment } from "@/lib/pdf-export";
 
 interface DocumentActionBarProps {
-  documentType: "Invoice" | "Receipt";
+  documentType: "Invoice" | "Receipt" | "Prescription";
   data?: any;
 }
 
@@ -39,16 +41,23 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
   const [justSentSuccess, setJustSentSuccess] = useState(false);
 
   const isInvoice = documentType === "Invoice";
+  const isPrescription = documentType === "Prescription";
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Build & open WhatsApp redirection link
   const triggerWhatsAppRedirect = async (phoneNumber: string) => {
     if (!data) return;
 
     // 1. Resolve template from shop settings (with robust industrial optical default fallback)
-    const templateKey = isInvoice ? "invoice_sent" : "order_form_sent";
-    const templateConfig =
-      data.shop?.settings?.whatsappTemplates?.[templateKey] ||
-      data.shop?.settings?.whatsappTemplates?.["receipt_sent"];
+    const templateKey = isPrescription
+      ? "prescription_sent"
+      : isInvoice
+      ? "invoice_sent"
+      : "order_form_sent";
+    const templateConfig = isPrescription
+      ? data.shop?.settings?.whatsappTemplates?.["prescription_sent"]
+      : data.shop?.settings?.whatsappTemplates?.[templateKey] ||
+        data.shop?.settings?.whatsappTemplates?.["receipt_sent"];
     const isEnabled = templateConfig?.enabled ?? true;
 
     if (!isEnabled) {
@@ -64,10 +73,11 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
     const invoiceUrl = getLivePublicInvoiceUrl(data.invoice?.id, typeof window !== "undefined" ? window.location.origin : undefined);
     const primaryReceiptId = data.receipt?.id || data.allReceipts?.[0]?.id || data.invoice?.id;
     const orderFormUrl = getLivePublicReceiptUrl(primaryReceiptId, typeof window !== "undefined" ? window.location.origin : undefined);
-    const targetMediaUrl = isInvoice ? invoiceUrl : orderFormUrl;
+    const prescriptionUrl = getLivePublicPrescriptionUrl(data.invoice?.id || data.order?.id, typeof window !== "undefined" ? window.location.origin : undefined);
+    const targetMediaUrl = isPrescription ? prescriptionUrl : isInvoice ? invoiceUrl : orderFormUrl;
 
     const prescriptions = data.prescriptions || [];
-    const latestRx = prescriptions[0] || null;
+    const latestRx = isPrescription ? (resolveOrderPrescriptionPair(prescriptions, data.invoice?.createdAt).metaRx || prescriptions[0] || null) : (prescriptions[0] || null);
 
     // 2. Parse template with variables
     const formattedMessage = parseWhatsAppTemplate(templateText, {
@@ -84,8 +94,9 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       payment_method: data.receipt?.paymentMethod || data.allReceipts?.[0]?.paymentMethod || data.invoice?.paymentMethod || "CASH",
       fulfillment_status: data.invoice?.fulfillmentStatus || "PROCESSING",
       estimated_delivery: safeFormatDateLocale(data.invoice?.estimatedDelivery, "N/A"),
-      invoice_url: invoiceUrl,
+      invoice_url: isPrescription ? prescriptionUrl : invoiceUrl,
       order_form_url: orderFormUrl,
+      prescription_url: prescriptionUrl,
       re_sph: latestRx?.rightSphere ? String(latestRx.rightSphere) : "0.00",
       re_cyl: latestRx?.rightCylinder ? String(latestRx.rightCylinder) : "0.00",
       re_axis: latestRx?.rightAxis ? `${latestRx.rightAxis}°` : "-",
@@ -189,15 +200,74 @@ export function DocumentActionBar({ documentType, data }: DocumentActionBarProps
       </Button>
 
       <Button
-        onClick={() => window.print()}
+        onClick={() => {
+          if (isPrescription && typeof document !== "undefined") {
+            const origTitle = document.title;
+            const rxPair = resolveOrderPrescriptionPair(data?.prescriptions || [], data?.invoice?.createdAt);
+            const rawStore = data?.shop?.name || data?.shop?.organizationName || "Optical_Store";
+            const rawRxNum = rxPair.metaRx?.rxNumber || data?.order?.orderNumber || data?.invoice?.invoiceNumber || "RX";
+            const cleanStore = sanitizeDocumentFileSegment(rawStore, "Optical_Store");
+            const cleanDoc = sanitizeDocumentFileSegment(
+              String(rawRxNum).toUpperCase().startsWith("RX") ? String(rawRxNum) : `RX_${rawRxNum}`,
+              "RX"
+            );
+            document.title = `${cleanStore}_${cleanDoc}`;
+            window.print();
+            setTimeout(() => {
+              document.title = origTitle;
+            }, 1500);
+          } else {
+            window.print();
+          }
+        }}
         className={`h-11 px-5 font-bold text-white rounded-xl shadow-lg active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer ${
           isInvoice
             ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/10 hover:shadow-indigo-600/20"
             : "bg-[#0a52c3] hover:bg-[#004bb5] shadow-[#0a52c3]/10 hover:shadow-[#0a52c3]/20"
         }`}
       >
-        <Printer className="h-4 w-4" /> Print {isInvoice ? "Invoice" : "Order Form"}
+        <Printer className="h-4 w-4" /> Print {isPrescription ? "Prescription" : isInvoice ? "Invoice" : "Order Form"}
       </Button>
+
+      {isPrescription && data && (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isDownloadingPdf}
+          onClick={async () => {
+            if (isDownloadingPdf) return;
+            setIsDownloadingPdf(true);
+            try {
+              const rxPair = resolveOrderPrescriptionPair(data.prescriptions || [], data.invoice?.createdAt);
+              const rawStore = data.shop?.name || data.shop?.organizationName || "Optical_Store";
+              const rawRxNum = rxPair.metaRx?.rxNumber || data.order?.orderNumber || data.invoice?.invoiceNumber || "RX";
+              const cleanStore = sanitizeDocumentFileSegment(rawStore, "Optical_Store");
+              const cleanDoc = sanitizeDocumentFileSegment(
+                String(rawRxNum).toUpperCase().startsWith("RX") ? String(rawRxNum) : `RX_${rawRxNum}`,
+                "RX"
+              );
+              const ok = await exportElementToA4Pdf("invoice-print-area", buildDocumentPdfFileName(cleanStore, cleanDoc));
+              if (ok) {
+                toast.success("Prescription PDF downloaded");
+              } else {
+                toast.error("Unable to export Prescription PDF");
+              }
+            } catch {
+              toast.error("Unable to export Prescription PDF");
+            } finally {
+              setIsDownloadingPdf(false);
+            }
+          }}
+          className="h-11 px-5 font-bold text-slate-700 hover:bg-slate-50 border-slate-200 rounded-xl flex items-center gap-2 cursor-pointer bg-white shadow-xs"
+        >
+          {isDownloadingPdf ? (
+            <Loader2 className="h-4 w-4 animate-spin text-[#0a52c3]" />
+          ) : (
+            <Download className="h-4 w-4 text-[#0a52c3]" />
+          )}
+          <span>{isDownloadingPdf ? "Downloading..." : "Download PDF"}</span>
+        </Button>
+      )}
 
       {data && (
         <Button

@@ -127,6 +127,92 @@ export async function updateShopSettingsConfigAction(
 }
 
 /**
+ * Server Action: Save Clinical Eye Prescription print template settings cleanly,
+ * keeping shop.settings.documentTemplates and prescription customization overrides in sync.
+ */
+export async function updateShopDocumentTemplatesAction(
+  shopId: string,
+  payload: {
+    printRxShowEyewearDetails: boolean;
+    printRxShowMedicalHistory: boolean;
+    printRxShowDoctorSignature: boolean;
+    printRxShowGstin: boolean;
+    prescriptionAdvisoryNote: string;
+  }
+): Promise<{ success: boolean; message: string }> {
+  const user = await getCurrentUser();
+  if (!user || !user.organizationId) {
+    return { success: false, message: "Unauthorized." };
+  }
+  if (user.role === "SHOP_MANAGER" && user.shopId !== shopId) {
+    return { success: false, message: "Access denied." };
+  }
+  if (!hasModulePermission(user, "settings")) {
+    return { success: false, message: "Access denied. You do not have permission to modify store settings." };
+  }
+
+  try {
+    const shop = await getShopById(shopId, user.organizationId);
+    if (!shop) {
+      return { success: false, message: "Shop not found." };
+    }
+
+    const { getCustomizationSettings } = await import("@/services/customization.service");
+    const currentCustomization = await getCustomizationSettings(user.organizationId, shopId);
+
+    const updatesMap: Record<string, { enabled?: boolean; defaultValue?: any }> = {
+      print_rx_show_eyewear_details: { enabled: payload.printRxShowEyewearDetails },
+      print_rx_show_medical_history: { enabled: payload.printRxShowMedicalHistory },
+      print_rx_show_doctor_signature: { enabled: payload.printRxShowDoctorSignature },
+      print_rx_show_gstin: { enabled: payload.printRxShowGstin },
+    };
+
+    const syncedInvoicesItems = currentCustomization.invoices.items.map((item) => {
+      const override = updatesMap[item.id];
+      if (!override) return item;
+      return {
+        ...item,
+        ...(typeof override.enabled === "boolean" ? { enabled: override.enabled } : {}),
+      };
+    });
+
+    const currentSettings = (shop.settings as Record<string, any>) || {};
+    const existingDocTemplates = (currentSettings.documentTemplates as Record<string, any>) || {};
+    const mergedSettings = {
+      ...currentSettings,
+      prescriptionTermsNotes: payload.prescriptionAdvisoryNote,
+      documentTemplates: {
+        ...existingDocTemplates,
+        printRxShowEyewearDetails: payload.printRxShowEyewearDetails,
+        printRxShowMedicalHistory: payload.printRxShowMedicalHistory,
+        printRxShowDoctorSignature: payload.printRxShowDoctorSignature,
+        printRxShowGstin: payload.printRxShowGstin,
+        prescriptionAdvisoryNote: payload.prescriptionAdvisoryNote,
+      },
+      customization: {
+        ...(currentSettings.customization || currentCustomization),
+        invoices: {
+          ...(currentSettings.customization?.invoices || currentCustomization.invoices),
+          items: syncedInvoicesItems,
+        },
+      },
+    };
+
+    await updateShop(shopId, user.organizationId, {
+      settings: mergedSettings,
+    });
+
+    revalidatePath("/shop/settings");
+    revalidatePath("/shop/orders");
+    revalidatePath("/shop/prescriptions");
+    return { success: true, message: "Prescription template updated successfully." };
+  } catch (error: any) {
+    console.error("[updateShopDocumentTemplatesAction] error:", error);
+    return { success: false, message: "Failed to save prescription template." };
+  }
+}
+
+/**
  * Server Action: Add a new staff member or update their role.
  */
 export async function toggleStaffActiveAction(

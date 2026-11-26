@@ -7,7 +7,7 @@
 export { organizations } from "./organizations";
 export { profiles, userRoleEnum } from "./profiles";
 export { shops } from "./shops";
-export type { DocumentSequenceConfig, DocumentSeriesSettings, SocialReviewLinksSettings } from "./shops";
+export type { DocumentSequenceConfig, DocumentSeriesSettings, SocialReviewLinksSettings, DocumentTemplatesSettings } from "./shops";
 export {
   subscriptions,
   subscriptionPlanEnum,

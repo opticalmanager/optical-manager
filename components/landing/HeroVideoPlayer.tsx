@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import HeroCardBackdrop from "./HeroCardBackdrop";
 
 export default function HeroVideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -127,8 +128,8 @@ export default function HeroVideoPlayer() {
 
   return (
     <div className="relative group">
-      {/* Precision Hardware-Accelerated Ambient Glow */}
-      <div className="absolute -inset-2 bg-gradient-to-r from-blue-600/15 via-indigo-500/10 to-cyan-500/15 rounded-3xl blur-2xl opacity-50 group-hover:opacity-80 transition-opacity duration-500 pointer-events-none" />
+      {/* Stylish Modern Layered SaaS Backdrop with Waves, Doodles, Glow & 3D Shadow */}
+      <HeroCardBackdrop />
 
       {/* Modern 1px Precision Gradient Border Frame */}
       <div className="relative p-[1px] rounded-2xl bg-gradient-to-b from-slate-300/80 via-slate-200/60 to-slate-300/40 group-hover:from-blue-500/50 group-hover:via-indigo-400/40 group-hover:to-cyan-400/40 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.18),0_2px_4px_rgba(15,23,42,0.06)] transition-all duration-500">
@@ -279,21 +280,42 @@ export default function HeroVideoPlayer() {
         </div>
       </div>
 
-      {/* Floating Status Badge - Integrated Sleek Corner Pill */}
-      <div className="absolute -bottom-3 -left-3 z-40 bg-white/95 backdrop-blur-md rounded-xl shadow-lg px-3.5 py-2 border border-slate-200/90 flex items-center gap-2.5">
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-        </span>
-        <div>
-          <span className="text-xs font-bold text-slate-900 tracking-tight block leading-tight">
-            Optical Store Software
+      {/* Floating Status Pill Badge - Styled Exactly to Reference Aesthetic */}
+      <motion.div
+        initial={{ opacity: 0, y: 10, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="absolute -bottom-3.5 -left-2 sm:-bottom-4 sm:-left-4 z-40 bg-white/95 backdrop-blur-md rounded-2xl py-2 px-3 sm:py-2.5 sm:px-4 shadow-[0_14px_35px_-4px_rgba(15,23,42,0.14),0_2px_8px_rgba(15,23,42,0.06)] border border-slate-200/90 flex items-center gap-2.5 sm:gap-3 pointer-events-auto select-none"
+      >
+        {/* Soft Emerald Circle with Crisp Checkmark */}
+        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100/90 border border-emerald-200/60 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+          <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
+        </div>
+
+        {/* Text with Playful Blue Curved Underline Doodle */}
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <span className="relative inline-block font-extrabold text-xs sm:text-[13px] text-slate-900 tracking-tight">
+            <span>Modern.</span>
+            <svg
+              className="absolute -bottom-1 sm:-bottom-1.5 left-0 w-full h-2 overflow-visible text-blue-600"
+              viewBox="0 0 52 8"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M2 5.2C14 1.8 36 1.8 50 4.8"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+            </svg>
           </span>
-          <span className="text-[10px] text-slate-500 font-semibold leading-tight">
-            Billing • Inventory • WhatsApp
+          <span className="font-bold text-xs sm:text-[13px] text-slate-800 tracking-tight">
+            Powerful. Easy to Use.
           </span>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

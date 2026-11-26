@@ -65,9 +65,10 @@
   - *Discount Engine Capping*: Discount percentage is strictly clamped to 100%, and discount amount is capped to line subtotal.
   - *Smart Hover Tooltips & Zero Text Clipping*: All input fields include dynamic `title` attributes and full-cell width allocation to prevent text loss when long product names or descriptions are entered.
 - **Standardized Order Booking & Order Form Workflow**: Clicking `Book Order` always generates an official optical **Order Form** (`/shop/receipts/[id]`) that embeds the patient's optical prescription (Distance & Near SPH, CYL, AXIS, ADD, PD, Doctor, Lens Type) and routes immediately to the Order Form view with top action buttons (Print Order Form, Back to Orders, Send on WhatsApp). In partial payment scenarios, the order remains pending dues and unlocks the final Tax Invoice upon full settlement; in full payment scenarios, both the Order Form and final Tax Invoice are generated simultaneously, with dual document access cleanly maintained in the Orders Table (`/shop/orders`).
-- **Orders Table Direct Action Toolbar & Low-Stress Industrial UI**: The Orders Table (`/shop/orders`) features silky hairline dividers (`divide-y divide-slate-100/80`), subtle headers, and a zero-dropdown direct action toolbar:
-  - **Direct Documents Access (`DOCUMENTS`)**: Side-by-side 1-click icon buttons for **Order Form** (blue `Receipt` icon) and **Tax Invoice** (emerald `FileCheck` icon, with dues alert indicator if unpaid), plus a subtle `+N` badge for multi-installment receipts.
+- **Orders Table Direct Action Toolbar & Low-Stress Industrial UI**: The Orders Table (`/shop/orders`) features silky hairline dividers (`divide-y divide-slate-100/80`), subtle headers, compact cell spacing, and a zero-dropdown direct action toolbar:
+  - **Direct Documents Access (`DOCUMENTS`)**: Side-by-side 1-click icon buttons for **Order Form** (blue `Receipt` icon), **Tax Invoice** (emerald `FileCheck` icon, rendered when paid in full), and **Clinical Eye Prescription** (indigo `Eye` icon opening `/shop/prescriptions/[id]` when Rx powers exist, or muted slate opening an instant `"No Eye Prescription Available"` inline popup modal when unrecorded), plus a subtle `+N` badge for multi-installment receipts.
   - **Direct Actions (`ACTION`)**: Side-by-side 1-click icon buttons for **WhatsApp** (emerald brand icon) and **Edit** (amber `Pencil` icon).
+- **Standalone Clinical Eye Prescription Document & Mobile-Responsive Public Card (`/shop/prescriptions/[id]`, `/share/prescription/[id]`)**: Dedicated Order-Form-inspired price-free A4 optometry document (`OPTICAL PRESCRIPTION`) mirroring Store Order Form typography, Eye emblem, 3-column patient/clinical header, 8-column optical prescription matrix (`TYPE / EYE | SPH | CYL | AXIS | ADD | V/N | CADD | P.D. (MM)`), optional price-free frame/lens specifications, clinical advisory note, and optometrist signature, with Print Prescription, Download PDF (`exportElementToA4Pdf`), WhatsApp `{{prescription_url}}` dispatch (`prescription_sent`), Prescription Print Template settings (`/shop/settings?view=document-templates`), and mobile pinch-zoom fit-to-width scaling (`ResponsiveDocumentStage`).
 - **Interactive Multi-Template WhatsApp Dispatcher**: Clicking the WhatsApp icon on any order row presents a high-density popover card offering 5 dedicated optical message dispatches:
   - 📋 *Send Order Form*: Booking confirmation with amounts paid, remaining balance, and digital Order Form link.
   - 🧾 *Send Tax Invoice*: Digital bill PDF link with payment settlement status.
@@ -279,10 +280,18 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 
 ## 8. Landing Page Interactive Video Showcase (`/`)
 - **Self-Hosted Zero-Latency Media**: The public landing page hero section features an embedded high-density product demonstration video (`public/videos/hero-intro.mp4`), eliminating third-party iframe latency and rate limiting.
+- **Layered Organic Backdrop & Doodle Sparks (`HeroCardBackdrop.tsx`)**: Floating device card sits atop a stylish, modern SaaS background composition:
+  - *Layered Fluid Organic Waves*: Multi-stop soft pastel sky and ice blue vector waves (`#E0F2FE`, `#DBEAFE`, `#BFDBFE`) with smooth cubic bezier geometry framing the top-right and flanks.
+  - *Radiating Energetic Doodle Sparks*: Three vibrant royal blue (`#2563EB`) stroke rays (`\ | /`) bursting outward from the top-right corner with gentle floating motion.
+  - *Flanking Floating Accent Dots*: Playfully positioned micro circles (`#2563EB`, `#60A5FA`, `#93C5FD`) with subtle alternating vertical floating animations.
+  - *Atmospheric Backlight & 3D Grounding Shadow*: Soft radial gradient lighting behind the screen coupled with an elliptical diffused grounding drop shadow (`bg-slate-900/18 blur-xl`) that gives the card an elevated 3D floating perspective.
 - **1px Precision Gradient Border Frame (Linear Style)**: Clean, edge-to-edge video presentation with a 1px precision gradient border (`from-slate-300/80 via-slate-200/60 to-slate-300/40`), interactive hover glow (`group-hover:from-blue-500/50 group-hover:via-indigo-400/40 group-hover:to-cyan-400/40`), top specular glass reflection hairline, and smooth multi-layer drop shadows (`shadow-[0_20px_50px_-12px_rgba(15,23,42,0.18)]`). Zero awkward frame padding.
 - **Browser-Compliant Smart Autoplay & Audio Management**: Starts playing immediately on load with browser-compliant muted autoplay; features an understated neutral glassmorphic audio toggle pill (`Unmute` ↔ `Mute`) with clean white icons and zero latency playback.
 - **Cinematic Micro-Controls**: Custom hover overlay with progress scrubber, time counter (`MM:SS`), play/pause toggle, quick replay (`RotateCcw`), volume controls, Full HD indicator, and native fullscreen support.
-- **Corner Live Status Badge**: Modern floating pill with active ping indicator highlighting authentic software capabilities (`Optical Store Software • Billing • Inventory • WhatsApp`).
+- **Upgraded Modern Floating Status Pill Badge**: Overlapping the bottom-left corner of the card, styled in crisp white glassmorphism (`bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_14px_35px_-4px_rgba(15,23,42,0.14)]`):
+  - *Emerald Checkmark Icon*: Soft emerald circle badge (`bg-emerald-100/90 text-emerald-600`) with high-stroke checkmark (`stroke-[3]`).
+  - *Modern. Typography*: Bold text paired with a playful curved blue hand-drawn underline doodle stroke.
+  - *Tagline*: `Modern. Powerful. Easy to Use.` representing enterprise-grade optical SaaS software.
 - **Continuous Industrial Grid Canvas (`ContinuousGridBackground.tsx`)**: Unbroken 3.5rem (56px) root-level precision engineering grid spanning the entire public landing page. Features a desktop cursor-following spotlight (`radial-gradient`), a scroll-synchronized atmospheric traveling light beam (`useScroll` + `useSpring`), section-anchored atmospheric color washes (Hero cyan, Features indigo, Stats emerald, Pricing violet), and seamless transparent section backgrounds with hairline gradient dividers. Zero misaligned tiles or broken lines across sections.
 - **Industrial SaaS Footer (`Footer.tsx`)**: Features a dark slate grid texture overlay (`1e293b`), top specular gradient highlight line, live cloud operational status indicator (`Cloud Sync Active • 99.9% Uptime`), verified trust capability badges (GST, Thermal 81×12mm tags, WhatsApp), multi-column categorized directory, direct leadership WhatsApp contacts, and smooth scroll-to-top interaction.
 
@@ -335,9 +344,9 @@ Designed for System Owners and C-level optical executives managing multi-branch 
 
 ---
 
-## 11. Customer Engagement & Social Review Links System (`/share/invoice/*`, `/share/receipt/*`, `/shop/settings?view=social-links`)
+## 11. Customer Engagement & Social Review Links System (`/share/invoice/*`, `/share/receipt/*`, `/share/prescription/*`, `/shop/settings?view=social-links`)
 - **Shared Digital Document Header Integration**:
-  - Displays high-conversion, stylish interactive engagement pills directly above digital invoices and order receipts viewed by customers on mobile or desktop devices.
+  - Displays high-conversion, stylish interactive engagement pills directly above digital invoices, order receipts, and clinical eye prescriptions viewed by customers on mobile or desktop devices.
   - **"Rate us on Google"**: Interactive card pill with authentic 4-color Google 'G' icon, gold star badge (`★ 5.0`), store review prompt, and direct new-tab navigation to the store's Google Business Review shortlink (`g.page/r/.../review` or Google Maps review intent).
   - **"Follow us on Instagram"**: Interactive card pill with authentic Instagram radial gradient glyph, live store handle badge (e.g. `@punjabopticals_cp`), and direct navigation to the store's Instagram profile.
   - **Responsive Dual-Target Layout**: On desktop, aligns horizontally alongside the warm review prompt; on mobile touchscreens, wraps smoothly into full-width touch-friendly buttons (`min-h-[36px]`).
@@ -350,8 +359,8 @@ Designed for System Owners and C-level optical executives managing multi-branch 
   - **Resilient Auto-Enablement**: Entering or pasting a valid URL or handle automatically activates the button (`enabled: true`), preventing silent omissions.
   - **Prominent Status Badges**: Features dynamic visual status pills (`Active on Documents` with pulsing green indicator vs `Disabled (Hidden)` in slate) beside the master toggle switches.
   - **Automated Handle Detection**: Automatically parses `@handle` and full URLs (`https://instagram.com/handle`), showing a live "Detected Handle" confirmation badge.
-  - **Document-Level Target Routing**: Granular checkboxes for `Show on Tax Invoices` and `Show on Order Forms / Receipts`.
-  - **Live Customer Document Preview with Document Switcher**: Interactive preview canvas equipped with `[Tax Invoice]` and `[Order Form / Receipt]` tabs, enabling store owners to verify exact document appearance in real time.
+  - **Document-Level Target Routing**: Granular checkboxes for `Show on Tax Invoices`, `Show on Order Forms / Receipts`, and `Show on Prescriptions`.
+  - **Live Customer Document Preview with Document Switcher**: Interactive preview canvas equipped with `[Tax Invoice]`, `[Order Form / Receipt]`, and `[Prescription]` tabs, enabling store owners to verify exact document appearance in real time.
   - Atomic JSONB persistence into `shops.settings.socialReviewLinks` via `updateShopSettingsConfigAction`.
 
 

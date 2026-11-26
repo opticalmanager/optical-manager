@@ -70,7 +70,7 @@ export function normalizeInstagramUrl(rawUrl?: string): { url: string; handle: s
 
 interface SocialReviewPillsProps {
   settings?: SocialReviewLinksSettings | null;
-  mode?: "INVOICE" | "RECEIPT";
+  mode?: "INVOICE" | "RECEIPT" | "PRESCRIPTION";
   storeName?: string;
   className?: string;
   forcePreview?: boolean;
@@ -86,31 +86,29 @@ export function SocialReviewPills({
   if (!settings && !forcePreview) return null;
 
   const isReceiptMode = mode === "RECEIPT";
+  const isPrescriptionMode = mode === "PRESCRIPTION";
   const google = settings?.googleReview;
   const instagram = settings?.instagram;
 
-  // Resilient enablement: if enabled is not explicitly false and url is present, treat as enabled
   const isGoogleConfigured = Boolean(google?.url?.trim());
   const isGoogleActive = google?.enabled === true || (google?.enabled === undefined && isGoogleConfigured);
 
   const isInstagramConfigured = Boolean(instagram?.url?.trim());
   const isInstagramActive = instagram?.enabled === true || (instagram?.enabled === undefined && isInstagramConfigured);
 
+  const isAllowedForMode = (item?: { showOnInvoices?: boolean; showOnReceipts?: boolean; showOnPrescriptions?: boolean }) => {
+    if (isPrescriptionMode) return item?.showOnPrescriptions !== false;
+    if (isReceiptMode) return item?.showOnReceipts !== false;
+    return item?.showOnInvoices !== false;
+  };
+
   const showGoogle = forcePreview
     ? isGoogleConfigured
-    : Boolean(
-        isGoogleActive &&
-        isGoogleConfigured &&
-        (isReceiptMode ? google?.showOnReceipts !== false : google?.showOnInvoices !== false)
-      );
+    : Boolean(isGoogleActive && isGoogleConfigured && isAllowedForMode(google));
 
   const showInstagram = forcePreview
     ? isInstagramConfigured
-    : Boolean(
-        isInstagramActive &&
-        isInstagramConfigured &&
-        (isReceiptMode ? instagram?.showOnReceipts !== false : instagram?.showOnInvoices !== false)
-      );
+    : Boolean(isInstagramActive && isInstagramConfigured && isAllowedForMode(instagram));
 
   if (!showGoogle && !showInstagram) return null;
 

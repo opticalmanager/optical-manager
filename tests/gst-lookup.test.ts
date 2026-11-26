@@ -57,9 +57,12 @@ test("4. lookupGSTIN rejects invalid length and non-alphanumeric input", async (
   assert.equal(invalidFormatRes.success, false);
 });
 
-test("5. lookupGSTIN successfully verifies 06ISIPD0673L1ZH with authentic live data", async () => {
-  // Ensure we test the live API first by clearing any cache for this GSTIN
-  await db.delete(customerGstinCache).where(eq(customerGstinCache.gstin, "06ISIPD0673L1ZH"));
+test("5. lookupGSTIN verifies 06ISIPD0673L1ZH (live API only when explicitly opted in)", async () => {
+  // To avoid burning paid Appyflow credits on routine test runs, live API deletion
+  // is strictly gated behind ENABLE_PAID_LIVE_API_TESTS=true
+  if (process.env.ENABLE_PAID_LIVE_API_TESTS === "true") {
+    await db.delete(customerGstinCache).where(eq(customerGstinCache.gstin, "06ISIPD0673L1ZH"));
+  }
 
   const res = await lookupGSTIN("06ISIPD0673L1ZH");
   assert.equal(res.success, true);
@@ -69,7 +72,12 @@ test("5. lookupGSTIN successfully verifies 06ISIPD0673L1ZH with authentic live d
   assert.equal(res.data.legalName, "DEEPAK");
   assert.equal(res.data.state, "Haryana");
   assert.equal(res.data.status, "Active");
-  assert.equal(res.data.isCached, false);
+  if (process.env.ENABLE_PAID_LIVE_API_TESTS === "true") {
+    assert.equal(res.data.isCached, false);
+  } else {
+    // Normal test run: serves from PostgreSQL cache with ₹0 cost
+    assert.equal(res.data.isCached, true);
+  }
 });
 
 test("6. lookupGSTIN serves cached taxpayer on repeated lookup", async () => {

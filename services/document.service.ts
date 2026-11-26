@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/lib/drizzle";
-import { invoices, invoiceItems, inventory, orders, receipts } from "@/db/schema";
+import { invoices, invoiceItems, inventory, orders, receipts, prescriptions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getInvoiceById } from "./invoice.service";
 import { getShopById } from "./shop.service";
 import { getCustomerById } from "./customer.service";
-import { getPrescriptionsByCustomer } from "./prescription.service";
+import { getPrescriptionsByCustomer, getPrescriptionById } from "./prescription.service";
 import { getReceiptById } from "./receipt.service";
 import { getCustomizationSettings, type CustomizationConfig } from "./customization.service";
 import { getOrganizationCategories } from "./category.service";
@@ -326,6 +326,166 @@ export async function getPublicReceiptDocumentData(
     return null;
   } catch (error) {
     console.error("[getPublicReceiptDocumentData] error:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetches all data required to render a standalone or order-linked Clinical Prescription Document.
+ * Supports lookup by invoiceId (primary from Orders table), orderId, receiptId, or prescriptionId.
+ */
+export async function getPrescriptionDocumentData(
+  id: string,
+  organizationId: string
+): Promise<DocumentData | null> {
+  if (!id || !organizationId) return null;
+
+  try {
+    // 1. Primary path: Invoice UUID / invoiceNumber (orders table passes order.invoiceId)
+    const directInvoiceData = await getInvoiceDocumentData(id, organizationId);
+    if (directInvoiceData) {
+      return directInvoiceData;
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+    // 2. Try resolving via Order ID
+    if (isUuid) {
+      const [order] = await db
+        .select()
+        .from(orders)
+        .where(and(eq(orders.id, id), eq(orders.organizationId, organizationId)))
+        .limit(1);
+
+      if (order && order.invoiceId) {
+        const invData = await getInvoiceDocumentData(order.invoiceId, organizationId);
+        if (invData) return { ...invData, order };
+      }
+
+      // 3. Try resolving via Receipt ID
+      const receiptData = await getReceiptDocumentData(id, organizationId);
+      if (receiptData) {
+        return receiptData;
+      }
+
+      // 4. Standalone Prescription ID fallback (e.g. walk-in clinical test without invoice)
+      const rxRecord = await getPrescriptionById(id, organizationId);
+      if (rxRecord) {
+        const [shop, customer, customerRxs, customizationConfig] = await Promise.all([
+          rxRecord.shopId ? getShopById(rxRecord.shopId, organizationId) : Promise.resolve(null),
+          rxRecord.customerId ? getCustomerById(rxRecord.customerId, organizationId) : Promise.resolve(null),
+          rxRecord.customerId ? getPrescriptionsByCustomer(rxRecord.customerId, organizationId) : Promise.resolve([rxRecord]),
+          getCustomizationSettings(organizationId, rxRecord.shopId).catch(() => null),
+        ]);
+
+        const matchingVisitRxs = (customerRxs || []).filter((p) => {
+          if (rxRecord.rxNumber && p.rxNumber) {
+            return p.rxNumber === rxRecord.rxNumber;
+          }
+          return Math.abs(new Date(p.createdAt).getTime() - new Date(rxRecord.createdAt).getTime()) <= 10 * 60 * 1000;
+        });
+
+        const syntheticInvoice: Invoice = {
+          id: rxRecord.id,
+          shopId: rxRecord.shopId,
+          organizationId: rxRecord.organizationId,
+          customerId: rxRecord.customerId,
+          invoiceNumber: rxRecord.rxNumber || `RX-${rxRecord.id.slice(0, 8).toUpperCase()}`,
+          subtotal: "0.00",
+          discount: "0.00",
+          discountPercent: "0.00",
+          tax: "0.00",
+          taxPercent: "0.00",
+          total: "0.00",
+          status: "PAID",
+          paymentMethod: null,
+          fulfillmentStatus: "DELIVERED",
+          estimatedDelivery: rxRecord.estimatedDelivery || null,
+          isRescheduled: false,
+          amountPaid: "0.00",
+          creditApplied: "0.00",
+          balanceDue: "0.00",
+          notes: rxRecord.notes || null,
+          specialInstructions: rxRecord.specialInstructions || null,
+          soldBy: rxRecord.doctorName || rxRecord.prescribedBy || null,
+          createdAt: rxRecord.createdAt,
+          updatedAt: rxRecord.updatedAt,
+          deletedAt: null,
+          deletedBy: null,
+        };
+
+        return {
+          invoice: syntheticInvoice,
+          shop: shop || null,
+          customer: customer || null,
+          lineItems: [],
+          prescriptions: matchingVisitRxs.length > 0 ? matchingVisitRxs : [rxRecord],
+          customizationConfig: customizationConfig || null,
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error("[getPrescriptionDocumentData] error:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetches public Prescription Document data by unguessable UUID without checking user session.
+ */
+export async function getPublicPrescriptionDocumentData(
+  id: string
+): Promise<DocumentData | null> {
+  if (!id) return null;
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid) return null;
+
+    const [inv] = await db
+      .select({ organizationId: invoices.organizationId })
+      .from(invoices)
+      .where(eq(invoices.id, id))
+      .limit(1);
+
+    if (inv?.organizationId) {
+      return getPrescriptionDocumentData(id, inv.organizationId);
+    }
+
+    const [rcpt] = await db
+      .select({ organizationId: receipts.organizationId })
+      .from(receipts)
+      .where(eq(receipts.id, id))
+      .limit(1);
+
+    if (rcpt?.organizationId) {
+      return getPrescriptionDocumentData(id, rcpt.organizationId);
+    }
+
+    const [ord] = await db
+      .select({ organizationId: orders.organizationId })
+      .from(orders)
+      .where(eq(orders.id, id))
+      .limit(1);
+
+    if (ord?.organizationId) {
+      return getPrescriptionDocumentData(id, ord.organizationId);
+    }
+
+    const [rx] = await db
+      .select({ organizationId: prescriptions.organizationId })
+      .from(prescriptions)
+      .where(eq(prescriptions.id, id))
+      .limit(1);
+
+    if (rx?.organizationId) {
+      return getPrescriptionDocumentData(id, rx.organizationId);
+    }
+
+    return null;
+  } catch (error) {
+    console.error("[getPublicPrescriptionDocumentData] error:", error);
     return null;
   }
 }

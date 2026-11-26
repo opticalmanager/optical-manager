@@ -108,6 +108,7 @@ Warm regards,
       "le_add",
       "pd",
       "doctor_name",
+      "prescription_url",
       "invoice_url",
     ],
     template: `Dear {{customer_name}},
@@ -123,8 +124,8 @@ Here are your clinical eye refraction details from *{{shop_name}}* 👁️✨
 • Pupillary Distance (P.D.): *{{pd}} mm*
 • Prescribed By: *{{doctor_name}}*
 
-*📄 View Digital Clinical Card & Records:*
-{{invoice_url}}
+*📄 View & Download Digital Eye Prescription:*
+{{prescription_url}}
 
 Always protect your eyes with periodic check-ups! For consultation appointments, reach us at {{phone}}.
 

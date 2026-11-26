@@ -1,5 +1,7 @@
 "use client";
 
+import { Eye as RxEyeIcon } from "lucide-react";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FileDown, ChevronLeft, ChevronRight, Receipt, FileCheck, ChevronDown, ExternalLink, Pencil, Lock, Search, FileText, UploadCloud, RefreshCw, AlertCircle, Clock } from "lucide-react";
@@ -7,6 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 import { SKUDetailsDropdown } from "./SKUDetailsDropdown";
 import { QuickEditModal } from "./QuickEditModal";
 import { OrdersWhatsAppAction } from "@/components/shop/OrdersWhatsAppAction";
+import { NoPrescriptionModal } from "@/components/shop/NoPrescriptionModal";
 import { OrderItem } from "@/services/order.service";
 import { offlineDB } from "@/lib/offline/db";
 import { syncOfflineInvoices } from "@/lib/offline/invoice-queue";
@@ -28,12 +31,21 @@ interface OrdersTableClientProps {
   canEditOrders?: boolean;
 }
 
+interface NoRxModalInfo {
+  orderNumber: string;
+  customerName: string;
+  customerId?: string | null;
+  orderFormHref?: string | null;
+}
+
 function OrderDocumentsAction({
   order,
   isFullyPaid,
+  onMissingPrescription,
 }: {
   order: OrderItem;
   isFullyPaid: boolean;
+  onMissingPrescription: (info: NoRxModalInfo) => void;
 }) {
   const [showMoreReceipts, setShowMoreReceipts] = useState(false);
   const receiptsList = order.receipts || [];
@@ -55,7 +67,7 @@ function OrderDocumentsAction({
   const extraReceipts = chronologicalReceipts.slice(1);
 
   return (
-    <div className="relative inline-flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+    <div className="relative inline-flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
       {/* 1. Direct Order Form Icon */}
       <Link
         href={orderFormUrl}
@@ -74,6 +86,33 @@ function OrderDocumentsAction({
         >
           <FileCheck className="h-3.5 w-3.5" />
         </Link>
+      )}
+
+      {/* 3. Direct Patient Clinical Eye Prescription Icon */}
+      {order.hasPrescription ? (
+        <Link
+          href={`/shop/prescriptions/${order.invoiceId}`}
+          className="h-7 w-7 rounded-lg flex items-center justify-center text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 hover:text-indigo-900 border border-indigo-200/70 shadow-xs transition-all hover:scale-105"
+          title="View Clinical Eye Prescription (Rx)"
+        >
+          <RxEyeIcon className="h-3.5 w-3.5" />
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={() =>
+            onMissingPrescription({
+              orderNumber: order.orderNumber,
+              customerName: order.customerName,
+              customerId: order.customerId,
+              orderFormHref: orderFormUrl,
+            })
+          }
+          className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 hover:bg-slate-100 hover:text-slate-600 border border-slate-200/70 shadow-xs transition-all hover:scale-105 cursor-pointer"
+          title="No Eye Prescription Recorded"
+        >
+          <RxEyeIcon className="h-3.5 w-3.5" />
+        </button>
       )}
 
       {/* 3. Multi-installment Receipts Trigger (if extra payment installments exist) */}
@@ -154,6 +193,7 @@ export function OrdersTableClient({
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [syncingQueueId, setSyncingQueueId] = useState<string | null>(null);
+  const [noRxInfo, setNoRxInfo] = useState<NoRxModalInfo | null>(null);
 
   // Dual-source hydration: ALWAYS inspect local IndexedDB for un-synced offline bills
   useEffect(() => {
@@ -208,6 +248,11 @@ export function OrdersTableClient({
             })),
             categoryText: "Stored on Device",
             isOfflinePending: true,
+            hasPrescription: Boolean(
+              p?.prescriptionEnabled ||
+                p?.prescription ||
+                (Array.isArray(p?.prescriptions) && p.prescriptions.length > 0)
+            ),
             syncStatus: inv.syncStatus,
             syncError: inv.syncError,
             queueId: inv.id,
@@ -317,15 +362,15 @@ export function OrdersTableClient({
         <table className="w-full text-xs text-left border-collapse">
           <thead>
             <tr className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50/70 border-b border-slate-100 tracking-wider">
-              <th className="px-4 py-2.5">Order ID</th>
-              <th className="px-4 py-2.5">Customer</th>
-              <th className="px-4 py-2.5">Date</th>
-              <th className="px-4 py-2.5">SKU Details</th>
-              <th className="px-4 py-2.5">Amount</th>
-              <th className="px-4 py-2.5 text-center">Payment Status</th>
-              <th className="px-4 py-2.5 text-center">Delivery Status</th>
-              <th className="px-4 py-2.5 text-center">Documents</th>
-              <th className="px-4 py-2.5 text-center">Action</th>
+              <th className="px-2.5 py-2.5">Order ID</th>
+              <th className="px-2.5 py-2.5">Customer</th>
+              <th className="px-2.5 py-2.5">Date</th>
+              <th className="px-2.5 py-2.5">SKU Details</th>
+              <th className="px-2.5 py-2.5">Amount</th>
+              <th className="px-2.5 py-2.5 text-center">Payment Status</th>
+              <th className="px-2.5 py-2.5 text-center">Delivery Status</th>
+              <th className="px-2.5 py-2.5 text-center">Documents</th>
+              <th className="px-2.5 py-2.5 text-center">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100/80 bg-white">
@@ -353,7 +398,7 @@ export function OrdersTableClient({
                     className="group hover:bg-slate-50/60 transition-colors align-middle cursor-pointer"
                   >
                     {/* Order ID */}
-                    <td className="px-4 py-2.5 font-bold text-slate-800 text-xs group-hover:text-[#0a52c3] transition-colors">
+                    <td className="px-2.5 py-2.5 font-bold text-slate-800 text-xs group-hover:text-[#0a52c3] transition-colors">
                       <div className="flex items-center gap-1.5">
                         <span>{order.orderNumber}</span>
                         {order.isOfflinePending && (
@@ -365,7 +410,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Customer Info */}
-                    <td className="px-4 py-2.5">
+                    <td className="px-2.5 py-2.5">
                       <div className="flex items-center gap-2.5">
                         {/* Circle Avatar badge */}
                         <div className="h-7 w-7 rounded-full bg-blue-50 text-[#0a52c3] border border-blue-100 flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
@@ -383,7 +428,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Date */}
-                    <td className="px-4 py-2.5 font-medium text-slate-500 text-xs">
+                    <td className="px-2.5 py-2.5 font-medium text-slate-500 text-xs">
                       {new Date(order.createdAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -392,7 +437,7 @@ export function OrdersTableClient({
                     </td>
 
                     {/* SKU Details Hover dropdown */}
-                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2.5 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <SKUDetailsDropdown
                         label={`${itemsCount} SKU${itemsCount !== 1 ? "s" : ""}`}
                         skus={order.skus}
@@ -400,19 +445,19 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Amount */}
-                    <td className="px-4 py-2.5 font-extrabold text-slate-900 text-xs">
+                    <td className="px-2.5 py-2.5 font-extrabold text-slate-900 text-xs">
                       {formatCurrency(parseFloat(order.total))}
                     </td>
 
                     {/* Payment Status */}
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-2.5 py-2.5 text-center">
                       <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${paymentBadgeClass}`}>
                         {paymentLabel}
                       </span>
                     </td>
 
                     {/* Delivery Status */}
-                    <td className="px-4 py-2.5 text-center space-y-0.5">
+                    <td className="px-2.5 py-2.5 text-center space-y-0.5">
                       {order.isOfflinePending ? (
                         order.syncStatus === "SYNCING" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-200">
@@ -455,23 +500,50 @@ export function OrdersTableClient({
                     </td>
 
                     {/* Documents: Direct Order Form & Tax Invoice Icons */}
-                    <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2.5 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                       {order.isOfflinePending ? (
-                        <Link
-                          href={`/shop/invoices/offline/${order.id}`}
-                          className="h-7 px-2 rounded-lg inline-flex items-center justify-center gap-1 text-[#0a52c3] bg-blue-50 hover:bg-blue-100 border border-blue-200 shadow-xs text-[10px] font-bold transition-all hover:scale-105"
-                          title="View and Print Offline Bill"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          <span>View Bill</span>
-                        </Link>
+                        <div className="inline-flex items-center justify-center gap-1">
+                          <Link
+                            href={`/shop/invoices/offline/${order.id}`}
+                            className="h-7 px-2 rounded-lg inline-flex items-center justify-center gap-1 text-[#0a52c3] bg-blue-50 hover:bg-blue-100 border border-blue-200 shadow-xs text-[10px] font-bold transition-all hover:scale-105"
+                            title="View and Print Offline Bill"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>View Bill</span>
+                          </Link>
+                          {order.hasPrescription ? (
+                            <Link
+                              href={`/shop/invoices/offline/${order.id}?view=prescription`}
+                              className="h-7 w-7 rounded-lg flex items-center justify-center text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 border border-indigo-200/70 shadow-xs transition-all hover:scale-105"
+                              title="View Offline Clinical Prescription (Rx)"
+                            >
+                              <RxEyeIcon className="h-3.5 w-3.5" />
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setNoRxInfo({
+                                  orderNumber: order.orderNumber,
+                                  customerName: order.customerName,
+                                  customerId: order.customerId,
+                                  orderFormHref: `/shop/invoices/offline/${order.id}`,
+                                })
+                              }
+                              className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 hover:bg-slate-100 hover:text-slate-600 border border-slate-200/70 shadow-xs transition-all hover:scale-105 cursor-pointer"
+                              title="No Eye Prescription Recorded"
+                            >
+                              <RxEyeIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       ) : (
-                        <OrderDocumentsAction order={order} isFullyPaid={isFullyPaid} />
+                        <OrderDocumentsAction order={order} isFullyPaid={isFullyPaid} onMissingPrescription={setNoRxInfo} />
                       )}
                     </td>
 
                     {/* Action: Direct WhatsApp & Edit Icons */}
-                    <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2.5 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex items-center justify-center gap-1.5">
                         {order.isOfflinePending ? (
                           <button
@@ -599,6 +671,15 @@ export function OrdersTableClient({
           </div>
         </div>
       )}
+
+      <NoPrescriptionModal
+        isOpen={Boolean(noRxInfo)}
+        onClose={() => setNoRxInfo(null)}
+        orderNumber={noRxInfo?.orderNumber || ""}
+        customerName={noRxInfo?.customerName || ""}
+        customerId={noRxInfo?.customerId}
+        orderFormHref={noRxInfo?.orderFormHref}
+      />
 
       {selectedOrder && (
         <QuickEditModal

@@ -55,6 +55,7 @@ export type {
   NewPurchaseOrder,
   NewPurchaseOrderItem,
   SocialReviewLinksSettings,
+  DocumentTemplatesSettings,
 } from "./database";
 
 export type {

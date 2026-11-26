@@ -6,7 +6,8 @@ import { offlineDB } from "@/lib/offline/db";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { getCustomerPrescriptionsAction } from "@/actions/prescription.actions";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
-import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl, getLivePublicPrescriptionUrl } from "@/lib/gst-utils";
+import { resolveOrderPrescriptionPair } from "@/lib/prescription-helpers";
 import { parseWhatsAppTemplate, openWhatsAppChat, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
 import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
 import { formatCurrency } from "@/lib/utils";
@@ -120,7 +121,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         try {
           const rxRes = await getCustomerPrescriptionsAction(order.customerId);
           if (rxRes.success && rxRes.data && rxRes.data.length > 0) {
-            prescriptionData = rxRes.data[0]; // latest prescription (sorted DESC)
+            prescriptionData = resolveOrderPrescriptionPair(rxRes.data, order.createdAt).metaRx;
           }
         } catch {}
       }
@@ -137,6 +138,7 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
       const primaryReceiptId = bookingReceipt?.id || order.receiptId || order.invoiceId;
       const primaryReceiptNumber = (bookingReceipt as any)?.receiptNumber || order.receipts?.[0]?.receiptNumber || order.orderNumber || "ORDER FORM";
       const orderFormUrl = getLivePublicReceiptUrl(primaryReceiptId, typeof window !== "undefined" ? window.location.origin : undefined);
+      const prescriptionUrl = getLivePublicPrescriptionUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
 
       const parsedText = parseWhatsAppTemplate(templateText, {
         customer_name: order.customerName || "Valued Customer",
@@ -152,7 +154,8 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
         fulfillment_status: order.fulfillmentStatus ? order.fulfillmentStatus.replace("_", " ") : "PROCESSING",
         estimated_delivery: safeFormatDateLocale(order.estimatedDelivery, "N/A"),
-        invoice_url: invoiceUrl,
+        invoice_url: templateKey === "prescription_sent" ? prescriptionUrl : invoiceUrl,
+        prescription_url: prescriptionUrl,
         order_form_url: orderFormUrl,
         re_sph: prescriptionData?.rightSphere ? String(prescriptionData.rightSphere) : "0.00",
         re_cyl: prescriptionData?.rightCylinder ? String(prescriptionData.rightCylinder) : "0.00",
@@ -171,7 +174,12 @@ export function OrdersWhatsAppAction({ order }: OrdersWhatsAppActionProps) {
         {
           phoneNumber,
           messageText: parsedText,
-          mediaUrl: templateKey === "order_form_sent" ? orderFormUrl : invoiceUrl,
+          mediaUrl:
+            templateKey === "order_form_sent"
+              ? orderFormUrl
+              : templateKey === "prescription_sent"
+              ? prescriptionUrl
+              : invoiceUrl,
           mediaType: "DOCUMENT",
           templateKey,
           recipientName: order.customerName,
