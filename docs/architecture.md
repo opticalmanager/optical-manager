@@ -47,6 +47,9 @@ const PUBLIC_ROUTES = [
 
 // Dynamic public pattern routes:
 // - /share/invoice/[id]
+// - /share/receipt/[id]
+// - /share/order/[id]
+// - /share/prescription/[id]
 // - /book/[slug]
 ```
 
@@ -614,7 +617,7 @@ Optical Manager includes a statutory taxation module built for Indian GST compli
 
 - **Dual-Engine Spreadsheet Export Architecture (`.xlsx` & `.csv`)**: Provides styled Microsoft Excel (`.xlsx`) workbooks powered by SheetJS with dynamic column auto-width calculation (`wch`), eliminating Excel column overflow errors (`########`) and text truncation, alongside RFC-compliant statutory CSV exports prepended with UTF-8 BOM (`\uFEFF`).
 
-- **Canonical Unified Public Invoice & Receipt URLs**: Resolves all public invoice and order receipt share links across WhatsApp dispatch, clipboard copying, and Excel/CSV exports through a single unified engine (`getLivePublicInvoiceUrl`, `getLivePublicReceiptUrl`). It automatically strips internal infrastructure and staging domains (AWS Amplify `*.amplifyapp.com`, `localhost`, `127.0.0.1`), strictly outputting the authentic branded Optical Manager live domain (`https://www.opticalmanager.in/share/invoice/[uuid]`).
+- **Canonical Unified Public Invoice, Receipt & Prescription URLs**: Resolves all public invoice, order receipt, and clinical eye prescription share links across WhatsApp dispatch, clipboard copying, and Excel/CSV exports through a single unified engine (`getLivePublicInvoiceUrl`, `getLivePublicReceiptUrl`, `getLivePublicPrescriptionUrl`). It automatically strips internal infrastructure and staging domains (AWS Amplify `*.amplifyapp.com`, `localhost`, `127.0.0.1`), strictly outputting the authentic branded Optical Manager live domain (`https://www.opticalmanager.in/share/...`).
 
 - **Date of Sale Uniformity**: Standardizes all invoice date representations to unambiguous `Date of Sale` (`DD-MMM-YYYY`, e.g. `08-Oct-2026`) across UI tables, CSVs, and Excel sheets to prevent regional date confusion and Excel numeric date clamping.
 

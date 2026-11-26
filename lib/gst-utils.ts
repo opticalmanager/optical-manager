@@ -300,41 +300,43 @@ export function isInternalInfrastructureDomain(urlOrHost?: string | null): boole
 }
 
 /**
- * Resolves the canonical public invoice URL.
+ * Resolves a sanitized canonical public share URL for a specific resource route.
  * Falls back to live production domain (https://www.opticalmanager.in)
  * when origin is an internal infrastructure domain (AWS Amplify *.amplifyapp.com, localhost) or missing.
  */
-export function getLivePublicInvoiceUrl(invoiceId: string, origin?: string): string {
+function buildLivePublicShareUrl(segment: string, id: string, origin?: string): string {
   if (origin && typeof origin === "string") {
     const cleanOrigin = origin.trim().replace(/\/$/, "");
     if (!isInternalInfrastructureDomain(cleanOrigin) && (cleanOrigin.startsWith("http://") || cleanOrigin.startsWith("https://"))) {
-      return `${cleanOrigin}/share/invoice/${invoiceId}`;
+      return `${cleanOrigin}/share/${segment}/${id}`;
     }
   }
 
   const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
   if (envUrl && !isInternalInfrastructureDomain(envUrl) && (envUrl.startsWith("http://") || envUrl.startsWith("https://"))) {
-    return `${envUrl}/share/invoice/${invoiceId}`;
+    return `${envUrl}/share/${segment}/${id}`;
   }
 
-  return `${CANONICAL_APP_DOMAIN}/share/invoice/${invoiceId}`;
+  return `${CANONICAL_APP_DOMAIN}/share/${segment}/${id}`;
+}
+
+/**
+ * Resolves the canonical public invoice URL.
+ */
+export function getLivePublicInvoiceUrl(invoiceId: string, origin?: string): string {
+  return buildLivePublicShareUrl("invoice", invoiceId, origin);
 }
 
 /**
  * Resolves the canonical public receipt (Order Form) URL.
  */
 export function getLivePublicReceiptUrl(receiptId: string, origin?: string): string {
-  if (origin && typeof origin === "string") {
-    const cleanOrigin = origin.trim().replace(/\/$/, "");
-    if (!isInternalInfrastructureDomain(cleanOrigin) && (cleanOrigin.startsWith("http://") || cleanOrigin.startsWith("https://"))) {
-      return `${cleanOrigin}/share/receipt/${receiptId}`;
-    }
-  }
+  return buildLivePublicShareUrl("receipt", receiptId, origin);
+}
 
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
-  if (envUrl && !isInternalInfrastructureDomain(envUrl) && (envUrl.startsWith("http://") || envUrl.startsWith("https://"))) {
-    return `${envUrl}/share/receipt/${receiptId}`;
-  }
-
-  return `${CANONICAL_APP_DOMAIN}/share/receipt/${receiptId}`;
+/**
+ * Resolves the canonical public clinical prescription URL.
+ */
+export function getLivePublicPrescriptionUrl(id: string, origin?: string): string {
+  return buildLivePublicShareUrl("prescription", id, origin);
 }

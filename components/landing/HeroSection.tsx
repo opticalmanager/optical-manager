@@ -124,7 +124,7 @@ export default function HeroSection() {
             initial={{ opacity: 0, scale: 0.97, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative"
+            className="relative pt-3 pb-2 sm:pt-5 sm:pb-3"
           >
             <HeroVideoPlayer />
           </motion.div>

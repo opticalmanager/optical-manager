@@ -25,12 +25,14 @@ import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { OrderItem } from "@/services/order.service";
 import { SKUDetailsDropdown } from "@/app/(dashboard)/shop/orders/SKUDetailsDropdown";
 import { QuickEditModal } from "@/app/(dashboard)/shop/orders/QuickEditModal";
+import { NoPrescriptionModal } from "@/components/shop/NoPrescriptionModal";
 import { parseWhatsAppTemplate, sendUniversalWhatsAppMessage } from "@/utils/whatsapp-parser";
 import { getWhatsAppTemplateText } from "@/utils/whatsapp-templates";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { getShopSettingsAction } from "@/actions/shop-settings.actions";
 import { offlineDB } from "@/lib/offline/db";
-import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
+import { Eye } from "lucide-react";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl, getLivePublicPrescriptionUrl } from "@/lib/gst-utils";
 
 // WhatsApp Brand Icon
 function WhatsAppIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -49,9 +51,11 @@ function WhatsAppIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
 function ReceiptsDropdown({
   order,
   isFullyPaid,
+  onMissingPrescription,
 }: {
   order: OrderItem;
   isFullyPaid: boolean;
+  onMissingPrescription: (info: { orderNumber: string; orderFormHref?: string | null }) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const receiptsList = order.receipts || [];
@@ -91,6 +95,34 @@ function ReceiptsDropdown({
           <Receipt className="h-4 w-4 shrink-0" />
         )}
       </Link>
+
+      {order.hasPrescription ? (
+        <Link
+          href={
+            order.invoiceId.startsWith("off-")
+              ? `/shop/invoices/offline/${order.invoiceId}?view=prescription`
+              : `/shop/prescriptions/${order.invoiceId}`
+          }
+          className="p-1.5 rounded-lg flex items-center text-indigo-600 hover:bg-indigo-50 transition-all"
+          title="View Clinical Eye Prescription (Rx)"
+        >
+          <Eye className="h-4 w-4 shrink-0" />
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={() =>
+            onMissingPrescription({
+              orderNumber: order.orderNumber,
+              orderFormHref: primaryUrl,
+            })
+          }
+          className="p-1.5 rounded-lg flex items-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all cursor-pointer"
+          title="No Eye Prescription Recorded"
+        >
+          <Eye className="h-4 w-4 shrink-0" />
+        </button>
+      )}
 
       {!isFullyPaid && receiptsList.length > 0 && (
         <div className="relative">
@@ -180,6 +212,45 @@ function ReceiptsDropdown({
                       </div>
                     </Link>
                   ))}
+
+                  {order.hasPrescription ? (
+                    <Link
+                      href={order.invoiceId.startsWith("off-") ? `/shop/invoices/offline/${order.invoiceId}?view=prescription` : `/shop/prescriptions/${order.invoiceId}`}
+                      className="block p-2 rounded-lg bg-indigo-50/50 hover:bg-indigo-100/60 border border-indigo-100 transition-all group/rx"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-indigo-700 group-hover/rx:underline flex items-center gap-1">
+                          <Eye className="h-3.5 w-3.5 text-indigo-600" />
+                          Clinical Eye Prescription (Rx)
+                        </span>
+                        <span className="text-[10px] font-extrabold text-indigo-600 uppercase">
+                          Recorded
+                        </span>
+                      </div>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsOpen(false);
+                        onMissingPrescription({
+                          orderNumber: order.orderNumber,
+                          orderFormHref: primaryUrl,
+                        });
+                      }}
+                      className="w-full text-left block p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-600 flex items-center gap-1">
+                          <Eye className="h-3.5 w-3.5 text-slate-400" />
+                          Eye Prescription (Rx)
+                        </span>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase">
+                          No Record
+                        </span>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
             </>
@@ -251,8 +322,9 @@ function WhatsAppRowAction({
         payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
         fulfillment_status: order.fulfillmentStatus ? order.fulfillmentStatus.replace("_", " ") : "PROCESSING",
         estimated_delivery: safeFormatDateLocale(order.estimatedDelivery, "N/A"),
-        invoice_url: getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
+        invoice_url: (key as string) === "prescription_sent" ? getLivePublicPrescriptionUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined) : getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
         order_form_url: getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
+        prescription_url: getLivePublicPrescriptionUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
       });
 
       const orderFormUrl = getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
@@ -262,7 +334,12 @@ function WhatsAppRowAction({
         {
           phoneNumber: targetPhone,
           messageText: parsedText,
-          mediaUrl: (key as string) === "order_form_sent" ? orderFormUrl : invoiceUrl,
+          mediaUrl:
+            (key as string) === "order_form_sent"
+              ? orderFormUrl
+              : (key as string) === "prescription_sent"
+              ? getLivePublicPrescriptionUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined)
+              : invoiceUrl,
           mediaType: "DOCUMENT",
           templateKey: key,
           recipientName: customerName || order.customerName,
@@ -389,6 +466,7 @@ export function CustomerOrdersSection({
   const [ordersList, setOrdersList] = useState<OrderItem[]>(initialOrders || []);
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [isQuickEditOpen, setIsQuickEditOpen] = useState(false);
+  const [noRxInfo, setNoRxInfo] = useState<{ orderNumber: string; orderFormHref?: string | null } | null>(null);
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -835,7 +913,7 @@ export function CustomerOrdersSection({
 
                       {/* Invoice/Receipt Download/Print link with Dropdown */}
                       <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <ReceiptsDropdown order={order} isFullyPaid={isFullyPaid} />
+                        <ReceiptsDropdown order={order} isFullyPaid={isFullyPaid} onMissingPrescription={setNoRxInfo} />
                       </td>
 
                       {/* Interactive Action Buttons */}
@@ -914,6 +992,15 @@ export function CustomerOrdersSection({
           </table>
         </div>
       </Card>
+
+      <NoPrescriptionModal
+        isOpen={Boolean(noRxInfo)}
+        onClose={() => setNoRxInfo(null)}
+        orderNumber={noRxInfo?.orderNumber || ""}
+        customerName={customer.fullName}
+        customerId={customer.id}
+        orderFormHref={noRxInfo?.orderFormHref}
+      />
 
       {/* QuickEditModal Integration */}
       {selectedOrder && (

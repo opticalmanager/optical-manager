@@ -29,9 +29,10 @@ import type {
   purchaseOrders,
   purchaseOrderItems,
   SocialReviewLinksSettings,
+  DocumentTemplatesSettings,
 } from "@/db/schema";
 
-export type { SocialReviewLinksSettings };
+export type { SocialReviewLinksSettings, DocumentTemplatesSettings };
 
 // --- Select Types (reading from DB) ---
 export type Organization = InferSelectModel<typeof organizations>;

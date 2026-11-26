@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { offlineDB, type OfflineQueuedInvoice } from "@/lib/offline/db";
 import { useOffline } from "@/components/providers/OfflineProvider";
 import { Printer, ArrowLeft, Plus, CheckCircle, Clock, RefreshCw } from "lucide-react";
+import { DEFAULT_PRESCRIPTION_ADVISORY_NOTE } from "@/lib/document-config";
 import { formatCurrency } from "@/lib/utils";
 import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 
@@ -18,6 +19,14 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
   const [record, setRecord] = useState<OfflineQueuedInvoice | null>(null);
   const [shopProfile, setShopProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isPrescriptionView, setIsPrescriptionView] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setIsPrescriptionView(params.get("view") === "prescription");
+    }
+  }, []);
 
   useEffect(() => {
     async function loadRecord() {
@@ -127,6 +136,30 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
   const grandTotal = Math.max(0, subtotal - discount) + totalTax;
   const amountPaid = payload?.amountPaid ?? grandTotal;
   const balanceDue = Math.max(0, grandTotal - amountPaid);
+  const rawPrescriptions: any[] = Array.isArray(payload?.prescriptions)
+    ? payload.prescriptions
+    : payload?.prescription
+    ? [payload.prescription]
+    : [];
+  const hasRxPowers = (rx: any) =>
+    Boolean(
+      rx &&
+        (rx.rightSphere || rx.rightCylinder || rx.rightAxis || rx.rightAdd || rx.rightNv ||
+          rx.leftSphere || rx.leftCylinder || rx.leftAxis || rx.leftAdd || rx.leftNv)
+    );
+  const distRx = rawPrescriptions.find((r) => (r.prescriptionType || "DISTANCE") === "DISTANCE" && hasRxPowers(r)) || rawPrescriptions.find(hasRxPowers) || null;
+  const nearRx = rawPrescriptions.find((r) => r.prescriptionType === "NEAR" && hasRxPowers(r)) || null;
+  const hasAnyOfflineRx = Boolean(distRx || nearRx);
+  const metaRx = distRx || nearRx || rawPrescriptions[0] || null;
+  const formatOfflineRxVal = (val: unknown) => {
+    if (val === null || val === undefined || String(val).trim() === "") return "-";
+    const num = Number(val);
+    if (!Number.isNaN(num)) {
+      if (num === 0) return "0.00";
+      return num > 0 ? `+${num.toFixed(2)}` : num.toFixed(2);
+    }
+    return String(val);
+  };
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 print:py-0 print:px-0 print:m-0 print:max-w-none print:w-full">
@@ -134,16 +167,16 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
       <div className="print:hidden mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200/80 p-4 rounded-2xl shadow-xs">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/shop/invoices")}
+            onClick={() => router.push(isPrescriptionView ? "/shop/orders" : "/shop/invoices")}
             className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition-colors cursor-pointer"
-            title="Back to Invoices"
+            title={isPrescriptionView ? "Back to Orders" : "Back to Invoices"}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-extrabold text-slate-900">
-                Invoice #{record.offlineInvoiceNumber}
+                {isPrescriptionView ? "Prescription" : "Invoice"} #{record.offlineInvoiceNumber}
               </span>
               {record.syncStatus === "SYNCED" ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -186,13 +219,13 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
             className="h-10 px-4 rounded-xl bg-[#0a52c3] hover:bg-[#004bb5] text-white text-xs font-bold shadow-sm shadow-[#0a52c3]/15 transition-all cursor-pointer flex items-center gap-2"
           >
             <Printer className="h-4 w-4" />
-            <span>Print Invoice</span>
+            <span>{isPrescriptionView ? "Print Prescription" : "Print Invoice"}</span>
           </button>
         </div>
       </div>
 
       {/* Clean, Official Printable Invoice Document (NO OFFLINE WATERMARK) */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8 print:p-0 print:border-none print:shadow-none">
+      <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm p-8 print:border-none print:shadow-none ${isPrescriptionView ? "print:p-[12mm]" : "print:p-0"}`}>
         {/* Shop & Store Header */}
         {shopProfile && (
           <div className="border-b border-slate-200 pb-4 mb-4">
@@ -206,6 +239,157 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
           </div>
         )}
 
+        {isPrescriptionView ? (
+          <>
+            <style
+              dangerouslySetInnerHTML={{
+                __html: `
+                  @media print {
+                    @page { size: A4 portrait; margin: 0 !important; }
+                    aside, header, nav, button, .print\\:hidden, [data-sidebar], [data-topbar] { display: none !important; }
+                    html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+                  }
+                `,
+              }}
+            />
+          <div className="flex flex-col gap-5 text-[10px] leading-tight">
+            <div className="flex justify-between items-start gap-4 border-b border-slate-900 pb-4">
+              <div>
+                <h2 className="text-base font-black tracking-wide text-black uppercase">OPTICAL PRESCRIPTION</h2>
+                <p className="font-bold text-slate-800 mt-1">
+                  RX NO - <span className="font-black text-black">{metaRx?.rxNumber || record.serverInvoiceNumber || record.offlineInvoiceNumber}</span>
+                </p>
+                <p className="font-bold text-slate-600">
+                  DATE: <span className="font-extrabold text-slate-800">{safeFormatDateLocale(record.createdAt, "—")}</span>
+                </p>
+              </div>
+              <div className="text-right space-y-1">
+                <p className="font-bold text-slate-600">
+                  OPTOMETRIST: <span className="font-extrabold text-slate-800">{metaRx?.doctorName || metaRx?.prescribedBy || payload?.soldBy || "IN-HOUSE OPTOMETRIST"}</span>
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-6 text-[9.5px]">
+              <div className="border-r border-slate-200 pr-4 space-y-1">
+                <h3 className="font-black text-black border-b border-slate-200 pb-1 uppercase tracking-wider">PATIENT DETAILS,</h3>
+                <p className="text-xs font-black text-slate-800 uppercase">{customer.fullName || "Patient"}</p>
+                <p className="font-semibold text-slate-600">Phone: <span className="font-bold text-slate-700">{customer.phone || "N/A"}</span></p>
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-black text-black border-b border-slate-200 pb-1 uppercase tracking-wider">PATIENT ADDRESS,</h3>
+                <p className="text-xs font-black text-slate-800 uppercase">{customer.fullName || "Patient"}</p>
+                {customer.address && <p className="font-semibold text-slate-600 uppercase">{customer.address}</p>}
+              </div>
+            </div>
+            <div className="space-y-2 border border-slate-300 rounded-lg p-3.5 bg-slate-50/30">
+              <div className="border-b border-slate-200 pb-1">
+                <h3 className="font-black text-black uppercase tracking-wider text-[10px]">OPTICAL PRESCRIPTION (RX DETAILS)</h3>
+              </div>
+              {hasAnyOfflineRx ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center border-collapse border border-slate-300 text-[10px] leading-tight bg-white">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-extrabold uppercase text-[8.5px]">
+                        <th className="border-r border-slate-300 py-2 px-2 text-left">TYPE / EYE</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5">SPH</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5">CYL</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5">AXIS</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5">ADD</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5">V/N</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5">CADD</th>
+                        <th className="py-2 px-1.5">P.D. (MM)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-bold">
+                      {distRx && (
+                        <>
+                          <tr className="border-b border-slate-200">
+                            <td className="border-r border-slate-300 py-2 px-2 text-left font-black text-slate-900 bg-slate-50/70">DIST (RE / OD)</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(distRx.rightSphere)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(distRx.rightCylinder)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{distRx.rightAxis ? `${distRx.rightAxis}°` : "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5 text-[#0a52c3] font-black">{formatOfflineRxVal(distRx.rightAdd)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{distRx.rightNv || "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{distRx.caddRight || "-"}</td>
+                            <td className="py-2 px-1.5">{distRx.pdRight ? `R: ${distRx.pdRight}mm` : distRx.pd ? `${distRx.pd}mm` : "-"}</td>
+                          </tr>
+                          <tr className="border-b border-slate-200">
+                            <td className="border-r border-slate-300 py-2 px-2 text-left font-black text-slate-900 bg-slate-50/70">DIST (LE / OS)</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(distRx.leftSphere)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(distRx.leftCylinder)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{distRx.leftAxis ? `${distRx.leftAxis}°` : "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5 text-[#0a52c3] font-black">{formatOfflineRxVal(distRx.leftAdd)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{distRx.leftNv || "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{distRx.caddLeft || "-"}</td>
+                            <td className="py-2 px-1.5">{distRx.pdLeft ? `L: ${distRx.pdLeft}mm` : distRx.pd ? `${distRx.pd}mm` : "-"}</td>
+                          </tr>
+                        </>
+                      )}
+                      {nearRx && (
+                        <>
+                          <tr className="border-b border-slate-200 bg-blue-50/20">
+                            <td className="border-r border-slate-300 py-2 px-2 text-left font-black text-slate-900 bg-slate-50/70">NEAR (RE / OD)</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(nearRx.rightSphere)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(nearRx.rightCylinder)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{nearRx.rightAxis ? `${nearRx.rightAxis}°` : "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5 text-[#0a52c3] font-black">{formatOfflineRxVal(nearRx.rightAdd)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{nearRx.rightNv || "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{nearRx.caddRight || "-"}</td>
+                            <td className="py-2 px-1.5">{nearRx.pdRight ? `R: ${nearRx.pdRight}mm` : "-"}</td>
+                          </tr>
+                          <tr className="bg-blue-50/20">
+                            <td className="border-r border-slate-300 py-2 px-2 text-left font-black text-slate-900 bg-slate-50/70">NEAR (LE / OS)</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(nearRx.leftSphere)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{formatOfflineRxVal(nearRx.leftCylinder)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{nearRx.leftAxis ? `${nearRx.leftAxis}°` : "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5 text-[#0a52c3] font-black">{formatOfflineRxVal(nearRx.leftAdd)}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{nearRx.leftNv || "-"}</td>
+                            <td className="border-r border-slate-300 py-2 px-1.5">{nearRx.caddLeft || "-"}</td>
+                            <td className="py-2 px-1.5">{nearRx.pdLeft ? `L: ${nearRx.pdLeft}mm` : "-"}</td>
+                          </tr>
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="bg-white border border-slate-200 rounded py-5 text-center">
+                  <p className="font-black text-slate-800 uppercase">No Refractive Eye Prescription Recorded</p>
+                </div>
+              )}
+            </div>
+            {items.length > 0 && (
+              <table className="w-full border-collapse border border-slate-300 text-[8.5px] leading-tight">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-300 font-bold text-slate-700 uppercase">
+                    <th className="border-r border-slate-300 py-1.5 px-2 w-[8%]">SR. NO.</th>
+                    <th className="border-r border-slate-300 py-1.5 px-2 text-left">PRODUCT DESCRIPTION</th>
+                    <th className="py-1.5 px-2 w-[12%]">QTY</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, idx) => (
+                    <tr key={idx} className="border-b border-slate-200">
+                      <td className="border-r border-slate-200 py-2 text-center font-bold">{idx + 1}</td>
+                      <td className="border-r border-slate-200 py-2 px-2 font-extrabold uppercase text-slate-800">{item.description}</td>
+                      <td className="py-2 text-center font-bold text-slate-700">{item.quantity} pcs</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="font-semibold text-slate-600 leading-relaxed italic max-w-[420px]">&quot;{DEFAULT_PRESCRIPTION_ADVISORY_NOTE}&quot;</p>
+            <div className="border-b border-slate-200 border-dashed w-full pt-2" />
+            <div className="flex justify-end pt-6">
+              <div className="text-center w-[200px] space-y-1">
+                <div className="border-b border-slate-800 w-full mb-1" />
+                <h4 className="font-black text-slate-900 uppercase">OPTOMETRIST SIGNATURE</h4>
+              </div>
+            </div>
+          </div>
+          </>
+        ) : (
+          <>
         {/* Document Header */}
         <div className="flex items-start justify-between border-b border-slate-200 pb-6 mb-6">
           <div>
@@ -350,6 +534,8 @@ export function OfflineInvoiceView({ queueId }: OfflineInvoiceViewProps) {
         <div className="border-t border-slate-200 mt-8 pt-4 text-center text-[10px] text-slate-400">
           Thank you for your business! Optical prescriptions and lens warranties are subject to store policy.
         </div>
+          </>
+        )}
       </div>
     </div>
   );

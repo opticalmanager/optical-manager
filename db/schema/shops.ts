@@ -32,13 +32,25 @@ export interface SocialReviewLinksSettings {
     url: string;
     showOnInvoices?: boolean;
     showOnReceipts?: boolean;
+    showOnPrescriptions?: boolean;
   };
   instagram?: {
     enabled: boolean;
     url: string;
     showOnInvoices?: boolean;
     showOnReceipts?: boolean;
+    showOnPrescriptions?: boolean;
   };
+}
+
+export interface DocumentTemplatesSettings {
+  showPrescriptionOnInvoice?: boolean;
+  showPrescriptionOnBooking?: boolean;
+  printRxShowEyewearDetails?: boolean;
+  printRxShowMedicalHistory?: boolean;
+  printRxShowDoctorSignature?: boolean;
+  printRxShowGstin?: boolean;
+  prescriptionAdvisoryNote?: string;
 }
 
 export const shops = pgTable("shops", {
@@ -82,6 +94,8 @@ export const shops = pgTable("shops", {
     enableBankDetails?: boolean;
     enableTerms?: boolean;
     invoiceTermsNotes?: string;
+    prescriptionTermsNotes?: string;
+    documentTemplates?: DocumentTemplatesSettings;
     customerGroups?: string[];
     secondaryContacts?: Array<{ name: string; role: string; phone: string; email?: string }>;
     documentSeries?: DocumentSeriesSettings;

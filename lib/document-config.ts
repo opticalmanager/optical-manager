@@ -39,28 +39,97 @@ export function getShopBusinessDetails(shop: Shop | null | undefined) {
   };
 }
 
+export const DEFAULT_PRESCRIPTION_ADVISORY_NOTE =
+  "Prescription valid for 6–12 months. Regular comprehensive eye examinations are recommended for optimal vision care.";
+
 /**
- * Resolves prescription display flags from DocumentData (merging customizationConfig and shop settings).
+ * Resolves prescription and document print display flags from DocumentData
+ * (merging shop.settings.documentTemplates, customizationConfig, and shop.settings).
  */
 export function resolvePrescriptionDisplaySettings(data: any) {
   const customization = data?.customizationConfig;
   const invItems = customization?.invoices?.items || [];
 
-  const customInvRx = invItems.find((i: any) => i.id === "print_show_prescription_invoice");
-  const customBookingRx = invItems.find((i: any) => i.id === "print_show_prescription_booking");
+  const getCustomItem = (id: string) => invItems.find((i: any) => i.id === id);
 
   const shopSettings = (data?.shop?.settings as Record<string, any>) || {};
+  const shopDocTemplates = (shopSettings.documentTemplates as Record<string, any>) || {};
   const shopCustomizationItems = shopSettings?.customization?.invoices?.items;
-  const shopInvRx = Array.isArray(shopCustomizationItems)
-    ? shopCustomizationItems.find((i: any) => i.id === "print_show_prescription_invoice")?.enabled
-    : undefined;
-  const shopBookingRx = Array.isArray(shopCustomizationItems)
-    ? shopCustomizationItems.find((i: any) => i.id === "print_show_prescription_booking")?.enabled
-    : undefined;
+  const getShopCustomItem = (id: string) =>
+    Array.isArray(shopCustomizationItems)
+      ? shopCustomizationItems.find((i: any) => i.id === id)
+      : undefined;
+
+  const resolveToggle = (
+    docTemplateKey: string,
+    customItemId: string,
+    flatLegacyKey: string | null,
+    defaultVal: boolean
+  ): boolean => {
+    if (typeof shopDocTemplates[docTemplateKey] === "boolean") {
+      return shopDocTemplates[docTemplateKey];
+    }
+    const shopCustom = getShopCustomItem(customItemId);
+    if (typeof shopCustom?.enabled === "boolean") {
+      return shopCustom.enabled;
+    }
+    const orgCustom = getCustomItem(customItemId);
+    if (typeof orgCustom?.enabled === "boolean") {
+      return orgCustom.enabled;
+    }
+    if (flatLegacyKey && typeof shopSettings[flatLegacyKey] === "boolean") {
+      return shopSettings[flatLegacyKey];
+    }
+    return defaultVal;
+  };
+
+  const advisoryNote =
+    (typeof shopDocTemplates.prescriptionAdvisoryNote === "string" && shopDocTemplates.prescriptionAdvisoryNote.trim()) ||
+    (typeof shopSettings.prescriptionTermsNotes === "string" && shopSettings.prescriptionTermsNotes.trim()) ||
+    (typeof getShopCustomItem("print_rx_advisory_note")?.defaultValue === "string" &&
+      getShopCustomItem("print_rx_advisory_note")?.defaultValue.trim()) ||
+    (typeof getCustomItem("print_rx_advisory_note")?.defaultValue === "string" &&
+      getCustomItem("print_rx_advisory_note")?.defaultValue.trim()) ||
+    DEFAULT_PRESCRIPTION_ADVISORY_NOTE;
 
   return {
-    showPrescriptionOnInvoice: customInvRx?.enabled ?? shopInvRx ?? shopSettings.showPrescriptionOnInvoice ?? false,
-    showPrescriptionOnBooking: customBookingRx?.enabled ?? shopBookingRx ?? shopSettings.showPrescriptionOnBooking ?? true,
+    showPrescriptionOnInvoice: resolveToggle(
+      "showPrescriptionOnInvoice",
+      "print_show_prescription_invoice",
+      "showPrescriptionOnInvoice",
+      false
+    ),
+    showPrescriptionOnBooking: resolveToggle(
+      "showPrescriptionOnBooking",
+      "print_show_prescription_booking",
+      "showPrescriptionOnBooking",
+      true
+    ),
+    printRxShowEyewearDetails: resolveToggle(
+      "printRxShowEyewearDetails",
+      "print_rx_show_eyewear_details",
+      null,
+      true
+    ),
+    printRxShowMedicalHistory: resolveToggle(
+      "printRxShowMedicalHistory",
+      "print_rx_show_medical_history",
+      null,
+      true
+    ),
+    printRxShowDoctorSignature: resolveToggle(
+      "printRxShowDoctorSignature",
+      "print_rx_show_doctor_signature",
+      null,
+      true
+    ),
+    printRxShowGstin: resolveToggle(
+      "printRxShowGstin",
+      "print_rx_show_gstin",
+      null,
+      false
+    ),
+    prescriptionAdvisoryNote: advisoryNote,
   };
 }
 

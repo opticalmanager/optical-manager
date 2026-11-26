@@ -126,6 +126,9 @@ interface DocumentSequenceConfig {
 * **Historical Immutability**: Modifying document series configs applies strictly to newly issued documents; past invoices, customers, and orders are 100% immutable.
 * **CGST Rule 46(b) Compliance**: Real-time counter validates invoice numbers against the 16-character statutory tax limit.
 
+##### `shops.settings.documentTemplates` & `socialReviewLinks` JSONB Structures
+Stores customizable print/layout flags for Tax Invoices, Order Forms, and Clinical Eye Prescriptions (`showPrescriptionOnInvoice`, `showPrescriptionOnBooking`, `printRxShowEyewearDetails`, `printRxShowMedicalHistory`, `printRxShowDoctorSignature`, `printRxShowGstin`, `prescriptionAdvisoryNote`) as well as document-level social pill visibility (`showOnInvoices`, `showOnReceipts`, `showOnPrescriptions`).
+
 ---
 
 ### 2. Utility Email Communication Tables (`db/schema/email.ts`)

@@ -19,6 +19,7 @@ import {
 } from "@/lib/invoice-helpers";
 import { formatCurrency, cn } from "@/lib/utils";
 import { resolveOpticalCategory } from "@/lib/optical-category-resolver";
+import { resolveOrderPrescriptionPair } from "@/lib/prescription-helpers";
 import { Printer } from "lucide-react";
 
 const formatRxPower = (val: number | string | null | undefined): string => {
@@ -31,7 +32,7 @@ const formatRxPower = (val: number | string | null | undefined): string => {
 
 interface InvoiceDocumentProps {
   data: DocumentData;
-  mode: "INVOICE" | "RECEIPT";
+  mode: "INVOICE" | "RECEIPT" | "PRESCRIPTION";
 }
 
 export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
@@ -50,7 +51,15 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
     );
   }
 
-  const { showPrescriptionOnInvoice, showPrescriptionOnBooking } = resolvePrescriptionDisplaySettings(data);
+  const {
+    showPrescriptionOnInvoice,
+    showPrescriptionOnBooking,
+    printRxShowEyewearDetails,
+    printRxShowMedicalHistory,
+    printRxShowDoctorSignature,
+    printRxShowGstin,
+    prescriptionAdvisoryNote,
+  } = resolvePrescriptionDisplaySettings(data);
   const shopDetails = getShopBusinessDetails(shop);
   const customerTax = getCustomerTaxDetails(customer);
 
@@ -1004,7 +1013,7 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
       </div>
     </>
     );
-  } else {
+  } else if (mode === "RECEIPT") {
     // -------------------------------------------------------------
     // RECEIPT MODE
     // -------------------------------------------------------------
@@ -1691,6 +1700,556 @@ export function InvoiceDocument({ data, mode }: InvoiceDocumentProps) {
         </div>
       </div>
     </>
+    );
+  } else {
+    // -------------------------------------------------------------
+    // PRESCRIPTION MODE (Inspired directly by Optical Order Form)
+    // -------------------------------------------------------------
+    const resolvedRxPair = resolveOrderPrescriptionPair(prescriptions, invoice?.createdAt);
+    const distRx = resolvedRxPair.distRx;
+    const nearRx = resolvedRxPair.nearRx;
+    const metaRx = resolvedRxPair.metaRx;
+    const hasDistanceRx = resolvedRxPair.hasDistanceRx;
+    const hasNearRx = resolvedRxPair.hasNearRx;
+    const hasPrescription = resolvedRxPair.hasPrescription;
+
+    const rxDateSource =
+      metaRx?.prescribedAt || metaRx?.createdAt || data?.order?.createdAt || invoice?.createdAt || new Date();
+    const formattedDate =
+      formatReceiptDate(rxDateSource) || formatReceiptDate(invoice?.createdAt) || formatReceiptDate(new Date());
+    const formattedTime =
+      formatReceiptTime(metaRx?.createdAt || invoice?.createdAt);
+
+    const rxCategory =
+      metaRx?.rxCategory ||
+      (hasDistanceRx && hasNearRx ? "DISTANCE & NEAR" : hasDistanceRx ? "DISTANCE" : hasNearRx ? "NEAR" : "");
+    const rxDoctorName = metaRx?.doctorName || metaRx?.prescribedBy || "";
+    const rxNumber =
+      metaRx?.rxNumber || data?.order?.orderNumber || invoice?.invoiceNumber || "RX-CARD";
+    const orderRef = data?.order?.orderNumber || invoice?.invoiceNumber || "";
+    const rxEstimatedDelivery = metaRx?.estimatedDelivery || invoice?.estimatedDelivery || null;
+    const shopEmail = shopDetails.email || "";
+
+    const ipdVal =
+      metaRx?.pdRight && metaRx?.pdLeft
+        ? `R: ${metaRx.pdRight}mm / L: ${metaRx.pdLeft}mm`
+        : metaRx?.pd
+        ? `${metaRx.pd}mm`
+        : "";
+
+    const medicalHistoryText =
+      (metaRx as any)?.medicalHistory || (customer as any)?.medicalHistory || "";
+
+    return (
+      <>
+        {/* Strict Print CSS Overrides matching Order Form */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @media print {
+                aside,
+                header,
+                nav,
+                button,
+                .print\\:hidden,
+                [data-sidebar],
+                [data-topbar],
+                [role="navigation"],
+                [role="banner"],
+                [data-sonner-toaster],
+                [data-sonner-toast],
+                .toaster,
+                div[aria-live="polite"],
+                div[aria-live="assertive"] {
+                  display: none !important;
+                  visibility: hidden !important;
+                  width: 0 !important;
+                  height: 0 !important;
+                  overflow: hidden !important;
+                  opacity: 0 !important;
+                  pointer-events: none !important;
+                }
+
+                html,
+                body {
+                  height: auto !important;
+                  min-height: auto !important;
+                  max-height: none !important;
+                  overflow: visible !important;
+                  position: static !important;
+                  background: white !important;
+                  background-color: white !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+
+                .flex.h-screen.overflow-hidden,
+                .flex-col.h-screen,
+                div[class*="h-screen"],
+                div[class*="overflow-hidden"],
+                div[class*="overflow-y-auto"],
+                div[class*="overflow-x-auto"],
+                main,
+                #root,
+                #__next {
+                  display: block !important;
+                  height: auto !important;
+                  min-height: auto !important;
+                  max-height: none !important;
+                  width: 100% !important;
+                  overflow: visible !important;
+                  position: static !important;
+                  background: white !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                }
+
+                @page {
+                  size: A4 portrait;
+                  margin: 0 !important;
+                }
+
+                #invoice-print-area,
+                .print-container {
+                  display: flex !important;
+                  flex-direction: column !important;
+                  gap: 20px !important;
+                  visibility: visible !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  border-radius: 0 !important;
+                  padding: 12mm !important;
+                  margin: 0 auto !important;
+                  width: 210mm !important;
+                  max-width: 210mm !important;
+                  background: white !important;
+                  position: static !important;
+                  overflow: visible !important;
+                  box-sizing: border-box !important;
+                }
+
+                * {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+              }
+            `,
+          }}
+        />
+
+        <div className="w-full max-w-full overflow-x-auto flex justify-center py-2 print:overflow-visible print:p-0 print:w-auto">
+          {/* Order-Form-Inspired Clinical Eye Prescription Canvas */}
+          <div
+            id="invoice-print-area"
+            className="print-container bg-white border border-slate-200 shadow-md rounded-xl p-8 w-[794px] max-w-[794px] shrink-0 flex flex-col gap-6 text-[10px] leading-tight select-none print:w-auto print:max-w-none"
+          >
+            {/* HEADER SECTION */}
+            <div className="flex justify-between items-start gap-4 border-b border-slate-900 pb-4">
+              <div className="flex items-start gap-3 flex-1">
+                <div className="pt-1 text-[#0a52c3] flex-shrink-0">
+                  <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </div>
+
+                <div className="space-y-1">
+                  <h1 className="text-xl font-black tracking-tight leading-none text-black uppercase">
+                    {shopName}
+                  </h1>
+                  {shopAddress && (
+                    <p className="font-semibold text-slate-600 max-w-[320px] uppercase">
+                      ADDRESS : {shopAddress}
+                    </p>
+                  )}
+                  {printRxShowGstin && shopGstin && (
+                    <p className="font-semibold text-slate-600">
+                      GSTIN : <span className="font-extrabold">{shopGstin}</span>
+                    </p>
+                  )}
+                  {shopPhone && (
+                    <p className="font-semibold text-slate-600">
+                      PHONE : <span className="font-extrabold">{shopPhone}</span>
+                    </p>
+                  )}
+                  {shopEmail && (
+                    <p className="font-semibold text-slate-600">
+                      EMAIL : <span className="font-extrabold">{shopEmail}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Prescription Identification */}
+              <div className="text-right space-y-1">
+                <h2 className="text-base font-black tracking-wide text-black uppercase">
+                  OPTICAL PRESCRIPTION
+                </h2>
+                <p className="font-bold text-slate-800">
+                  RX NO - <span className="font-black text-black">{rxNumber}</span>
+                </p>
+                {orderRef && orderRef !== rxNumber && (
+                  <p className="font-bold text-slate-600">
+                    ORDER REF: <span className="font-extrabold text-slate-800">{orderRef}</span>
+                  </p>
+                )}
+                <p className="font-bold text-slate-600">
+                  DATE: <span className="font-extrabold text-slate-800">{formattedDate}</span>
+                </p>
+                {formattedTime && (
+                  <p className="font-bold text-slate-600">
+                    TIME: <span className="font-extrabold text-slate-800">{formattedTime}</span>
+                  </p>
+                )}
+                {rxDoctorName && (
+                  <p className="font-bold text-slate-600">
+                    OPTOMETRIST: <span className="font-extrabold text-slate-800">{rxDoctorName}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+
+
+            {/* PATIENT & CLINICAL ATTRIBUTION BLOCKS */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-6 text-[9.5px]">
+              {/* PATIENT DETAILS */}
+              <div className="border-r border-slate-200 pr-4 space-y-1.5">
+                <h3 className="font-black text-black border-b border-slate-200 pb-1 uppercase tracking-wider">
+                  PATIENT DETAILS,
+                </h3>
+                <p className="text-xs font-black text-slate-800 uppercase">{customerName}</p>
+                {customer?.registrationId && (
+                  <p className="font-semibold text-slate-600">
+                    Reg ID: <span className="font-bold text-slate-700">{customer.registrationId}</span>
+                  </p>
+                )}
+                {customerPhone && (
+                  <p className="font-semibold text-slate-600">
+                    Phone: <span className="font-bold text-slate-700">{customerPhone}</span>
+                  </p>
+                )}
+                {customer?.email && (
+                  <p className="font-semibold text-slate-600 break-all">
+                    Email: <span className="font-bold text-slate-700">{customer.email}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* PATIENT ADDRESS */}
+              <div className="border-r border-slate-200 pr-4 space-y-1.5">
+                <h3 className="font-black text-black border-b border-slate-200 pb-1 uppercase tracking-wider">
+                  PATIENT ADDRESS,
+                </h3>
+                <p className="text-xs font-black text-slate-800 uppercase">{customerName}</p>
+                {(customerAddress || patientState) && (
+                  <p className="font-semibold text-slate-600 max-w-[200px] uppercase leading-relaxed">
+                    {[customerAddress, patientState].filter(Boolean).join(", ")}
+                  </p>
+                )}
+              </div>
+
+              {/* CLINICAL SUMMARY */}
+              <div className="space-y-1.5">
+                <h3 className="font-black text-black border-b border-slate-200 pb-1 uppercase tracking-wider">
+                  CLINICAL DETAILS
+                </h3>
+                {rxCategory && (
+                  <div className="flex items-center gap-1.5 font-semibold text-slate-600">
+                    <span>PRESCRIPTION TYPE:</span>
+                    <span className="px-2 py-0.5 rounded text-[8px] font-extrabold uppercase border bg-blue-50 text-[#0a52c3] border-blue-200">
+                      {rxCategory}
+                    </span>
+                  </div>
+                )}
+                <p className="font-semibold text-slate-600">
+                  PRESCRIBED BY: <span className="font-extrabold text-slate-800 uppercase">{rxDoctorName || "IN-HOUSE OPTOMETRIST"}</span>
+                </p>
+                {ipdVal && (
+                  <p className="font-semibold text-slate-600">
+                    P.D. / I.P.D.: <span className="font-extrabold text-slate-800">{ipdVal}</span>
+                  </p>
+                )}
+                {rxEstimatedDelivery && (
+                  <p className="font-semibold text-slate-600">
+                    EST. DELIVERY: <span className="font-extrabold text-slate-800">{formatDateDMY(rxEstimatedDelivery)}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* OPTICAL PRESCRIPTION BLOCK */}
+            <div className="space-y-2.5 border border-slate-300 rounded-lg p-3.5 bg-slate-50/30">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-black uppercase tracking-wider text-[10.5px]">
+                    OPTICAL PRESCRIPTION (RX DETAILS)
+                  </h3>
+                  {rxCategory && (
+                    <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-50 text-[#0a52c3] border border-blue-200">
+                      {rxCategory}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-[8.5px] font-bold text-slate-600">
+                  {rxDoctorName && (
+                    <span>DOCTOR/OPTOM: <span className="text-black font-extrabold">{rxDoctorName}</span></span>
+                  )}
+                  <span>RX NO: <span className="text-black font-extrabold">{rxNumber}</span></span>
+                </div>
+              </div>
+
+              {hasPrescription ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center border-collapse border border-slate-300 text-[10px] leading-tight bg-white">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-extrabold uppercase text-[8.5px]">
+                        <th className="border-r border-slate-300 py-2 px-2 w-[16%] text-left">TYPE / EYE</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5 w-[12%]">SPH</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5 w-[12%]">CYL</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5 w-[10%]">AXIS</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5 w-[12%]">ADD</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5 w-[12%]">V/N</th>
+                        <th className="border-r border-slate-300 py-2 px-1.5 w-[11%]">CADD</th>
+                        <th className="py-2 px-1.5 w-[15%]">P.D. (MM)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-[10px] font-bold">
+                      {/* DISTANCE RX */}
+                      {hasDistanceRx && (
+                        <>
+                          <tr className="border-b border-slate-200">
+                            <td className="border-r border-slate-300 py-2.5 px-2 text-left font-black text-slate-900 bg-slate-50/70">
+                              DIST (RE / OD)
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-900 font-black">
+                              {formatRxPower(distRx?.rightSphere)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {formatRxPower(distRx?.rightCylinder)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {distRx?.rightAxis ? `${distRx.rightAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-[#0a52c3] font-black">
+                              {formatRxPower(distRx?.rightAdd)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {distRx?.rightNv || "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {distRx?.caddRight || "-"}
+                            </td>
+                            <td className="py-2.5 px-1.5 text-slate-700 font-semibold">
+                              {distRx?.pdRight ? `R: ${distRx.pdRight}mm` : (distRx?.pd ? `${distRx.pd}mm` : "-")}
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-200">
+                            <td className="border-r border-slate-300 py-2.5 px-2 text-left font-black text-slate-900 bg-slate-50/70">
+                              DIST (LE / OS)
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-900 font-black">
+                              {formatRxPower(distRx?.leftSphere)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {formatRxPower(distRx?.leftCylinder)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {distRx?.leftAxis ? `${distRx.leftAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-[#0a52c3] font-black">
+                              {formatRxPower(distRx?.leftAdd)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {distRx?.leftNv || "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {distRx?.caddLeft || "-"}
+                            </td>
+                            <td className="py-2.5 px-1.5 text-slate-700 font-semibold">
+                              {distRx?.pdLeft ? `L: ${distRx.pdLeft}mm` : (distRx?.pd ? `${distRx.pd}mm` : "-")}
+                            </td>
+                          </tr>
+                        </>
+                      )}
+
+                      {/* NEAR RX */}
+                      {hasNearRx && (
+                        <>
+                          <tr className="border-b border-slate-200 bg-blue-50/20">
+                            <td className="border-r border-slate-300 py-2.5 px-2 text-left font-black text-slate-900 bg-slate-50/70">
+                              NEAR (RE / OD)
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-900 font-black">
+                              {formatRxPower(nearRx?.rightSphere)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {formatRxPower(nearRx?.rightCylinder)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {nearRx?.rightAxis ? `${nearRx.rightAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-[#0a52c3] font-black">
+                              {formatRxPower(nearRx?.rightAdd)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {nearRx?.rightNv || "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {nearRx?.caddRight || "-"}
+                            </td>
+                            <td className="py-2.5 px-1.5 text-slate-700 font-semibold">
+                              {nearRx?.pdRight ? `R: ${nearRx.pdRight}mm` : "-"}
+                            </td>
+                          </tr>
+                          <tr className="bg-blue-50/20">
+                            <td className="border-r border-slate-300 py-2.5 px-2 text-left font-black text-slate-900 bg-slate-50/70">
+                              NEAR (LE / OS)
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-900 font-black">
+                              {formatRxPower(nearRx?.leftSphere)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {formatRxPower(nearRx?.leftCylinder)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-800 font-extrabold">
+                              {nearRx?.leftAxis ? `${nearRx.leftAxis}°` : "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-[#0a52c3] font-black">
+                              {formatRxPower(nearRx?.leftAdd)}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {nearRx?.leftNv || "-"}
+                            </td>
+                            <td className="border-r border-slate-300 py-2.5 px-1.5 text-slate-700">
+                              {nearRx?.caddLeft || "-"}
+                            </td>
+                            <td className="py-2.5 px-1.5 text-slate-700 font-semibold">
+                              {nearRx?.pdLeft ? `L: ${nearRx.pdLeft}mm` : "-"}
+                            </td>
+                          </tr>
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="bg-white border border-slate-200 rounded py-6 px-4 text-center space-y-1">
+                  <p className="font-black text-slate-800 uppercase text-[10.5px]">
+                    No Refractive Eye Prescription Recorded
+                  </p>
+                  <p className="font-semibold text-slate-500 text-[9.5px]">
+                    Distance or near optical power measurements have not been recorded for this order yet.
+                  </p>
+                </div>
+              )}
+
+              {/* Lens Type / Frame / Clinical Remarks (matching Order Form metadata line) */}
+              {printRxShowMedicalHistory &&
+                (metaRx?.lensType || metaRx?.frameName || metaRx?.notes || metaRx?.specialInstructions || medicalHistoryText) && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[8.5px] font-semibold text-slate-600 pt-1">
+                    {metaRx?.lensType && (
+                      <span>LENS TYPE: <span className="font-extrabold text-slate-800">{metaRx.lensType}</span></span>
+                    )}
+                    {metaRx?.frameName && (
+                      <span>FRAME: <span className="font-extrabold text-slate-800">{metaRx.frameName}</span></span>
+                    )}
+                    {medicalHistoryText && (
+                      <span>MEDICAL HISTORY: <span className="font-extrabold text-slate-800">{medicalHistoryText}</span></span>
+                    )}
+                    {metaRx?.notes && (
+                      <span>NOTES: <span className="font-extrabold text-slate-800">{metaRx.notes}</span></span>
+                    )}
+                    {metaRx?.specialInstructions && (
+                      <span>INSTRUCTIONS: <span className="font-extrabold text-slate-800">{metaRx.specialInstructions}</span></span>
+                    )}
+                  </div>
+                )}
+            </div>
+
+            {/* PRICE-FREE ORDERED EYEWEAR DETAILS (Matching Order Form Table Grammar) */}
+            {printRxShowEyewearDetails && lineItems.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-slate-300 text-[8.5px] leading-tight">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-300 text-center font-bold text-slate-700 uppercase">
+                      <th className="border-r border-slate-300 py-1.5 px-1.5 w-[8%]">SR. NO.</th>
+                      <th className="border-r border-slate-300 py-1.5 px-2 w-[26%] text-left">ORDER DETAILS</th>
+                      <th className="border-r border-slate-300 py-1.5 px-2 w-[56%] text-left">PRODUCT DESCRIPTION</th>
+                      <th className="py-1.5 px-1.5 w-[10%]">QTY</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((item, idx) => (
+                      <tr key={item.id || idx} className="border-b border-slate-200 text-slate-800">
+                        <td className="border-r border-slate-200 py-2 text-center font-bold">
+                          {idx + 1}
+                        </td>
+                        <td className="border-r border-slate-200 py-2 px-2 font-semibold uppercase leading-normal">
+                          <div className="font-bold text-slate-800 break-all">
+                            {item.sku || "OPTICAL ITEM"}
+                          </div>
+                          {item.brand && (
+                            <div className="text-[7.5px] text-slate-500 font-bold break-all">
+                              {item.brand}
+                            </div>
+                          )}
+                        </td>
+                        <td className="border-r border-slate-200 py-2 px-2 font-semibold leading-normal">
+                          <div className="font-extrabold text-slate-800 uppercase break-all">
+                            {item.description}
+                          </div>
+                          {item.category && (
+                            <div className="text-[7.5px] text-slate-500 uppercase font-bold mt-0.5">
+                              {resolveOpticalCategory(item.category, item.description).name}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 text-center font-bold text-slate-700">
+                          {item.quantity} pcs
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* BOTTOM SECTION (Matching Order Form Advisory Quote & Sign-off) */}
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-8 mt-2">
+              <div className="flex-1 space-y-3 max-w-[420px]">
+                <p className="font-semibold text-slate-600 leading-relaxed italic">
+                  &quot;{prescriptionAdvisoryNote}&quot;
+                </p>
+                <p className="font-extrabold text-slate-800 uppercase tracking-wide">
+                  THANK YOU FOR CHOOSING {shopName}.
+                </p>
+              </div>
+            </div>
+
+            {/* Divider dotted line */}
+            <div className="border-b border-slate-200 border-dashed w-full pt-2" />
+
+            {/* SIGNATURE SECTION */}
+            <div className="flex justify-end pt-6">
+              <div className="text-center w-[200px] space-y-1">
+                <div className="border-b border-slate-800 w-full mb-1" />
+                <h4 className="font-black text-slate-900 uppercase">
+                  {printRxShowDoctorSignature ? "OPTOMETRIST SIGNATURE" : "AUTHORITY SIGNATURE"}
+                </h4>
+                {printRxShowDoctorSignature && rxDoctorName && (
+                  <p className="font-bold text-slate-700">{rxDoctorName}</p>
+                )}
+                <p className="font-semibold text-slate-500">For {shopName}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { DocumentData } from "@/services/document.service";
 import { InvoiceDocument } from "@/components/shop/InvoiceDocument";
 import { getShopBusinessDetails } from "@/lib/document-config";
+import { resolveOrderPrescriptionPair } from "@/lib/prescription-helpers";
 import {
   Printer,
   Download,
@@ -18,14 +19,18 @@ import { SocialReviewPills } from "@/components/shop/SocialReviewLinks";
 
 interface SharedInvoiceViewerProps {
   data: DocumentData;
-  mode?: "INVOICE" | "RECEIPT";
+  mode?: "INVOICE" | "RECEIPT" | "PRESCRIPTION";
 }
 
 export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceViewerProps) {
   const isReceiptMode = mode === "RECEIPT";
+  const isPrescriptionMode = mode === "PRESCRIPTION";
   const shopDetails = getShopBusinessDetails(data?.shop);
   const storeName = shopDetails.name || (data?.shop as any)?.organizationName || "Optical_Store";
-  const docNumber = isReceiptMode
+  const matchedRx = isPrescriptionMode ? resolveOrderPrescriptionPair(data?.prescriptions, data?.invoice?.createdAt) : null;
+  const docNumber = isPrescriptionMode
+    ? (matchedRx?.metaRx?.rxNumber || data?.order?.orderNumber || data?.invoice?.invoiceNumber || "Prescription")
+    : isReceiptMode
     ? (data?.receipt?.receiptNumber || data?.order?.orderNumber || data?.invoice?.invoiceNumber || "Order_Form")
     : (data?.invoice?.invoiceNumber || "Invoice");
 
@@ -340,14 +345,14 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-50 text-[#2563eb] tracking-wider">
-                {isReceiptMode ? "Order Form / Receipt" : "Tax Invoice"}
+                {isPrescriptionMode ? "Clinical Eye Prescription" : isReceiptMode ? "Order Form / Receipt" : "Tax Invoice"}
               </span>
               <span className="text-xs font-bold text-slate-800 truncate max-w-[200px]">
                 {storeName}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium">
-              {isReceiptMode ? "Order Form / Receipt No: " : "Invoice No: "}
+              {isPrescriptionMode ? "Rx Ref No: " : isReceiptMode ? "Order Form / Receipt No: " : "Invoice No: "}
               <span className="font-bold text-slate-900">{docNumber}</span>
             </p>
           </div>
@@ -358,7 +363,7 @@ export function SharedInvoiceViewer({ data, mode = "INVOICE" }: SharedInvoiceVie
               type="button"
               onClick={handlePrint}
               className="flex-1 sm:flex-initial h-10 px-4 font-bold text-xs uppercase tracking-wider text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200/80 shadow-2xs"
-              title={isReceiptMode ? "Print Order Form" : "Print Invoice"}
+              title={isPrescriptionMode ? "Print Prescription" : isReceiptMode ? "Print Order Form" : "Print Invoice"}
             >
               <Printer className="h-4 w-4 text-slate-600" />
               <span>Print</span>

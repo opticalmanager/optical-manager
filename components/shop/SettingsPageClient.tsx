@@ -8,10 +8,11 @@ import {
   Save, Landmark, ShieldCheck, Mail, Trash2, Plus, Clock, 
   Award, X, Check, Star, ShieldAlert,
   Laptop, Download, Copy, RefreshCw, Globe, Zap, Radio, CheckCircle2, AlertCircle, QrCode,
-  Share2, ExternalLink, ChevronRight
+  Share2, ExternalLink, ChevronRight, Eye, Printer
 } from "lucide-react";
 import { toast } from "sonner";
-import { updateShopProfileAction, updateShopSettingsConfigAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
+import { updateShopProfileAction, updateShopSettingsConfigAction, updateShopDocumentTemplatesAction, toggleStaffActiveAction } from "@/actions/shop-settings.actions";
+import { resolvePrescriptionDisplaySettings, DEFAULT_PRESCRIPTION_ADVISORY_NOTE } from "@/lib/document-config";
 import { parseWhatsAppTemplate } from "@/utils/whatsapp-parser";
 import { DEFAULT_WHATSAPP_TEMPLATES } from "@/utils/whatsapp-templates";
 import { CategoryGstRatesSettings } from "@/components/shop/CategoryGstRatesSettings";
@@ -39,6 +40,7 @@ const SETTING_ITEMS: SettingItem[] = [
   { id: "hours", label: "Business Hours", category: "Store Details" },
   { id: "contact", label: "Contact Info", category: "Store Details" },
   { id: "series", label: "Series & Custom IDs", category: "Store Details" },
+  { id: "document-templates", label: "Prescription Print Template", category: "Store Details" },
   
   // Communication
   { id: "whatsapp-utility", label: "WhatsApp Utility", category: "Communication" },
@@ -242,13 +244,20 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
   const [newVendor, setNewVendor] = useState({ name: "", contact: "", phone: "", email: "", gstin: "" });
 
 
+  const resolvedPrintTemplates = resolvePrescriptionDisplaySettings({ shop });
+  const [printRxShowEyewear, setPrintRxShowEyewear] = useState<boolean>(resolvedPrintTemplates.printRxShowEyewearDetails);
+  const [printRxShowHistory, setPrintRxShowHistory] = useState<boolean>(resolvedPrintTemplates.printRxShowMedicalHistory);
+  const [printRxShowDoctorSig, setPrintRxShowDoctorSig] = useState<boolean>(resolvedPrintTemplates.printRxShowDoctorSignature);
+  const [printRxShowGstin, setPrintRxShowGstin] = useState<boolean>(resolvedPrintTemplates.printRxShowGstin);
+  const [rxAdvisoryNote, setRxAdvisoryNote] = useState<string>(resolvedPrintTemplates.prescriptionAdvisoryNote);
+
   const [socialReviewLinks, setSocialReviewLinks] = useState<SocialReviewLinksSettings>(
     shop?.settings?.socialReviewLinks || {
-      googleReview: { enabled: false, url: "", showOnInvoices: true, showOnReceipts: true },
-      instagram: { enabled: false, url: "", showOnInvoices: true, showOnReceipts: true },
+      googleReview: { enabled: false, url: "", showOnInvoices: true, showOnReceipts: true, showOnPrescriptions: true },
+      instagram: { enabled: false, url: "", showOnInvoices: true, showOnReceipts: true, showOnPrescriptions: true },
     }
   );
-  const [socialPreviewMode, setSocialPreviewMode] = useState<"INVOICE" | "RECEIPT">("INVOICE");
+  const [socialPreviewMode, setSocialPreviewMode] = useState<"INVOICE" | "RECEIPT" | "PRESCRIPTION">("INVOICE");
 
   const updateGoogleReview = (updates: Partial<NonNullable<SocialReviewLinksSettings["googleReview"]>>) => {
     setSocialReviewLinks((prev: SocialReviewLinksSettings): SocialReviewLinksSettings => {
@@ -262,6 +271,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
           url: prev.googleReview?.url ?? "",
           showOnInvoices: prev.googleReview?.showOnInvoices ?? true,
           showOnReceipts: prev.googleReview?.showOnReceipts ?? true,
+          showOnPrescriptions: prev.googleReview?.showOnPrescriptions ?? true,
           ...updates,
           enabled: resolvedEnabled,
         },
@@ -281,6 +291,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
           url: prev.instagram?.url ?? "",
           showOnInvoices: prev.instagram?.showOnInvoices ?? true,
           showOnReceipts: prev.instagram?.showOnReceipts ?? true,
+          showOnPrescriptions: prev.instagram?.showOnPrescriptions ?? true,
           ...updates,
           enabled: resolvedEnabled,
         },
@@ -288,10 +299,28 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
     });
   };
 
+  const handleSaveDocumentTemplates = () => {
+    startTransition(async () => {
+      const res = await updateShopDocumentTemplatesAction(shop.id, {
+        printRxShowEyewearDetails: printRxShowEyewear,
+        printRxShowMedicalHistory: printRxShowHistory,
+        printRxShowDoctorSignature: printRxShowDoctorSig,
+        printRxShowGstin: printRxShowGstin,
+        prescriptionAdvisoryNote: rxAdvisoryNote.trim() || DEFAULT_PRESCRIPTION_ADVISORY_NOTE,
+      });
+      if (res.success) {
+        toast.success(res.message);
+        router.refresh();
+      } else {
+        toast.error(res.message);
+      }
+    });
+  };
+
   // Sync Search URL view parameters with UI Tabs
   useEffect(() => {
     if (activeView) {
-      if (["profile", "hours", "contact", "series"].includes(activeView)) {
+      if (["profile", "hours", "contact", "series", "document-templates"].includes(activeView)) {
         setActiveTab("store");
         setActiveSubTab(activeView);
       } else if (["whatsapp-utility", "whatsapp", "social-links", "email"].includes(activeView)) {
@@ -602,6 +631,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                     { id: "profile", label: "Store Profile", icon: Store },
                     { id: "hours", label: "Operating Hours", icon: Clock },
                     { id: "series", label: "Series & Numbering", icon: FileText },
+                    { id: "document-templates", label: "Prescription Template", icon: Eye },
                   ].map((sub) => {
                     const isSelected = activeSubTab === sub.id;
                     const IconComp = sub.icon;
@@ -854,6 +884,102 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                     initialSeries={shop.settings?.documentSeries}
                     onSaved={() => router.refresh()}
                   />
+                )}
+
+                {/* Sub-tab 1D: Prescription Print Template (Prescription-Only) */}
+                {activeSubTab === "document-templates" && (
+                  <div className="space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                          <Eye className="w-4 h-4 text-[#0a52c3]" /> Clinical Eye Prescription Template
+                        </h4>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                          Customize layout visibility and care advisory notes on printed & shared digital eye prescriptions.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 space-y-3.5 max-w-2xl">
+                      <div className="space-y-2.5 text-xs">
+                        <label className="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-xl bg-white border border-slate-200/70">
+                          <div>
+                            <span className="font-bold text-slate-800 block">Include Ordered Frame & Lens Details (Price-Free)</span>
+                            <span className="text-[10px] text-slate-500">Shows frame/lens descriptions and quantity without pricing or totals</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={printRxShowEyewear}
+                            onChange={(e) => setPrintRxShowEyewear(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-[#0a52c3] focus:ring-[#0a52c3]"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-xl bg-white border border-slate-200/70">
+                          <div>
+                            <span className="font-bold text-slate-800 block">Show Lens Type, Frame & Clinical Notes</span>
+                            <span className="text-[10px] text-slate-500">Includes lens specification, medical history & clinical instructions</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={printRxShowHistory}
+                            onChange={(e) => setPrintRxShowHistory(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-[#0a52c3] focus:ring-[#0a52c3]"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-xl bg-white border border-slate-200/70">
+                          <div>
+                            <span className="font-bold text-slate-800 block">Show Optometrist Signature Block</span>
+                            <span className="text-[10px] text-slate-500">Displays prescribing doctor / optometrist sign-off line</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={printRxShowDoctorSig}
+                            onChange={(e) => setPrintRxShowDoctorSig(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-[#0a52c3] focus:ring-[#0a52c3]"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-xl bg-white border border-slate-200/70">
+                          <div>
+                            <span className="font-bold text-slate-800 block">Display Store GSTIN on Prescription Header</span>
+                            <span className="text-[10px] text-slate-500">Optional business registration identifier beneath clinic address</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={printRxShowGstin}
+                            onChange={(e) => setPrintRxShowGstin(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-[#0a52c3] focus:ring-[#0a52c3]"
+                          />
+                        </label>
+
+                        <div className="space-y-1 pt-1">
+                          <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wide block">
+                            Optical Care & Advisory Note
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={rxAdvisoryNote}
+                            onChange={(e) => setRxAdvisoryNote(e.target.value)}
+                            placeholder={DEFAULT_PRESCRIPTION_ADVISORY_NOTE}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-[#0a52c3]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-3 border-t border-slate-100 max-w-2xl">
+                      <button
+                        type="button"
+                        onClick={handleSaveDocumentTemplates}
+                        disabled={isPending}
+                        className="px-5 py-2.5 bg-[#0a52c3] hover:bg-[#0842a0] text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Save className="w-3.5 h-3.5" /> {isPending ? "Saving..." : "Save Prescription Template"}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -1404,6 +1530,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                               { code: "order_number", label: "Order Number" },
                               { code: "order_form_url", label: "Order Form URL" },
                               { code: "invoice_url", label: "Invoice URL" },
+                              { code: "prescription_url", label: "Prescription URL" },
                               { code: "re_sph", label: "RE Sphere" },
                               { code: "re_cyl", label: "RE Cyl" },
                               { code: "re_axis", label: "RE Axis" },
@@ -1476,6 +1603,7 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                                   order_number: "ORD-9824",
                                   order_form_url: "https://opt.mgr/share/receipt/0812",
                                   invoice_url: "https://opt.mgr/share/invoice/0812",
+                                  prescription_url: "https://opt.mgr/share/prescription/0812",
                                   re_sph: "-1.50",
                                   re_cyl: "-0.50",
                                   re_axis: "90°",
@@ -1678,6 +1806,15 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                                   />
                                   Order Forms / Receipts
                                 </label>
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={socialReviewLinks.googleReview?.showOnPrescriptions !== false}
+                                    onChange={(e) => updateGoogleReview({ showOnPrescriptions: e.target.checked })}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  Prescriptions
+                                </label>
                               </div>
                             </div>
                           </div>
@@ -1786,6 +1923,15 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                                   />
                                   Order Forms / Receipts
                                 </label>
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={socialReviewLinks.instagram?.showOnPrescriptions !== false}
+                                    onChange={(e) => updateInstagram({ showOnPrescriptions: e.target.checked })}
+                                    className="rounded border-slate-300 text-pink-600 focus:ring-pink-500"
+                                  />
+                                  Prescriptions
+                                </label>
                               </div>
                             </div>
                           </div>
@@ -1825,6 +1971,17 @@ export function SettingsPageClient({ shop, staff, activeView }: SettingsPageClie
                               }`}
                             >
                               Order Form / Receipt
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSocialPreviewMode("PRESCRIPTION")}
+                              className={`px-3 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                                socialPreviewMode === "PRESCRIPTION"
+                                  ? "bg-white text-slate-900 shadow-2xs"
+                                  : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              Prescription
                             </button>
                           </div>
                         </div>

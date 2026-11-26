@@ -3,8 +3,9 @@
 import { sanitizeCSVValue } from "@/lib/csv-security";
 
 import { db } from "@/lib/drizzle";
-import { orders, invoices, customers, invoiceItems, inventory, shops, receipts, orderEditHistory, profiles } from "@/db/schema";
+import { orders, invoices, customers, invoiceItems, inventory, shops, receipts, orderEditHistory, profiles, prescriptions } from "@/db/schema";
 import { eq, ne, and, or, ilike, sql, desc, inArray, lte, lt, gt, gte, isNull } from "drizzle-orm";
+import { resolveOrderPrescriptionPair } from "@/lib/prescription-helpers";
 
 export interface OrderDashboardKPIs {
   totalOrders: number;
@@ -55,6 +56,8 @@ export interface OrderItem {
   categoryText?: string; // e.g. "Progressive Lens Fitting" or "Spectacles Order"
   receiptId?: string | null;
   receipts?: ReceiptItem[];
+  hasPrescription?: boolean;
+  rxNumber?: string | null;
   isOfflinePending?: boolean;
   syncStatus?: "PENDING" | "SYNCING" | "SYNCED" | "FAILED";
   syncError?: string | null;
@@ -488,12 +491,13 @@ export async function getOrdersDashboardData(params: {
 
   const totalCount = countRes[0]?.count || 0;
 
-  // 5. Gather line items for SKU details & receipts (resolving N+1 query issue)
+  // 5. Gather line items, receipts & prescriptions (resolving N+1 query issue)
   let ordersList: OrderItem[] = [];
   if (ordersListRaw.length > 0) {
     const invoiceIds = ordersListRaw.map((o) => o.invoiceId);
+    const customerIds = Array.from(new Set(ordersListRaw.map((o) => o.customerId).filter(Boolean)));
     
-    const [itemsRaw, receiptsRaw] = await Promise.all([
+    const [itemsRaw, receiptsRaw, prescriptionsRaw] = await Promise.all([
       db
         .select({
           invoiceId: invoiceItems.invoiceId,
@@ -519,12 +523,30 @@ export async function getOrdersDashboardData(params: {
         .from(receipts)
         .where(inArray(receipts.invoiceId, invoiceIds))
         .orderBy(desc(receipts.createdAt)),
+
+      customerIds.length > 0
+        ? db
+            .select()
+            .from(prescriptions)
+            .where(inArray(prescriptions.customerId, customerIds))
+            .orderBy(desc(prescriptions.createdAt))
+        : Promise.resolve([]),
     ]);
 
-    // Map items & receipts to orders
+    // Group customer prescriptions cleanly in memory (0 extra DB queries)
+    const rxByCustomerMap = new Map<string, typeof prescriptionsRaw>();
+    for (const rx of prescriptionsRaw) {
+      const existing = rxByCustomerMap.get(rx.customerId) || [];
+      existing.push(rx);
+      rxByCustomerMap.set(rx.customerId, existing);
+    }
+
+    // Map items, receipts & matched prescription summary to orders
     ordersList = ordersListRaw.map((o) => {
       const relatedItems = itemsRaw.filter((item) => item.invoiceId === o.invoiceId);
       const relatedReceipts = receiptsRaw.filter((r) => r.invoiceId === o.invoiceId);
+      const customerRxs = rxByCustomerMap.get(o.customerId) || [];
+      const matchedRx = resolveOrderPrescriptionPair(customerRxs, o.createdAt);
 
       const skus: SKUDetail[] = relatedItems.map((item) => ({
         description: item.description,
@@ -562,6 +584,8 @@ export async function getOrdersDashboardData(params: {
         skus,
         categoryText,
         receipts: orderReceipts,
+        hasPrescription: matchedRx.hasPrescription,
+        rxNumber: matchedRx.metaRx?.rxNumber || null,
       };
     });
   }

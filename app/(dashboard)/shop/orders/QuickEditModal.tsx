@@ -25,7 +25,7 @@ import { safeFormatDateLocale } from "@/lib/invoice-helpers";
 import { dispatchWhatsAppMessageAction } from "@/actions/desktop-wa.actions";
 import { offlineDB } from "@/lib/offline/db";
 import { enqueueOfflineMutation } from "@/lib/offline/mutation-queue";
-import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl } from "@/lib/gst-utils";
+import { getLivePublicInvoiceUrl, getLivePublicReceiptUrl, getLivePublicPrescriptionUrl } from "@/lib/gst-utils";
 
 interface QuickEditModalProps {
   order: OrderItem;
@@ -174,8 +174,9 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         payment_method: order.paymentMethod ? order.paymentMethod.replace("_", " ") : "CASH",
         fulfillment_status: fulfillmentStatus ? fulfillmentStatus.replace("_", " ") : "PROCESSING",
         estimated_delivery: safeFormatDateLocale(estimatedDelivery, "N/A"),
-        invoice_url: getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
+        invoice_url: (key as string) === "prescription_sent" ? getLivePublicPrescriptionUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined) : getLivePublicInvoiceUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
         order_form_url: getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
+        prescription_url: getLivePublicPrescriptionUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined),
       });
 
       const orderFormUrl = getLivePublicReceiptUrl(order.receiptId || order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined);
@@ -185,7 +186,7 @@ export function QuickEditModal({ order, isOpen, onClose }: QuickEditModalProps) 
         {
           phoneNumber: targetPhone,
           messageText: parsedText,
-          mediaUrl: (key as string) === "order_form_sent" ? orderFormUrl : invoiceUrl,
+          mediaUrl: (key as string) === "order_form_sent" ? orderFormUrl : (key as string) === "prescription_sent" ? getLivePublicPrescriptionUrl(order.invoiceId, typeof window !== "undefined" ? window.location.origin : undefined) : invoiceUrl,
           mediaType: "DOCUMENT",
           templateKey: key,
           recipientName: order.customerName,

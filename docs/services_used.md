@@ -77,7 +77,7 @@ This document provides a comprehensive inventory of all external SaaS APIs, clou
 - **Hybrid 3-Tier Optimization**:
   - **Tier 1 (0ms, ₹0)**: Strict offline pre-flight validation (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[0-9A-Z]{2}$`) and Luhn Modulo 36 checksum calculation in `utils/gstin.ts`. Any typographical errors or invalid checksums are strictly rejected offline in 0ms at ₹0 cost, preventing wasted API calls and unwanted charges.
   - **Tier 2 (2ms, ₹0)**: Local PostgreSQL cache table `customer_gstin_cache`.
-  - **Tier 3 (Live API)**: Appyflow lookup triggered for uncached valid GST numbers.
+  - **Tier 3 (Live API)**: Appyflow lookup triggered for uncached valid GST numbers. Automated test suites strictly use local PostgreSQL cache by default, requiring explicit opt-in (`ENABLE_PAID_LIVE_API_TESTS=true`) to prevent routine test runs from consuming live API credits.
 - **Admin Management**: Managed per-tenant in `/admin/organizations/[id]` with toggle controls, period filters, and consumption analytics.
 - **Credentials & Multi-Tenancy**: Secured via enterprise multi-tier resolution: (1) Organization database add-on config override (`organizationAddons.config.apiKey`), and (2) Server environment variable `APPYFLOW_KEY_SECRET` (injected via `amplify.yml` into `.env.production`). Raw secrets are strictly excluded from source code to prevent credential leaks in version control, while client-facing errors sanitize infrastructure details.
 - **Cost Analysis**: Fixed at **₹0.40 per live API lookup**, with ₹0.00 cost on all local database cache hits.
